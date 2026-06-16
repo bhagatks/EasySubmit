@@ -1,0 +1,26 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model UserProfile {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  email            String
+  jobTimeline      String?
+  experienceLevels String[]
+  selectedRole     String?
+  minSalary        Int?
+  referralSource   String?
+  targetLocations  Json
+  resumePath       String?
+  resumeFileName   String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("user_profiles")
+}

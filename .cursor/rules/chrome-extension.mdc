@@ -1,0 +1,14 @@
+---
+description: MV3 extension messaging and manifest rules
+
+alwaysApply: false
+---
+
+# Chrome Extension (MV3)
+
+- Manifest V3 only: service worker background, no persistent background page.
+- Cross-context communication uses `chrome.runtime.sendMessage`, `chrome.runtime.onMessage`, and long-lived `chrome.runtime.connect` ports — not shared memory or direct imports across contexts.
+
+- Content scripts: handle `chrome.runtime.lastError` on every async callback; never assume the tab has a listener.
+- External dashboard talks to extension via `chrome.runtime.onMessageExternal` (see `externally_connectable` in manifest).
+- Permissions/host_permissions changes require updating `public/manifest.json` and rebuilding.

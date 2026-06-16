@@ -1,0 +1,36 @@
+---
+description: Resume tailoring, export, and validation rules
+globs: src/shared/resume-engine/**,src/shared/resume-*.ts,src/shared/tailor-job.ts,src/shared/master-resume-latex.ts,src/shared/master-resume-template.tex,src/shared/resume-preview-model.ts
+alwaysApply: false
+---
+
+# Resume Engine
+
+## Product DNA
+
+**The branded resume is the product.** If we cannot deliver the best resume in our master format, the tool has no reason to exist. Every export path must match `master-resume-template.tex` — no alternate layouts, no stale preview HTML, no generic PDF generators.
+
+## Single pipeline
+
+```
+Tailored Job + ParsedResume + ResumeRules
+        ↓
+resolveMasterResumePlaceholders()  →  master-resume-template.tex
+        ↓
+MasterResumePreviewModel (plain text view of same data)
+        ↓
+.tex | PDF | DOCX | Print Preview | assist-apply upload
+```
+
+- **Canonical layout:** `src/shared/master-resume-template.tex` (9pt extarticle, 0.35in margins). Do not alter section spacing macros at assembly time.
+- **Placeholder map:** `master-resume-latex.ts` — every `[PLACEHOLDER]` maps to profile/job fields.
+- **Exports:** `export-master.ts` — PDF/DOCX mirror template section order and density.
+- **Preview:** `ResumePrintPreview` + `resume-preview-model.ts` — same model, never hand-built HTML.
+
+## Rules
+
+- Respect page budget and fit-band rules in `format-rules.ts` and `fit-bands.ts`.
+- LaTeX hygiene: escape `%` as `\%`, spell out `and` instead of `&`.
+- Experience bullets: prioritize quantified metrics (%, $, latency/cost) grounded in profile — never invented.
+- Platform upload format (`platform-format.ts`) chooses PDF vs DOCX; content is always master-format.
+- Types: `resume-engine/types.ts`, `resume-types.ts`, `resume-preview-model.ts`.

@@ -1,0 +1,20 @@
+# dependencies
+node_modules/
+
+# next.js
+.next/
+out/
+
+# misc
+.DS_Store
+*.pem
+.env
+.env*.local
+
+# debug
+npm-debug.log*
+
+# typescript
+*.tsbuildinfo
+
+/lib/generated/prisma

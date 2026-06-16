@@ -1,0 +1,21 @@
+# EasySubmit.ai Project Rules
+
+## Design System
+- Primary Color: #12B3D1 
+- Text Color: #1F2937
+- Background: #F9FAFB
+- Border Radius: 12px for all buttons, cards, and inputs.
+- Tone: Empowered "Career Navigator" (professional, helpful, not robotic).
+
+## Tech Stack
+- Framework: Next.js 14 (App Router).
+- State: Zustand (for onboarding and session data).
+- Database/Auth: Prisma with Supabase.
+- Icons: Lucide-React.
+
+## Coding Preferences
+- Use Functional Components and Tailwind CSS.
+- For buttons, always use "Continue" instead of "Next".
+- When using Nominatim API, always implement a debounce.
+- Ensure all components are responsive.
+- Extension UI must be injected via Shadow DOM to prevent CSS leaks.

@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --primary: #12B3D1;
+    --primary-foreground: #FFFFFF;
+    --background: #F9FAFB;
+    --foreground: #1F2937;
+    --card: #FFFFFF;
+    --card-border: #E5E7EB;
+  }
+
+  button,
+  a,
+  input,
+  select,
+  textarea,
+  summary,
+  [role="button"],
+  [role="link"],
+  [role="tab"],
+  [role="menuitem"],
+  [role="option"] {
+    @apply transition-all duration-200 ease-in-out;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+}
+
+@layer utilities {
+  .glow-selection {
+    box-shadow: 0 0 15px rgba(18, 179, 209, 0.15);
+    border: 2px solid #12B3D1;
+  }
+}

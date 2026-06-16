@@ -1,0 +1,2 @@
+export const MAPPING_DURATION_MS = 6000;
+export const MAPPING_COMPLETE_DELAY_MS = 800;

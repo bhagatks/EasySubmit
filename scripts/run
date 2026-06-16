@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+cmd="${1:-}"
+sub="${2:-}"
+
+case "$cmd" in
+  easy)
+    case "$sub" in
+      prod|production)
+        echo "→ EasySubmit production (build + start)"
+        exec npm run easy:prod
+        ;;
+      "")
+        echo "→ EasySubmit dev server (http://localhost:3000)"
+        exec npm run easy
+        ;;
+      *)
+        echo "Unknown target: $sub" >&2
+        echo "Usage: run easy [prod]" >&2
+        exit 1
+        ;;
+    esac
+    ;;
+  *)
+    echo "Usage: run easy [prod]" >&2
+    echo "" >&2
+    echo "  run easy       Start Next.js dev server" >&2
+    echo "  run easy prod  Build and start production server" >&2
+    exit 1
+    ;;
+esac
