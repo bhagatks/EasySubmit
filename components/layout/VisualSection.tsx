@@ -5,24 +5,22 @@ import { useOnboardingStore } from "@/stores/onboardingStore";
 
 interface VisualSectionProps {
   currentStep: number;
-  className?: string;
+  direction?: number;
 }
 
 export default function VisualSection({
   currentStep,
-  className = "",
+  direction = 1,
 }: VisualSectionProps) {
   const resetStore = useOnboardingStore((s) => s.resetStore);
 
   return (
-    <div
-      className={`relative hidden min-h-screen bg-[#F1F5F9] lg:flex ${className}`}
-    >
-      <CareerVisual step={currentStep} />
+    <div className="relative flex h-full min-h-[320px] flex-1 flex-col overflow-hidden rounded-[12px] border border-brand-border bg-brand-muted">
+      <CareerVisual step={currentStep} direction={direction} />
       <button
         type="button"
         onClick={resetStore}
-        className="absolute bottom-6 right-6 rounded-[12px] px-4 py-2 text-sm font-medium text-[#1F2937]/60 transition-all duration-200 ease-in-out hover:bg-white/80 hover:text-[#1F2937]"
+        className="absolute bottom-6 right-6 rounded-[12px] px-4 py-2 text-sm font-medium text-foreground/60 hover:bg-white/80 hover:text-foreground"
       >
         Restart
       </button>

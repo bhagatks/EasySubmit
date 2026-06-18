@@ -10,7 +10,9 @@ const CENTER = VIEW / 2;
 export type NavigatorSideVisualState = "idle" | "location" | "mapping";
 
 export interface NavigatorSideVisualProps {
+  step: number;
   state: NavigatorSideVisualState;
+  direction?: number;
 }
 
 export function resolveNavigatorSideVisualState(
@@ -493,18 +495,47 @@ function MappingScan() {
   );
 }
 
-export default function NavigatorSideVisual({ state }: NavigatorSideVisualProps) {
+const visualPanelVariants = {
+  enter: (dir: number) => ({
+    opacity: 0,
+    scale: 0.88,
+    x: dir > 0 ? 36 : -36,
+    y: 12,
+    rotate: dir > 0 ? -3 : 3,
+  }),
+  center: {
+    opacity: 1,
+    scale: 1,
+    x: 0,
+    y: 0,
+    rotate: 0,
+  },
+  exit: (dir: number) => ({
+    opacity: 0,
+    scale: 0.92,
+    x: dir > 0 ? -28 : 28,
+    y: -8,
+    rotate: dir > 0 ? 2 : -2,
+  }),
+};
+
+export default function NavigatorSideVisual({
+  step,
+  state,
+  direction = 1,
+}: NavigatorSideVisualProps) {
   return (
-    <div className="flex h-full min-h-[320px] w-full flex-col items-center justify-center px-8 py-16 lg:min-h-screen">
-      <AnimatePresence mode="wait">
+    <div className="flex h-full min-h-[320px] w-full flex-col items-center justify-center px-6 py-12 lg:min-h-full">
+      <AnimatePresence mode="wait" custom={direction}>
         <motion.div
-          key={state}
-          layout
-          initial={{ opacity: 0, scale: 0.96, filter: "blur(4px)" }}
-          animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-          exit={{ opacity: 0, scale: 1.02, filter: "blur(4px)" }}
+          key={`${step}-${state}`}
+          custom={direction}
+          variants={visualPanelVariants}
+          initial="enter"
+          animate="center"
+          exit="exit"
           transition={transition}
-          className="flex items-center justify-center"
+          className="flex items-center justify-center rounded-[12px]"
         >
           {state === "idle" && <IdleConstellation />}
           {state === "location" && <LocationRadar />}

@@ -1,18 +1,19 @@
 import { buildOnboardingPayload, isOnboardingComplete } from "@/lib/onboarding/payload";
 import { finalizeProfile } from "@/lib/profile/finalizeProfile";
-import { createClient } from "@/lib/supabase/server";
+import { authOptions } from "@/lib/auth";
+import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const session = await getServerSession(authOptions);
 
-    if (!user?.email) {
+    if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const userId = session.user.id ?? session.user.email;
+    const email = session.user.email;
 
     const formData = await request.formData();
     const payloadRaw = formData.get("payload");
@@ -32,8 +33,8 @@ export async function POST(request: Request) {
     }
 
     const profile = await finalizeProfile(
-      user.id,
-      user.email,
+      userId,
+      email,
       parsed,
       resumeFile instanceof File ? resumeFile : null
     );

@@ -1,5 +1,14 @@
 # Client State & Database Schema
 
+## Auth (NextAuth)
+
+Session via `/api/auth/[...nextauth]` (`lib/auth.ts`). Protected routes: `/onboarding/*`, `/dashboard/*`. Env vars in `lib/env.ts`.
+
+| Field | Location | Description |
+|-------|----------|-------------|
+| `lastAuthProvider` | `users` | OAuth provider used at last sign-in (`google`, `linkedin`, …) |
+| `provider` | NextAuth `Session` | Set to `"linkedin"` when `lastAuthProvider === "linkedin"` (for onboarding prefill) |
+
 ## Onboarding (`useOnboardingStore`)
 
 Persisted in `sessionStorage` (except `resumeFile` and `isMapping`). Storage key: `easysubmit-onboarding`, **persist version: 1**. On hydration failure, `resetStore()` restores `INITIAL_ONBOARDING_STATE`. Synced to Postgres on signup via `finalizeProfile`.
@@ -7,7 +16,7 @@ Persisted in `sessionStorage` (except `resumeFile` and `isMapping`). Storage key
 | Field | Type | Description |
 |-------|------|-------------|
 | `jobTimeline` | `JobTimeline \| null` | Step 1 answer |
-| `targetLocations` | `Location[]` (`id`, `name`, `isResidential`) | Selected cities/regions |
+| `targetLocations` | `Location[]` | `{ id, name, isResidential }` — multi-select cities; exactly one should have `isResidential: true` (home base / resume primary address) |
 | `resumeSkipped` | `boolean` | User skipped resume upload |
 | `isMapping` | `boolean` | Unified mapping animation (transient, not persisted) |
 | `resumeFile` | `File \| null` | In-memory only until signup |
@@ -29,7 +38,7 @@ Persisted in `sessionStorage` (except `resumeFile` and `isMapping`). Storage key
 | `selectedRole` | `string?` | |
 | `minSalary` | `int?` | Thousands USD |
 | `referralSource` | `string?` | |
-| `targetLocations` | `json` | Serialized location array |
+| `targetLocations` | `json` | Location array; entry with `isResidential: true` is primary resume address |
 | `resumePath` | `string?` | Supabase Storage path |
 | `resumeFileName` | `string?` | |
 | `createdAt` / `updatedAt` | `datetime` | |

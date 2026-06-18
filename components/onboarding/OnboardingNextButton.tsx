@@ -15,12 +15,7 @@ export default function OnboardingNextButton({
         type="button"
         disabled={disabled}
         onClick={onClick}
-        className={[
-          "w-full rounded-[12px] py-4 text-base font-semibold text-white transition-opacity",
-          disabled
-            ? "cursor-not-allowed bg-[#12B3D1] opacity-40"
-            : "bg-[#12B3D1] hover:opacity-90",
-        ].join(" ")}
+        className="btn-primary"
       >
         {label}
       </button>

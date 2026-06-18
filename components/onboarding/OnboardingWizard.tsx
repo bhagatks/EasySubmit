@@ -1,9 +1,8 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
-import OnboardingLayout from "@/components/layout/OnboardingLayout";
+import { OnboardingStepTransition } from "@/components/onboarding/OnboardingFlowShell";
 import Step1Timeline from "@/components/onboarding/Step1Timeline";
 import Step3Locations from "@/components/onboarding/Step3Locations";
 import Step4ResumeUpload from "@/components/onboarding/Step4ResumeUpload";
@@ -18,23 +17,6 @@ import {
   useOnboardingStore,
 } from "@/stores/onboardingStore";
 
-const PROGRESS_BY_STEP = [8, 25, 33, 42, 50, 58, 67, 75, 83, 92, 100];
-
-const slideVariants = {
-  enter: (direction: number) => ({
-    x: direction > 0 ? 48 : -48,
-    opacity: 0,
-  }),
-  center: {
-    x: 0,
-    opacity: 1,
-  },
-  exit: (direction: number) => ({
-    x: direction > 0 ? -48 : 48,
-    opacity: 0,
-  }),
-};
-
 export default function OnboardingWizard() {
   const currentStep = useOnboardingStore((s) => s.currentStep);
   const isMapping = useOnboardingStore((s) => s.isMapping);
@@ -42,13 +24,12 @@ export default function OnboardingWizard() {
   const prevStep = useOnboardingStore((s) => s.prevStep);
   const [direction, setDirection] = useState(1);
 
-  const stepIndex = currentStep - 1;
-
   useEffect(() => {
     if (
       currentStep === ONBOARDING_STEP.PARSING ||
       currentStep === ONBOARDING_STEP.ANALYSIS_COMPLETE
     ) {
+      setDirection(1);
       nextStep();
     }
   }, [currentStep, nextStep]);
@@ -93,37 +74,25 @@ export default function OnboardingWizard() {
     currentStep > ONBOARDING_STEP.TIMELINE && !isMapping;
 
   return (
-    <OnboardingLayout
-      currentStep={currentStep}
-      progress={PROGRESS_BY_STEP[stepIndex] ?? 0}
-    >
-      {showBackButton && (
-        <button
-          type="button"
-          onClick={goBack}
-          aria-label="Go back"
-          className="mb-6 flex h-10 w-10 items-center justify-center rounded-[12px] text-[#1F2937] transition-colors hover:bg-gray-200/60"
-        >
-          <ArrowLeft size={20} strokeWidth={2} />
-        </button>
-      )}
+    <div className="flex min-h-full flex-col pt-8 lg:pt-10">
+      <div className="flex flex-1 flex-col items-center justify-center px-6 pb-10 lg:px-10">
+        <div className="flex w-full max-w-[500px] flex-1 flex-col">
+          <OnboardingStepTransition stepKey={currentStep} direction={direction}>
+            {showBackButton && (
+              <button
+                type="button"
+                onClick={goBack}
+                aria-label="Go back"
+                className="mb-6 flex h-10 w-10 items-center justify-center rounded-xl text-foreground transition-colors hover:bg-white/10"
+              >
+                <ArrowLeft size={20} strokeWidth={2} />
+              </button>
+            )}
 
-      <div className="relative flex flex-1 flex-col overflow-hidden">
-        <AnimatePresence mode="wait" custom={direction}>
-          <motion.div
-            key={currentStep}
-            custom={direction}
-            variants={slideVariants}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            transition={{ duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] }}
-            className="flex flex-1 flex-col"
-          >
             {renderStep()}
-          </motion.div>
-        </AnimatePresence>
+          </OnboardingStepTransition>
+        </div>
       </div>
-    </OnboardingLayout>
+    </div>
   );
 }

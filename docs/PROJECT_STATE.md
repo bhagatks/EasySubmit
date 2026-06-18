@@ -2,65 +2,52 @@
 
 ## Completed
 
+- **NextAuth** — Google + LinkedIn OAuth at `/login`; middleware + layout protect `/onboarding` and `/dashboard`
+- **Typed env** — `lib/env.ts`, `types/env.d.ts` for OAuth credentials
+- **Login UI** — Google-only OAuth on deep navy glass card (`LogoIcon` w-12, `size="xl"` CTA); `SessionProvider` via `components/providers/auth-provider.tsx`
+- **Onboarding flow shell** — asymmetric layout, 4 macro phases, AnimatePresence step transitions
+- **Resume mapping** — `/onboarding/step-4` + `ResumeMapping` (mint laser, data bits → buckets, LogoIcon zoom success → `/dashboard`)
+- **Wizard wiring** — resume upload redirects to step-4; skip path advances to experience
 - Full 11-step onboarding wizard with Zustand + sessionStorage persist
-- Split-screen onboarding layout with alternating columns + step visuals
-- Step 2 locations: Nominatim search + residential home-base selection (`isResidential`)
-- Resume step: upload or manual skip triggers in-place digital scan (`isMapping`); skips separate parsing/analysis screens
-- `NavigatorSideVisual` in visual column (constellation, location radar, profile mapping)
-- Step 11 survey + Step 12 recruiter social proof
-- Supabase Auth signup (`/auth/signup`) — email/password + Google OAuth
-- `finalizeProfile` — Zustand payload → Prisma Postgres transaction
-- Resume upload to Supabase Storage (bucket: `resumes`)
+- Step 2 locations: Nominatim search + residential home-base (`isResidential`)
+- Step 11 survey + Step 12 social proof → `finalizeProfile` → `/dashboard`
+- Supabase Auth signup (`/auth/signup`) — legacy email/OAuth path
+- `finalizeProfile` — Zustand payload → Prisma Postgres
 - Protected `/dashboard` welcome page
 - Prisma 7 + `@prisma/adapter-pg` schema for `user_profiles`
+- Marketing landing (`/`) + extension page (`/extension`)
 
 ## Active work
 
+- Production deploy (Vercel) — env vars + OAuth redirect URIs
 - Dashboard features (job queue, apply flow)
 - Real resume parsing (replace simulation)
 - Chrome extension content-script sidebar
 
-## Setup required
+## Setup (local)
 
-Copy `.env.example` → `.env.local` and configure:
-- `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `DATABASE_URL` (Supabase Postgres connection string)
-
-Then run:
 ```bash
+cp .env.example .env.local   # fill all vars
 npx prisma migrate dev --name init
+npm run dev                  # http://localhost:3000
 ```
 
-Create Supabase Storage bucket `resumes`.
+## Deploy (Vercel)
+
+1. Connect repo `bhagatks/EasySubmit` to Vercel
+2. Set environment variables (see `.env.example`)
+3. Set `NEXTAUTH_URL` to production URL (e.g. `https://easysubmit.ai`)
+4. Add OAuth redirect URIs:
+   - Google: `https://<domain>/api/auth/callback/google`
+   - LinkedIn: `https://<domain>/api/auth/callback/linkedin`
+5. `npx vercel --prod` or push to main with Vercel Git integration
+
+See `docs/ACTION_ITEMS.md` for checklist.
 
 ## Dev
 
-One-time shell setup (add to `~/.zshrc`):
-
 ```bash
-run() {
-  local repo="/Users/bstar/EasySubmit"
-  if [[ $# -ge 1 && -x "$repo/scripts/run" ]]; then
-    "$repo/scripts/run" "$@"
-  else
-    command run "$@"
-  fi
-}
-```
-
-Then from anywhere:
-
-```bash
-run easy        # dev server → http://localhost:3000/onboarding
-run easy prod   # production build + start
-```
-
-Or from the repo root without the alias:
-
-```bash
-./scripts/run easy
-./scripts/run easy prod
-# npm equivalents:
-npm run easy
-npm run easy:prod
+npm run easy        # dev server
+npm run easy:prod   # production build + start
+npm run build       # prisma generate + next build
 ```

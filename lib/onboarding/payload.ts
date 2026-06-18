@@ -3,10 +3,18 @@ import type {
   JobTimeline,
   Location,
 } from "@/stores/onboardingStore";
+import {
+  getPrimaryAddress,
+  getResidentialLocation,
+} from "@/lib/onboarding/locations";
 
 export interface OnboardingPayload {
   jobTimeline: JobTimeline | null;
   targetLocations: Location[];
+  /** Home-base location (`isResidential: true`) for resume primary address */
+  residentialLocation: Location | null;
+  /** Convenience string for resume header / contact block */
+  primaryAddress: string | null;
   experienceLevels: ExperienceLevel[];
   selectedRole: string | null;
   minSalary: number;
@@ -24,9 +32,13 @@ export function buildOnboardingPayload(input: {
   resumeFile: File | null;
   resumeFileName: string | null;
 }): OnboardingPayload {
+  const residentialLocation = getResidentialLocation(input.targetLocations);
+
   return {
     jobTimeline: input.jobTimeline,
     targetLocations: input.targetLocations,
+    residentialLocation,
+    primaryAddress: getPrimaryAddress(input.targetLocations),
     experienceLevels: input.experienceLevels,
     selectedRole: input.selectedRole,
     minSalary: input.minSalary,
@@ -40,6 +52,7 @@ export function isOnboardingComplete(payload: OnboardingPayload): boolean {
   return Boolean(
     payload.jobTimeline &&
       payload.targetLocations.length > 0 &&
+      payload.residentialLocation &&
       payload.experienceLevels.length > 0 &&
       payload.selectedRole &&
       payload.referralSource

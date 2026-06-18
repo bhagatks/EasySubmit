@@ -2,69 +2,96 @@
 
 ## Overview
 
-Next.js 14 (App Router) web app + future Chrome extension (MV3). Onboarding is the current entry flow at `/onboarding`.
+Next.js 14 (App Router) web app + future Chrome extension (MV3). Primary entry after login: `/onboarding/step-1`. Marketing site at `/`.
 
 ## Runtime
 
 | Surface | Stack | Entry |
 |---------|-------|-------|
-| Web onboarding | Next.js 14, React, Tailwind, Framer Motion, Zustand | `/onboarding` |
-| Auth signup | Supabase Auth | `/auth/signup` |
-| Dashboard | Next.js (protected) | `/dashboard` |
+| Marketing | Next.js 14, Tailwind, dark-first tokens | `/` |
+| Web onboarding | Next.js, Framer Motion, Zustand | `/onboarding`, `/onboarding/step-1` (wizard); `/onboarding/step-4` (AI mapping) |
+| Auth login | NextAuth (Google + LinkedIn OAuth) | `/login` → `/api/auth/[...nextauth]` |
+| Auth signup | Supabase Auth (legacy path) | `/auth/signup` |
+| Dashboard | NextAuth-protected | `/dashboard` |
+| Extension landing | Static marketing | `/extension` |
 | Chrome extension | MV3 + content-script sidebar (planned) | TBD |
+
+## Auth & route protection
+
+- **`middleware.ts`** — Supabase `updateSession` on all matched routes; NextAuth JWT gate on `/onboarding/*` and `/dashboard/*` → `/login`
+- **`lib/supabase/`** — `client.ts`, `server.ts`, `middleware.ts` (`@supabase/ssr`); keys via `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` or `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- **`app/onboarding/layout.tsx`** — server session check + `OnboardingFlowShell`
+- **`lib/auth.ts`** — NextAuth options; post-login redirect → `/onboarding/step-1`
+- **`lib/env.ts`** + **`types/env.d.ts`** — typed OAuth / NextAuth env vars
 
 ## Directory map
 
 ```
-app/                    Next.js App Router pages
+app/
+  api/auth/[...nextauth]/   NextAuth handler
+  login/                    OAuth sign-in UI
+  onboarding/
+    layout.tsx              Auth gate + flow shell
+    page.tsx                Full wizard
+    step-1/page.tsx         Wizard entry (post-login)
+    step-4/page.tsx         ResumeMapping scanner
+  dashboard/                Protected welcome
 components/
-  layout/               Shared layouts (OnboardingLayout, FormSection, VisualSection)
-  onboarding/           Wizard steps + OnboardingWizard
+  onboarding/
+    OnboardingFlowShell.tsx Asymmetric layout + 4-phase progress
+    OnboardingWizard.tsx    11-step client wizard
+    ResumeMapping.tsx       AI scanner animation
+  ui/button.tsx             shadcn-style variants (hero, mint, xl)
 lib/
-  generated/prisma/     Prisma client output
-  onboarding/           Payload helpers
-  profile/              finalizeProfile (Zustand → Postgres)
-  supabase/             Auth clients + middleware
-prisma/                 Schema + migrations
-middleware.ts           Supabase session refresh
-docs/                   System of record
+  auth.ts                   NextAuth config
+  env.ts                    Server env validation
+  supabase/                 SSR clients + session refresh helper
+  onboarding/phases.ts      Macro phase mapping (Profile → AI Mapping)
+middleware.ts               Supabase session refresh + NextAuth route protection
+docs/                       System of record
 ```
 
-## Onboarding wizard
+## Onboarding flow
 
-Three-step client-side wizard (`OnboardingWizard`):
+### Layout (`OnboardingFlowShell`)
 
-1. **Timeline** — job search urgency → `jobTimeline` in Zustand
-2. **Locations** — US/CA city selection → `targetLocations` in Zustand
-3. **Resume upload** — dropzone → `isMapping` on same step; VisualSection radar→data mapping; manual skip link → experience
-4. **Experience** — multi-select up to 2 levels
-7. **Role interest** — single role pill + search
-8. **Salary** — min salary slider ($30k–$300k)
-9. **Matches** — sample job matches preview
-10. **Referral survey** — how did you hear about us
-11. **Social proof** — recruiter quote → auth signup
+- Deep navy background (`oklch(0.16 0.04 268)`)
+- Desktop: progress panel (left) + glass content card (right)
+- Mobile: progress stacked above content
+- **4 macro phases:** Profile → Experience → Goals → AI Mapping
+- Step transitions: Framer Motion `AnimatePresence` via `OnboardingStepTransition`
 
-Post-wizard: Supabase signup → `finalizeProfile` (Prisma transaction) → `/dashboard`.
+### Wizard micro-steps (`OnboardingWizard`)
 
-Step transitions use Framer Motion fade + horizontal slide. Progress bar: 8% → 100% across 11 steps.
+| # | Component | Data |
+|---|-----------|------|
+| 1 | `Step1Timeline` | `jobTimeline` |
+| 2 | `Step3Locations` | `targetLocations[]` |
+| 3 | `Step4ResumeUpload` | `resumeFile` → redirects to `/onboarding/step-4` |
+| 6 | `Step7Experience` | `experienceLevels[]` |
+| 7 | `Step8Roles` | `selectedRole` |
+| 8 | `Step9Salary` | `minSalary` |
+| 9 | `Step10Matches` | preview |
+| 10 | `Step11Survey` | `referralSource` |
+| 11 | `Step12SocialProof` | finalize → `/dashboard` |
 
-**Layout:** Split-screen asymmetric grid (`grid-cols-1 lg:grid-cols-2`, `#F9FAFB` page bg). `FormSection` (centered, `p-10`, max-width 500px) alternates left/right by step parity; `VisualSection` (`#F1F5F9` bg) hosts `CareerVisual` + bottom-right **Restart** (`resetStore`). Career Navigator tone via `NavigatorTip` (no founder avatar).
+Skip resume → `completeResumeMapping()` advances to experience (step 6).
+
+### AI mapping (`/onboarding/step-4`)
+
+`ResumeMapping`: vertical mint laser scan over resume preview (~3s) with status messages → `LogoIcon` success reveal (“Profile Intelligence Verified”) → hero CTA to `/dashboard`.
+
+## Design system
+
+Dark-first Trust Tech palette in `app/globals.css`: deep navy, electric primary `oklch(0.62 0.21 265)`, mint accent `oklch(0.82 0.16 165)`. Typography: Space Grotesk (`font-display`), DM Sans (`font-sans`). Global radius 12px (`rounded-xl`).
 
 ## Changelog
 
 | Date | Summary |
 |------|---------|
-| 2026-06-15 | `NavigatorSideVisual`: Framer Motion side-panel states (idle constellation, location radar, mapping scan) |
-| 2026-06-15 | Resume step: in-place mapping flow — dropzone stays on step, VisualSection radar→data mapping, manual skip link |
-| 2026-06-15 | Step 3 locations: Navigator-style pills, home-base icon, Nominatim search |
-| 2026-06-15 | Onboarding layout refactor: `FormSection` / `VisualSection`, `CareerVisual`, Restart → `resetStore` |
-| 2026-06-15 | `CareerNavigatorAnimation`: radar / data extraction / career tree abstract visuals |
-| 2026-06-15 | Resume step: in-place digital scan via `isMapping`; manual profile skip link |
-| 2026-06-15 | Step 2 locations: Nominatim search, residential home-base pills with `setResidential` |
-| 2026-06-15 | Onboarding split-screen layout: alternating form/visual columns + `OnboardingVisual`; Career Navigator branding |
-| 2026-06-15 | Initial Next.js scaffold + onboarding step 1 (timeline) |
-| 2026-06-15 | Onboarding steps 2–3, Zustand store, wizard transitions |
-| 2026-06-15 | Onboarding steps 4–6: resume upload, parsing simulation, analysis complete |
-| 2026-06-15 | Onboarding steps 7–11: experience, roles, salary, matches, referral survey |
-| 2026-06-15 | Step 12 social proof, Supabase auth signup, Prisma finalizeProfile, dashboard |
-| 2026-06-15 | Removed onboarding value-prop step (5x faster marketing screen); wizard is now 11 steps |
+| 2026-06-17 | Supabase SSR helpers (`lib/supabase/`); middleware refreshes sessions + NextAuth gate |
+| 2026-06-17 | Docs refresh; resume upload → `/onboarding/step-4`; build fixes; deploy checklist |
+| 2026-06-17 | `/onboarding/step-4`: `ResumeMapping` scanner (mint laser, data bits → buckets, success → dashboard) |
+| 2026-06-17 | Onboarding flow shell: asymmetric 4-phase progress + AnimatePresence transitions |
+| 2026-06-17 | NextAuth middleware, typed `lib/env.ts`, `/login` UI, post-login → `/onboarding/step-1` |
+| 2026-06-15 | Initial onboarding wizard, Supabase signup, Prisma `finalizeProfile`, dashboard |

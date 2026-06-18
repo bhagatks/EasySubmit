@@ -40,11 +40,19 @@ export type OnboardingStep =
 export interface Location {
   id: string;
   name: string;
+  /** Home base — primary address for generated resume; only one may be true */
   isResidential: boolean;
 }
 
 /** @deprecated Use `Location` */
 export type TargetLocation = Location;
+
+/** Returns the location flagged as home base, if any. */
+export function getResidentialLocationFromStore(
+  locations: Location[]
+): Location | null {
+  return locations.find((location) => location.isResidential) ?? null;
+}
 
 function toLocation(location: LocationOption): Location {
   return {
@@ -80,6 +88,7 @@ interface OnboardingState extends OnboardingDataState {
     selected: boolean
   ) => void;
   isLocationSelected: (id: string) => boolean;
+  getResidentialLocation: () => Location | null;
   completeResumeMapping: () => void;
   nextStep: () => void;
   prevStep: () => void;
@@ -174,13 +183,16 @@ export const useOnboardingStore = create<OnboardingState>()(
           if (state.targetLocations.some((l) => l.id === location.id)) {
             return state;
           }
-          const isFirst = state.targetLocations.length === 0;
+          const hasResidential = state.targetLocations.some((l) => l.isResidential);
+          const isResidential = Boolean(location.isResidential) && !hasResidential;
+
           return {
             targetLocations: [
               ...state.targetLocations,
               {
-                ...location,
-                isResidential: location.isResidential ?? isFirst,
+                id: location.id,
+                name: location.name,
+                isResidential,
               },
             ],
           };
@@ -192,12 +204,17 @@ export const useOnboardingStore = create<OnboardingState>()(
         })),
 
       setResidential: (id) =>
-        set((state) => ({
-          targetLocations: state.targetLocations.map((location) => ({
-            ...location,
-            isResidential: location.id === id,
-          })),
-        })),
+        set((state) => {
+          if (!state.targetLocations.some((location) => location.id === id)) {
+            return state;
+          }
+          return {
+            targetLocations: state.targetLocations.map((location) => ({
+              ...location,
+              isResidential: location.id === id,
+            })),
+          };
+        }),
 
       setLocationsForCountry: (_country, locations, selected) =>
         set((state) => {
@@ -205,15 +222,17 @@ export const useOnboardingStore = create<OnboardingState>()(
           const withoutCountry = state.targetLocations.filter(
             (location) => !countryIds.has(location.id)
           );
+          const added = selected ? locations.map(toLocation) : [];
           return {
-            targetLocations: selected
-              ? [...withoutCountry, ...locations.map(toLocation)]
-              : withoutCountry,
+            targetLocations: [...withoutCountry, ...added],
           };
         }),
 
       isLocationSelected: (id) =>
         get().targetLocations.some((location) => location.id === id),
+
+      getResidentialLocation: () =>
+        getResidentialLocationFromStore(get().targetLocations),
 
       completeResumeMapping: () =>
         set({

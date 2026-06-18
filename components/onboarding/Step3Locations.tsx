@@ -1,7 +1,8 @@
 "use client";
 
-import { Home, Search, X } from "lucide-react";
+import { Home, MapPin, Search, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { hasResidentialLocation } from "@/lib/onboarding/locations";
 import NavigatorTip from "@/components/onboarding/NavigatorTip";
 import OnboardingNextButton from "@/components/onboarding/OnboardingNextButton";
 import {
@@ -29,11 +30,15 @@ function LocationPill({
   onSetResidential,
   onRemove,
 }: LocationPillProps) {
+  const Icon = isResidential ? Home : MapPin;
+
   return (
     <span
       className={[
-        "flex items-center gap-2 rounded-[12px] border bg-white px-3 py-2 text-sm text-[#1F2937]",
-        isResidential ? "border-[#12B3D1]" : "border-[#E5E7EB]",
+        "flex items-center gap-2 rounded-[12px] border px-3 py-2 text-sm text-foreground transition-all duration-200 ease-in-out",
+        isResidential
+          ? "border-primary bg-primary/10"
+          : "border-brand-border bg-white",
       ].join(" ")}
     >
       <button
@@ -46,12 +51,12 @@ function LocationPill({
         }
         aria-pressed={isResidential}
         title={isResidential ? "Home base" : "Set as home base"}
-        className="flex shrink-0 items-center justify-center transition-all duration-200 ease-in-out"
+        className="flex shrink-0 items-center justify-center"
       >
-        <Home
+        <Icon
           size={16}
           strokeWidth={2.25}
-          className={isResidential ? "text-[#12B3D1]" : "text-gray-400"}
+          className={isResidential ? "text-primary" : "text-gray-400"}
         />
       </button>
       <span className="font-medium">{name}</span>
@@ -59,7 +64,7 @@ function LocationPill({
         type="button"
         onClick={onRemove}
         aria-label={`Remove ${name}`}
-        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[12px] text-gray-400 transition-all duration-200 ease-in-out hover:bg-gray-100 hover:text-[#1F2937]"
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[12px] text-gray-400 hover:bg-black/5 hover:text-foreground"
       >
         <X size={14} strokeWidth={2.5} />
       </button>
@@ -79,6 +84,9 @@ export default function Step3Locations({ onNext }: Step3LocationsProps) {
   const removeTargetLocation = useOnboardingStore((s) => s.removeTargetLocation);
   const setResidential = useOnboardingStore((s) => s.setResidential);
   const isLocationSelected = useOnboardingStore((s) => s.isLocationSelected);
+
+  const hasHomeBase = hasResidentialLocation(targetLocations);
+  const canContinue = targetLocations.length > 0 && hasHomeBase;
 
   useEffect(() => {
     const query = searchQuery.trim();
@@ -118,7 +126,7 @@ export default function Step3Locations({ onNext }: Step3LocationsProps) {
 
   return (
     <div className="flex flex-1 flex-col">
-      <h1 className="mb-6 text-2xl font-semibold leading-snug text-[#1F2937]">
+      <h1 className="mb-6 text-2xl font-semibold leading-snug text-foreground">
         Where are you currently based, and where would you like to work?
       </h1>
 
@@ -136,11 +144,11 @@ export default function Step3Locations({ onNext }: Step3LocationsProps) {
           onFocus={() => setSearchFocused(true)}
           onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
           placeholder="Search for a city or region"
-          className="w-full rounded-[12px] border border-[#E5E7EB] bg-white py-3 pl-11 pr-4 text-sm text-[#1F2937] placeholder:text-gray-400 focus:border-[#12B3D1] focus:outline-none focus:ring-1 focus:ring-[#12B3D1]"
+          className="input-field py-3 pl-11"
         />
 
         {showDropdown && (
-          <ul className="absolute left-0 right-0 top-full z-10 mt-2 overflow-hidden rounded-[12px] border border-[#E5E7EB] bg-white shadow-lg">
+          <ul className="absolute left-0 right-0 top-full z-10 mt-2 overflow-hidden rounded-[12px] border border-brand-border bg-white shadow-lg">
             {isSearching ? (
               <li className="px-4 py-3 text-sm text-gray-500">Searching…</li>
             ) : searchError ? (
@@ -161,15 +169,15 @@ export default function Step3Locations({ onNext }: Step3LocationsProps) {
                       onClick={() => handleSelectResult(result)}
                       disabled={selected}
                       className={[
-                        "flex w-full items-center justify-between px-4 py-3 text-left text-sm transition-all duration-200 ease-in-out",
+                        "flex w-full items-center justify-between px-4 py-3 text-left text-sm",
                         selected
-                          ? "cursor-default bg-[#12B3D1]/5 text-[#12B3D1]"
-                          : "text-[#1F2937] hover:bg-[#F9FAFB]",
+                          ? "cursor-default bg-primary/5 text-primary"
+                          : "text-foreground hover:bg-background",
                       ].join(" ")}
                     >
                       <span>{label}</span>
                       {selected && (
-                        <span className="rounded-[12px] bg-[#12B3D1]/10 px-2 py-0.5 text-xs font-semibold text-[#12B3D1]">
+                        <span className="rounded-[12px] bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
                           Added
                         </span>
                       )}
@@ -183,7 +191,7 @@ export default function Step3Locations({ onNext }: Step3LocationsProps) {
       </div>
 
       {targetLocations.length > 0 && (
-        <div className="mb-6 flex flex-wrap gap-2">
+        <div className="mb-4 flex flex-wrap gap-2">
           {targetLocations.map((location) => (
             <LocationPill
               key={location.id}
@@ -196,15 +204,19 @@ export default function Step3Locations({ onNext }: Step3LocationsProps) {
         </div>
       )}
 
+      {targetLocations.length > 0 && !hasHomeBase && (
+        <p className="mb-4 text-sm text-amber-600">
+          Tap the map pin on your home base so we can use it as your primary
+          address on your resume.
+        </p>
+      )}
+
       <NavigatorTip
         className="mb-6"
-        message="Add every city you'd consider, then tap the home icon on your current location."
+        message="Add every city you'd consider, then tap the pin on your current location to set your home base."
       />
 
-      <OnboardingNextButton
-        disabled={targetLocations.length === 0}
-        onClick={onNext}
-      />
+      <OnboardingNextButton disabled={!canContinue} onClick={onNext} />
     </div>
   );
 }
