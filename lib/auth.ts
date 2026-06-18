@@ -25,15 +25,6 @@ export const authOptions: NextAuthOptions = {
     error: "/login",
   },
   callbacks: {
-    async signIn({ user, account }) {
-      if (user.id && account?.provider) {
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { lastAuthProvider: account.provider },
-        });
-      }
-      return true;
-    },
     async session({ session, user }) {
       if (session.user) {
         session.user.id = user.id;
@@ -56,6 +47,16 @@ export const authOptions: NextAuthOptions = {
       }
 
       return `${baseUrl}/onboarding/step-1`;
+    },
+  },
+  events: {
+    async signIn({ user, account }) {
+      if (user.id && account?.provider) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { lastAuthProvider: account.provider },
+        });
+      }
     },
   },
   secret: serverEnv.NEXTAUTH_SECRET,
