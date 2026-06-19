@@ -18,3 +18,4 @@ npm-debug.log*
 *.tsbuildinfo
 
 /lib/generated/prisma
+.vercel

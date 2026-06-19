@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import type { RefineryFormValues } from "@/lib/resume/refineryDefaults";
 import type { CountryCode, LocationOption } from "@/lib/locations";
 
 export type JobTimeline =
@@ -73,10 +74,15 @@ interface OnboardingState extends OnboardingDataState {
   setJobTimeline: (timeline: JobTimeline) => void;
   setResumeFile: (file: File) => void;
   setResumeSkipped: (skipped: boolean) => void;
+  setResumePreviewUrl: (url: string | null) => void;
+  setParsedResumeData: (data: ParsedResumeData | null) => void;
+  setFuelProcessed: (processed: boolean) => void;
+  setRefineryDraft: (draft: RefineryFormValues | null) => void;
   setIsMapping: (mapping: boolean) => void;
   toggleExperienceLevel: (level: ExperienceLevel) => void;
   setSelectedRole: (role: string) => void;
   setMinSalary: (salary: number) => void;
+  setWorkMode: (mode: string) => void;
   setReferralSource: (source: string) => void;
   toggleLocation: (location: LocationOption) => void;
   addTargetLocation: (location: Location) => void;
@@ -103,10 +109,23 @@ export type OnboardingDataState = {
   isMapping: boolean;
   resumeFile: File | null;
   resumeFileName: string | null;
+  resumePreviewUrl: string | null;
+  parsedResumeData: ParsedResumeData | null;
+  fuelProcessed: boolean;
+  refineryDraft: RefineryFormValues | null;
   experienceLevels: ExperienceLevel[];
   selectedRole: string | null;
   minSalary: number;
+  workMode: string | null;
   referralSource: string | null;
+};
+
+export type ParsedResumeData = {
+  rawText: string;
+  email: string | null;
+  phone: string | null;
+  linkedIn: string | null;
+  skills: string[];
 };
 
 export const INITIAL_ONBOARDING_STATE: OnboardingDataState = {
@@ -117,9 +136,14 @@ export const INITIAL_ONBOARDING_STATE: OnboardingDataState = {
   isMapping: false,
   resumeFile: null,
   resumeFileName: null,
+  resumePreviewUrl: null,
+  parsedResumeData: null,
+  fuelProcessed: false,
+  refineryDraft: null,
   experienceLevels: [],
   selectedRole: null,
   minSalary: 80,
+  workMode: null,
   referralSource: null,
 };
 
@@ -137,6 +161,8 @@ export const useOnboardingStore = create<OnboardingState>()(
           resumeFile: file,
           resumeFileName: file.name,
           resumeSkipped: false,
+          fuelProcessed: false,
+          parsedResumeData: null,
         }),
 
       setResumeSkipped: (skipped) =>
@@ -144,7 +170,18 @@ export const useOnboardingStore = create<OnboardingState>()(
           resumeSkipped: skipped,
           resumeFile: skipped ? null : get().resumeFile,
           resumeFileName: skipped ? null : get().resumeFileName,
+          fuelProcessed: skipped ? false : get().fuelProcessed,
+          parsedResumeData: skipped ? null : get().parsedResumeData,
+          resumePreviewUrl: skipped ? null : get().resumePreviewUrl,
         }),
+
+      setResumePreviewUrl: (url) => set({ resumePreviewUrl: url }),
+
+      setParsedResumeData: (data) => set({ parsedResumeData: data }),
+
+      setFuelProcessed: (processed) => set({ fuelProcessed: processed }),
+
+      setRefineryDraft: (draft) => set({ refineryDraft: draft }),
 
       setIsMapping: (mapping) => set({ isMapping: mapping }),
 
@@ -165,6 +202,8 @@ export const useOnboardingStore = create<OnboardingState>()(
       setSelectedRole: (role) => set({ selectedRole: role }),
 
       setMinSalary: (salary) => set({ minSalary: salary }),
+
+      setWorkMode: (mode) => set({ workMode: mode }),
 
       setReferralSource: (source) => set({ referralSource: source }),
 
@@ -324,6 +363,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         experienceLevels: state.experienceLevels,
         selectedRole: state.selectedRole,
         minSalary: state.minSalary,
+        workMode: state.workMode,
         referralSource: state.referralSource,
       }),
     }

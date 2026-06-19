@@ -8,6 +8,7 @@ import {
   isOnboardingComplete,
 } from "@/lib/onboarding/payload";
 import { createClient } from "@/lib/supabase/client";
+import { LogoIcon } from "@/components/ui/logo";
 import { useOnboardingStore } from "@/stores/onboardingStore";
 
 export default function SignupPage() {
@@ -131,6 +132,9 @@ export default function SignupPage() {
     <main className="flex min-h-screen flex-col items-center justify-center bg-simplifyBg px-6 py-12">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
+          <div className="mb-4 flex justify-center">
+            <LogoIcon className="h-10 w-10" aria-hidden="true" />
+          </div>
           <p className="text-sm font-semibold uppercase tracking-wider text-simplifyBlue">
             EasySubmit.ai
           </p>

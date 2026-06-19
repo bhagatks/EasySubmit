@@ -1,7 +1,12 @@
 import "next-auth";
 
 declare module "next-auth" {
+  interface AuthOptions {
+    allowDangerousEmailAccountLinking?: boolean;
+  }
+
   interface Session {
+    userId?: string;
     provider?: "linkedin";
     user: {
       id: string;
@@ -13,7 +18,7 @@ declare module "next-auth" {
   }
 
   interface User {
-    onboardingStep: number;
+    onboardingStep?: number;
     lastAuthProvider?: string | null;
   }
 }
@@ -22,5 +27,6 @@ declare module "next-auth/jwt" {
   interface JWT {
     id?: string;
     onboardingStep?: number;
+    lastAuthProvider?: string | null;
   }
 }

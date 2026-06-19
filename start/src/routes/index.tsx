@@ -10,13 +10,13 @@ import {
   Key,
   Puzzle,
   ShieldCheck,
-  Sparkles,
   Target,
   Wand2,
   Zap,
 } from "lucide-react";
 import heroImage from "@/assets/hero-resume.jpg";
 import { Button } from "@/components/ui/button";
+import { LogoIcon } from "@/components/ui/logo";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -43,9 +43,7 @@ function Nav() {
     <header className="sticky top-0 z-50 border-b border-border/40 bg-background/70 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
         <Link to="/" className="flex items-center gap-2">
-          <div className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground shadow-glow">
-            <Sparkles className="h-4 w-4" />
-          </div>
+          <LogoIcon className="h-8 w-8 shrink-0" aria-hidden="true" />
           <span className="font-display text-lg font-semibold tracking-tight">
             easysubmit<span className="text-mint">.ai</span>
           </span>
@@ -362,9 +360,7 @@ function Footer() {
     <footer className="border-t border-border/60 py-10">
       <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 text-sm text-muted-foreground md:flex-row">
         <div className="flex items-center gap-2">
-          <div className="grid h-6 w-6 place-items-center rounded-md bg-primary text-primary-foreground">
-            <Sparkles className="h-3 w-3" />
-          </div>
+          <LogoIcon className="h-6 w-6 shrink-0" aria-hidden="true" />
           <span>© {new Date().getFullYear()} EasySubmit.ai</span>
         </div>
         <div className="flex items-center gap-6">

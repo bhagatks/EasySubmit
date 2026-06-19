@@ -1,135 +1,79 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { JetBrains_Mono } from "next/font/google";
 import { signIn } from "next-auth/react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { LogoIcon } from "@/components/ui/logo";
+import { MarketTruth } from "@/components/MarketTruth";
+import { BrandWordmark } from "@/components/ui/brand-wordmark";
+import { EASYSUBMIT_TAGLINE } from "@/lib/brand";
+import { cn } from "@/lib/utils";
 
-type AuthProvider = "google" | "linkedin";
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-jetbrains",
+  display: "swap",
+});
 
-const oauthButtonClass =
-  "w-full border border-primary/20 bg-white/[0.04] text-foreground shadow-sm transition-all duration-300 hover:border-primary/50 hover:bg-primary/[0.08] hover:shadow-[0_0_24px_-6px_oklch(0.62_0.21_265_/_0.45)]";
+const MONO = "var(--font-jetbrains), ui-monospace, monospace";
 
-const authButtonsVariants = {
-  hidden: {},
-  visible: {
-    transition: {
-      staggerChildren: 0.12,
-      delayChildren: 0.05,
-    },
-  },
-};
+const SOCIAL_BUTTON_CLASS =
+  "flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-white/5 px-5 py-3.5 text-sm font-medium text-[oklch(0.97_0.01_250)] transition-colors hover:border-[oklch(0.62_0.21_265_/_0.35)] hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-50 sm:py-4";
 
-const authButtonItemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.45,
-      ease: [0.25, 0.46, 0.45, 0.94],
-    },
-  },
-};
+const LOGIN_FRAME_CLASS =
+  "relative flex h-full min-h-[min(100dvh-2rem,720px)] w-full max-w-md flex-col overflow-hidden rounded-xl border border-[oklch(0.32_0.04_268_/_0.55)] bg-surface/20 shadow-[inset_0_1px_0_oklch(1_0_0_/_0.05)] lg:max-w-none lg:min-h-0";
 
-const meshOrbTransition = {
-  duration: 22,
-  repeat: Infinity,
-  repeatType: "mirror" as const,
-  ease: "easeInOut",
-};
-
-function AmbientMeshPanel() {
+function LoginPanelChrome({ children }: { children: React.ReactNode }) {
   return (
-    <div
-      aria-hidden="true"
-      className="relative h-full w-full overflow-hidden bg-[oklch(0.16_0.04_268)]"
-    >
-      <motion.div
-        className="pointer-events-none absolute -left-[15%] -top-[20%] h-[70%] w-[70%] rounded-full opacity-70 blur-[120px]"
+    <div className={LOGIN_FRAME_CLASS}>
+      <div
+        className="pointer-events-none absolute inset-0"
+        aria-hidden
         style={{
           background:
-            "radial-gradient(circle, oklch(0.62 0.21 265 / 0.28) 0%, oklch(0.16 0.04 268 / 0) 68%)",
+            "radial-gradient(ellipse 90% 45% at 50% 0%, oklch(0.62 0.21 265 / 0.12), transparent 58%), radial-gradient(ellipse 70% 40% at 50% 100%, oklch(0.82 0.16 165 / 0.08), transparent 62%)",
         }}
-        animate={{
-          x: [0, 48, -24, 0],
-          y: [0, 32, -16, 0],
-          scale: [1, 1.12, 0.96, 1],
-        }}
-        transition={meshOrbTransition}
       />
-      <motion.div
-        className="pointer-events-none absolute -bottom-[25%] left-[20%] h-[65%] w-[65%] rounded-full opacity-60 blur-[110px]"
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.35]"
+        aria-hidden
         style={{
-          background:
-            "radial-gradient(circle, oklch(0.82 0.16 165 / 0.14) 0%, oklch(0.16 0.04 268 / 0) 70%)",
+          backgroundImage:
+            "linear-gradient(oklch(0.32 0.04 268 / 0.35) 1px, transparent 1px), linear-gradient(90deg, oklch(0.32 0.04 268 / 0.22) 1px, transparent 1px)",
+          backgroundSize: "24px 24px",
+          maskImage: "linear-gradient(180deg, black, transparent 88%)",
         }}
-        animate={{
-          x: [0, -40, 28, 0],
-          y: [0, -36, 20, 0],
-          scale: [1, 0.92, 1.08, 1],
-        }}
-        transition={{ ...meshOrbTransition, duration: 26 }}
-      />
-      <motion.div
-        className="pointer-events-none absolute right-[-10%] top-[30%] h-[55%] w-[55%] rounded-full opacity-50 blur-[100px]"
-        style={{
-          background:
-            "radial-gradient(circle, oklch(0.35 0.12 265 / 0.35) 0%, oklch(0.16 0.04 268 / 0) 72%)",
-        }}
-        animate={{
-          x: [0, -32, 24, 0],
-          y: [0, 28, -20, 0],
-          scale: [1, 1.06, 0.94, 1],
-        }}
-        transition={{ ...meshOrbTransition, duration: 30 }}
-      />
-      <motion.div
-        className="pointer-events-none absolute inset-0 opacity-40"
-        style={{
-          background:
-            "radial-gradient(ellipse 90% 70% at 50% 100%, oklch(0.21 0.05 268 / 0.9) 0%, oklch(0.16 0.04 268 / 0) 65%)",
-        }}
-        animate={{ opacity: [0.35, 0.5, 0.38] }}
-        transition={{ duration: 14, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" }}
       />
 
-      <div className="bg-grid absolute inset-0 opacity-[0.18]" />
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/25 to-transparent" />
-      <div className="absolute inset-y-0 right-0 w-px bg-gradient-to-b from-transparent via-white/10 to-transparent" />
-
-      <div className="relative flex h-full flex-col justify-between p-10 xl:p-14">
-        <Link
-          href="/"
-          className="inline-flex w-fit items-center gap-2.5 text-sm font-medium text-white/50 transition-colors hover:text-white/80"
-        >
-          <LogoIcon className="h-8 w-8 shrink-0 opacity-90" aria-hidden="true" />
-          <span className="font-display tracking-tight">EasySubmit.ai</span>
-        </Link>
-
-        <div className="max-w-lg">
-          <p className="font-display text-sm font-medium uppercase tracking-[0.2em] text-primary/70">
-            Career automation
+      <div className="relative flex h-full flex-col px-6 py-8 sm:px-8 sm:py-10 lg:px-10">
+        <div className="flex flex-1 flex-col items-center justify-end pb-8 text-center lg:pb-10">
+          <BrandWordmark
+            className="text-xl sm:text-2xl"
+            nameClassName="text-foreground"
+          />
+          <p className="mt-3 max-w-[16rem] text-sm leading-snug text-muted-foreground">
+            {EASYSUBMIT_TAGLINE}
           </p>
-          <p className="mt-4 font-display text-4xl font-semibold leading-[1.1] tracking-tight text-white/90 xl:text-5xl">
-            Precision at scale.
-          </p>
-          <p className="mt-4 max-w-md font-body text-base leading-relaxed text-white/45">
-            Deploy tailored applications across thousands of portals with verified, ATS-ready
-            identity sync.
-          </p>
+          <div
+            className="mt-6 h-px w-16 bg-gradient-to-r from-transparent via-primary/50 to-transparent"
+            aria-hidden
+          />
         </div>
 
-        <p className="font-body text-xs tracking-wide text-white/30">
-          Trusted by professionals navigating modern hiring pipelines.
-        </p>
+        <div className="mx-auto w-full max-w-sm shrink-0">{children}</div>
+
+        <div className="flex flex-1 flex-col items-center justify-start pt-8 text-center lg:pt-10">
+          <p className="text-xs text-muted-foreground/65">
+            © {new Date().getFullYear()} EasySubmit.ai
+          </p>
+        </div>
       </div>
     </div>
   );
 }
+
+type AuthProvider = "google" | "linkedin";
 
 function GoogleIcon() {
   return (
@@ -165,7 +109,18 @@ function LinkedInIcon() {
   );
 }
 
-function LoginForm() {
+function BrandingPanel() {
+  return (
+    <div
+      className="relative h-full w-full overflow-hidden"
+      style={{ backgroundColor: "oklch(0.16 0.04 268)" }}
+    >
+      <MarketTruth className="relative h-full min-h-0" loop />
+    </div>
+  );
+}
+
+function LoginPanel() {
   const searchParams = useSearchParams();
   const [loadingProvider, setLoadingProvider] = useState<AuthProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -177,149 +132,88 @@ function LoginForm() {
     }
   }, [searchParams]);
 
-  function handleSignIn(provider: AuthProvider) {
-    setLoadingProvider(provider);
-    setError(null);
-    void signIn(provider, { callbackUrl: "/onboarding/step-1" });
-  }
-
   const isLoading = loadingProvider !== null;
 
+  function handleOAuth(provider: AuthProvider) {
+    setLoadingProvider(provider);
+    setError(null);
+    void signIn(provider, { callbackUrl: "/onboarding" });
+  }
+
   return (
-    <main className="flex min-h-screen font-dm lg:h-screen lg:overflow-hidden">
-      <section className="relative hidden min-h-[280px] lg:block lg:h-full lg:w-[60%]">
-        <AmbientMeshPanel />
-      </section>
+    <section className="relative flex min-h-screen w-full items-stretch justify-center bg-background p-4 sm:p-6 lg:min-h-0 lg:h-full lg:w-[450px] lg:max-w-[450px] lg:shrink-0 lg:border-l lg:border-white/[0.06] lg:p-8">
+      <LoginPanelChrome>
+        <div className="flex flex-col items-center text-center">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Login</h1>
 
-      <section className="relative flex w-full flex-1 flex-col bg-background lg:w-[40%]">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_0%,oklch(0.62_0.21_265_/_0.06),transparent_70%)] lg:hidden"
-        />
-        <div aria-hidden="true" className="bg-grid absolute inset-0 opacity-[0.12] lg:hidden" />
-
-        <div className="relative flex flex-1 flex-col justify-center px-6 py-10 sm:px-10 lg:px-12 xl:px-16">
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
-            className="mx-auto w-full max-w-[420px]"
-          >
-            <div className="overflow-hidden rounded-xl border border-white/10 bg-surface/60 shadow-elevated backdrop-blur-xl">
-              <div className="flex items-center justify-between border-b border-white/10 bg-white/[0.03] px-6 py-4">
-                <div className="flex items-center gap-3">
-                  <LogoIcon className="h-9 w-9 shrink-0" aria-hidden="true" />
-                  <div>
-                    <p className="font-display text-sm font-semibold tracking-tight text-foreground">
-                      Access Console
-                    </p>
-                    <p className="font-body text-xs text-white/45">Secure authentication</p>
-                  </div>
-                </div>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-2.5 py-1 font-body text-[10px] font-medium uppercase tracking-wider text-primary">
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
-                  Live
-                </span>
-              </div>
-
-              <div className="p-6 sm:p-8">
-                <div className="lg:hidden">
-                  <Link
-                    href="/"
-                    className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
-                  >
-                    ← Back to home
-                  </Link>
-                </div>
-
-                <h1 className="font-display text-2xl font-semibold leading-snug tracking-tight text-foreground sm:text-3xl">
-                  Apply with precision. One-click automation for the modern career.
-                </h1>
-                <p className="mt-3 font-body text-base leading-relaxed text-white/60">
-                  Synchronize your professional identity to deploy tailored applications at scale.
-                </p>
-
-                {error && (
-                  <p
-                    role="alert"
-                    className="mt-6 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive-foreground"
-                  >
-                    {error}
-                  </p>
-                )}
-
-                <div className="mt-8">
-                  <p className="mb-3 font-body text-[11px] font-medium uppercase tracking-[0.18em] text-white/35">
-                    Identity provider
-                  </p>
-
-                  <motion.div
-                    className="flex flex-col gap-3"
-                    variants={authButtonsVariants}
-                    initial="hidden"
-                    animate="visible"
-                  >
-                    <motion.div variants={authButtonItemVariants}>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="xl"
-                        disabled={isLoading}
-                        onClick={() => handleSignIn("linkedin")}
-                        className={oauthButtonClass}
-                      >
-                        <LinkedInIcon />
-                        {loadingProvider === "linkedin" ? "Redirecting…" : "Continue with LinkedIn"}
-                      </Button>
-                    </motion.div>
-
-                    <motion.div variants={authButtonItemVariants}>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="xl"
-                        disabled={isLoading}
-                        onClick={() => handleSignIn("google")}
-                        className={oauthButtonClass}
-                      >
-                        <GoogleIcon />
-                        {loadingProvider === "google" ? "Redirecting…" : "Continue with Google"}
-                      </Button>
-                    </motion.div>
-                  </motion.div>
-                </div>
-
-                <p className="mt-6 border-t border-white/10 pt-5 font-body text-xs leading-relaxed text-muted-foreground/80">
-                  By continuing, you agree to our terms of service and privacy policy.
-                </p>
-              </div>
-            </div>
-
-            <p className="mt-8 hidden text-center lg:block">
-              <Link
-                href="/"
-                className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
-              >
-                ← Back to home
-              </Link>
+          {error ? (
+            <p role="alert" className="mt-4 text-sm text-destructive">
+              {error}
             </p>
-          </motion.div>
+          ) : null}
+
+          <div className="mt-8 flex w-full flex-col gap-3 sm:mt-10 sm:gap-4">
+            <button
+              type="button"
+              disabled={isLoading}
+              onClick={() => handleOAuth("google")}
+              className={SOCIAL_BUTTON_CLASS}
+            >
+              <GoogleIcon />
+              {loadingProvider === "google" ? "Redirecting…" : "Continue with Google"}
+            </button>
+
+            <button
+              type="button"
+              disabled={isLoading}
+              onClick={() => handleOAuth("linkedin")}
+              className={SOCIAL_BUTTON_CLASS}
+            >
+              <LinkedInIcon />
+              {loadingProvider === "linkedin" ? "Redirecting…" : "Continue with LinkedIn"}
+            </button>
+          </div>
         </div>
-      </section>
-    </main>
+      </LoginPanelChrome>
+    </section>
   );
 }
 
 function LoginFallback() {
   return (
-    <main className="flex min-h-screen font-dm lg:h-screen">
-      <section className="hidden lg:block lg:h-full lg:w-[60%] bg-[oklch(0.16_0.04_268)]" />
-      <section className="flex flex-1 items-center justify-center bg-background lg:w-[40%]">
-        <div className="flex flex-col items-center gap-3">
-          <LogoIcon className="h-12 w-12 animate-pulse opacity-60" aria-hidden="true" />
-          <p className="text-sm text-muted-foreground">Loading…</p>
-        </div>
+    <main
+      className={cn(
+        jetbrainsMono.variable,
+        "flex min-h-screen flex-col bg-background font-sans lg:grid lg:h-screen lg:grid-cols-[1fr_450px] lg:overflow-hidden",
+      )}
+    >
+      <section className="relative hidden min-h-0 lg:block">
+        <MarketTruth className="h-full min-h-0" loop play={false} />
       </section>
+      <section className="relative flex min-h-screen w-full items-stretch justify-center bg-background p-4 sm:p-6 lg:min-h-0 lg:h-full lg:w-[450px] lg:shrink-0 lg:border-l lg:border-white/[0.06] lg:p-8">
+        <LoginPanelChrome>
+          <p className="text-sm text-muted-foreground" style={{ fontFamily: MONO }}>
+            Loading…
+          </p>
+        </LoginPanelChrome>
+      </section>
+    </main>
+  );
+}
+
+function LoginPageContent() {
+  return (
+    <main
+      className={cn(
+        jetbrainsMono.variable,
+        "flex min-h-screen flex-col bg-background font-sans lg:grid lg:h-screen lg:grid-cols-[1fr_450px] lg:overflow-hidden",
+      )}
+    >
+      <section className="relative hidden min-h-0 lg:block">
+        <BrandingPanel />
+      </section>
+
+      <LoginPanel />
     </main>
   );
 }
@@ -327,7 +221,7 @@ function LoginFallback() {
 export default function LoginPage() {
   return (
     <Suspense fallback={<LoginFallback />}>
-      <LoginForm />
+      <LoginPageContent />
     </Suspense>
   );
 }

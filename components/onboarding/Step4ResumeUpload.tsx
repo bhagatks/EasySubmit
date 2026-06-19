@@ -13,7 +13,18 @@ const ACCEPTED_TYPES = [
 ];
 const ACCEPTED_EXTENSIONS = ".pdf,.doc,.docx";
 
-export default function Step4ResumeUpload() {
+interface Step4ResumeUploadProps {
+  onAdvance?: () => void | Promise<void>;
+  isAdvancing?: boolean;
+  /** When true, file upload / skip only update state; wizard nav handles advance. */
+  manualAdvance?: boolean;
+}
+
+export default function Step4ResumeUpload({
+  onAdvance,
+  isAdvancing = false,
+  manualAdvance = false,
+}: Step4ResumeUploadProps) {
   const router = useRouter();
   const setResumeFile = useOnboardingStore((s) => s.setResumeFile);
   const setResumeSkipped = useOnboardingStore((s) => s.setResumeSkipped);
@@ -31,14 +42,24 @@ export default function Step4ResumeUpload() {
       if (!valid) return;
 
       setResumeFile(file);
-      router.push("/onboarding/step-4");
+      if (manualAdvance) return;
+      if (onAdvance) {
+        void onAdvance();
+      } else {
+        router.push("/onboarding/step-4");
+      }
     },
-    [setResumeFile, router]
+    [setResumeFile, router, onAdvance, manualAdvance]
   );
 
   const handleSkip = () => {
     setResumeSkipped(true);
-    completeResumeMapping();
+    if (manualAdvance) return;
+    if (onAdvance) {
+      void onAdvance();
+    } else {
+      completeResumeMapping();
+    }
   };
 
   const onDrop = (e: React.DragEvent) => {

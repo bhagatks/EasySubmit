@@ -6,10 +6,10 @@ import {
   Download,
   MousePointerClick,
   ShieldCheck,
-  Sparkles,
   Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { LogoIcon } from "@/components/ui/logo";
 
 export const Route = createFileRoute("/extension")({
   head: () => ({
@@ -41,9 +41,7 @@ function ExtensionPage() {
       <header className="sticky top-0 z-50 border-b border-border/40 bg-background/70 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
           <Link to="/" className="flex items-center gap-2">
-            <div className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground shadow-glow">
-              <Sparkles className="h-4 w-4" />
-            </div>
+            <LogoIcon className="h-8 w-8 shrink-0" aria-hidden="true" />
             <span className="font-display text-lg font-semibold">
               easysubmit<span className="text-mint">.ai</span>
             </span>

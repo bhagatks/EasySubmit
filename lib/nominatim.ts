@@ -36,13 +36,13 @@ export function formatNominatimLabel(result: NominatimResult): string {
   const zip = addr.postcode?.trim() ?? "";
 
   if (region && zip) {
-    return `${city}, ${region} (${zip})`;
+    return `${city}, ${region} & ${zip}`;
   }
   if (region) {
     return `${city}, ${region}`;
   }
   if (zip) {
-    return `${city} (${zip})`;
+    return `${city} & ${zip}`;
   }
   return city;
 }
@@ -78,5 +78,33 @@ export async function searchNominatim(query: string): Promise<NominatimResult[]>
   }
 
   const data = (await response.json()) as NominatimResult[];
+  return data;
+}
+
+export async function reverseGeocodeNominatim(
+  latitude: number,
+  longitude: number,
+): Promise<NominatimResult | null> {
+  const params = new URLSearchParams({
+    format: "json",
+    lat: String(latitude),
+    lon: String(longitude),
+    addressdetails: "1",
+    zoom: "18",
+  });
+
+  const response = await fetch(
+    `https://nominatim.openstreetmap.org/reverse?${params.toString()}`,
+  );
+
+  if (!response.ok) {
+    throw new Error("Reverse geocoding failed");
+  }
+
+  const data = (await response.json()) as NominatimResult & { error?: string };
+  if (data.error || !data.place_id) {
+    return null;
+  }
+
   return data;
 }

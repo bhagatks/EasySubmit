@@ -1,11 +1,12 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, Sparkles } from "lucide-react";
+import { Check } from "lucide-react";
 import Link from "next/link";
+import { LogoIcon } from "@/components/ui/logo";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
-  getMacroOnboardingPhase,
   ONBOARDING_PHASES,
   type OnboardingPhaseId,
 } from "@/lib/onboarding/phases";
@@ -99,9 +100,7 @@ function ProgressPanel({ activePhase }: { activePhase: OnboardingPhaseId }) {
   return (
     <aside className="flex flex-col">
       <div className="mb-6 flex items-center gap-3">
-        <div className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-primary-foreground shadow-glow">
-          <Sparkles className="h-4 w-4" />
-        </div>
+        <LogoIcon className="h-9 w-9 shrink-0" aria-hidden="true" />
         <div>
           <Link
             href="/"
@@ -168,12 +167,26 @@ export function OnboardingStepTransition({
 
 export function OnboardingFlowShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const currentStep = useOnboardingStore((s) => s.currentStep);
+  const { data: session } = useSession();
   const isMapping = useOnboardingStore((s) => s.isMapping);
+  const onboardingStep = session?.user?.onboardingStep ?? 0;
   const onMappingRoute = pathname?.includes("/step-4") ?? false;
-  const activePhase = onMappingRoute
+  const isFullScreenWorkbench =
+    pathname === "/onboarding" ||
+    pathname?.includes("/onboarding/refinery") ||
+    pathname?.includes("/onboarding/workbench") ||
+    false;
+  const activePhase: OnboardingPhaseId = onMappingRoute || isMapping || onboardingStep >= 4
     ? 4
-    : getMacroOnboardingPhase(currentStep, isMapping);
+    : (Math.min(Math.max(onboardingStep, 1), 3) as OnboardingPhaseId);
+
+  if (isFullScreenWorkbench) {
+    return (
+      <div className="relative min-h-screen bg-background font-sans">
+        {children}
+      </div>
+    );
+  }
 
   return (
     <div className="relative min-h-screen bg-[oklch(0.16_0.04_268)] font-sans">

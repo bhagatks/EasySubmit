@@ -23,21 +23,15 @@ export async function POST(request: Request) {
     }
 
     const parsed = JSON.parse(payloadRaw) as ReturnType<typeof buildOnboardingPayload>;
-    const resumeFile = formData.get("resume");
 
     if (!isOnboardingComplete(parsed)) {
       return NextResponse.json(
         { error: "Incomplete onboarding data" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    const profile = await finalizeProfile(
-      userId,
-      email,
-      parsed,
-      resumeFile instanceof File ? resumeFile : null
-    );
+    const profile = await finalizeProfile(userId, email, parsed);
 
     return NextResponse.json({ success: true, profileId: profile.id });
   } catch (error) {

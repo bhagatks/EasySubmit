@@ -8,16 +8,19 @@ datasource db {
 }
 
 model User {
-  id             String    @id @default(cuid())
-  name           String?
-  email          String?   @unique
-  emailVerified  DateTime?
-  image          String?
-  onboardingStep Int       @default(1)
+  id               String    @id @default(cuid())
+  name             String?
+  email            String?   @unique
+  emailVerified    DateTime?
+  image            String?
+  onboardingStep   Int       @default(0)
   lastAuthProvider String?
-  accounts       Account[]
-  sessions       Session[]
-  profile        UserProfile?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  accounts         Account[]
+  sessions         Session[]
+  profile          Profile?
+  engine           Engine?
 
   @@map("users")
 }
@@ -61,21 +64,111 @@ model VerificationToken {
   @@map("verification_tokens")
 }
 
-model UserProfile {
-  id               String   @id @default(cuid())
-  userId           String   @unique
+/// Career profile synced across web dashboard and extension engine.
+model Profile {
+  id               String          @id @default(cuid())
+  userId           String          @unique
+  fullName         String?
   email            String
-  jobTimeline      String?
-  experienceLevels String[]
-  selectedRole     String?
+  phone            String?
+  city             String?
+  country          String?
+  targetTitle      String?
   minSalary        Int?
-  referralSource   String?
-  targetLocations  Json
-  resumePath       String?
-  resumeFileName   String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workMode         String?
+  summary          String?         @db.Text
+  coreCompetencies String[]        @default([])
+  skills           String[]        @default([])
+  resumeRawText    String?         @db.Text
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  experiences      Experience[]
+  projects         Project[]
+  educations       Education[]
+  certifications   Certification[]
 
-  @@map("user_profiles")
+  @@index([email])
+  @@map("profiles")
+}
+
+model Experience {
+  id          String   @id @default(cuid())
+  profileId   String
+  company     String
+  title       String
+  location    String?
+  startDate   String?
+  endDate     String?
+  description String?  @db.Text
+  isCurrent   Boolean  @default(false)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  profile     Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("experiences")
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  profileId   String
+  name        String
+  description String?  @db.Text
+  url         String?
+  startDate   String?
+  endDate     String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  profile     Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("projects")
+}
+
+model Education {
+  id          String   @id @default(cuid())
+  profileId   String
+  institution String
+  degree      String?
+  field       String?
+  startDate   String?
+  endDate     String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  profile     Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("educations")
+}
+
+model Certification {
+  id        String   @id @default(cuid())
+  profileId String
+  name      String
+  issuer    String?
+  issueDate String?
+  url       String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("certifications")
+}
+
+/// Parsed resume and AI mapping output for the application engine.
+model Engine {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  parsedData Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("engines")
 }

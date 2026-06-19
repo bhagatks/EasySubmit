@@ -1,3 +1,5 @@
+"use client";
+
 interface OnboardingNextButtonProps {
   disabled?: boolean;
   onClick: () => void;

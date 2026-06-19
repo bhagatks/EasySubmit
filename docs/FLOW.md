@@ -5,14 +5,31 @@
 | Route | Purpose | Auth |
 |-------|---------|------|
 | `/login` | Google + LinkedIn OAuth | Public |
-| `/onboarding` | Full wizard | NextAuth required |
-| `/onboarding/step-1` | Wizard entry (post-login default) | NextAuth required |
+| `/onboarding` | **Default entry** — 60/40 Unified Workbench: left ATS-ordered `PrimeResume` preview, right Identity → Import → Studio → Launch; System Status breadcrumb (Phase 1 locked after Import); Studio **Upload** back → Import | NextAuth required |
+| `/onboarding/step-1` | Redirect → `/onboarding` | NextAuth required |
+| `/onboarding/workbench` | Redirect → `/onboarding` (alias) | NextAuth required |
+| `/onboarding/refinery` | Legacy full-screen refinery workbench | NextAuth required |
 | `/onboarding/step-4` | `ResumeMapping` AI scanner | NextAuth required |
 | `/dashboard` | Post-onboarding home | NextAuth required |
 
 Middleware (`middleware.ts`) and `app/onboarding/layout.tsx` both redirect unauthenticated users to `/login`.
 
-## Layout
+## Unified Workbench (`/onboarding`)
+
+Primary onboarding path — client state in `app/onboarding/page.tsx` (not Zustand). Left canvas: `PrimeResume` live-sync. Right panel: four phases with Framer Motion transitions.
+
+| Phase | Panel | Data captured | Navigation |
+|-------|-------|---------------|------------|
+| 1 · Identity | `CoordinatesPanel` | `firstName`, `lastName`, `cityState` (Nominatim debounce + locate via `CityStateField`), `phone` with country-code selector (default US +1), `email`, `linkedIn` | Continue → Import; `completeStep(1)` |
+| 2 · Import | `FuelPanel` | Resume PDF/DOCX → `parseResumeFile` (browser Open-Resume pipeline) | **No back to Phase 1** (`minNavigablePhase=2` on breadcrumb); auto-advance to Studio after parse |
+| 3 · Studio | `RefineryPanel` | ATS section order (Header → Summary → Skills → Experience → Education → optional Certifications/Projects/Languages); `mergeParsedWithCoordinates` prefills contact from Phase 1 | **Upload** back button → Import (re-upload); Continue to Launch → Phase 4 |
+| 4 · Launch | `CalibrationPanel` | `completeOnboarding` + 2.5s pulse → `/dashboard` | — |
+
+Resume section order and preview typography follow **`EASYSUBMIT_RESUME_RULES.md`** at the repository root (code constants in `lib/resume/resumeSpec.ts`). Golden fixtures: `ATS_Universal_Resume_Template.pdf` / `.docx` (download via `/api/resume/ats-template`).
+
+Merge logic: `lib/onboarding/hubResume.ts` — parsed resume contact fields win when present; Phase 1 manual entry fills gaps.
+
+## Legacy layout / wizard
 
 `app/onboarding/layout.tsx` → `OnboardingFlowShell`:
 
@@ -45,7 +62,7 @@ Skip resume on step 3 → `completeResumeMapping()` → step 6 (experience).
 
 `/login` — Google + LinkedIn via `/api/auth/[...nextauth]`.
 
-On successful OAuth: redirect → `/onboarding/step-1`.
+On successful OAuth: redirect → `/onboarding`.
 
 **Env:** `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`.
 

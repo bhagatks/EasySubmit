@@ -6,7 +6,6 @@ import {
   Download,
   MousePointerClick,
   ShieldCheck,
-  Sparkles,
   Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";

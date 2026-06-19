@@ -10,12 +10,12 @@ import {
   Key,
   Puzzle,
   ShieldCheck,
-  Sparkles,
   Target,
   Wand2,
   Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { LogoIcon } from "@/components/ui/logo";
 import { Navbar } from "@/components/Navbar";
 
 export const metadata = {
@@ -35,11 +35,7 @@ function Hero() {
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
       <div className="relative mx-auto max-w-7xl px-6 pb-24 pt-20 md:pt-28">
         <div className="mx-auto max-w-3xl text-center">
-          <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-border bg-surface/60 px-3 py-1 text-xs text-muted-foreground backdrop-blur">
-            <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-mint" />
-            BYOK · Free forever · ATS-guaranteed
-          </div>
-          <h1 className="mt-6 font-display text-5xl font-semibold leading-[1.05] tracking-tight md:text-7xl">
+          <h1 className="font-display text-5xl font-semibold leading-[1.05] tracking-tight md:text-7xl">
             Land interviews.
             <br />
             <span className="text-gradient">Beat every ATS.</span>
@@ -319,9 +315,7 @@ function Footer() {
     <footer className="border-t border-border/60 py-10">
       <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 text-sm text-muted-foreground md:flex-row">
         <div className="flex items-center gap-2">
-          <div className="grid h-6 w-6 place-items-center rounded-md bg-primary text-primary-foreground">
-            <Sparkles className="h-3 w-3" />
-          </div>
+          <LogoIcon className="h-6 w-6 shrink-0" aria-hidden="true" />
           <span>© {new Date().getFullYear()} EasySubmit.ai</span>
         </div>
         <div className="flex items-center gap-6">

@@ -15,6 +15,8 @@ import { useOnboardingStore } from "@/stores/onboardingStore";
 
 interface Step3LocationsProps {
   onNext: () => void;
+  disabled?: boolean;
+  hideNextButton?: boolean;
 }
 
 interface LocationPillProps {
@@ -72,7 +74,11 @@ function LocationPill({
   );
 }
 
-export default function Step3Locations({ onNext }: Step3LocationsProps) {
+export default function Step3Locations({
+  onNext,
+  disabled = false,
+  hideNextButton = false,
+}: Step3LocationsProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
   const [searchResults, setSearchResults] = useState<NominatimResult[]>([]);
@@ -216,7 +222,12 @@ export default function Step3Locations({ onNext }: Step3LocationsProps) {
         message="Add every city you'd consider, then tap the pin on your current location to set your home base."
       />
 
-      <OnboardingNextButton disabled={!canContinue} onClick={onNext} />
+      {!hideNextButton && (
+        <OnboardingNextButton
+          disabled={!canContinue || disabled}
+          onClick={onNext}
+        />
+      )}
     </div>
   );
 }

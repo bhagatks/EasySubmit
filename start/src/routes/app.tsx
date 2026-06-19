@@ -5,7 +5,6 @@ import {
   LayoutDashboard,
   Key,
   Settings,
-  Sparkles,
   Puzzle,
 } from "lucide-react";
 import {
@@ -23,6 +22,7 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
+import { LogoIcon } from "@/components/ui/logo";
 
 export const Route = createFileRoute("/app")({
   head: () => ({
@@ -48,9 +48,7 @@ function AppSidebar() {
     <Sidebar collapsible="icon">
       <SidebarHeader>
         <Link to="/" className="flex items-center gap-2 px-2 py-2">
-          <div className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground shadow-glow">
-            <Sparkles className="h-4 w-4" />
-          </div>
+          <LogoIcon className="h-8 w-8 shrink-0" aria-hidden="true" />
           <span className="font-display text-base font-semibold group-data-[collapsible=icon]:hidden">
             easysubmit<span className="text-mint">.ai</span>
           </span>
