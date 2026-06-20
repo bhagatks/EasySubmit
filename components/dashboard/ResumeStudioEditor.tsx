@@ -80,7 +80,7 @@ export function ResumeStudioEditor({
   );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex h-full min-h-0 flex-1 flex-col">
       {error ? (
         <p className="mb-3 shrink-0 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-700">
           {error}
@@ -89,7 +89,8 @@ export function ResumeStudioEditor({
       <ResumeStudioWorkbench
         variant="dashboard"
         monoClass={jetbrainsMono.className}
-        className="min-h-0 flex-1 rounded-2xl border border-border"
+        className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-border"
+        studioTabs
         preview={
           <PrimeResume resume={resumePreview} variant="workbench" className="w-full" />
         }
@@ -97,22 +98,17 @@ export function ResumeStudioEditor({
           <RefineryPanel
             mode="profile"
             initialValues={initialForm}
-            rawText={rawResumeText}
             monoClass={jetbrainsMono.className}
             onChange={handleChange}
             onFinalize={handleFinalize}
-            onBack={() => router.push("/dashboard/resume-profiles")}
-            backLabel="Profiles"
             finalizeLabel={isSaving ? "Saving…" : undefined}
-            phaseLabel="Resume Studio"
-            headerTitle="Refine this profile"
-            headerDescription="Role names this profile in your list — not on the resume. Page size controls preview pagination only."
             targetRole={targetRole}
             onTargetRoleChange={setTargetRole}
             studioSkills={studioSkills}
             onStudioSkillsChange={setStudioSkills}
           />
         }
+        panelScrolls
       />
     </div>
   );

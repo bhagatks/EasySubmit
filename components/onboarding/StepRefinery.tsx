@@ -458,8 +458,6 @@ export default function StepRefinery({
   const { data: session, update: updateSession } = useSession();
   const parsedResumeData = useOnboardingStore((s) => s.parsedResumeData);
   const selectedRole = useOnboardingStore((s) => s.selectedRole);
-  const minSalary = useOnboardingStore((s) => s.minSalary);
-  const workMode = useOnboardingStore((s) => s.workMode);
   const setRefineryDraft = useOnboardingStore((s) => s.setRefineryDraft);
 
   const { values: defaultValues, verified } = useMemo(
@@ -558,8 +556,6 @@ export default function StepRefinery({
       const result = await saveProfile({
         ...data,
         targetTitle: selectedRole,
-        minSalary,
-        workMode,
         resumeRawText: parsedResumeData?.rawText ?? null,
         linkedIn: parsedResumeData?.linkedIn ?? null,
       });

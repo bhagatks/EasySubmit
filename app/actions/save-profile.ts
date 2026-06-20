@@ -7,14 +7,10 @@ import type { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   sanitizeEmail,
-  sanitizeOptionalInt,
   sanitizeRequiredString,
   sanitizeString,
   sanitizeStringArray,
 } from "@/lib/profile/sanitize";
-import {
-  upsertProfileArchitecture,
-} from "@/lib/profile/resume-profile-core";
 import { parseProfileName, joinProfileName } from "@/lib/profile/name";
 import { splitLocationField } from "@/lib/resume/extractSections";
 import type {
@@ -33,8 +29,6 @@ export type SaveProfileEducationInput = {
 
 export type SaveProfileInput = RefineryFormValues & {
   targetTitle?: string | null;
-  minSalary?: number | null;
-  workMode?: string | null;
   summary?: string | null;
   resumeRawText?: string | null;
   linkedIn?: string | null;
@@ -52,27 +46,14 @@ export type SaveProfileError = {
   error: string;
 };
 
-type ExperienceRow = Pick<
-  Prisma.ExperienceCreateManyInput,
-  "title" | "company" | "sortOrder"
->;
-type ProjectRow = Pick<
-  Prisma.ProjectCreateManyInput,
-  "name" | "description" | "sortOrder"
->;
-type EducationRow = Pick<
-  Prisma.EducationCreateManyInput,
-  "institution" | "degree" | "field" | "startDate" | "endDate" | "sortOrder"
->;
-
 function sanitizeExperiences(
   experiences: RefineryExperienceField[] | undefined,
-): ExperienceRow[] {
+): Array<{ title: string; company: string; sortOrder: number }> {
   if (!Array.isArray(experiences)) {
     return [];
   }
 
-  const rows: ExperienceRow[] = [];
+  const rows: Array<{ title: string; company: string; sortOrder: number }> = [];
 
   experiences.forEach((entry, index) => {
     const title = sanitizeRequiredString(entry?.title, 160);
@@ -94,12 +75,12 @@ function sanitizeExperiences(
 
 function sanitizeProjects(
   projects: RefineryProjectField[] | undefined,
-): ProjectRow[] {
+): Array<{ name: string; description: string | null; sortOrder: number }> {
   if (!Array.isArray(projects)) {
     return [];
   }
 
-  const rows: ProjectRow[] = [];
+  const rows: Array<{ name: string; description: string | null; sortOrder: number }> = [];
 
   projects.forEach((entry, index) => {
     const name = sanitizeRequiredString(entry?.name, 160);
@@ -119,12 +100,26 @@ function sanitizeProjects(
 
 function sanitizeEducations(
   educations: SaveProfileEducationInput[] | undefined,
-): EducationRow[] {
+): Array<{
+  institution: string;
+  degree: string | null;
+  field: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  sortOrder: number;
+}> {
   if (!Array.isArray(educations)) {
     return [];
   }
 
-  const rows: EducationRow[] = [];
+  const rows: Array<{
+    institution: string;
+    degree: string | null;
+    field: string | null;
+    startDate: string | null;
+    endDate: string | null;
+    sortOrder: number;
+  }> = [];
 
   educations.forEach((entry, index) => {
     const institution = sanitizeRequiredString(entry?.institution, 200);
@@ -159,31 +154,24 @@ function sanitizeProfilePayload(input: SaveProfileInput) {
   const city = sanitizeString(splitLocation.city, 120);
   const country = sanitizeString(splitLocation.country, 120);
   const { firstName, lastName } = parseProfileName(sanitizeString(input.fullName, 160));
+  const skills = sanitizeStringArray(input.technicalSkills);
 
   return {
     firstName: sanitizeString(firstName, 80),
     lastName: sanitizeString(lastName, 80),
-    displayName: joinProfileName(firstName, lastName),
     email,
     phone: sanitizeString(input.phone, 40),
     city,
     country,
     targetTitle: sanitizeString(input.targetTitle, 160),
-    minSalary: sanitizeOptionalInt(input.minSalary, 0, 1_000_000),
-    workMode: sanitizeString(input.workMode, 40),
     summary: sanitizeString(input.summary, 8000),
     resumeRawText: sanitizeString(input.resumeRawText, 200_000),
-    coreCompetencies: sanitizeStringArray(input.coreCompetencies),
-    skills: sanitizeStringArray(input.technicalSkills),
-    experiences: sanitizeExperiences(input.experiences),
-    projects: sanitizeProjects(input.projects),
-    educations: sanitizeEducations(input.educations),
-    engineParsedData: {
+    skills,
+    content: {
       email,
       phone: sanitizeString(input.phone, 40),
       linkedIn: sanitizeString(input.linkedIn, 500),
-      coreCompetencies: sanitizeStringArray(input.coreCompetencies),
-      skills: sanitizeStringArray(input.technicalSkills),
+      skills,
       experiences: sanitizeExperiences(input.experiences),
       projects: sanitizeProjects(input.projects),
       educations: sanitizeEducations(input.educations),
@@ -192,7 +180,7 @@ function sanitizeProfilePayload(input: SaveProfileInput) {
 }
 
 /**
- * Persist refinery profile data: essentials, competencies, experience, projects, and education.
+ * Persist refinery profile data to the default profile row (legacy wizard path).
  */
 export async function saveProfile(
   input: SaveProfileInput,
@@ -215,23 +203,25 @@ export async function saveProfile(
 
       let profile: { id: string };
 
+      const profileData = {
+        email: payload.email,
+        firstName: payload.firstName,
+        lastName: payload.lastName,
+        phone: payload.phone,
+        city: payload.city,
+        country: payload.country,
+        targetTitle: payload.targetTitle,
+        summary: payload.summary,
+        resumeRawText: payload.resumeRawText,
+        skills: payload.skills,
+        content: payload.content,
+      };
+
       if (existingDefault) {
         profile = await tx.profile.update({
           where: { id: existingDefault.id },
           data: {
-            email: payload.email,
-            firstName: payload.firstName,
-            lastName: payload.lastName,
-            phone: payload.phone,
-            city: payload.city,
-            country: payload.country,
-            targetTitle: payload.targetTitle,
-            minSalary: payload.minSalary,
-            workMode: payload.workMode,
-            summary: payload.summary,
-            resumeRawText: payload.resumeRawText,
-            coreCompetencies: payload.coreCompetencies,
-            skills: payload.skills,
+            ...profileData,
             isDefault: true,
           },
         });
@@ -241,63 +231,10 @@ export async function saveProfile(
           data: {
             userId,
             isDefault: true,
-            email: payload.email,
-            firstName: payload.firstName,
-            lastName: payload.lastName,
-            phone: payload.phone,
-            city: payload.city,
-            country: payload.country,
-            targetTitle: payload.targetTitle,
-            minSalary: payload.minSalary,
-            workMode: payload.workMode,
-            summary: payload.summary,
-            resumeRawText: payload.resumeRawText,
-            coreCompetencies: payload.coreCompetencies,
-            skills: payload.skills,
+            ...profileData,
           },
         });
       }
-
-      await tx.experience.deleteMany({ where: { profileId: profile.id } });
-      await tx.project.deleteMany({ where: { profileId: profile.id } });
-      await tx.education.deleteMany({ where: { profileId: profile.id } });
-
-      if (payload.experiences.length > 0) {
-        await tx.experience.createMany({
-          data: payload.experiences.map((row) => ({
-            ...row,
-            profileId: profile.id,
-          })),
-        });
-      }
-
-      if (payload.projects.length > 0) {
-        await tx.project.createMany({
-          data: payload.projects.map((row) => ({
-            ...row,
-            profileId: profile.id,
-          })),
-        });
-      }
-
-      if (payload.educations.length > 0) {
-        await tx.education.createMany({
-          data: payload.educations.map((row) => ({
-            ...row,
-            profileId: profile.id,
-          })),
-        });
-      }
-
-      await upsertProfileArchitecture(
-        tx,
-        profile.id,
-        {
-          content: payload.engineParsedData,
-          ...(payload.targetTitle ? { targetRole: payload.targetTitle } : {}),
-        },
-        payload.targetTitle,
-      );
 
       await tx.user.update({
         where: { id: userId },

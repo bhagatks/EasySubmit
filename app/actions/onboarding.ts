@@ -6,15 +6,13 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { parseProfileName } from "@/lib/profile/name";
 import {
+  profileContentPatch,
   profileEmailForUser,
-  upsertProfileArchitecture,
 } from "@/lib/profile/resume-profile-core";
 import type { Prisma } from "@/lib/generated/prisma/client";
 
 export type CompleteOnboardingInput = {
   targetTitle?: string | null;
-  minSalary?: number | null;
-  workMode?: string | null;
   firstName?: string | null;
   lastName?: string | null;
   /** @deprecated Prefer firstName + lastName */
@@ -26,8 +24,8 @@ export type CompleteOnboardingInput = {
   country?: string | null;
   summary?: string | null;
   skills?: string[];
-  coreCompetencies?: string[];
   parsedData?: Prisma.InputJsonValue;
+  calibrationScore?: number;
 };
 
 function normalizeFormData(formData: unknown): Record<string, unknown> {
@@ -50,16 +48,12 @@ function normalizeFormData(formData: unknown): Record<string, unknown> {
 }
 
 function buildProfilePatch(data: Record<string, unknown>): Prisma.ProfileUpdateInput {
-  const patch: Prisma.ProfileUpdateInput = {};
+  const patch: Prisma.ProfileUpdateInput = {
+    ...profileContentPatch(data),
+  };
 
   if (data.targetTitle !== undefined) {
     patch.targetTitle = data.targetTitle as string | null;
-  }
-  if (data.minSalary !== undefined) {
-    patch.minSalary = data.minSalary as number | null;
-  }
-  if (data.workMode !== undefined) {
-    patch.workMode = data.workMode as string | null;
   }
   if (data.resumeRawText !== undefined) {
     patch.resumeRawText = data.resumeRawText as string | null;
@@ -94,57 +88,11 @@ function buildProfilePatch(data: Record<string, unknown>): Prisma.ProfileUpdateI
   if (data.summary !== undefined) {
     patch.summary = data.summary as string | null;
   }
-  if (data.coreCompetencies !== undefined) {
-    patch.coreCompetencies = data.coreCompetencies as string[];
-  }
   if (data.skills !== undefined) {
     patch.skills = data.skills as string[];
   }
 
   return patch;
-}
-
-function buildArchitecturePatch(data: Record<string, unknown>): Prisma.ArchitectureUpdateInput {
-  const patch: Prisma.ArchitectureUpdateInput = {};
-
-  if (data.parsedData !== undefined) {
-    patch.content = data.parsedData as Prisma.InputJsonValue;
-  }
-  if (data.content !== undefined) {
-    patch.content = data.content as Prisma.InputJsonValue;
-  }
-  if (data.targetRole !== undefined) {
-    patch.targetRole = data.targetRole as string;
-  }
-  if (data.calibrationScore !== undefined) {
-    patch.calibrationScore = data.calibrationScore as number;
-  }
-
-  return patch;
-}
-
-async function upsertProfileArchitectureForUser(
-  tx: Prisma.TransactionClient,
-  profileId: string,
-  architecturePatch: Prisma.ArchitectureUpdateInput,
-  profilePatch: Prisma.ProfileUpdateInput,
-) {
-  if (Object.keys(architecturePatch).length > 0) {
-    await upsertProfileArchitecture(
-      tx,
-      profileId,
-      architecturePatch,
-      profilePatch.targetTitle as string | null | undefined,
-    );
-    return;
-  }
-
-  await upsertProfileArchitecture(
-    tx,
-    profileId,
-    {},
-    profilePatch.targetTitle as string | null | undefined,
-  );
 }
 
 function isPdfFile(file: File): boolean {
@@ -175,8 +123,6 @@ async function upsertDefaultUserProfile(
     isDefault: true,
     email: profileEmail,
     targetTitle: profilePatch.targetTitle as string | null | undefined,
-    minSalary: profilePatch.minSalary as number | null | undefined,
-    workMode: profilePatch.workMode as string | null | undefined,
     resumeRawText: profilePatch.resumeRawText as string | null | undefined,
     firstName: profilePatch.firstName as string | null | undefined,
     lastName: profilePatch.lastName as string | null | undefined,
@@ -184,8 +130,10 @@ async function upsertDefaultUserProfile(
     city: profilePatch.city as string | null | undefined,
     country: profilePatch.country as string | null | undefined,
     summary: profilePatch.summary as string | null | undefined,
-    coreCompetencies: profilePatch.coreCompetencies as string[] | undefined,
     skills: profilePatch.skills as string[] | undefined,
+    content: (profilePatch.content as Prisma.InputJsonValue | undefined) ?? {},
+    calibrationScore:
+      (profilePatch.calibrationScore as number | undefined) ?? 0,
   };
 
   if (existingDefault) {
@@ -271,7 +219,6 @@ export async function completeOnboarding(data: CompleteOnboardingInput = {}) {
   const userId = session.user.id;
   const payload = normalizeFormData(data);
   const profilePatch = buildProfilePatch(payload);
-  const architecturePatch = buildArchitecturePatch(payload);
 
   await prisma.$transaction(async (tx) => {
     await tx.user.update({
@@ -279,16 +226,10 @@ export async function completeOnboarding(data: CompleteOnboardingInput = {}) {
       data: { onboardingStep: 4 },
     });
 
-    const profileId = await upsertDefaultUserProfile(
+    await upsertDefaultUserProfile(
       tx,
       userId,
       session.user.email,
-      profilePatch,
-    );
-    await upsertProfileArchitectureForUser(
-      tx,
-      profileId,
-      architecturePatch,
       profilePatch,
     );
   });
@@ -309,7 +250,6 @@ export async function updateUserOnboarding(step: number, formData: unknown) {
   const userId = session.user.id;
   const payload = normalizeFormData(formData);
   const profilePatch = buildProfilePatch(payload);
-  const architecturePatch = buildArchitecturePatch(payload);
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -326,28 +266,11 @@ export async function updateUserOnboarding(step: number, formData: unknown) {
       data: { onboardingStep: step },
     });
 
-    let profileId: string | null = null;
-
     if (Object.keys(profilePatch).length > 0) {
-      profileId = await upsertDefaultUserProfile(
+      await upsertDefaultUserProfile(
         tx,
         userId,
         session.user.email,
-        profilePatch,
-      );
-    } else {
-      const existing = await tx.profile.findFirst({
-        where: { userId, isDefault: true },
-        select: { id: true },
-      });
-      profileId = existing?.id ?? null;
-    }
-
-    if (profileId) {
-      await upsertProfileArchitectureForUser(
-        tx,
-        profileId,
-        architecturePatch,
         profilePatch,
       );
     }
@@ -368,7 +291,6 @@ export async function completeStep(stepNumber: number, data: unknown) {
   const userId = session.user.id;
   const payload = normalizeFormData(data);
   const profilePatch = buildProfilePatch(payload);
-  const architecturePatch = buildArchitecturePatch(payload);
   const nextOnboardingStep = stepNumber < 4 ? stepNumber + 1 : 4;
 
   await prisma.$transaction(async (tx) => {
@@ -377,28 +299,11 @@ export async function completeStep(stepNumber: number, data: unknown) {
       data: { onboardingStep: nextOnboardingStep },
     });
 
-    let profileId: string | null = null;
-
     if (Object.keys(profilePatch).length > 0) {
-      profileId = await upsertDefaultUserProfile(
+      await upsertDefaultUserProfile(
         tx,
         userId,
         session.user.email,
-        profilePatch,
-      );
-    } else {
-      const existing = await tx.profile.findFirst({
-        where: { userId, isDefault: true },
-        select: { id: true },
-      });
-      profileId = existing?.id ?? null;
-    }
-
-    if (profileId) {
-      await upsertProfileArchitectureForUser(
-        tx,
-        profileId,
-        architecturePatch,
         profilePatch,
       );
     }

@@ -1,7 +1,7 @@
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
 import { emptyHubRefineryForm } from "@/lib/onboarding/hubResume";
 import { parseDateRangeString } from "@/lib/resume/dates";
-import type { ProfileWithArchitecture } from "@/lib/profile/resume-profile-core";
+import type { ResumeProfile } from "@/lib/profile/resume-profile-core";
 import {
   normalizeBulletText,
   normalizeResumeLine,
@@ -84,6 +84,28 @@ function mapEducationEntry(
   };
 }
 
+function mapCustomSections(
+  value: unknown,
+): HubRefineryForm["customSections"] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((entry, index) => {
+      const row = asRecord(entry);
+      if (!row) return null;
+      const title = readString(row.title);
+      const content = readString(row.content) || readString(row.text);
+      if (!title && !content) return null;
+      return {
+        id: readString(row.id) || `custom-${index}`,
+        title: normalizeResumeLine(title),
+        content: normalizeResumeLine(content),
+        hidden: false,
+      };
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+}
+
 function mapTextList(
   value: unknown,
   prefix: string,
@@ -95,12 +117,9 @@ function mapTextList(
   }));
 }
 
-/** Hydrate dashboard Studio form from profile row + Career Architecture JSONB. */
-export function hubRefineryFormFromProfile(
-  profile: ProfileWithArchitecture,
-): HubRefineryForm {
-  const content = profile.architecture?.content;
-  const root = asRecord(content) ?? {};
+/** Hydrate dashboard Studio form from profile row + resume JSON content. */
+export function hubRefineryFormFromProfile(profile: ResumeProfile): HubRefineryForm {
+  const root = asRecord(profile.content) ?? {};
   const cityState = [profile.city, profile.country].filter(Boolean).join(", ");
 
   const archSkills = readStringList(root.skills);
@@ -135,16 +154,13 @@ export function hubRefineryFormFromProfile(
   form.certifications = mapTextList(root.certifications, "cert");
   form.projects = mapTextList(root.projects, "proj");
   form.languages = mapTextList(root.languages, "lang");
+  form.customSections = mapCustomSections(root.customSections);
 
   return form;
 }
 
-export function targetTitleFromProfile(profile: ProfileWithArchitecture): string {
-  return (
-    profile.targetTitle?.trim() ||
-    profile.architecture?.targetRole?.trim() ||
-    ""
-  );
+export function targetTitleFromProfile(profile: ResumeProfile): string {
+  return profile.targetTitle?.trim() || "";
 }
 
 export function studioSkillsFromForm(form: HubRefineryForm): string[] {
@@ -154,7 +170,7 @@ export function studioSkillsFromForm(form: HubRefineryForm): string[] {
     .filter(Boolean);
 }
 
-export function hubFormToArchitectureContent(
+export function hubFormToProfileContent(
   form: HubRefineryForm,
   skills: string[],
 ): Record<string, unknown> {
@@ -193,6 +209,15 @@ export function hubFormToArchitectureContent(
     languages: form.languages
       .filter((entry) => !entry.hidden && entry.text.trim())
       .map((entry) => entry.text.trim()),
+    customSections: form.customSections
+      .filter(
+        (entry) =>
+          !entry.hidden && entry.title.trim() && entry.content.trim(),
+      )
+      .map((entry) => ({
+        title: entry.title.trim(),
+        content: entry.content.trim(),
+      })),
   };
 }
 
@@ -216,3 +241,6 @@ function formatDateRangeForContent(
   if (start && end) return `${start} – ${end}`;
   return start || end || "";
 }
+
+/** @deprecated Use `hubFormToProfileContent` */
+export const hubFormToArchitectureContent = hubFormToProfileContent;

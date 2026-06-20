@@ -1,58 +1,112 @@
 "use client";
 
-import { LogOut } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { signOutUser } from "@/lib/auth/sign-out-client";
 import { cn } from "@/lib/utils";
+
+const authLinkPillClass =
+  "rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors hover:brightness-110";
+
+const authLinkPillStyle = {
+  color: "oklch(0.82 0.16 165)",
+  borderColor: "oklch(0.82 0.16 165 / 0.4)",
+  backgroundColor: "oklch(0.82 0.16 165 / 0.1)",
+} as const;
 
 type SignOutButtonProps = {
   className?: string;
   label?: string;
+  /** Match marketing nav “Sign In” pill styling. */
+  variant?: "pill" | "ghost";
+  /** Ask before signing out (default true). */
+  confirm?: boolean;
+  /** @deprecated Use variant="pill" or variant="ghost" instead. */
   showIcon?: boolean;
-  /** Icon-only control (e.g. onboarding header). */
+  /** @deprecated Icon-only is no longer supported — use text label. */
   iconOnly?: boolean;
-  /** JetBrains-style uppercase label for onboarding chrome. */
+  /** @deprecated Use variant="ghost" with className instead. */
   mono?: boolean;
 };
 
 export function SignOutButton({
   className,
   label = "Sign out",
-  showIcon = true,
-  iconOnly = false,
+  variant = "pill",
+  confirm = true,
+  showIcon: _showIcon = false,
+  iconOnly: _iconOnly = false,
   mono = false,
 }: SignOutButtonProps) {
   const [pending, setPending] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
-  async function handleSignOut() {
-    if (pending) return;
+  async function handleSignOut(): Promise<boolean> {
+    if (pending) return false;
     setPending(true);
 
     try {
       await signOutUser();
+      return true;
     } catch {
       setPending(false);
+      return false;
     }
   }
 
+  function handleClick() {
+    if (pending) return;
+    if (confirm) {
+      setConfirmOpen(true);
+      return;
+    }
+    void handleSignOut();
+  }
+
+  const displayLabel = pending ? "Signing out…" : label;
+
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      size={iconOnly ? "icon" : "sm"}
-      disabled={pending}
-      aria-label={iconOnly ? (pending ? "Signing out" : "Sign out") : undefined}
-      onClick={() => void handleSignOut()}
-      className={cn(
-        "text-muted-foreground hover:bg-white/[0.06] hover:text-foreground",
-        iconOnly && "h-8 w-8 shrink-0",
-        mono && !iconOnly && "font-mono text-[10px] uppercase tracking-[0.14em]",
-        className,
+    <>
+      {variant === "pill" ? (
+        <button
+          type="button"
+          disabled={pending}
+          onClick={handleClick}
+          className={cn(authLinkPillClass, className)}
+          style={authLinkPillStyle}
+        >
+          {displayLabel}
+        </button>
+      ) : (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={pending}
+          onClick={handleClick}
+          className={cn(
+            "rounded-xl text-muted-foreground hover:bg-white/[0.06] hover:text-foreground",
+            mono && "font-mono text-[10px] uppercase tracking-[0.14em]",
+            className,
+          )}
+        >
+          {displayLabel}
+        </Button>
       )}
-    >
-      {showIcon ? <LogOut className="h-4 w-4" aria-hidden="true" /> : null}
-      {iconOnly ? null : pending ? "Signing out…" : label}
-    </Button>
+
+      {confirm ? (
+        <ConfirmDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          title="Sign out of EasySubmit?"
+          description="You'll return to the login screen. Unsaved changes in this tab may be lost."
+          confirmLabel="Sign out"
+          cancelLabel="Stay signed in"
+          confirmVariant="destructive"
+          onConfirm={handleSignOut}
+        />
+      ) : null}
+    </>
   );
 }

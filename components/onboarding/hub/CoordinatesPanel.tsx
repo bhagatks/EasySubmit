@@ -1,6 +1,6 @@
 "use client";
 
-import { Crosshair, Link2, Mail, User } from "lucide-react";
+import { Crosshair, Mail, User } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { CityStateField } from "@/components/onboarding/hub/CityStateField";
 import { PhoneField } from "@/components/onboarding/hub/PhoneField";
@@ -35,7 +35,6 @@ export type CoordinatesValues = {
   phoneDialCode: string;
   phone: string;
   email: string;
-  linkedIn: string;
 };
 
 type CoordinatesPanelProps = {
@@ -105,7 +104,6 @@ export function CoordinatesPanel({
   );
   const [phone, setPhone] = useState(initialValues?.phone ?? "");
   const [email, setEmail] = useState(initialValues?.email || initialEmail);
-  const [linkedIn, setLinkedIn] = useState(initialValues?.linkedIn ?? "");
 
   useEffect(() => {
     if (!initialValues) return;
@@ -121,7 +119,6 @@ export function CoordinatesPanel({
       ),
     );
     setEmail(initialValues.email);
-    setLinkedIn(initialValues.linkedIn);
   }, [initialValues]);
 
   useEffect(() => {
@@ -170,7 +167,6 @@ export function CoordinatesPanel({
     phoneDialCode,
     phone: phone.trim(),
     email: email.trim(),
-    linkedIn: linkedIn.trim(),
   };
 
   useEffect(() => {
@@ -182,7 +178,6 @@ export function CoordinatesPanel({
     phoneDialCode,
     phone,
     email,
-    linkedIn,
     onChange,
   ]);
 
@@ -318,37 +313,6 @@ export function CoordinatesPanel({
               name="es-coordinates-email"
               className={cn(INPUT_CLASS, "pl-10")}
               placeholder="you@email.com"
-            />
-          </div>
-        </div>
-
-        <div>
-          <div className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-            <TechLabel htmlFor="hub-linkedin" monoClass={monoClass} className="mb-0">
-              LinkedIn URL
-            </TechLabel>
-            <span
-              className="text-[10px] font-normal normal-case tracking-normal"
-              style={{ color: MUTED }}
-            >
-              Important — having your profile linked helps recruiters find you
-            </span>
-          </div>
-          <div className="relative">
-            <Link2
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
-              style={{ color: MINT }}
-              aria-hidden="true"
-            />
-            <input
-              id="hub-linkedin"
-              type="url"
-              value={linkedIn}
-              onChange={(event) => setLinkedIn(event.target.value)}
-              autoComplete="off"
-              name="es-coordinates-linkedin"
-              className={cn(INPUT_CLASS, "pl-10")}
-              placeholder="linkedin.com/in/yourname"
             />
           </div>
         </div>

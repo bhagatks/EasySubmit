@@ -133,7 +133,7 @@ function ProgressPanel({ activePhase }: { activePhase: OnboardingPhaseId }) {
         </ol>
 
         <div className="mt-6 border-t border-white/10 pt-4">
-          <SignOutButton iconOnly className="text-muted-foreground" />
+          <SignOutButton variant="ghost" mono />
         </div>
       </div>
     </aside>

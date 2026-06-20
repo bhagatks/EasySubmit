@@ -6,7 +6,7 @@ Next.js 14 (App Router) web app + future Chrome extension (MV3). Primary entry a
 
 ## Data model
 
-Postgres (Prisma) + Supabase Vault BYOK + client Zustand stores. Login identity (`users`) is separate from career data (`profiles` + nested rows) and engine state (`architectures` JSONB). Diagrams, entity map, and feature mapping: [`docs/database-schema.md`](./database-schema.md#data-model-overview). Boot and routing rules: [`docs/IDENTITY_AND_BOOT_RULES.md`](./IDENTITY_AND_BOOT_RULES.md).
+Postgres (Prisma) + Supabase Vault BYOK + client Zustand stores. Login identity (`users`) is separate from career data (`profiles` + `content` JSONB). Per-table audit: [`docs/TABLE_INVENTORY.md`](./TABLE_INVENTORY.md).
 
 ## Runtime
 
@@ -45,7 +45,7 @@ app/
     resumes/                Placeholder
     applications/           Placeholder
     keys/                   Placeholder
-    settings/               Placeholder
+    settings/               Account settings (`AccountSettings`)
 components/
   onboarding/
     OnboardingFlowShell.tsx Asymmetric layout + 4-phase progress
@@ -123,6 +123,18 @@ Dark-first Trust Tech palette in `app/globals.css`: deep navy, electric primary 
 
 | Date | Summary |
 |------|---------|
+| 2026-06-20 | Schema consolidation: single `profiles` table with `content` JSONB; dropped `architectures`, child resume tables, unused profile columns |
+| 2026-06-20 | Postgres table inventory doc (`docs/TABLE_INVENTORY.md`) |
+| 2026-06-20 | Identity phase: LinkedIn URL removed from `CoordinatesPanel`; Studio Header shows empty-state hint; LinkedIn comes from resume parse or Studio edit |
+| 2026-06-20 | Dashboard Settings: `/dashboard/settings` — account name edit (`users` only, no profile sync), read-only OAuth email, Google/LinkedIn connect badges, engine status + AI Keys link, sign-out scope copy; `app/actions/account.ts` |
+| 2026-06-20 | Dashboard BYOK UX: no hard redirect on missing key; `DashboardIgnitionGuard` resets stale client ignition when `vaultKeyId` null; one-time `DashboardByokNudge`; `BYOK Inactive` on sidebar AI Keys nav; header badge active-only |
+| 2026-06-20 | Resume Studio Layout tab: stacked font/page-size fields (label above control); page-size picker limited to **US Letter** + **A4** only |
+| 2026-06-20 | Resume Studio UI: right pane **Editor \| Layout** tabs (dashboard profile edit); collapsible ATS-ordered sections + custom sections; transparent ± zoom on preview (auto fit-to-pane when no stored zoom); default page size US Letter; preview typography §2 (18px name, tighter spacing) |
+| 2026-06-20 | Dashboard Resume Studio edit: viewport-height shell (`h-svh`) + overflow chain so preview and edit panes scroll independently |
+| 2026-06-20 | Studio preview zoom: default 100% (no fit-all-pages), scrollable viewport, +/−/reset controls in `StudioPreviewSettingsBar`; persisted `easysubmit-studio-zoom-v1` |
+| 2026-06-20 | Onboarding Studio preview fix: guard scale-to-fit when viewport height is 0, remeasure on phase transition, single preview mount (desktop/mobile), `autoSaveId` split, RefineryPanel reset/watch race |
+| 2026-06-20 | Studio font + page-size controls moved to fixed footer at bottom of right edit pane (`StudioPreviewSettingsBar`); left preview is canvas-only |
+| 2026-06-20 | Onboarding Studio preview fix: resilient form→preview mapping, live skill sync, resizable panel height chain, dark-theme font/page-size controls |
 | 2026-06-20 | Resume parser text normalization (`lib/resume/normalizeResumeText.ts`): strip PDF junk, leading list markers, smart quotes; preserve C++/AT&T/accents; wired through OpenResume, heuristic parser, hub merge, studio DB |
 | 2026-06-20 | Shared `ResumeStudioWorkbench`: P2 scale-to-fit paginated preview, page-size select (default A4), dashed page-break lines, resizable 50/50 split (persisted), mobile Preview/Edit tabs; sidebar icon-rail on profile edit |
 | 2026-06-19 | Ignition Blast: 400ms mint bloom from clicked power cell + chamber screen-shake, `POWER STABILIZED` JetBrains overlay on `igniteEngineVault` success; post-blast `router.refresh()` + Prime Paper blur→active |

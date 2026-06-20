@@ -4,7 +4,7 @@ import { JetBrains_Mono } from "next/font/google";
 import { AnimatePresence, motion } from "framer-motion";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { completeOnboarding, completeStep } from "@/app/actions/onboarding";
 import { getLoginIdentity, getProfileIdentity } from "@/app/actions/profile";
 import { IdentityCanvasGhost } from "@/components/onboarding/hub/IdentityCanvasGhost";
@@ -132,6 +132,8 @@ export default function OnboardingPage() {
   );
   const [refineryInitial, setRefineryInitial] =
     useState<HubRefineryForm>(emptyHubRefineryForm());
+  const [refineryForm, setRefineryForm] =
+    useState<HubRefineryForm>(emptyHubRefineryForm());
   const [parsedStructured, setParsedStructured] = useState<StructuredResume | null>(
     null,
   );
@@ -163,6 +165,7 @@ export default function OnboardingPage() {
     (state) => state.identityPhaseComplete,
   );
   const setStudioSkills = useOnboardingStore((state) => state.setStudioSkills);
+  const studioSkills = useOnboardingStore((state) => state.studio.skills);
   const languages = useOnboardingStore((state) => state.languages);
   const roleLocked = identity.targetRole.trim().length > 0;
 
@@ -262,6 +265,7 @@ export default function OnboardingPage() {
       setRawResumeText(rawText);
       setCoordinates(hubFormToCoordinates(form));
       setRefineryInitial(form);
+      setRefineryForm(form);
       setStudioSkills(parsedSkills);
       setResumeData(refineryFormToPrimeResume(form));
       setIsScanning(false);
@@ -271,19 +275,52 @@ export default function OnboardingPage() {
   );
 
   const handleRefineryChange = useCallback((form: HubRefineryForm) => {
-    setResumeData(refineryFormToPrimeResume(form));
+    setRefineryForm(form);
   }, []);
+
+  const studioPreview = useMemo(() => {
+    const skillsText =
+      studioSkills.length > 0
+        ? studioSkills.join(", ")
+        : refineryForm.skillsText;
+    return refineryFormToPrimeResume({
+      ...refineryForm,
+      skillsText,
+    });
+  }, [refineryForm, studioSkills]);
+
+  const previewResume = useMemo(() => {
+    if (phase < 3) return resumeData;
+
+    const hasStudioContent =
+      Boolean(studioPreview.fullName?.trim()) ||
+      Boolean(studioPreview.summary?.trim()) ||
+      (studioPreview.experience?.length ?? 0) > 0 ||
+      (studioPreview.skills?.length ?? 0) > 0;
+
+    return hasStudioContent ? studioPreview : resumeData;
+  }, [phase, resumeData, studioPreview]);
 
   const handleSynthesizeArchitecture = useCallback(
     (form: HubRefineryForm) => {
       if (calibrationRanRef.current || isSynthesizing) return;
 
-      setResumeData(refineryFormToPrimeResume(form));
+      const skills =
+        useOnboardingStore.getState().studio.skills.length > 0
+          ? useOnboardingStore.getState().studio.skills
+          : parseSkillsText(form.skillsText);
+
+      setRefineryForm(form);
+      setResumeData(
+        refineryFormToPrimeResume({
+          ...form,
+          skillsText: skills.join(", "),
+        }),
+      );
       calibrationRanRef.current = true;
       setIsSynthesizing(true);
 
       const { city, country } = parseCityState(form.cityState);
-      const skills = parseSkillsText(form.skillsText);
       const resumeLanguages = formatLanguagesForResume(
         useOnboardingStore.getState().languages,
       );
@@ -462,25 +499,24 @@ export default function OnboardingPage() {
           monoClass={jetbrainsMono.className}
           className="min-h-0 flex-1"
           panelScrolls={false}
+          previewLayoutKey={phase}
+          focusPreviewOnLayoutKey={phase >= 3 ? phase : undefined}
           previewPrefix={phase === 1 ? <IdentityCanvasGhost monoClass={jetbrainsMono.className} /> : null}
           preview={
-            <motion.div
-              className="relative w-full"
-              initial={false}
-              animate={{
-                opacity: phase === 1 && !roleLocked ? 0 : 1,
-                scale: phase === 1 && roleLocked ? 1 : phase === 1 ? 0.98 : 1,
-              }}
-              transition={{ duration: 0.45, ease: [0.25, 0.46, 0.45, 0.94] }}
+            <div
+              className={cn(
+                "relative w-full transition-opacity duration-300",
+                phase === 1 && !roleLocked && "pointer-events-none opacity-0",
+              )}
             >
               <PrimeResume
-                resume={resumeData}
+                resume={previewResume}
                 showTargetRole={phase < 3}
                 languageEntries={phase >= 3 ? languages : []}
                 variant="workbench"
                 className="w-full"
               />
-            </motion.div>
+            </div>
           }
           previewOverlay={<ScanningBeam active={isScanning} />}
           panel={
@@ -495,7 +531,7 @@ export default function OnboardingPage() {
                     onNavigate={handleBreadcrumbNavigate}
                   />
                   <div className="flex shrink-0 items-center border-l border-white/10 px-2 sm:px-3">
-                    <SignOutButton iconOnly />
+                    <SignOutButton variant="pill" />
                   </div>
                 </div>
               </header>

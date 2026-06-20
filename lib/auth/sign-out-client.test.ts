@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { signOutMock, resetStoreMock, resetIgnitionMock, assignMock } = vi.hoisted(() => ({
-  signOutMock: vi.fn(),
-  resetStoreMock: vi.fn(),
-  resetIgnitionMock: vi.fn(),
-  assignMock: vi.fn(),
-}));
+const { signOutMock, resetStoreMock, resetIgnitionMock, clearVaultMock, assignMock } =
+  vi.hoisted(() => ({
+    signOutMock: vi.fn(),
+    resetStoreMock: vi.fn(),
+    resetIgnitionMock: vi.fn(),
+    clearVaultMock: vi.fn(),
+    assignMock: vi.fn(),
+  }));
 
 vi.mock("next-auth/react", () => ({
   signOut: signOutMock,
@@ -21,6 +23,10 @@ vi.mock("@/src/stores/use-ignition-store", () => ({
   useIgnitionStore: {
     getState: () => ({ resetIgnition: resetIgnitionMock }),
   },
+}));
+
+vi.mock("@/src/lib/ai/session-key-vault", () => ({
+  clearSessionApiKeyVault: clearVaultMock,
 }));
 
 import { clearClientSessionState, signOutUser } from "@/lib/auth/sign-out-client";
@@ -57,6 +63,7 @@ describe("sign-out-client", () => {
 
     expect(resetStoreMock).toHaveBeenCalledOnce();
     expect(resetIgnitionMock).toHaveBeenCalledOnce();
+    expect(clearVaultMock).toHaveBeenCalledOnce();
     expect(sessionStorage.getItem("easysubmit-onboarding")).toBeNull();
     expect(localStorage.getItem("easysubmit-ignition-prefs")).toBeNull();
   });
@@ -66,6 +73,7 @@ describe("sign-out-client", () => {
 
     expect(resetStoreMock).toHaveBeenCalledOnce();
     expect(resetIgnitionMock).toHaveBeenCalledOnce();
+    expect(clearVaultMock).toHaveBeenCalledOnce();
     expect(signOutMock).toHaveBeenCalledWith({ redirect: false });
     expect(assignMock).toHaveBeenCalledWith("/login?signedOut=1");
   });

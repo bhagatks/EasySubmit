@@ -54,6 +54,12 @@ export type HubRefineryForm = {
   certifications: Array<{ id: string; text: string; hidden?: boolean }>;
   projects: Array<{ id: string; text: string; hidden?: boolean }>;
   languages: Array<{ id: string; text: string; hidden?: boolean }>;
+  customSections: Array<{
+    id: string;
+    title: string;
+    content: string;
+    hidden?: boolean;
+  }>;
 };
 
 function pickParsedField(
@@ -73,7 +79,6 @@ export function emptyCoordinatesValues(): CoordinatesValues {
     phoneDialCode: DEFAULT_DIAL_CODE,
     phone: "",
     email: "",
-    linkedIn: "",
   };
 }
 
@@ -87,7 +92,6 @@ export function hubFormToCoordinates(form: HubRefineryForm): CoordinatesValues {
     phoneDialCode: phoneParts.dialCode,
     phone: phoneParts.nationalNumber,
     email: form.email,
-    linkedIn: form.linkedIn,
   };
 }
 
@@ -106,6 +110,7 @@ export function emptyHubRefineryForm(): HubRefineryForm {
     certifications: [],
     projects: [],
     languages: [],
+    customSections: [],
   };
 }
 
@@ -119,7 +124,7 @@ export function coordinatesToRefineryForm(
     cityState: coordinates.cityState,
     phone: formatFullPhone(coordinates.phoneDialCode, coordinates.phone),
     email: coordinates.email,
-    linkedIn: coordinates.linkedIn,
+    linkedIn: "",
   };
 }
 
@@ -140,7 +145,7 @@ export function mergeParsedWithCoordinates(
     cityState: pickParsedField(data.location, coordinates.cityState),
     phone: mergedPhone,
     email: pickParsedField(data.email, coordinates.email),
-    linkedIn: pickParsedField(data.linkedIn, coordinates.linkedIn),
+    linkedIn: data.linkedIn?.trim() ?? "",
     professionalSummary: normalizeResumeLine(data.summary?.trim() ?? ""),
     skillsText: data.skills.map((skill) => normalizeResumeLine(skill)).join(", "),
     experience: data.experience.map((entry, index) => {
@@ -187,6 +192,7 @@ export function mergeParsedWithCoordinates(
       text,
       hidden: false,
     })),
+    customSections: [],
   };
 }
 
@@ -206,61 +212,89 @@ export function refineryFormToPrimeResume(
   form: HubRefineryForm,
   profile?: PrimeResumeProfile,
 ): PrimeResumeData {
-  const fullName = [form.firstName, form.lastName].filter(Boolean).join(" ").trim();
+  const safe = {
+    firstName: form.firstName ?? "",
+    lastName: form.lastName ?? "",
+    cityState: form.cityState ?? "",
+    phone: form.phone ?? "",
+    email: form.email ?? "",
+    linkedIn: form.linkedIn ?? "",
+    professionalSummary: form.professionalSummary ?? "",
+    skillsText: form.skillsText ?? "",
+    experience: form.experience ?? [],
+    education: form.education ?? [],
+    certifications: form.certifications ?? [],
+    projects: form.projects ?? [],
+    languages: form.languages ?? [],
+    customSections: form.customSections ?? [],
+  };
+
+  const fullName = [safe.firstName, safe.lastName].filter(Boolean).join(" ").trim();
 
   return {
     profile,
     fullName: fullName || null,
-    email: form.email.trim() || null,
-    phone: form.phone.trim() || null,
-    location: form.cityState.trim() || null,
-    linkedIn: form.linkedIn.trim() || null,
-    summary: form.professionalSummary.trim() || null,
-    skills: parseSkillsText(form.skillsText),
-    experience: form.experience
+    email: safe.email.trim() || null,
+    phone: safe.phone.trim() || null,
+    location: safe.cityState.trim() || null,
+    linkedIn: safe.linkedIn.trim() || null,
+    summary: safe.professionalSummary.trim() || null,
+    skills: parseSkillsText(safe.skillsText),
+    experience: safe.experience
       .filter((entry) => !entry.hidden)
-      .filter((entry) => entry.title.trim() || entry.company.trim())
+      .filter((entry) => (entry.title ?? "").trim() || (entry.company ?? "").trim())
       .map((entry) => {
         return {
           id: entry.id,
-          title: entry.title.trim(),
-          company: entry.company.trim(),
-          location: entry.location.trim() || null,
-          startDate: entry.startMonth.trim() && entry.startYear.trim()
+          title: (entry.title ?? "").trim(),
+          company: (entry.company ?? "").trim(),
+          location: (entry.location ?? "").trim() || null,
+          startDate: entry.startMonth?.trim() && entry.startYear?.trim()
             ? `${entry.startMonth.trim()} ${entry.startYear.trim()}`
-            : entry.startYear.trim() || null,
-          endDate: entry.endMonth.trim() && entry.endYear.trim()
+            : entry.startYear?.trim() || null,
+          endDate: entry.endMonth?.trim() && entry.endYear?.trim()
             ? `${entry.endMonth.trim()} ${entry.endYear.trim()}`
-            : entry.endYear.trim() || null,
-          bullets: normalizeBulletText(entry.bullets)
+            : entry.endYear?.trim() || null,
+          bullets: normalizeBulletText(entry.bullets ?? "")
             .split("\n")
             .filter(Boolean),
         };
       }),
-    education: form.education
+    education: safe.education
       .filter((entry) => !entry.hidden)
-      .filter((entry) => entry.school.trim() || entry.degree.trim())
+      .filter((entry) => (entry.school ?? "").trim() || (entry.degree ?? "").trim())
       .map((entry) => ({
         id: entry.id,
-        school: entry.school.trim(),
-        degree: entry.degree.trim() || null,
-        startDate: entry.startMonth.trim() && entry.startYear.trim()
+        school: (entry.school ?? "").trim(),
+        degree: (entry.degree ?? "").trim() || null,
+        startDate: entry.startMonth?.trim() && entry.startYear?.trim()
           ? `${entry.startMonth.trim()} ${entry.startYear.trim()}`
-          : entry.startYear.trim() || null,
-        endDate: entry.endMonth.trim() && entry.endYear.trim()
+          : entry.startYear?.trim() || null,
+        endDate: entry.endMonth?.trim() && entry.endYear?.trim()
           ? `${entry.endMonth.trim()} ${entry.endYear.trim()}`
-          : entry.endYear.trim() || null,
-        field: entry.location.trim() || null,
+          : entry.endYear?.trim() || null,
+        field: (entry.location ?? "").trim() || null,
       })),
-    certifications: form.certifications
-      .filter((entry) => !entry.hidden && entry.text.trim())
-      .map((entry) => entry.text.trim()),
-    projects: form.projects
-      .filter((entry) => !entry.hidden && entry.text.trim())
-      .map((entry) => entry.text.trim()),
-    languages: form.languages
-      .filter((entry) => !entry.hidden && entry.text.trim())
-      .map((entry) => entry.text.trim()),
+    certifications: safe.certifications
+      .filter((entry) => !entry.hidden && (entry.text ?? "").trim())
+      .map((entry) => (entry.text ?? "").trim()),
+    projects: safe.projects
+      .filter((entry) => !entry.hidden && (entry.text ?? "").trim())
+      .map((entry) => (entry.text ?? "").trim()),
+    languages: safe.languages
+      .filter((entry) => !entry.hidden && (entry.text ?? "").trim())
+      .map((entry) => (entry.text ?? "").trim()),
+    customSections: safe.customSections
+      .filter(
+        (entry) =>
+          !entry.hidden &&
+          (entry.title ?? "").trim() &&
+          (entry.content ?? "").trim(),
+      )
+      .map((entry) => ({
+        title: (entry.title ?? "").trim(),
+        content: (entry.content ?? "").trim(),
+      })),
   };
 }
 

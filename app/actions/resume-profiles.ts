@@ -12,10 +12,9 @@ import {
   findProfileForUser,
   profileEmailForUser,
   setDefaultProfileForUser,
-  upsertProfileArchitecture,
 } from "@/lib/profile/resume-profile-core";
 import {
-  hubFormToArchitectureContent,
+  hubFormToProfileContent,
   hubRefineryFormFromProfile,
   studioSkillsFromForm,
   targetTitleFromProfile,
@@ -150,21 +149,11 @@ export async function createResumeProfile(
             city: defaultProfile.city,
             country: defaultProfile.country,
             targetTitle: null,
-            minSalary: defaultProfile.minSalary,
-            workMode: defaultProfile.workMode,
             summary: defaultProfile.summary,
-            coreCompetencies: defaultProfile.coreCompetencies,
             skills: [...defaultProfile.skills],
             resumeRawText: defaultProfile.resumeRawText,
-          },
-        });
-
-        const content = defaultProfile.architecture?.content ?? {};
-        await tx.architecture.create({
-          data: {
-            profileId: cloned.id,
-            targetRole: "",
-            content: content as Prisma.InputJsonValue,
+            content: defaultProfile.content as Prisma.InputJsonValue,
+            calibrationScore: defaultProfile.calibrationScore,
           },
         });
 
@@ -182,14 +171,6 @@ export async function createResumeProfile(
           email,
           firstName: defaultProfile?.firstName,
           lastName: defaultProfile?.lastName,
-        },
-      });
-
-      await tx.architecture.create({
-        data: {
-          profileId: created.id,
-          targetRole: "",
-          content: {},
         },
       });
 
@@ -264,19 +245,9 @@ export async function saveResumeProfileStudio(
           targetTitle,
           summary: sanitizeString(form.professionalSummary, 8000) || null,
           skills,
-          coreCompetencies: skills,
+          content: hubFormToProfileContent(form, skills) as Prisma.InputJsonValue,
         },
       });
-
-      await upsertProfileArchitecture(
-        tx,
-        profile.id,
-        {
-          targetRole: targetTitle,
-          content: hubFormToArchitectureContent(form, skills) as Prisma.InputJsonValue,
-        },
-        targetTitle,
-      );
     });
 
     revalidatePath("/dashboard/resume-profiles");

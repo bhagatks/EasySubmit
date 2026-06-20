@@ -1,28 +1,27 @@
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 
-export type ProfileWithArchitecture = Prisma.ProfileGetPayload<{
-  include: { architecture: true };
-}>;
+export type ResumeProfile = Prisma.ProfileGetPayload<object>;
+
+/** @deprecated Use `ResumeProfile` */
+export type ProfileWithArchitecture = ResumeProfile;
 
 export function profileEmailForUser(userId: string, email?: string | null): string {
   return email ?? `${userId}@users.easysubmit.local`;
 }
 
-export async function findDefaultProfile(userId: string): Promise<ProfileWithArchitecture | null> {
+export async function findDefaultProfile(userId: string): Promise<ResumeProfile | null> {
   return prisma.profile.findFirst({
     where: { userId, isDefault: true },
-    include: { architecture: true },
   });
 }
 
 export async function findProfileForUser(
   userId: string,
   profileId: string,
-): Promise<ProfileWithArchitecture | null> {
+): Promise<ResumeProfile | null> {
   return prisma.profile.findFirst({
     where: { id: profileId, userId },
-    include: { architecture: true },
   });
 }
 
@@ -77,45 +76,20 @@ export async function setDefaultProfileForUser(
   return true;
 }
 
-export async function upsertProfileArchitecture(
-  tx: Prisma.TransactionClient,
-  profileId: string,
-  architecturePatch: Prisma.ArchitectureUpdateInput,
-  targetTitle?: string | null,
-) {
-  const targetRole =
-    (architecturePatch.targetRole as string | undefined) ??
-    targetTitle?.trim() ??
-    "";
+export function profileContentPatch(
+  data: Record<string, unknown>,
+): Pick<Prisma.ProfileUpdateInput, "content" | "calibrationScore"> {
+  const patch: Pick<Prisma.ProfileUpdateInput, "content" | "calibrationScore"> = {};
 
-  const mergedPatch: Prisma.ArchitectureUpdateInput = {
-    ...architecturePatch,
-    ...(targetRole ? { targetRole } : {}),
-  };
-
-  if (Object.keys(architecturePatch).length > 0 || targetRole) {
-    await tx.architecture.upsert({
-      where: { profileId },
-      create: {
-        profileId,
-        targetRole,
-        calibrationScore:
-          (mergedPatch.calibrationScore as number | undefined) ?? 0,
-        content:
-          (mergedPatch.content as Prisma.InputJsonValue | undefined) ?? {},
-      },
-      update: mergedPatch,
-    });
-    return;
+  if (data.parsedData !== undefined) {
+    patch.content = data.parsedData as Prisma.InputJsonValue;
+  }
+  if (data.content !== undefined) {
+    patch.content = data.content as Prisma.InputJsonValue;
+  }
+  if (data.calibrationScore !== undefined) {
+    patch.calibrationScore = data.calibrationScore as number;
   }
 
-  await tx.architecture.upsert({
-    where: { profileId },
-    create: {
-      profileId,
-      targetRole,
-      content: {},
-    },
-    update: {},
-  });
+  return patch;
 }

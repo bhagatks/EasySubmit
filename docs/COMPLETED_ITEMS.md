@@ -1,5 +1,6 @@
 | Date | Item |
 |------|------|
+| 2026-06-20 | Schema consolidation: `profiles.content` JSONB + `calibrationScore`; dropped `architectures` and child resume tables; removed unused profile columns |
 | 2026-06-17 | NextAuth (Google + LinkedIn), middleware, typed env, `/login` UI |
 | 2026-06-17 | Onboarding flow shell — 4-phase progress, asymmetric layout, AnimatePresence |
 | 2026-06-17 | `/onboarding/step-4` ResumeMapping scanner + wizard redirect on resume upload |

@@ -74,13 +74,9 @@ export async function executeEngineRefinement(
         where: { isDefault: true },
         take: 1,
         select: {
-          architecture: {
-            select: {
-              targetRole: true,
-              calibrationScore: true,
-              content: true,
-            },
-          },
+          targetTitle: true,
+          calibrationScore: true,
+          content: true,
         },
       },
     },
@@ -105,14 +101,14 @@ export async function executeEngineRefinement(
   }
 
   const provider = user.activeProvider as HandshakeProvider;
-  const architecture = user.profiles[0]?.architecture;
-  const targetRole = architecture?.targetRole ?? "";
-  const calibrationScore = architecture?.calibrationScore ?? 0;
+  const profile = user.profiles[0];
+  const targetRole = profile?.targetTitle ?? "";
+  const calibrationScore = profile?.calibrationScore ?? 0;
   const sourceContent =
-    architecture?.content &&
-    typeof architecture.content === "object" &&
-    !Array.isArray(architecture.content)
-      ? (architecture.content as CareerArchitectureContent)
+    profile?.content &&
+    typeof profile.content === "object" &&
+    !Array.isArray(profile.content)
+      ? (profile.content as CareerArchitectureContent)
       : {};
 
   const modelId = resolveModelId(provider, input.modelId);

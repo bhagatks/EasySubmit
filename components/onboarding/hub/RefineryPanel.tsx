@@ -12,13 +12,14 @@ import {
   Sparkles,
   Trash2,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { CityStateField } from "@/components/onboarding/hub/CityStateField";
 import { DateRangeFields } from "@/components/onboarding/hub/DateRangeFields";
 import { PhoneField } from "@/components/onboarding/hub/PhoneField";
 import { StudioSkillsField } from "@/components/onboarding/hub/StudioSkillsField";
 import { LanguagesField } from "@/components/onboarding/hub/LanguagesField";
+import { StudioCollapsibleSection } from "@/components/resume/StudioCollapsibleSection";
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
 import { getWorkbenchPhase, workbenchPhaseHeader } from "@/lib/onboarding/workbenchPhases";
 import { DEFAULT_DIAL_CODE } from "@/lib/phone/countryCodes";
@@ -33,6 +34,11 @@ import {
   RESUME_SECTION_TITLES,
   SUMMARY_PLACEHOLDER,
 } from "@/lib/resume/resumeSpec";
+import {
+  buildInitialStudioSectionState,
+  STUDIO_EDITOR_SECTION_LABELS,
+  type StudioEditorSectionId,
+} from "@/lib/resume/studio-editor-sections";
 import { TargetRoleField } from "@/components/onboarding/hub/TargetRoleField";
 import { MIN_STUDIO_SKILLS, selectCanProceedToCalibration } from "@/lib/onboarding/studio";
 import { useOnboardingStore } from "@/stores/onboardingStore";
@@ -93,6 +99,7 @@ function OptionalListSection({
   onUpdate,
   monoClass,
   placeholder,
+  hideTitle = false,
 }: {
   title: string;
   items: Array<{ id: string; text: string; hidden?: boolean }>;
@@ -101,12 +108,13 @@ function OptionalListSection({
   onUpdate: (index: number, text: string) => void;
   monoClass: string;
   placeholder: string;
+  hideTitle?: boolean;
 }) {
   if (items.length === 0) {
     return (
       <section>
         <div className="mb-3 flex items-center justify-between gap-2">
-          <SectionTitle monoClass={monoClass}>{title}</SectionTitle>
+          {hideTitle ? null : <SectionTitle monoClass={monoClass}>{title}</SectionTitle>}
           <button
             type="button"
             onClick={onAdd}
@@ -129,7 +137,7 @@ function OptionalListSection({
   return (
     <section>
       <div className="mb-3 flex items-center justify-between gap-2">
-        <SectionTitle monoClass={monoClass}>{title}</SectionTitle>
+        {hideTitle ? null : <SectionTitle monoClass={monoClass}>{title}</SectionTitle>}
         <button
           type="button"
           onClick={onAdd}
@@ -192,7 +200,7 @@ export function RefineryPanel({
   const canProceedToCalibration = isProfileMode
     ? localSkillCount >= MIN_STUDIO_SKILLS
     : onboardingCanProceed;
-  const { register, control, handleSubmit, watch, reset, setValue } =
+  const { register, control, handleSubmit, watch, reset, setValue, getValues } =
     useForm<HubRefineryForm>({
       defaultValues: initialValues,
       mode: "onChange",
@@ -203,25 +211,61 @@ export function RefineryPanel({
   const certFields = useFieldArray({ control, name: "certifications" });
   const projectFields = useFieldArray({ control, name: "projects" });
   const languageFields = useFieldArray({ control, name: "languages" });
+  const customSectionFields = useFieldArray({ control, name: "customSections" });
+
+  const editorVariant = isProfileMode ? "dashboard" : "onboarding";
+  const coreSectionIds: StudioEditorSectionId[] = [
+    ...(isProfileMode ? (["profileRole"] as const) : []),
+    "header",
+    "professionalSummary",
+    "skills",
+    "professionalExperience",
+    "education",
+    "certifications",
+    "projects",
+    "languages",
+  ];
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() =>
+    buildInitialStudioSectionState(coreSectionIds, editorVariant),
+  );
+
+  const toggleSection = (sectionId: string) => {
+    setExpandedSections((current) => ({
+      ...current,
+      [sectionId]: !current[sectionId],
+    }));
+  };
+
+  const skipWatchRef = useRef(false);
 
   useEffect(() => {
+    skipWatchRef.current = true;
     reset(initialValues);
-  }, [initialValues, reset]);
+
+    const frameId = window.setTimeout(() => {
+      onChange(getValues());
+      skipWatchRef.current = false;
+    }, 0);
+
+    return () => window.clearTimeout(frameId);
+  }, [initialValues, reset, onChange, getValues]);
 
   const watched = watch();
 
   useEffect(() => {
-    const subscription = watch((formValues) => {
-      onChange(formValues as HubRefineryForm);
+    const subscription = watch(() => {
+      if (skipWatchRef.current) return;
+      onChange(getValues());
     });
     return () => subscription.unsubscribe();
-  }, [watch, onChange]);
+  }, [watch, onChange, getValues]);
 
   const phoneParts = splitPhoneNumber(watched.phone ?? "");
   const phoneValid = isValidPhoneNumber(
     phoneParts.dialCode || DEFAULT_DIAL_CODE,
     phoneParts.nationalNumber,
   );
+  const linkedInValue = watched.linkedIn?.trim() ?? "";
 
   const isValid =
     watched.firstName?.trim().length > 0 &&
@@ -245,65 +289,72 @@ export function RefineryPanel({
     (isProfileMode ? "Save profile" : "Synthesize Architecture.");
 
   return (
-    <div className="flex flex-1 flex-col">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p
-            className={cn(monoClass, "text-[11px] font-medium uppercase tracking-[0.2em]")}
-            style={{ color: PRIMARY }}
-          >
-            <Sparkles className="mr-1.5 inline h-3.5 w-3.5 align-text-bottom" aria-hidden="true" />
-            {resolvedPhaseLabel}
-          </p>
-          <h2
-            className="mt-3 font-display text-xl font-semibold tracking-tight sm:text-2xl"
-            style={{ color: "oklch(0.98 0.01 268)" }}
-          >
-            {resolvedHeaderTitle}
-          </h2>
-          <p className="mt-2 text-sm leading-relaxed" style={{ color: MUTED }}>
-            {resolvedHeaderDescription}
-          </p>
-        </div>
-        {onBack ? (
-          <button
-            type="button"
-            onClick={onBack}
-            className={cn(
-              monoClass,
-              "inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors hover:border-[oklch(0.62_0.21_265_/_0.35)]",
-            )}
-            style={{ color: "oklch(0.98 0.01 268)" }}
-          >
-            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-            {resolvedBackLabel}
-          </button>
-        ) : null}
-      </div>
+    <div className={cn(isProfileMode ? "flex flex-col" : "flex flex-1 flex-col")}>
+      {!isProfileMode ? (
+        <>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p
+                className={cn(monoClass, "text-[11px] font-medium uppercase tracking-[0.2em]")}
+                style={{ color: PRIMARY }}
+              >
+                <Sparkles className="mr-1.5 inline h-3.5 w-3.5 align-text-bottom" aria-hidden="true" />
+                {resolvedPhaseLabel}
+              </p>
+              <h2
+                className="mt-3 font-display text-xl font-semibold tracking-tight sm:text-2xl"
+                style={{ color: "oklch(0.98 0.01 268)" }}
+              >
+                {resolvedHeaderTitle}
+              </h2>
+              <p className="mt-2 text-sm leading-relaxed" style={{ color: MUTED }}>
+                {resolvedHeaderDescription}
+              </p>
+            </div>
+            {onBack ? (
+              <button
+                type="button"
+                onClick={onBack}
+                className={cn(
+                  monoClass,
+                  "inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors hover:border-[oklch(0.62_0.21_265_/_0.35)]",
+                )}
+                style={{ color: "oklch(0.98 0.01 268)" }}
+              >
+                <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                {resolvedBackLabel}
+              </button>
+            ) : null}
+          </div>
 
-      {rawText?.trim() ? (
-        <div className="mt-4">
-          <button
-            type="button"
-            onClick={() => setShowRawText((current) => !current)}
-            className={cn(
-              monoClass,
-              "text-[10px] font-semibold uppercase tracking-[0.12em]",
-            )}
-            style={{ color: PRIMARY }}
-          >
-            {showRawText ? "Hide Raw Text" : "View Raw Text"}
-          </button>
-          {showRawText ? (
-            <pre className="mt-3 max-h-32 overflow-y-auto rounded-xl border border-white/10 bg-[oklch(0.12_0.03_268)] p-3 text-[10px] leading-relaxed text-[oklch(0.75_0.02_268)]">
-              {rawText}
-            </pre>
+          {rawText?.trim() ? (
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={() => setShowRawText((current) => !current)}
+                className={cn(
+                  monoClass,
+                  "text-[10px] font-semibold uppercase tracking-[0.12em]",
+                )}
+                style={{ color: PRIMARY }}
+              >
+                {showRawText ? "Hide Raw Text" : "View Raw Text"}
+              </button>
+              {showRawText ? (
+                <pre className="mt-3 max-h-32 overflow-y-auto rounded-xl border border-white/10 bg-[oklch(0.12_0.03_268)] p-3 text-[10px] leading-relaxed text-[oklch(0.75_0.02_268)]">
+                  {rawText}
+                </pre>
+              ) : null}
+            </div>
           ) : null}
-        </div>
+        </>
       ) : null}
 
       <form
-        className="mt-6 flex flex-1 flex-col space-y-8"
+        className={cn(
+          "flex flex-col space-y-3",
+          isProfileMode ? "mt-0" : "mt-6 flex-1",
+        )}
         onSubmit={handleSubmit((values) =>
           onFinalize({
             ...values,
@@ -315,8 +366,14 @@ export function RefineryPanel({
         autoComplete="off"
       >
         {isProfileMode && onTargetRoleChange ? (
-          <section>
-            <SectionTitle monoClass={monoClass}>Profile role</SectionTitle>
+          <StudioCollapsibleSection
+            title={STUDIO_EDITOR_SECTION_LABELS.profileRole}
+            expanded={Boolean(expandedSections.profileRole)}
+            onToggle={() => toggleSection("profileRole")}
+            variant={editorVariant}
+            monoClass={monoClass}
+            showDragHandle={false}
+          >
             <p className="mb-3 text-xs" style={{ color: MUTED }}>
               Names this resume profile in your list — not printed on the resume.
             </p>
@@ -325,18 +382,16 @@ export function RefineryPanel({
               value={targetRole}
               onChange={onTargetRoleChange}
             />
-          </section>
+          </StudioCollapsibleSection>
         ) : null}
 
-        <StudioSkillsField
+        <StudioCollapsibleSection
+          title={STUDIO_EDITOR_SECTION_LABELS.header}
+          expanded={Boolean(expandedSections.header)}
+          onToggle={() => toggleSection("header")}
+          variant={editorVariant}
           monoClass={monoClass}
-          skills={isProfileMode ? studioSkills : undefined}
-          onSkillsChange={isProfileMode ? onStudioSkillsChange : undefined}
-        />
-
-        {/* 1. Header */}
-        <section>
-          <SectionTitle monoClass={monoClass}>Header</SectionTitle>
+        >
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <input
@@ -410,28 +465,51 @@ export function RefineryPanel({
               autoComplete="off"
               name="es-linkedin"
             />
+            {!linkedInValue ? (
+              <p className="mt-1.5 text-xs" style={{ color: MUTED }}>
+                Add LinkedIn — helps recruiters find you
+              </p>
+            ) : null}
           </div>
-        </section>
+        </StudioCollapsibleSection>
 
-        {/* 2. Professional Summary */}
-        <section>
-          <SectionTitle monoClass={monoClass}>
-            {RESUME_SECTION_TITLES.professionalSummary}
-          </SectionTitle>
+        <StudioCollapsibleSection
+          title={STUDIO_EDITOR_SECTION_LABELS.professionalSummary}
+          expanded={Boolean(expandedSections.professionalSummary)}
+          onToggle={() => toggleSection("professionalSummary")}
+          variant={editorVariant}
+          monoClass={monoClass}
+        >
           <textarea
             {...register("professionalSummary")}
             rows={4}
             className={cn(INPUT_CLASS, "resize-y")}
             placeholder={SUMMARY_PLACEHOLDER}
           />
-        </section>
+        </StudioCollapsibleSection>
 
-        {/* 4. Professional Experience */}
-        <section>
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <SectionTitle monoClass={monoClass}>
-              {RESUME_SECTION_TITLES.professionalExperience}
-            </SectionTitle>
+        <StudioCollapsibleSection
+          title={STUDIO_EDITOR_SECTION_LABELS.skills}
+          expanded={Boolean(expandedSections.skills)}
+          onToggle={() => toggleSection("skills")}
+          variant={editorVariant}
+          monoClass={monoClass}
+        >
+          <StudioSkillsField
+            monoClass={monoClass}
+            skills={isProfileMode ? studioSkills : undefined}
+            onSkillsChange={isProfileMode ? onStudioSkillsChange : undefined}
+          />
+        </StudioCollapsibleSection>
+
+        <StudioCollapsibleSection
+          title={STUDIO_EDITOR_SECTION_LABELS.professionalExperience}
+          expanded={Boolean(expandedSections.professionalExperience)}
+          onToggle={() => toggleSection("professionalExperience")}
+          variant={editorVariant}
+          monoClass={monoClass}
+        >
+          <div className="mb-3 flex justify-end">
             <button
               type="button"
               onClick={() =>
@@ -576,12 +654,16 @@ export function RefineryPanel({
               );
             })}
           </div>
-        </section>
+        </StudioCollapsibleSection>
 
-        {/* 5. Education */}
-        <section>
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <SectionTitle monoClass={monoClass}>{RESUME_SECTION_TITLES.education}</SectionTitle>
+        <StudioCollapsibleSection
+          title={STUDIO_EDITOR_SECTION_LABELS.education}
+          expanded={Boolean(expandedSections.education)}
+          onToggle={() => toggleSection("education")}
+          variant={editorVariant}
+          monoClass={monoClass}
+        >
+          <div className="mb-3 flex justify-end">
             <button
               type="button"
               onClick={() =>
@@ -669,60 +751,156 @@ export function RefineryPanel({
               </div>
             ))}
           </div>
-        </section>
+        </StudioCollapsibleSection>
 
-        {/* 6. Optional sections */}
-        <OptionalListSection
-          title={RESUME_SECTION_TITLES.certifications}
-          items={watched.certifications ?? []}
+        <StudioCollapsibleSection
+          title={STUDIO_EDITOR_SECTION_LABELS.certifications}
+          expanded={Boolean(expandedSections.certifications)}
+          onToggle={() => toggleSection("certifications")}
+          variant={editorVariant}
           monoClass={monoClass}
-          placeholder="Certification — Issuer, MM/YYYY"
-          onAdd={() =>
-            certFields.append({ id: `cert-${Date.now()}`, text: "", hidden: false })
-          }
-          onRemove={(index) => certFields.remove(index)}
-          onUpdate={(index, text) =>
-            setValue(`certifications.${index}.text`, text, { shouldDirty: true })
-          }
-        />
-
-        <OptionalListSection
-          title={RESUME_SECTION_TITLES.projects}
-          items={watched.projects ?? []}
-          monoClass={monoClass}
-          placeholder="Project name — one-line description"
-          onAdd={() =>
-            projectFields.append({ id: `proj-${Date.now()}`, text: "", hidden: false })
-          }
-          onRemove={(index) => projectFields.remove(index)}
-          onUpdate={(index, text) =>
-            setValue(`projects.${index}.text`, text, { shouldDirty: true })
-          }
-        />
-
-        {isProfileMode ? (
+        >
           <OptionalListSection
-            title={RESUME_SECTION_TITLES.languages}
-            items={watched.languages ?? []}
+            title={RESUME_SECTION_TITLES.certifications}
+            items={watched.certifications ?? []}
             monoClass={monoClass}
-            placeholder="Language — proficiency (e.g. English — Native)"
+            placeholder="Certification — Issuer, MM/YYYY"
+            hideTitle
             onAdd={() =>
-              languageFields.append({ id: `lang-${Date.now()}`, text: "", hidden: false })
+              certFields.append({ id: `cert-${Date.now()}`, text: "", hidden: false })
             }
-            onRemove={(index) => languageFields.remove(index)}
+            onRemove={(index) => certFields.remove(index)}
             onUpdate={(index, text) =>
-              setValue(`languages.${index}.text`, text, { shouldDirty: true })
+              setValue(`certifications.${index}.text`, text, { shouldDirty: true })
             }
           />
-        ) : (
-          <LanguagesField monoClass={monoClass} idPrefix="studio-languages" />
-        )}
+        </StudioCollapsibleSection>
+
+        <StudioCollapsibleSection
+          title={STUDIO_EDITOR_SECTION_LABELS.projects}
+          expanded={Boolean(expandedSections.projects)}
+          onToggle={() => toggleSection("projects")}
+          variant={editorVariant}
+          monoClass={monoClass}
+        >
+          <OptionalListSection
+            title={RESUME_SECTION_TITLES.projects}
+            items={watched.projects ?? []}
+            monoClass={monoClass}
+            placeholder="Project name — one-line description"
+            hideTitle
+            onAdd={() =>
+              projectFields.append({ id: `proj-${Date.now()}`, text: "", hidden: false })
+            }
+            onRemove={(index) => projectFields.remove(index)}
+            onUpdate={(index, text) =>
+              setValue(`projects.${index}.text`, text, { shouldDirty: true })
+            }
+          />
+        </StudioCollapsibleSection>
+
+        <StudioCollapsibleSection
+          title={STUDIO_EDITOR_SECTION_LABELS.languages}
+          expanded={Boolean(expandedSections.languages)}
+          onToggle={() => toggleSection("languages")}
+          variant={editorVariant}
+          monoClass={monoClass}
+        >
+          {isProfileMode ? (
+            <OptionalListSection
+              title={RESUME_SECTION_TITLES.languages}
+              items={watched.languages ?? []}
+              monoClass={monoClass}
+              placeholder="Language — proficiency (e.g. English — Native)"
+              hideTitle
+              onAdd={() =>
+                languageFields.append({ id: `lang-${Date.now()}`, text: "", hidden: false })
+              }
+              onRemove={(index) => languageFields.remove(index)}
+              onUpdate={(index, text) =>
+                setValue(`languages.${index}.text`, text, { shouldDirty: true })
+              }
+            />
+          ) : (
+            <LanguagesField monoClass={monoClass} idPrefix="studio-languages" />
+          )}
+        </StudioCollapsibleSection>
+
+        {customSectionFields.fields.map((field, index) => {
+          const sectionKey = field.id;
+          return (
+            <StudioCollapsibleSection
+              key={field.id}
+              title={
+                watched.customSections?.[index]?.title?.trim() || "Custom Section"
+              }
+              expanded={Boolean(expandedSections[sectionKey])}
+              onToggle={() => toggleSection(sectionKey)}
+              variant={editorVariant}
+              monoClass={monoClass}
+            >
+              <div className="space-y-3">
+                <input
+                  {...register(`customSections.${index}.title`)}
+                  className={INPUT_CLASS}
+                  placeholder="Section title (use standard names when possible)"
+                  autoComplete="off"
+                />
+                <textarea
+                  {...register(`customSections.${index}.content`)}
+                  rows={5}
+                  className={cn(INPUT_CLASS, "resize-y")}
+                  placeholder="Section content — plain text, one paragraph or line per item"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    customSectionFields.remove(index);
+                    setExpandedSections((current) => {
+                      const next = { ...current };
+                      delete next[sectionKey];
+                      return next;
+                    });
+                  }}
+                  className={cn(monoClass, "text-[10px] uppercase tracking-[0.12em]")}
+                  style={{ color: MUTED }}
+                >
+                  Remove section
+                </button>
+              </div>
+            </StudioCollapsibleSection>
+          );
+        })}
+
+        <button
+          type="button"
+          onClick={() => {
+            const id = `custom-${Date.now()}`;
+            customSectionFields.append({
+              id,
+              title: "",
+              content: "",
+              hidden: false,
+            });
+            setExpandedSections((current) => ({ ...current, [id]: true }));
+          }}
+          className={cn(
+            monoClass,
+            "rounded-xl border border-dashed px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors",
+            isProfileMode
+              ? "border-border text-muted-foreground hover:border-mint/40 hover:text-foreground"
+              : "border-white/15 text-[oklch(0.65_0.02_268)] hover:border-[oklch(0.62_0.21_265_/_0.35)]",
+          )}
+        >
+          + Custom section
+        </button>
 
         <button
           type="submit"
           disabled={isProceedDisabled}
           className={cn(
-            "mt-auto inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-all",
+            "inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-all",
+            isProfileMode ? "mt-4" : "mt-auto",
             isProceedDisabled
               ? "cursor-not-allowed opacity-50"
               : "hover:brightness-110",

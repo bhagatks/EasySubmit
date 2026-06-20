@@ -30,8 +30,8 @@ const MUTED = "oklch(0.45 0.02 268)";
 const SPACE = {
   /** Page inset (~0.5"–1" on letter; % tracks preview width). */
   page: "px-[6%] py-[5.5%]",
-  /** 20px — uniform gap between header and each section (was gap-7 / 28px). */
-  sectionStack: "gap-5",
+  /** 16px between header and each section (was gap-5 / 20px). */
+  sectionStack: "gap-4",
   /** 8px below heading + 4px above rule + rule → body (12px total below title text). */
   titleAfter: "mb-2 pb-1",
   /** 16px between jobs or education entries. */
@@ -96,6 +96,7 @@ export type PrimeResumeData = {
   certifications?: string[];
   projects?: string[];
   languages?: string[];
+  customSections?: Array<{ title: string; content: string }>;
   ghostTagline?: string | null;
 };
 
@@ -186,7 +187,7 @@ function ProfileHeader({
   return (
     <header className="text-center">
       <h1
-        className="text-[20px] font-bold leading-tight tracking-tight"
+        className="text-[18px] font-bold leading-tight tracking-tight"
         style={{ color: INK }}
       >
         {resume.fullName?.trim() || <Placeholder>Your Name</Placeholder>}
@@ -445,6 +446,30 @@ function OptionalLinesSection({
   );
 }
 
+function CustomSectionsBlock({
+  sections,
+}: {
+  sections: Array<{ title: string; content: string }>;
+}) {
+  const visible = sections.filter(
+    (section) => section.title.trim() && section.content.trim(),
+  );
+  if (visible.length === 0) return null;
+
+  return (
+    <>
+      {visible.map((section, index) => (
+        <section key={`${section.title}-${index}`}>
+          <SectionTitle>{section.title}</SectionTitle>
+          <p className={cn("whitespace-pre-wrap break-words", BODY_TEXT_CLASS)}>
+            {section.content}
+          </p>
+        </section>
+      ))}
+    </>
+  );
+}
+
 /** ATS-ordered resume preview — section order from {@link lib/resume/resumeSpec}. */
 export function PrimeResume({
   resume,
@@ -468,10 +493,10 @@ export function PrimeResume({
       <article
         className={cn(
           inter.className,
-          "w-full rounded-[2px] shadow-[0_20px_50px_rgba(0,0,0,0.5)]",
+          "w-full rounded-[2px]",
           isWorkbench
-            ? "max-w-none"
-            : "max-w-[min(100%,32rem)] min-h-[min(32rem,72vh)] max-h-[min(90vh,1100px)] overflow-y-auto",
+            ? "max-w-none shadow-none"
+            : "max-w-[min(100%,32rem)] min-h-[min(32rem,72vh)] max-h-[min(90vh,1100px)] overflow-y-auto shadow-[0_20px_50px_rgba(0,0,0,0.5)]",
         )}
         style={{
           backgroundColor: PAPER,
@@ -496,6 +521,7 @@ export function PrimeResume({
               lines={legacyLanguageLines}
             />
           )}
+          <CustomSectionsBlock sections={resume.customSections ?? []} />
         </div>
       </article>
     </div>

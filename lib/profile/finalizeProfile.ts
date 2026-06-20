@@ -19,7 +19,6 @@ export async function finalizeProfile(
       data: {
         email,
         targetTitle: payload.selectedRole,
-        minSalary: payload.minSalary,
         isDefault: true,
       },
     });
@@ -33,7 +32,6 @@ export async function finalizeProfile(
       isDefault: true,
       email: profileEmailForUser(userId, email),
       targetTitle: payload.selectedRole,
-      minSalary: payload.minSalary,
     },
   });
 }

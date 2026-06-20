@@ -16,7 +16,7 @@
 | `/dashboard/resume-profiles/[id]/edit` | Resume Studio — same Refinery controls as onboarding Phase 3 + profile role field | NextAuth required |
 | `/dashboard/applications` | Application tracker (stub) | NextAuth required |
 | `/dashboard/keys` | **Ignition Chamber** — post-onboarding BYOK vault (Power Cells, IGNITE handshake) | NextAuth required |
-| `/dashboard/settings` | Account settings (stub) | NextAuth required |
+| `/dashboard/settings` | Account settings — login identity (`users`), connected OAuth providers, engine status stub, sign out | NextAuth required |
 
 Middleware (`middleware.ts`) and `app/onboarding/layout.tsx` both redirect unauthenticated users to `/login`. **Sign out** — `SignOutButton` clears client state, ends the NextAuth session, and returns everyone to `/login?signedOut=1` (same flow for Google and LinkedIn).
 
@@ -26,7 +26,7 @@ Primary onboarding path — client state in `app/onboarding/page.tsx` (not Zusta
 
 | Phase | Panel | Data captured | Navigation |
 |-------|-------|---------------|------------|
-| 1 · Identity | `CoordinatesPanel` | `firstName`, `lastName`, `cityState` (Nominatim debounce + locate via `CityStateField`), `phone` with country-code selector (default US +1), `email`, `linkedIn` | Continue → Import; `completeStep(1)` |
+| 1 · Identity | `CoordinatesPanel` | `firstName`, `lastName`, `cityState` (Nominatim debounce + locate via `CityStateField`), `phone` with country-code selector (default US +1), `email` | Continue → Import; `completeStep(1)` |
 | 2 · Import | `FuelPanel` | Resume PDF/DOCX → `parseResumeFile` (browser Open-Resume pipeline) | **No back to Phase 1** (`minNavigablePhase=2` on breadcrumb); auto-advance to Studio after parse |
 | 3 · Studio | `RefineryPanel` | ATS section order (Header → Summary → Skills → Experience → Education → optional Certifications/Projects/Languages); `mergeParsedWithCoordinates` prefills contact from Phase 1 | **Upload** back button → Import (re-upload); **Synthesize Architecture.** → see bridge below |
 
@@ -89,7 +89,7 @@ Canonical identity separation and app-load routing: **`docs/IDENTITY_AND_BOOT_RU
 
 On successful OAuth: redirect → `/onboarding` until `onboardingStep >= 4`, then **`/dashboard`**.
 
-**Cold Engine on first dashboard visit:** Users who complete onboarding without a vaulted key (`vaultKeyId` null) land on **`/dashboard`** with Engine Cold UI — not blocked from the dashboard. `DashboardIgnitionGuard` may redirect them to **`/dashboard/keys`** (Ignition Chamber) when neither server vault nor local BYOK cipher is present.
+**Cold Engine on first dashboard visit:** Users who complete onboarding without a vaulted key (`vaultKeyId` null) land on **`/dashboard`** with Engine Cold UI — navigation is not blocked. A one-time centered nudge (`DashboardByokNudge`, `easysubmit-byok-nudge-v1`) prompts them to connect AI Keys; `BYOK Inactive` appears on the sidebar **AI Keys** nav item. `DashboardIgnitionGuard` only syncs stale client ignition state when the server vault is empty.
 
 **Env:** `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`.
 

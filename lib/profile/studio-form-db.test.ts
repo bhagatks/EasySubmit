@@ -1,15 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
-  hubFormToArchitectureContent,
+  hubFormToProfileContent,
   hubRefineryFormFromProfile,
   studioSkillsFromForm,
   targetTitleFromProfile,
 } from "@/lib/profile/studio-form-db";
-import type { ProfileWithArchitecture } from "@/lib/profile/resume-profile-core";
+import type { ResumeProfile } from "@/lib/profile/resume-profile-core";
 
-function mockProfile(
-  overrides: Partial<ProfileWithArchitecture> = {},
-): ProfileWithArchitecture {
+function mockProfile(overrides: Partial<ResumeProfile> = {}): ResumeProfile {
   return {
     id: "profile-1",
     userId: "user-1",
@@ -21,52 +19,42 @@ function mockProfile(
     city: "Austin",
     country: "TX",
     targetTitle: "Senior Manager",
-    minSalary: null,
-    workMode: null,
     summary: "Leader with 10 years experience.",
-    coreCompetencies: ["Leadership"],
     skills: ["Python", "SQL"],
     resumeRawText: null,
+    content: {
+      linkedIn: "linkedin.com/in/jane",
+      skills: ["Python", "SQL", "Agile"],
+      experiences: [
+        {
+          title: "Manager",
+          company: "Acme",
+          location: "Austin, TX",
+          dateRange: "Jan 2020 – Present",
+          bullets: ["Led team of 8"],
+        },
+      ],
+      education: [
+        {
+          school: "State University",
+          degree: "BS Computer Science",
+          location: "",
+          date: "2012 – 2016",
+        },
+      ],
+      certifications: ["PMP"],
+      projects: ["Platform rebuild"],
+      languages: ["English — Native"],
+    },
+    calibrationScore: 0,
     createdAt: new Date(),
     updatedAt: new Date(),
-    architecture: {
-      id: "arch-1",
-      profileId: "profile-1",
-      targetRole: "Senior Manager",
-      calibrationScore: 0,
-      content: {
-        linkedIn: "linkedin.com/in/jane",
-        skills: ["Python", "SQL", "Agile"],
-        experiences: [
-          {
-            title: "Manager",
-            company: "Acme",
-            location: "Austin, TX",
-            dateRange: "Jan 2020 – Present",
-            bullets: ["Led team of 8"],
-          },
-        ],
-        education: [
-          {
-            school: "State University",
-            degree: "BS Computer Science",
-            location: "",
-            date: "2012 – 2016",
-          },
-        ],
-        certifications: ["PMP"],
-        projects: ["Platform rebuild"],
-        languages: ["English — Native"],
-      },
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    },
     ...overrides,
   };
 }
 
 describe("hubRefineryFormFromProfile", () => {
-  it("hydrates studio form from profile and architecture JSON", () => {
+  it("hydrates studio form from profile content JSON", () => {
     const form = hubRefineryFormFromProfile(mockProfile());
 
     expect(form.firstName).toBe("Jane");
@@ -78,23 +66,17 @@ describe("hubRefineryFormFromProfile", () => {
     expect(studioSkillsFromForm(form)).toEqual(["Python", "SQL", "Agile"]);
   });
 
-  it("prefers architecture target role for list naming", () => {
-    const profile = mockProfile({
-      targetTitle: null,
-      architecture: {
-        ...mockProfile().architecture!,
-        targetRole: "Director",
-      },
-    });
-
-    expect(targetTitleFromProfile(profile)).toBe("Director");
+  it("uses profile targetTitle for list naming", () => {
+    expect(targetTitleFromProfile(mockProfile({ targetTitle: "Director" }))).toBe(
+      "Director",
+    );
   });
 });
 
-describe("hubFormToArchitectureContent", () => {
+describe("hubFormToProfileContent", () => {
   it("writes onboarding-compatible content keys", () => {
     const form = hubRefineryFormFromProfile(mockProfile());
-    const content = hubFormToArchitectureContent(form, ["Python", "SQL"]);
+    const content = hubFormToProfileContent(form, ["Python", "SQL"]);
 
     expect(Array.isArray(content.experiences)).toBe(true);
     expect(Array.isArray(content.education)).toBe(true);

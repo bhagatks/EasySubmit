@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { requireDashboardSession } from "@/lib/auth/require-dashboard-session";
 import { KeyProtector } from "@/src/components/auth/KeyProtector";
+import { DashboardByokNudge } from "@/components/dashboard/DashboardByokNudge";
 import { DashboardIgnitionGuard } from "@/components/dashboard/DashboardIgnitionGuard";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 
@@ -22,6 +23,7 @@ export default async function DashboardLayout({
   return (
     <KeyProtector>
       <DashboardIgnitionGuard vaultKeyId={user.vaultKeyId} />
+      <DashboardByokNudge vaultKeyId={user.vaultKeyId} />
       <DashboardShell vaultKeyId={user.vaultKeyId}>{children}</DashboardShell>
     </KeyProtector>
   );

@@ -87,11 +87,11 @@ model VerificationToken {
   @@map("verification_tokens")
 }
 
-/// Career profile synced across web dashboard and extension engine.
+/// Career resume profile — contact scalars + structured resume JSON on one row.
 model Profile {
-  id               String          @id @default(cuid())
+  id               String   @id @default(cuid())
   userId           String
-  isDefault        Boolean         @default(false)
+  isDefault        Boolean  @default(false)
   firstName        String?
   lastName         String?
   email            String
@@ -99,109 +99,21 @@ model Profile {
   city             String?
   country          String?
   targetTitle      String?
-  minSalary        Int?
-  workMode         String?
-  summary          String?         @db.Text
-  coreCompetencies String[]        @default([])
-  skills           String[]        @default([])
-  resumeRawText    String?         @db.Text
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  architecture     Architecture?
-  experiences      Experience[]
-  projects         Project[]
-  educations       Education[]
-  certifications   Certification[]
+  summary          String?  @db.Text
+  skills           String[] @default([])
+  resumeRawText    String?  @db.Text
+  /// Structured resume sections (experience, education, certifications, projects, languages, …).
+  content          Json     @default("{}")
+  calibrationScore Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([email])
   @@index([userId])
   @@index([userId, isDefault])
+  @@index([targetTitle])
   @@map("profiles")
-}
-
-model Experience {
-  id          String   @id @default(cuid())
-  profileId   String
-  company     String
-  title       String
-  location    String?
-  startDate   String?
-  endDate     String?
-  description String?  @db.Text
-  isCurrent   Boolean  @default(false)
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  profile     Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
-
-  @@index([profileId])
-  @@map("experiences")
-}
-
-model Project {
-  id          String   @id @default(cuid())
-  profileId   String
-  name        String
-  description String?  @db.Text
-  url         String?
-  startDate   String?
-  endDate     String?
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  profile     Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
-
-  @@index([profileId])
-  @@map("projects")
-}
-
-model Education {
-  id          String   @id @default(cuid())
-  profileId   String
-  institution String
-  degree      String?
-  field       String?
-  startDate   String?
-  endDate     String?
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  profile     Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
-
-  @@index([profileId])
-  @@map("educations")
-}
-
-model Certification {
-  id        String   @id @default(cuid())
-  profileId String
-  name      String
-  issuer    String?
-  issueDate String?
-  url       String?
-  sortOrder Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
-
-  @@index([profileId])
-  @@map("certifications")
-}
-
-/// Headless engine career architecture — structured state pointers, not secrets.
-model Architecture {
-  id               String   @id @default(cuid())
-  profileId        String   @unique
-  targetRole       String
-  calibrationScore Int      @default(0)
-  content          Json
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  profile          Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
-
-  @@index([targetRole])
-  @@map("architectures")
 }
 
 /// Per-request AI usage ledger for cost tracking and quota enforcement.

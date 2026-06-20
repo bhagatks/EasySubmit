@@ -55,14 +55,10 @@ export async function getDashboardStats(): Promise<DashboardStatsResult> {
           where: { isDefault: true },
           take: 1,
           select: {
-            architecture: {
-              select: {
-                targetRole: true,
-                calibrationScore: true,
-                content: true,
-                updatedAt: true,
-              },
-            },
+            targetTitle: true,
+            calibrationScore: true,
+            content: true,
+            updatedAt: true,
           },
         },
       },
@@ -81,15 +77,15 @@ export async function getDashboardStats(): Promise<DashboardStatsResult> {
     return { success: false, error: "User not found" };
   }
 
-  const architecture = user.profiles[0]?.architecture;
-  const metadata = parseArchitectureMetadata(architecture?.content);
+  const profile = user.profiles[0];
+  const metadata = parseArchitectureMetadata(profile?.content);
   const applications = metadata.applications ?? [];
 
   const resumesGenerated =
-    metadata.resumesGenerated ?? (architecture ? 1 : 0);
+    metadata.resumesGenerated ?? (profile ? 1 : 0);
 
   const avgAtsScore = averageCalibrationScores(
-    architecture?.calibrationScore,
+    profile?.calibrationScore,
     metadata,
   );
 
@@ -119,8 +115,8 @@ export async function getDashboardStats(): Promise<DashboardStatsResult> {
       aiSpendUsd,
       verification,
       recentApplications: applications.slice(0, 6),
-      targetRole: architecture?.targetRole ?? null,
-      architectureUpdatedAt: architecture?.updatedAt.toISOString() ?? null,
+      targetRole: profile?.targetTitle ?? null,
+      architectureUpdatedAt: profile?.updatedAt.toISOString() ?? null,
     },
   };
 }

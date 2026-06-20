@@ -2,6 +2,8 @@
 
 Canonical field reference for Postgres (`prisma/schema.prisma`), Supabase Vault BYOK, and client-side stores. For login vs resume separation and boot routing, see [`IDENTITY_AND_BOOT_RULES.md`](./IDENTITY_AND_BOOT_RULES.md).
 
+**Table usage audit:** [`TABLE_INVENTORY.md`](./TABLE_INVENTORY.md) — which tables are actively read/written, adapter-only, or unused. Update it whenever the Prisma schema or query paths change.
+
 ## Data model overview
 
 EasySubmit splits **who signed in** from **what they apply with** and **how the AI engine runs**. Login tables gate routing; career tables power ATS resume and autofill; engine tables hold parsed AI state (never secrets).
@@ -9,28 +11,22 @@ EasySubmit splits **who signed in** from **what they apply with** and **how the 
 | Domain | Tables | Purpose |
 |--------|--------|---------|
 | **Login identity** | `users`, `accounts`, `sessions` | Auth, `onboardingStep` gate, BYOK pointers (`vaultKeyId`, `activeProvider`) |
-| **Career / resume** | `profiles` + `experiences`, `projects`, `educations`, `certifications` | ATS resume source of truth; synced to extension engine (planned) |
-| **Headless engine** | `architectures`, `usage_logs` | Parsed career JSONB, calibration score, per-request AI cost ledger |
+| **Career / resume** | `profiles` (`content` JSONB + scalars) | One row per resume profile; structured sections in `profiles.content` |
+| **Headless engine** | `profiles.content`, `profiles.calibrationScore`, `usage_logs` | AI refinement reads/writes default profile JSONB |
 | **BYOK secrets** | `user_api_keys` + Supabase `vault.secrets` | One vaulted key per provider; Postgres stores UUID pointers only |
 | **Global config** | `app_config` | Model refresh intervals, AI defaults, pricing map for usage widgets |
 
-**Rule:** OAuth and session updates write `users` only. Onboarding and resume editors write `profiles` (+ nested rows) and may upsert `architectures`. Resume contact edits must **never** write back to `users`.
+**Rule:** OAuth and session updates write `users` only. Onboarding and resume editors write `profiles` (including `content` JSONB). Resume contact edits must **never** write back to `users`.
 
 ### Entity relationships
 
 ```mermaid
 erDiagram
     User ||--o{ Profile : "many"
-    Profile ||--o| Architecture : "1:1"
     User ||--o{ UserApiKey : "BYOK refs"
     User ||--o{ UsageLog : "AI spend"
     User ||--o{ Account : "OAuth"
     User ||--o{ Session : "NextAuth"
-
-    Profile ||--o{ Experience : ""
-    Profile ||--o{ Project : ""
-    Profile ||--o{ Education : ""
-    Profile ||--o{ Certification : ""
 
     UserApiKey }o--|| VaultSecret : "vaultSecretId pointer"
 ```
@@ -41,10 +37,10 @@ erDiagram
 |-----------------|--------------|
 | Login / session | `users`, `accounts`, `sessions` |
 | Onboarding progress | `users.onboardingStep` + `useOnboardingStore` (client) |
-| Resume editing | `profiles` + child tables |
-| AI resume parsing / mapping | `profiles.resumeRawText` → `architectures.content` (JSONB) |
+| Resume editing | `profiles` (`content` JSONB + scalars) |
+| AI resume parsing / mapping | `profiles.resumeRawText` → `profiles.content` |
 | BYOK / Ignition Gate | Vault + `user_api_keys` + `users.vaultKeyId` + `useIgnitionStore` (client cipher) |
-| Dashboard stats / verification | `architectures.content` metadata + `usage_logs` |
+| Dashboard stats / verification | `profiles.content` metadata + `usage_logs` |
 | Model discovery | `app_config` + `model-cache` (`localStorage`) |
 | Billing / credits / PRO tier | **Not in schema yet** — docs describe planned gatekeeper; code path today is BYOK-first |
 
@@ -55,8 +51,7 @@ flowchart TD
     A[OAuth Login] --> B[users + accounts]
     B --> C{onboardingStep less than 4?}
     C -->|yes| D[Onboarding wizard]
-    D --> E[profiles + experiences + ...]
-    D --> F[architectures.content JSONB]
+    D --> E[profiles.content JSONB]
     D --> G[Ignition Gate BYOK]
     G --> H[user_api_keys + vault]
     G --> I[user.vaultKeyId + activeProvider]
@@ -69,7 +64,7 @@ flowchart TD
     L --> M[usage_logs]
 ```
 
-**Write paths:** `completeStep` / `updateUserOnboarding` / `saveProfile` (`app/actions/onboarding.ts`, `app/actions/save-profile.ts`) upsert `profiles` and `architectures` in transactions. `igniteEngineVault` (`app/actions/ai/ignition.ts`) vaults keys and sets `users.vaultKeyId`. `executeEngineRefinement` (`app/actions/ai/engine.ts`) reads vault + `architectures`, writes refined JSONB and `usage_logs`.
+**Write paths:** `completeOnboarding` / `saveResumeProfileStudio` / `saveProfile` write `profiles` (+ `content`). `executeEngineRefinement` reads default profile `content` and writes `usage_logs`.
 
 ---
 
@@ -208,36 +203,15 @@ Many per `User`; one `isDefault` for extension/autofill default. Source of truth
 | `email` | `string` | Required contact email |
 | `phone` | `string?` | |
 | `city` / `country` | `string?` | Location |
-| `targetTitle` | `string?` | Target job title |
-| `minSalary` | `int?` | Minimum salary (thousands USD) |
-| `workMode` | `string?` | e.g. `Remote`, `Hybrid`, `On-site` |
+| `targetTitle` | `string?` | Target job title / profile list label |
 | `summary` | `text?` | Professional summary |
-| `coreCompetencies` | `string[]` | Core competency tags |
-| `skills` | `string[]` | Skill tags |
+| `skills` | `string[]` | Skill tags (fallback when `content.skills` empty) |
 | `resumeRawText` | `text?` | Plain-text resume for parsing / refinery |
+| `content` | `jsonb` default `{}` | Structured resume: `experiences`, `education`, `certifications`, `projects`, `languages`, `customSections`, … |
+| `calibrationScore` | `int` default `0` | ATS / launch calibration score |
 | `createdAt` / `updatedAt` | `datetime` | |
 
-### Related profile models
-
-| Model | Key fields | Relation |
-|-------|------------|----------|
-| `Experience` | `company`, `title`, `location`, `startDate`, `endDate`, `description`, `isCurrent` | `profileId` → `profiles.id` |
-| `Project` | `name`, `description`, `url`, `startDate`, `endDate` | `profileId` → `profiles.id` |
-| `Education` | `institution`, `degree`, `field`, `startDate`, `endDate` | `profileId` → `profiles.id` |
-| `Certification` | `name`, `issuer`, `issueDate`, `url` | `profileId` → `profiles.id` |
-
-## PostgreSQL — `architectures` (Prisma `Architecture`)
-
-Headless engine career architecture — structured state, not secrets. Replaces legacy `engines`.
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | `cuid` | Primary key |
-| `profileId` | `string` unique | FK → `profiles.id` |
-| `targetRole` | `string` | Profile list label / career target (mirrors `profiles.targetTitle`) |
-| `calibrationScore` | `int` default `0` | Launch calibration / ATS readiness score |
-| `content` | `jsonb` | Architecture payload (parsed resume mapping, skills graph, etc.) |
-| `createdAt` / `updatedAt` | `datetime` | |
+**Removed (2026-06-20):** `minSalary`, `workMode`, `coreCompetencies`; child tables `experiences`, `projects`, `educations`, `certifications`; separate `architectures` table.
 
 ## PostgreSQL — `usage_logs` (Prisma `UsageLog`)
 
@@ -254,9 +228,9 @@ Per-request AI usage ledger for cost tracking and quota enforcement.
 
 Server actions: `app/actions/ai/usage-log.ts` (`saveUsageLog`, `getUsageSpendSummary`); written by `executeEngineRefinement` after each AI call.
 
-## PostgreSQL — `engines` (legacy)
+## PostgreSQL — legacy tables
 
-**Removed** — migrated to `architectures` (`parsedData` → `content`).
+**Removed:** `engines`, `architectures`, `experiences`, `projects`, `educations`, `certifications` — consolidated into `profiles.content` (2026-06-20).
 
 ## PostgreSQL — `app_config` (Prisma `AppConfig`)
 
@@ -282,3 +256,10 @@ npx prisma migrate dev
 npx prisma generate
 npx prisma db seed
 ```
+
+## Changelog
+
+| Date | Summary |
+|------|---------|
+| 2026-06-20 | Schema consolidation: merged `architectures` into `profiles.content` + `calibrationScore`; dropped child resume tables and `minSalary` / `workMode` / `coreCompetencies` |
+| 2026-06-20 | Added [`TABLE_INVENTORY.md`](./TABLE_INVENTORY.md) — per-table read/write audit |

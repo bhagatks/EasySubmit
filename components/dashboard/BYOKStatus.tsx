@@ -24,65 +24,62 @@ type BYOKStatusProps = {
   className?: string;
 };
 
-/** Header badge — mint when vaulted; red pulsing inactive with link to AI Keys. */
+/** Header badge when BYOK is vaulted and active. */
 export function BYOKStatusBadge({ vaultKeyId, className }: BYOKStatusProps) {
   const status = resolveBYOKStatus(vaultKeyId);
-  const mono = jetbrainsMono.className;
 
-  if (status === "ACTIVE") {
-    return (
-      <Link
-        href="/dashboard/keys"
-        className={cn(
-          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-opacity hover:opacity-90",
-          className,
-        )}
-        style={{
-          color: SYSTEM_MINT,
-          borderColor: "oklch(0.82 0.16 165 / 0.4)",
-          backgroundColor: "oklch(0.82 0.16 165 / 0.1)",
-        }}
-        aria-label="BYOK active — manage AI keys"
-      >
-        <KeyRound className="h-3 w-3 shrink-0" aria-hidden="true" />
-        BYOK Active
-      </Link>
-    );
+  if (status !== "ACTIVE") {
+    return null;
   }
 
   return (
     <Link
       href="/dashboard/keys"
-      className={cn("group inline-flex flex-col items-end gap-0.5 sm:items-center sm:gap-0", className)}
-      aria-label="BYOK inactive — add an API key"
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-opacity hover:opacity-90",
+        className,
+      )}
+      style={{
+        color: SYSTEM_MINT,
+        borderColor: "oklch(0.82 0.16 165 / 0.4)",
+        backgroundColor: "oklch(0.82 0.16 165 / 0.1)",
+      }}
+      aria-label="BYOK active — manage AI keys"
     >
-      <motion.span
-        className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium"
-        style={{
-          color: WARNING_RED,
-          borderColor: "oklch(0.55 0.22 25 / 0.45)",
-          backgroundColor: "oklch(0.55 0.22 25 / 0.1)",
-        }}
-        animate={{
-          boxShadow: [
-            "0 0 0 0 oklch(0.55 0.22 25 / 0.4)",
-            "0 0 0 6px oklch(0.55 0.22 25 / 0)",
-            "0 0 0 0 oklch(0.55 0.22 25 / 0.4)",
-          ],
-        }}
-        transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-      >
-        <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden="true" />
-        BYOK Inactive
-      </motion.span>
-      <span
-        className={cn(
-          mono,
-          "hidden text-[10px] uppercase tracking-[0.1em] text-[oklch(0.55_0.22_25/0.9)] group-hover:underline sm:inline",
-        )}
-      >
-        Add API key →
-      </span>
+      <KeyRound className="h-3 w-3 shrink-0" aria-hidden="true" />
+      BYOK Active
     </Link>
+  );
+}
+
+/** Compact inactive indicator for the AI Keys sidebar nav item. */
+export function BYOKInactiveNavBadge({ className }: { className?: string }) {
+  const mono = jetbrainsMono.className;
+
+  return (
+    <motion.span
+      className={cn(
+        mono,
+        "inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-[0.08em]",
+        className,
+      )}
+      style={{
+        color: WARNING_RED,
+        borderColor: "oklch(0.55 0.22 25 / 0.45)",
+        backgroundColor: "oklch(0.55 0.22 25 / 0.1)",
+      }}
+      animate={{
+        boxShadow: [
+          "0 0 0 0 oklch(0.55 0.22 25 / 0.35)",
+          "0 0 0 4px oklch(0.55 0.22 25 / 0)",
+          "0 0 0 0 oklch(0.55 0.22 25 / 0.35)",
+        ],
+      }}
+      transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+      aria-hidden="true"
+    >
+      <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
+      Inactive
+    </motion.span>
   );
 }

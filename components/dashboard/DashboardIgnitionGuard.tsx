@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
-import { readSessionApiKeyCipher } from "@/src/lib/ai/session-key-vault";
+import { shouldResetClientIgnition } from "@/lib/dashboard/ignition-vault-sync";
 import { useIgnitionStore } from "@/src/stores/use-ignition-store";
 
 type DashboardIgnitionGuardProps = {
@@ -11,44 +10,33 @@ type DashboardIgnitionGuardProps = {
 };
 
 /**
- * On dashboard entry: if BYOK is missing (no server vault + no local cipher), send the
- * user to AI Keys or onboarding ignition — unless they are already on the keys page.
+ * Keeps client ignition state aligned with server vault truth. Does not block navigation —
+ * missing BYOK is surfaced via Cold Engine UI and action-time gates.
  */
 export function DashboardIgnitionGuard({ vaultKeyId }: DashboardIgnitionGuardProps) {
-  const router = useRouter();
-  const pathname = usePathname();
   const hasHydrated = useIgnitionStore((state) => state._hasHydrated);
 
   useEffect(() => {
     if (!hasHydrated) return;
 
-    if (pathname.startsWith("/dashboard/keys")) {
-      return;
-    }
-
     void (async () => {
       const state = useIgnitionStore.getState();
-      if (state.isIgnitionComplete()) return;
 
-      const restored = await state.restoreIgnitionFromSession();
-      if (restored) return;
+      if (!state.isIgnitionComplete()) {
+        await state.restoreIgnitionFromSession();
+      }
 
-      const cipher = readSessionApiKeyCipher();
       const latest = useIgnitionStore.getState();
-      const hasClientKey = Boolean(cipher || latest.apiKey);
-      const hasServerVault = Boolean(vaultKeyId);
 
-      if (hasServerVault || hasClientKey) {
-        return;
+      if (shouldResetClientIgnition(vaultKeyId, latest.isIgnitionComplete())) {
+        latest.resetIgnition();
       }
 
       if (latest.isLocked && latest.lockSource === "missing_key") {
         latest.unlockIgnition();
       }
-
-      router.replace("/dashboard/keys");
     })();
-  }, [hasHydrated, pathname, router, vaultKeyId]);
+  }, [hasHydrated, vaultKeyId]);
 
   return null;
 }

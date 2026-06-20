@@ -16,11 +16,14 @@ import {
   type IgnitionBlastPayload,
 } from "@/components/keys/IgnitionBlast";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { InlineAlert } from "@/components/ui/inline-alert";
 import { IgnitionGate } from "@/src/components/auth/IgnitionGate";
 import { ProviderIcon } from "@/src/components/shared/ProviderIcon";
 import { HANDSHAKE_PROVIDERS, type HandshakeProvider } from "@/src/lib/config/career-grade-models";
 import { getProviderRegistryEntry } from "@/src/lib/config/app.config";
 import { cn } from "@/lib/utils";
+import { useIgnitionStore } from "@/src/stores/use-ignition-store";
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
@@ -47,6 +50,7 @@ export function AiKeysManager({ initialKeys }: AiKeysManagerProps) {
   const [busyProvider, setBusyProvider] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [blastPayload, setBlastPayload] = useState<IgnitionBlastPayload | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<HandshakeProvider | null>(null);
 
   const mono = jetbrainsMono.className;
 
@@ -84,19 +88,33 @@ export function AiKeysManager({ initialKeys }: AiKeysManagerProps) {
     await refreshKeys();
   };
 
-  const handleRemove = async (provider: HandshakeProvider) => {
+  const handleRemove = async (provider: HandshakeProvider): Promise<boolean> => {
     setBusyProvider(provider);
     setError(null);
     const result = await removeVaultedApiKey(provider);
     setBusyProvider(null);
     if (!result.success) {
       setError(result.error);
-      return;
+      return false;
     }
     if (editor?.mode === "edit" && editor.provider === provider) {
       setEditor(null);
     }
-    await refreshKeys();
+    const next = await refreshKeys();
+    if (!next.some((key) => key.isActive)) {
+      useIgnitionStore.getState().resetIgnition();
+    }
+    router.refresh();
+    return true;
+  };
+
+  const handleConfirmRemove = async (): Promise<boolean> => {
+    if (!removeTarget) return false;
+    const ok = await handleRemove(removeTarget);
+    if (ok) {
+      setRemoveTarget(null);
+    }
+    return ok;
   };
 
   const handleVaultSuccess = useCallback(
@@ -172,11 +190,7 @@ export function AiKeysManager({ initialKeys }: AiKeysManagerProps) {
           </Button>
         </div>
 
-        {error ? (
-          <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            {error}
-          </p>
-        ) : null}
+        {error ? <InlineAlert>{error}</InlineAlert> : null}
 
         {keys.length === 0 && !editor ? (
           <div
@@ -277,7 +291,7 @@ export function AiKeysManager({ initialKeys }: AiKeysManagerProps) {
                         variant="ghost"
                         size="sm"
                         disabled={isBusy}
-                        onClick={() => void handleRemove(key.provider)}
+                        onClick={() => setRemoveTarget(key.provider)}
                         className="rounded-xl text-destructive hover:text-destructive"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -342,6 +356,19 @@ export function AiKeysManager({ initialKeys }: AiKeysManagerProps) {
         ) : null}
         </div>
       </IgnitionChamberShake>
+
+      <ConfirmDialog
+        open={removeTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setRemoveTarget(null);
+        }}
+        title="Remove this API key?"
+        description="The vaulted secret will be deleted from your account. You can add a new key anytime."
+        confirmLabel="Remove key"
+        cancelLabel="Keep key"
+        confirmVariant="destructive"
+        onConfirm={handleConfirmRemove}
+      />
     </div>
   );
 }

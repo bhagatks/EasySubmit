@@ -27,7 +27,7 @@ import {
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { Button } from "@/components/ui/button";
 import { LogoIcon } from "@/components/ui/logo";
-import { BYOKStatusBadge } from "@/components/dashboard/BYOKStatus";
+import { BYOKInactiveNavBadge, BYOKStatusBadge } from "@/components/dashboard/BYOKStatus";
 import { DashboardStudioSidebarEffect } from "@/components/dashboard/DashboardStudioSidebarEffect";
 import { cn } from "@/lib/utils";
 
@@ -44,8 +44,9 @@ type DashboardShellProps = {
   vaultKeyId?: string | null;
 };
 
-function DashboardSidebar() {
+function DashboardSidebar({ vaultKeyId }: { vaultKeyId?: string | null }) {
   const pathname = usePathname();
+  const engineCold = !vaultKeyId;
 
   return (
     <Sidebar collapsible="icon">
@@ -76,9 +77,12 @@ function DashboardSidebar() {
                         : pathname.startsWith(item.href)
                     }
                   >
-                    <Link href={item.href}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
+                    <Link href={item.href} className="flex w-full items-center gap-2">
+                      <item.icon className="h-4 w-4 shrink-0" />
+                      <span className="flex-1 truncate">{item.title}</span>
+                      {item.href === "/dashboard/keys" && engineCold ? (
+                        <BYOKInactiveNavBadge className="group-data-[collapsible=icon]:hidden" />
+                      ) : null}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -112,9 +116,19 @@ export function DashboardShell({ children, vaultKeyId }: DashboardShellProps) {
   return (
     <SidebarProvider>
       <DashboardStudioSidebarEffect />
-      <div className="flex min-h-screen w-full bg-background text-foreground">
-        <DashboardSidebar />
-        <div className="flex min-h-0 flex-1 flex-col">
+      <div
+        className={cn(
+          "flex w-full bg-background text-foreground",
+          isStudioEdit ? "h-svh max-h-svh overflow-hidden" : "min-h-screen",
+        )}
+      >
+        <DashboardSidebar vaultKeyId={vaultKeyId} />
+        <div
+          className={cn(
+            "flex min-h-0 flex-1 flex-col",
+            isStudioEdit && "overflow-hidden",
+          )}
+        >
           <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border/60 px-4">
             <SidebarTrigger />
             <div className="text-sm text-muted-foreground">
@@ -122,7 +136,7 @@ export function DashboardShell({ children, vaultKeyId }: DashboardShellProps) {
             </div>
             <div className="ml-auto flex items-center gap-2">
               <BYOKStatusBadge vaultKeyId={vaultKeyId} />
-              <SignOutButton iconOnly />
+              <SignOutButton variant="pill" />
             </div>
           </header>
           <main

@@ -295,7 +295,7 @@ export function RefineryWorkbench() {
                   Edits sync live to your digital resume preview.
                 </p>
               </div>
-              <SignOutButton iconOnly />
+              <SignOutButton variant="pill" />
             </div>
           </header>
 

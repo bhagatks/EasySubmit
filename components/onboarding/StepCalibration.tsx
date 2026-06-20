@@ -199,8 +199,6 @@ export default function StepCalibration() {
   const { update: updateSession } = useSession();
   const setIsMapping = useOnboardingStore((s) => s.setIsMapping);
   const selectedRole = useOnboardingStore((s) => s.selectedRole);
-  const minSalary = useOnboardingStore((s) => s.minSalary);
-  const workMode = useOnboardingStore((s) => s.workMode);
   const parsedResumeData = useOnboardingStore((s) => s.parsedResumeData);
   const resumePreviewUrl = useOnboardingStore((s) => s.resumePreviewUrl);
   const refineryDraft = useOnboardingStore((s) => s.refineryDraft);
@@ -239,14 +237,11 @@ export default function StepCalibration() {
 
     const persistProfile = completeOnboarding({
       targetTitle: selectedRole,
-      minSalary,
-      workMode,
       fullName: refineryDraft?.fullName,
       email: refineryDraft?.email,
       phone: refineryDraft?.phone ?? parsedResumeData?.phone ?? undefined,
       city: locationParts.city || undefined,
       country: locationParts.country || undefined,
-      coreCompetencies: refineryDraft?.coreCompetencies,
       skills: refineryDraft?.technicalSkills ?? parsedResumeData?.skills,
       resumeRawText: parsedResumeData?.rawText,
       parsedData: refineryDraft
@@ -291,14 +286,12 @@ export default function StepCalibration() {
       cancelled = true;
     };
   }, [
-    minSalary,
     parsedResumeData,
     refineryDraft,
     resumePreviewUrl,
     router,
     selectedRole,
     updateSession,
-    workMode,
   ]);
 
   return (

@@ -261,6 +261,10 @@ export const authOptions: NextAuthOptions = {
         token.lastName = session.lastName;
       }
 
+      if (trigger === "update" && session?.name !== undefined) {
+        token.name = session.name;
+      }
+
       return token;
     },
     async session({ session, token }) {
