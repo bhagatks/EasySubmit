@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Check } from "lucide-react";
 import Link from "next/link";
 import { LogoIcon } from "@/components/ui/logo";
+import { SignOutButton } from "@/components/auth/SignOutButton";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
@@ -130,6 +131,10 @@ function ProgressPanel({ activePhase }: { activePhase: OnboardingPhaseId }) {
             />
           ))}
         </ol>
+
+        <div className="mt-6 border-t border-white/10 pt-4">
+          <SignOutButton iconOnly className="text-muted-foreground" />
+        </div>
       </div>
     </aside>
   );

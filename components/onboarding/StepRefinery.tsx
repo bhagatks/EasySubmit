@@ -466,10 +466,18 @@ export default function StepRefinery({
     () =>
       buildRefineryDefaults({
         parsed: parsedResumeData,
+        sessionFirstName: session?.user?.firstName,
+        sessionLastName: session?.user?.lastName,
         sessionName: session?.user?.name,
         sessionEmail: session?.user?.email,
       }),
-    [parsedResumeData, session?.user?.email, session?.user?.name],
+    [
+      parsedResumeData,
+      session?.user?.email,
+      session?.user?.firstName,
+      session?.user?.lastName,
+      session?.user?.name,
+    ],
   );
 
   const verifiedRef = useMemo(() => verified satisfies RefineryVerifiedFields, [verified]);

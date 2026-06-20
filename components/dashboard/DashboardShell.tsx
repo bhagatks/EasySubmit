@@ -1,0 +1,123 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  Briefcase,
+  FileText,
+  Key,
+  LayoutDashboard,
+  Puzzle,
+  Settings,
+} from "lucide-react";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
+import { SignOutButton } from "@/components/auth/SignOutButton";
+import { Button } from "@/components/ui/button";
+import { LogoIcon } from "@/components/ui/logo";
+import { DashboardFuelBadge } from "@/components/dashboard/DashboardFuelBadge";
+
+const navItems = [
+  { title: "Overview", href: "/dashboard", icon: LayoutDashboard },
+  { title: "Resume profiles", href: "/dashboard/resume-profiles", icon: FileText },
+  { title: "Applications", href: "/dashboard/applications", icon: Briefcase },
+  { title: "AI Keys", href: "/dashboard/keys", icon: Key },
+  { title: "Settings", href: "/dashboard/settings", icon: Settings },
+] as const;
+
+type DashboardShellProps = {
+  children: React.ReactNode;
+  vaultKeyId?: string | null;
+};
+
+function DashboardSidebar() {
+  const pathname = usePathname();
+
+  return (
+    <Sidebar collapsible="icon">
+      <SidebarHeader>
+        <Link
+          href="/"
+          className="flex w-full items-center gap-2 px-2 py-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:px-0"
+        >
+          <LogoIcon className="h-8 w-8 shrink-0" aria-hidden="true" />
+          <span className="font-display text-base font-semibold group-data-[collapsible=icon]:hidden">
+            easysubmit<span className="text-mint">.ai</span>
+          </span>
+        </Link>
+      </SidebarHeader>
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel>Workspace</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {navItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    tooltip={item.title}
+                    isActive={
+                      item.href === "/dashboard"
+                        ? pathname === "/dashboard"
+                        : pathname.startsWith(item.href)
+                    }
+                  >
+                    <Link href={item.href}>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+      <SidebarFooter className="group-data-[collapsible=icon]:hidden">
+        <div className="rounded-lg border border-border bg-surface p-3 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
+          <div className="flex items-center gap-2 text-foreground">
+            <Puzzle className="h-3.5 w-3.5 text-mint" />
+            <span className="font-medium">Install extension</span>
+          </div>
+          <p className="mt-1.5">Autofill any application in one click.</p>
+          <Button variant="mint" size="sm" className="mt-2 w-full" asChild>
+            <Link href="/extension">Get it</Link>
+          </Button>
+        </div>
+      </SidebarFooter>
+    </Sidebar>
+  );
+}
+
+export function DashboardShell({ children, vaultKeyId }: DashboardShellProps) {
+  return (
+    <SidebarProvider>
+      <div className="flex min-h-screen w-full bg-background text-foreground">
+        <DashboardSidebar />
+        <div className="flex flex-1 flex-col">
+          <header className="flex h-14 items-center gap-3 border-b border-border/60 px-4">
+            <SidebarTrigger />
+            <div className="text-sm text-muted-foreground">Dashboard</div>
+            <div className="ml-auto flex items-center gap-2">
+              <DashboardFuelBadge vaultKeyId={vaultKeyId} />
+              <SignOutButton iconOnly />
+            </div>
+          </header>
+          <main className="flex-1 p-6">{children}</main>
+        </div>
+      </div>
+    </SidebarProvider>
+  );
+}

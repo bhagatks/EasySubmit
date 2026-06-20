@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Check, ChevronRight } from "lucide-react";
+import { Check } from "lucide-react";
 import { WORKBENCH_PHASES } from "@/lib/onboarding/workbenchPhases";
 import { cn } from "@/lib/utils";
 
@@ -13,35 +13,39 @@ export type WorkbenchPhase = {
 
 export { WORKBENCH_PHASES };
 
+const MINT = "oklch(0.82 0.16 165)";
+const PRIMARY = "oklch(0.62 0.21 265)";
+
 type SystemStatusBreadcrumbProps = {
   currentStep: number;
-  monoClass: string;
+  className?: string;
   isCalibrating?: boolean;
   /** Phases below this index cannot be navigated to (e.g. 2 locks Phase 1 after Import). */
   minNavigablePhase?: number;
+  /** Override default completion check (phase.id < activeStep). */
+  isPhaseComplete?: (phaseId: number, activeStep: number) => boolean;
   onNavigate?: (step: number) => void;
 };
 
 export function SystemStatusBreadcrumb({
   currentStep,
-  monoClass,
+  className,
   isCalibrating = false,
   minNavigablePhase = 1,
+  isPhaseComplete,
   onNavigate,
 }: SystemStatusBreadcrumbProps) {
   const activeStep = isCalibrating ? 4 : currentStep;
 
   return (
-    <nav aria-label="System status" className="flex flex-wrap items-center gap-1">
-      <span
-        className={cn(monoClass, "mr-2 text-[10px] font-medium uppercase tracking-[0.18em]")}
-        style={{ color: "oklch(0.45 0.02 268)" }}
-      >
-        System Status
-      </span>
-
+    <nav
+      aria-label="Onboarding progress"
+      className={cn("flex min-w-0 flex-1 items-stretch", className)}
+    >
       {WORKBENCH_PHASES.map((phase, index) => {
-        const isComplete = phase.id < activeStep;
+        const isComplete = isPhaseComplete
+          ? isPhaseComplete(phase.id, activeStep)
+          : phase.id < activeStep;
         const isCurrent = phase.id === activeStep;
         const canNavigate =
           Boolean(onNavigate) &&
@@ -50,53 +54,44 @@ export function SystemStatusBreadcrumb({
           !isCalibrating;
 
         return (
-          <div key={phase.id} className="flex items-center">
-            {index > 0 ? (
-              <ChevronRight
-                className="mx-1 h-3 w-3 shrink-0"
-                style={{ color: "oklch(0.35 0.02 268)" }}
+          <button
+            key={phase.id}
+            type="button"
+            disabled={!canNavigate}
+            onClick={() => canNavigate && onNavigate?.(phase.id)}
+            aria-current={isCurrent ? "step" : undefined}
+            className={cn(
+              "relative flex min-w-0 flex-1 items-center justify-center gap-1.5 border-b-2 px-2 py-2.5 text-xs font-medium transition-colors sm:px-3 sm:text-sm",
+              index > 0 && "border-l border-l-white/[0.06]",
+              canNavigate && "hover:bg-white/[0.04] hover:text-foreground",
+              !canNavigate && "cursor-default",
+              isCurrent && "text-foreground",
+              isComplete && !isCurrent && "text-foreground/75",
+              !isCurrent && !isComplete && "text-muted-foreground",
+            )}
+            style={{
+              borderBottomColor: isCurrent ? MINT : "transparent",
+            }}
+          >
+            {isComplete ? (
+              <Check
+                className="h-3.5 w-3.5 shrink-0"
+                style={{ color: isCurrent ? MINT : PRIMARY }}
                 aria-hidden="true"
               />
             ) : null}
 
-            <button
-              type="button"
-              disabled={!canNavigate}
-              onClick={() => canNavigate && onNavigate?.(phase.id)}
-              className={cn(
-                monoClass,
-                "inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-medium uppercase tracking-[0.12em] transition-colors",
-                canNavigate && "hover:bg-white/[0.06]",
-                !canNavigate && "cursor-default",
-              )}
-              style={{
-                color: isCurrent
-                  ? "oklch(0.82 0.16 165)"
-                  : isComplete
-                    ? "oklch(0.62 0.21 265)"
-                    : "oklch(0.45 0.02 268)",
-              }}
-              aria-current={isCurrent ? "step" : undefined}
-            >
-              {isComplete ? (
-                <Check className="h-3 w-3" aria-hidden="true" />
-              ) : (
-                <span
-                  className={cn(
-                    "inline-block h-1.5 w-1.5 rounded-full",
-                    isCurrent && "animate-pulse",
-                  )}
-                  style={{
-                    backgroundColor: isCurrent
-                      ? "oklch(0.82 0.16 165)"
-                      : "oklch(0.45 0.02 268)",
-                  }}
-                  aria-hidden="true"
-                />
-              )}
-              {phase.label}
-            </button>
-          </div>
+            <span className="truncate">{phase.label}</span>
+
+            {isCurrent ? (
+              <motion.span
+                layoutId="workbench-tab-glow"
+                className="pointer-events-none absolute inset-x-3 -bottom-px h-4 bg-gradient-to-t from-[oklch(0.82_0.16_165_/_0.12)] to-transparent"
+                aria-hidden="true"
+                transition={{ type: "spring", stiffness: 380, damping: 32 }}
+              />
+            ) : null}
+          </button>
         );
       })}
     </nav>

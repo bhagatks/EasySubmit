@@ -12,7 +12,7 @@ Next.js 14 (App Router) web app + future Chrome extension (MV3). Primary entry a
 | Web onboarding | Next.js, Framer Motion, Zustand | `/onboarding` (workbench); `/onboarding/refinery` (legacy full-screen); `/onboarding/step-4` (AI mapping) |
 | Auth login | NextAuth (Google + LinkedIn OAuth) | `/login` → `/api/auth/[...nextauth]` |
 | Auth signup | Supabase Auth (legacy path) | `/auth/signup` |
-| Dashboard | NextAuth-protected | `/dashboard` |
+| Dashboard | NextAuth-protected shell + sidebar nav | `/dashboard` (+ `/dashboard/resume-profiles`, `/applications`, `/keys`, `/settings`) |
 | Extension landing | Static marketing | `/extension` |
 | Chrome extension | MV3 + content-script sidebar (planned) | TBD |
 
@@ -35,7 +35,13 @@ app/
     page.tsx                Full wizard
     step-1/page.tsx         Wizard entry (post-login)
     step-4/page.tsx         ResumeMapping scanner
-  dashboard/                Protected welcome
+  dashboard/
+    layout.tsx              KeyProtector + sidebar shell
+    page.tsx                Overview (stats, recent apps, ATS guarantee)
+    resumes/                Placeholder
+    applications/           Placeholder
+    keys/                   Placeholder
+    settings/               Placeholder
 components/
   onboarding/
     OnboardingFlowShell.tsx Asymmetric layout + 4-phase progress
@@ -48,6 +54,32 @@ lib/
   env.ts                    Server env validation
   supabase/                 SSR clients + session refresh helper
   onboarding/phases.ts      Macro phase mapping (Profile → AI Mapping)
+src/lib/config/
+  app.config.ts             SERVICE_REGISTRY + SYSTEM_DEFAULTS — AI single source of truth
+  ai-config.ts              Legacy re-exports from app.config
+  career-grade-models.ts    Career-grade filter for Ignition Gate model picker
+  model-discovery.ts        Live model list fetch per provider API
+  model-cache.ts            In-memory + localStorage model catalog cache
+app/actions/ai/
+  discovery-service.ts      Server action — BYOK handshake + ENGINE_ERRORS
+  discovery.ts              Legacy wrapper → discovery-service
+src/lib/ai/
+  discovery-service.ts      Handshake orchestration + career-grade gate
+  engine-errors.ts          ENGINE_ERRORS + JetBrains Mono terminalLine formatter
+stores/
+  ignitionStore.ts          Deprecated re-export → src/stores/use-ignition-store.ts
+src/stores/
+  use-ignition-store.ts     Ignition BYOK state (isLocked, encrypted apiKey, activeModel)
+src/components/auth/
+  IgnitionGate.tsx          Full-screen OKLCH cinematic BYOK gate (terminal + discovery list)
+  KeyProtector.tsx          Dashboard-only overlay when isLocked (via app/dashboard/layout)
+components/dashboard/
+  DashboardShell.tsx          Sidebar layout (Workspace nav + extension CTA)
+  DashboardOverview.tsx       Post-onboarding overview cards
+  DashboardFuelBadge.tsx      BYOK active pill when ignition complete
+  DashboardIgnitionGuard.tsx  Redirects to /onboarding?ignition=1 when BYOK missing; KeyProtector for auth failures only
+components/ui/
+  sidebar.tsx                 shadcn sidebar (collapsible, mobile sheet)
 middleware.ts               Supabase session refresh + NextAuth route protection
 docs/                       System of record
 ```
@@ -87,6 +119,31 @@ Dark-first Trust Tech palette in `app/globals.css`: deep navy, electric primary 
 
 | Date | Summary |
 |------|---------|
+| 2026-06-19 | Dashboard AI Keys (`/dashboard/keys`): lists vaulted BYOK per provider, edit/add via embedded Ignition Gate, multi-key + set active |
+| 2026-06-19 | Dashboard overview wired to Headless Engine: `getDashboardStats`, `Overview.tsx` (60/40 canvas, Engine Cold, verification from Architecture JSONB, BYOK mint badge) |
+| 2026-06-19 | `executeEngineRefinement` (`app/actions/ai/engine.ts`): vault decrypt → Vercel AI SDK Career Architecture refinement → `saveUsageLog`; `VAULT_LOCK` triggers Ignition Gate |
+| 2026-06-19 | `igniteEngineVault` server action (`app/actions/ai/ignition.ts`): Vercel AI SDK key verify → Supabase `vault_user_key` → `user.vaultKeyId`; unlocks Ignition Gate right panel |
+| 2026-06-19 | Headless Engine schema: `Architecture` (replaces `Engine`), `UsageLog` ledger, `User.vaultKeyId` + `activeProvider` pointers; Career Architecture stores state, not secrets |
+| 2026-06-19 | Supabase Vault BYOK: `user_api_keys` + `vault_user_key` / `unvault_user_key` / `revoke_user_key` SQL functions; `lib/vault/user-key-vault.ts` + `app/actions/ai/vault-key.ts` for server-side key persistence |
+| 2026-06-19 | Login identity: `users.firstName` / `users.lastName` extracted at OAuth (`lib/auth/extract-login-identity.ts`); session exposes split names; onboarding Coordinates prefill from login profile |
+| 2026-06-19 | Identity & boot rules: `docs/IDENTITY_AND_BOOT_RULES.md` — login (`users`) vs resume profile (`profiles`) separation, PKs, OAuth gate, app-load resolver; dashboard nav **Resume profiles** at `/dashboard/resume-profiles` |
+| 2026-06-19 | Dashboard BYOK gate: missing local API key after sign-in redirects to `/onboarding?ignition=1` instead of Key Protector overlay; middleware allows `?ignition=1` for completed onboarding users |
+| 2026-06-19 | Onboarding sign out: `SignOutButton` in `OnboardingFlowShell` (full-screen top-right + legacy sidebar footer); `lib/auth/sign-out-client.ts` clears onboarding/ignition client storage then NextAuth `signOut` → `/login` |
+| 2026-06-19 | Dashboard ignition guard: `restoreIgnitionFromSession` rebuilds model catalog from cache after persist rehydration; guard waits for `_hasHydrated` so valid session keys are not cleared on every `/dashboard` visit |
+| 2026-06-19 | `PROVIDER_REGISTRY` expanded to 6 BYOK providers (OpenAI, Anthropic, Gemini, Groq, DeepSeek, OpenRouter) with `handshakeEndpoint`; Ignition Gate provider dropdown + Lucide icons; discovery handshake routes per provider | `getAppConfig("dataRefresh")` interval + `localStorage.lastDiscovery` skip live handshake when cache is fresh; uses `model-cache` catalog for fast Launch |
+| 2026-06-19 | `app_config` table + `prisma/seed.ts`: upserts `dataRefresh` and `aiConfig` defaults on deploy (`prisma db seed`) |
+| 2026-06-19 | Dashboard UI from Lovable bundle: `DashboardShell` sidebar (Overview, Resumes, Applications, AI Keys, Settings), overview stats/recent applications/ATS Guarantee cards; sub-routes stubbed; personalized greeting from session |
+| 2026-06-19 | `src/components/auth/IgnitionGate.tsx`: full-screen deep navy OKLCH gate with scanning-beam validation, System Log + `ClipboardButton`, mint-pulse Discovery List; `KeyProtector` + `DashboardIgnitionGuard` hide dashboard until `isLocked` is false |
+| 2026-06-19 | `discovery-service` server action: provider models handshake, strict career-grade validation, `ENGINE_ERRORS` terminal lines (`INVALID_KEY`, `INSUFFICIENT_QUOTA`, `NO_CAREER_MODELS`) |
+| 2026-06-19 | Launch phase `IgnitionGate`: terminal BYOK entry → sliding drawer model config (JetBrains Mono, mint Recommended badge); Launch to Dashboard gated on validated key + Primary Fuel |
+| 2026-06-19 | Ignition Gate: `app/actions/ai/discovery.ts` server handshake (OpenAI/Anthropic BYOK → career-grade model list); `stores/ignitionStore.ts` for Primary Fuel selection; `src/lib/config/career-grade-models.ts` filters GPT-4o / Claude 3.5 Sonnet tier |
+| 2026-06-19 | `src/lib/config/`: central `ai-config.ts` (OpenAI, Anthropic, Gemini base URLs + default models), `model-discovery.ts` (provider API fetch), `model-cache.ts` (in-memory + localStorage catalog) |
+| 2026-06-19 | Studio `LanguagesField` aligned with Projects/Certifications list styling (section title, `INPUT_CLASS` rows, trash); removed Optional/LANG_SEARCH copy; autosuggest + proficiency picker unchanged |
+| 2026-06-19 | Studio languages: single `LanguagesField` at bottom of Refinery panel (removed duplicate optional list); Zustand-backed proficiency picker syncs to left `PrimeResume` canvas |
+| 2026-06-19 | Zustand `languages` (`{ name, level }[]`) with `addLanguage`/`removeLanguage`; live Languages section on left `PrimeResume` canvas (Studio phase) |
+| 2026-06-19 | Studio Phase 3: skill editing stays in right `StudioSkillsField` only; left `PrimeResume` keeps ATS comma-block skills from parsed import (no live studio sync) |
+| 2026-06-19 | Identity Zustand: `setTargetRole`, `isIdentityComplete()`; left canvas `IdentityCanvasGhost` technical grid reacts when `identity.targetRole` is locked |
+| 2026-06-19 | Identity phase state: Zustand `identity.targetRole` + `identityPhaseComplete`; `isIdentityPhaseComplete` validation; `TargetRoleField` autocomplete; live target-role headline on hub `PrimeResume` canvas |
 | 2026-06-19 | Onboarding Identity: country-code phone selector (default US +1, `lib/phone/*`); `CityStateField` locate button (geolocation + Nominatim reverse); parsed resume contact fields override Phase 1 in `mergeParsedWithCoordinates` |
 | 2026-06-19 | Phone required in Coordinates/Refinery; `/api/resume/*` exempt from onboarding middleware redirect; DOCX→PDF via `docx-to-pdf-wasm` then Open-Resume PDF pipeline; ATS template download fix |
 | 2026-06-19 | Onboarding hub: Phase 1 Coordinates contact-only; Fuel no-back-to-Phase-1; Refinery ATS section order + Upload back; `hubResume.mergeParsedWithCoordinates`; `PrimeResume` matches EASYSUBMIT_RESUME_RULES section order |

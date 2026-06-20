@@ -13,7 +13,11 @@ import {
 } from "@/lib/resume/resumeSpec";
 import { IngestionTerminal } from "@/components/onboarding/hub/IngestionTerminal";
 import type { CoordinatesValues } from "@/components/onboarding/hub/CoordinatesPanel";
-import { getWorkbenchPhase, workbenchPhaseHeader } from "@/lib/onboarding/workbenchPhases";
+import {
+  advancingToNextPhaseLabel,
+  getWorkbenchPhase,
+  workbenchPhaseHeader,
+} from "@/lib/onboarding/workbenchPhases";
 import { formatFullPhone } from "@/lib/phone/phone";
 import type { StructuredResume } from "@/lib/resume/heuristicParser";
 import {
@@ -266,7 +270,7 @@ export function FuelPanel({
                 className={cn(monoClass, "mt-1 text-[10px] uppercase tracking-[0.12em]")}
                 style={{ color: MUTED }}
               >
-                Advancing to refinery…
+                {advancingToNextPhaseLabel(2)}
               </p>
             </motion.div>
           ) : isProcessing ? (

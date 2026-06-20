@@ -5,14 +5,18 @@
 | Route | Purpose | Auth |
 |-------|---------|------|
 | `/login` | Google + LinkedIn OAuth | Public |
-| `/onboarding` | **Default entry** — 60/40 Unified Workbench: left ATS-ordered `PrimeResume` preview, right Identity → Import → Studio → Launch; System Status breadcrumb (Phase 1 locked after Import); Studio **Upload** back → Import | NextAuth required |
+| `/onboarding` | **Default entry** — 60/40 Unified Workbench: left ATS-ordered `PrimeResume` preview, right Identity → Import → Studio → Launch; System Status breadcrumb (Phase 1 locked after Import); Studio **Upload** back → Import; **`?ignition=1`** re-opens Launch / Ignition Gate for returning users without a local BYOK key | NextAuth required |
 | `/onboarding/step-1` | Redirect → `/onboarding` | NextAuth required |
 | `/onboarding/workbench` | Redirect → `/onboarding` (alias) | NextAuth required |
 | `/onboarding/refinery` | Legacy full-screen refinery workbench | NextAuth required |
 | `/onboarding/step-4` | `ResumeMapping` AI scanner | NextAuth required |
-| `/dashboard` | Post-onboarding home | NextAuth required |
+| `/dashboard` | Post-onboarding overview (stats, recent applications, ATS Guarantee) | NextAuth required |
+| `/dashboard/resume-profiles` | Default resume profile list (one row from onboarding; `+` reserved) | NextAuth required |
+| `/dashboard/applications` | Application tracker (stub) | NextAuth required |
+| `/dashboard/keys` | BYOK / AI key management (stub) | NextAuth required |
+| `/dashboard/settings` | Account settings (stub) | NextAuth required |
 
-Middleware (`middleware.ts`) and `app/onboarding/layout.tsx` both redirect unauthenticated users to `/login`.
+Middleware (`middleware.ts`) and `app/onboarding/layout.tsx` both redirect unauthenticated users to `/login`. **Sign out** — `SignOutButton` clears client state, ends the NextAuth session, and returns everyone to `/login?signedOut=1` (same flow for Google and LinkedIn).
 
 ## Unified Workbench (`/onboarding`)
 
@@ -23,7 +27,7 @@ Primary onboarding path — client state in `app/onboarding/page.tsx` (not Zusta
 | 1 · Identity | `CoordinatesPanel` | `firstName`, `lastName`, `cityState` (Nominatim debounce + locate via `CityStateField`), `phone` with country-code selector (default US +1), `email`, `linkedIn` | Continue → Import; `completeStep(1)` |
 | 2 · Import | `FuelPanel` | Resume PDF/DOCX → `parseResumeFile` (browser Open-Resume pipeline) | **No back to Phase 1** (`minNavigablePhase=2` on breadcrumb); auto-advance to Studio after parse |
 | 3 · Studio | `RefineryPanel` | ATS section order (Header → Summary → Skills → Experience → Education → optional Certifications/Projects/Languages); `mergeParsedWithCoordinates` prefills contact from Phase 1 | **Upload** back button → Import (re-upload); Continue to Launch → Phase 4 |
-| 4 · Launch | `CalibrationPanel` | `completeOnboarding` + 2.5s pulse → `/dashboard` | — |
+| 4 · Launch | `IgnitionGate` → `CalibrationPanel` | BYOK handshake + Primary Fuel model selection; **Launch to Dashboard** runs `completeOnboarding` + 2.5s pulse | — |
 
 Resume section order and preview typography follow **`EASYSUBMIT_RESUME_RULES.md`** at the repository root (code constants in `lib/resume/resumeSpec.ts`). Golden fixtures: `ATS_Universal_Resume_Template.pdf` / `.docx` (download via `/api/resume/ats-template`).
 
@@ -58,11 +62,13 @@ Skip resume on step 3 → `completeResumeMapping()` → step 6 (experience).
 
 ## Auth
 
+Canonical identity separation and app-load routing: **`docs/IDENTITY_AND_BOOT_RULES.md`**.
+
 ### Login (NextAuth)
 
 `/login` — Google + LinkedIn via `/api/auth/[...nextauth]`.
 
-On successful OAuth: redirect → `/onboarding`.
+On successful OAuth: redirect → `/onboarding`. Returning users with `onboardingStep >= 4` but no local BYOK vault are redirected from `/dashboard` to `/onboarding?ignition=1` (Launch phase) instead of the Key Protector overlay.
 
 **Env:** `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`.
 

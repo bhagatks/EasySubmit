@@ -1,4 +1,5 @@
 import type { ParsedResumeData } from "@/stores/onboardingStore";
+import { joinProfileName } from "@/lib/profile/name";
 import {
   extractExperiencesFromText,
   extractLocationFromText,
@@ -72,10 +73,13 @@ function splitSkills(skills: string[]): {
 
 export function buildRefineryDefaults(input: {
   parsed: ParsedResumeData | null;
+  sessionFirstName?: string | null;
+  sessionLastName?: string | null;
+  /** @deprecated Prefer sessionFirstName + sessionLastName */
   sessionName?: string | null;
   sessionEmail?: string | null;
 }): { values: RefineryFormValues; verified: RefineryVerifiedFields } {
-  const { parsed, sessionName, sessionEmail } = input;
+  const { parsed, sessionFirstName, sessionLastName, sessionName, sessionEmail } = input;
   const rawText = parsed?.rawText ?? "";
 
   const parsedName = rawText ? extractNameFromText(rawText) : null;
@@ -84,7 +88,11 @@ export function buildRefineryDefaults(input: {
   const parsedProjects = rawText ? extractProjectsFromText(rawText) : [];
   const { coreCompetencies, technicalSkills } = splitSkills(parsed?.skills ?? []);
 
-  const fullName = parsedName ?? sessionName?.split("|")[0]?.trim() ?? "";
+  const sessionFullName =
+    joinProfileName(sessionFirstName, sessionLastName) ||
+    sessionName?.split("|")[0]?.trim() ||
+    "";
+  const fullName = parsedName ?? sessionFullName;
   const email = parsed?.email ?? sessionEmail ?? "";
   const phone = parsed?.phone ?? "";
   const location = parsedLocation ?? "";
@@ -111,7 +119,7 @@ export function buildRefineryDefaults(input: {
       })),
     },
     verified: {
-      fullName: Boolean(parsedName || sessionName),
+      fullName: Boolean(parsedName || sessionFullName),
       email: Boolean(parsed?.email || sessionEmail),
       phone: Boolean(parsed?.phone),
       location: Boolean(parsedLocation),

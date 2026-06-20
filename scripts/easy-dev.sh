@@ -29,7 +29,16 @@ stop_existing_servers() {
   fi
 }
 
+clear_production_next_cache() {
+  if [[ -f "$ROOT/.next/BUILD_ID" ]]; then
+    echo "→ Clearing stale production .next cache (conflicts with next dev)"
+    rm -rf "$ROOT/.next"
+  fi
+}
+
 stop_existing_servers
+
+clear_production_next_cache
 
 echo "→ Syncing Prisma schema to database"
 npx prisma generate

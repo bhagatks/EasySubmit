@@ -1,5 +1,7 @@
 {
   "compilerOptions": {
+    "target": "ES2017",
+    "downlevelIteration": true,
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
@@ -18,5 +20,5 @@
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", "start"]
+  "exclude": ["node_modules", "start", "easysubmit-ui-bundle"]
 }

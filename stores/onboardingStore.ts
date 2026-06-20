@@ -1,5 +1,8 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import { isIdentityPhaseComplete } from "@/lib/onboarding/identity";
+import { normalizeSkillList } from "@/lib/onboarding/normalizeSkills";
+import { canProceedToCalibration as studioCanProceedToCalibration } from "@/lib/onboarding/studio";
 import type { RefineryFormValues } from "@/lib/resume/refineryDefaults";
 import type { CountryCode, LocationOption } from "@/lib/locations";
 
@@ -48,6 +51,27 @@ export interface Location {
 /** @deprecated Use `Location` */
 export type TargetLocation = Location;
 
+export type LanguageEntry = {
+  name: string;
+  level: string;
+};
+
+export type IdentityState = {
+  targetRole: string;
+};
+
+export const INITIAL_IDENTITY_STATE: IdentityState = {
+  targetRole: "",
+};
+
+export type StudioState = {
+  skills: string[];
+};
+
+export const INITIAL_STUDIO_STATE: StudioState = {
+  skills: [],
+};
+
 /** Returns the location flagged as home base, if any. */
 export function getResidentialLocationFromStore(
   locations: Location[]
@@ -72,6 +96,18 @@ function skipResumePipelineStep(currentStep: OnboardingStep): OnboardingStep | n
 
 interface OnboardingState extends OnboardingDataState {
   setJobTimeline: (timeline: JobTimeline) => void;
+  /** Set the Identity phase target role coordinate. */
+  setTargetRole: (role: string) => void;
+  /** @deprecated Use {@link setTargetRole} */
+  setIdentityTargetRole: (targetRole: string) => void;
+  /** Whether Identity phase requirements are satisfied (`identity.targetRole` non-empty). */
+  isIdentityComplete: () => boolean;
+  markIdentityPhaseComplete: () => boolean;
+  addLanguage: (lang: LanguageEntry) => void;
+  removeLanguage: (name: string) => void;
+  toggleSkill: (skill: string) => void;
+  setStudioSkills: (skills: string[]) => void;
+  canProceedToCalibration: () => boolean;
   setResumeFile: (file: File) => void;
   setResumeSkipped: (skipped: boolean) => void;
   setResumePreviewUrl: (url: string | null) => void;
@@ -103,6 +139,10 @@ interface OnboardingState extends OnboardingDataState {
 
 export type OnboardingDataState = {
   currentStep: OnboardingStep;
+  identity: IdentityState;
+  identityPhaseComplete: boolean;
+  languages: LanguageEntry[];
+  studio: StudioState;
   jobTimeline: JobTimeline | null;
   targetLocations: Location[];
   resumeSkipped: boolean;
@@ -130,6 +170,10 @@ export type ParsedResumeData = {
 
 export const INITIAL_ONBOARDING_STATE: OnboardingDataState = {
   currentStep: ONBOARDING_STEP.TIMELINE,
+  identity: { ...INITIAL_IDENTITY_STATE },
+  identityPhaseComplete: false,
+  languages: [],
+  studio: { ...INITIAL_STUDIO_STATE },
   jobTimeline: null,
   targetLocations: [],
   resumeSkipped: false,
@@ -155,6 +199,93 @@ export const useOnboardingStore = create<OnboardingState>()(
       resetStore: () => set(INITIAL_ONBOARDING_STATE),
 
       setJobTimeline: (timeline) => set({ jobTimeline: timeline }),
+
+      setTargetRole: (role) =>
+        set({
+          identity: { targetRole: role },
+          identityPhaseComplete: false,
+        }),
+
+      setIdentityTargetRole: (targetRole) => {
+        get().setTargetRole(targetRole);
+      },
+
+      isIdentityComplete: () => isIdentityPhaseComplete(get().identity),
+
+      markIdentityPhaseComplete: () => {
+        if (!get().isIdentityComplete()) return false;
+        const targetRole = get().identity.targetRole.trim();
+        set({
+          identityPhaseComplete: true,
+          identity: { targetRole },
+          selectedRole: targetRole,
+        });
+        return true;
+      },
+
+      addLanguage: (lang) => {
+        const name = lang.name.trim();
+        const level = lang.level.trim();
+        if (!name || !level) return;
+
+        set((state) => {
+          const key = name.toLowerCase();
+          const exists = state.languages.some(
+            (entry) => entry.name.trim().toLowerCase() === key,
+          );
+
+          const nextLanguages = exists
+            ? state.languages.map((entry) =>
+                entry.name.trim().toLowerCase() === key ? { name, level } : entry,
+              )
+            : [...state.languages, { name, level }];
+
+          return {
+            languages: nextLanguages,
+          };
+        });
+      },
+
+      removeLanguage: (name) => {
+        const key = name.trim().toLowerCase();
+        if (!key) return;
+
+        set((state) => ({
+          languages: state.languages.filter(
+            (entry) => entry.name.trim().toLowerCase() !== key,
+          ),
+        }));
+      },
+
+      toggleSkill: (skill) => {
+        const trimmed = skill.trim();
+        if (!trimmed) return;
+
+        set((state) => {
+          const exists = state.studio.skills.some(
+            (entry) => entry.toLowerCase() === trimmed.toLowerCase(),
+          );
+
+          const nextSkills = exists
+            ? state.studio.skills.filter(
+                (entry) => entry.toLowerCase() !== trimmed.toLowerCase(),
+              )
+            : normalizeSkillList([...state.studio.skills, trimmed]);
+
+          return {
+            studio: { skills: nextSkills },
+          };
+        });
+      },
+
+      setStudioSkills: (skills) =>
+        set({
+          studio: {
+            skills: normalizeSkillList(skills),
+          },
+        }),
+
+      canProceedToCalibration: () => studioCanProceedToCalibration(get().studio),
 
       setResumeFile: (file) =>
         set({
@@ -335,12 +466,26 @@ export const useOnboardingStore = create<OnboardingState>()(
     }),
     {
       name: "easysubmit-onboarding",
-      version: 1,
+      version: 4,
       storage: createJSONStorage(() => sessionStorage),
       onRehydrateStorage: () => (state, error) => {
         if (error || !state) {
           useOnboardingStore.getState().resetStore();
           return;
+        }
+        if (!state.identity) {
+          state.identity = {
+            targetRole: state.selectedRole?.trim() ?? "",
+          };
+        }
+        if (typeof state.identityPhaseComplete !== "boolean") {
+          state.identityPhaseComplete = Boolean(state.identity.targetRole.trim());
+        }
+        if (!state.studio) {
+          state.studio = { ...INITIAL_STUDIO_STATE };
+        }
+        if (!Array.isArray(state.languages)) {
+          state.languages = [];
         }
         if (state.currentStep === ONBOARDING_STEP.PARSING) {
           state.currentStep = ONBOARDING_STEP.RESUME;
@@ -356,6 +501,10 @@ export const useOnboardingStore = create<OnboardingState>()(
       },
       partialize: (state) => ({
         currentStep: state.currentStep,
+        identity: state.identity,
+        identityPhaseComplete: state.identityPhaseComplete,
+        languages: state.languages,
+        studio: state.studio,
         jobTimeline: state.jobTimeline,
         targetLocations: state.targetLocations,
         resumeSkipped: state.resumeSkipped,

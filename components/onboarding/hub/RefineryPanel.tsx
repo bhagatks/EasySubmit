@@ -7,18 +7,24 @@ import {
   ChevronUp,
   Eye,
   EyeOff,
+  Lock,
   Plus,
   Sparkles,
   Trash2,
-  X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { CityStateField } from "@/components/onboarding/hub/CityStateField";
 import { DateRangeFields } from "@/components/onboarding/hub/DateRangeFields";
 import { PhoneField } from "@/components/onboarding/hub/PhoneField";
+import { StudioSkillsField } from "@/components/onboarding/hub/StudioSkillsField";
+import { LanguagesField } from "@/components/onboarding/hub/LanguagesField";
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
-import { getWorkbenchPhase, workbenchPhaseHeader } from "@/lib/onboarding/workbenchPhases";
+import {
+  continueToNextPhaseLabel,
+  getWorkbenchPhase,
+  workbenchPhaseHeader,
+} from "@/lib/onboarding/workbenchPhases";
 import { DEFAULT_DIAL_CODE } from "@/lib/phone/countryCodes";
 import {
   formatFullPhone,
@@ -29,9 +35,10 @@ import {
 import {
   EXPERIENCE_BULLET_PLACEHOLDER,
   RESUME_SECTION_TITLES,
-  SKILLS_PLACEHOLDER,
   SUMMARY_PLACEHOLDER,
 } from "@/lib/resume/resumeSpec";
+import { selectCanProceedToCalibration } from "@/lib/onboarding/studio";
+import { useOnboardingStore } from "@/stores/onboardingStore";
 import { cn } from "@/lib/utils";
 
 const PRIMARY = "oklch(0.62 0.21 265)";
@@ -161,6 +168,8 @@ export function RefineryPanel({
   onBack,
 }: RefineryPanelProps) {
   const [showRawText, setShowRawText] = useState(false);
+  const studioSkills = useOnboardingStore((state) => state.studio.skills);
+  const canProceedToCalibration = useOnboardingStore(selectCanProceedToCalibration);
   const { register, control, handleSubmit, watch, reset, setValue } =
     useForm<HubRefineryForm>({
       defaultValues: initialValues,
@@ -171,7 +180,6 @@ export function RefineryPanel({
   const educationFields = useFieldArray({ control, name: "education" });
   const certFields = useFieldArray({ control, name: "certifications" });
   const projectFields = useFieldArray({ control, name: "projects" });
-  const languageFields = useFieldArray({ control, name: "languages" });
 
   useEffect(() => {
     reset(initialValues);
@@ -197,6 +205,9 @@ export function RefineryPanel({
     phoneValid &&
     watched.email?.trim().length > 0 &&
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(watched.email?.trim() ?? "");
+
+  const isProceedLocked = !canProceedToCalibration;
+  const isProceedDisabled = !isValid || isProceedLocked;
 
   return (
     <div className="flex flex-1 flex-col">
@@ -229,7 +240,7 @@ export function RefineryPanel({
           style={{ color: "oklch(0.98 0.01 268)" }}
         >
           <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-          Upload
+          {getWorkbenchPhase(2)?.label ?? "Import"}
         </button>
       </div>
 
@@ -256,9 +267,16 @@ export function RefineryPanel({
 
       <form
         className="mt-6 flex flex-1 flex-col space-y-8"
-        onSubmit={handleSubmit(onFinalize)}
+        onSubmit={handleSubmit((values) =>
+          onFinalize({
+            ...values,
+            skillsText: studioSkills.join(", "),
+          }),
+        )}
         autoComplete="off"
       >
+        <StudioSkillsField monoClass={monoClass} />
+
         {/* 1. Header */}
         <section>
           <SectionTitle monoClass={monoClass}>Header</SectionTitle>
@@ -348,17 +366,6 @@ export function RefineryPanel({
             rows={4}
             className={cn(INPUT_CLASS, "resize-y")}
             placeholder={SUMMARY_PLACEHOLDER}
-          />
-        </section>
-
-        {/* 3. Skills */}
-        <section>
-          <SectionTitle monoClass={monoClass}>{RESUME_SECTION_TITLES.skills}</SectionTitle>
-          <textarea
-            {...register("skillsText")}
-            rows={3}
-            className={cn(INPUT_CLASS, "resize-y")}
-            placeholder={SKILLS_PLACEHOLDER}
           />
         </section>
 
@@ -636,31 +643,34 @@ export function RefineryPanel({
           }
         />
 
-        <OptionalListSection
-          title={RESUME_SECTION_TITLES.languages}
-          items={watched.languages ?? []}
-          monoClass={monoClass}
-          placeholder="Language — proficiency"
-          onAdd={() =>
-            languageFields.append({ id: `lang-${Date.now()}`, text: "", hidden: false })
-          }
-          onRemove={(index) => languageFields.remove(index)}
-          onUpdate={(index, text) =>
-            setValue(`languages.${index}.text`, text, { shouldDirty: true })
-          }
-        />
+        <LanguagesField monoClass={monoClass} idPrefix="studio-languages" />
 
         <button
           type="submit"
-          disabled={!isValid}
-          className="mt-auto w-full rounded-xl px-4 py-3 text-sm font-semibold transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+          disabled={isProceedDisabled}
+          className={cn(
+            "mt-auto inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-all",
+            isProceedDisabled
+              ? "cursor-not-allowed opacity-50"
+              : "hover:brightness-110",
+          )}
           style={{
             backgroundColor: PRIMARY,
             color: "oklch(0.98 0.01 268)",
-            boxShadow: "0 0 40px -12px oklch(0.62 0.21 265 / 0.55)",
+            boxShadow: isProceedDisabled
+              ? undefined
+              : "0 0 40px -12px oklch(0.62 0.21 265 / 0.55)",
           }}
+          aria-disabled={isProceedDisabled}
         >
-          Continue to Launch
+          {isProceedLocked ? (
+            <>
+              <Lock className="h-4 w-4 shrink-0" aria-hidden="true" />
+              Proceed
+            </>
+          ) : (
+            continueToNextPhaseLabel(3)
+          )}
         </button>
       </form>
     </div>

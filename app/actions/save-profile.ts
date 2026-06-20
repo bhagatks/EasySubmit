@@ -12,6 +12,7 @@ import {
   sanitizeString,
   sanitizeStringArray,
 } from "@/lib/profile/sanitize";
+import { parseProfileName, joinProfileName } from "@/lib/profile/name";
 import { splitLocationField } from "@/lib/resume/extractSections";
 import type {
   RefineryExperienceField,
@@ -154,9 +155,12 @@ function sanitizeProfilePayload(input: SaveProfileInput) {
 
   const city = sanitizeString(splitLocation.city, 120);
   const country = sanitizeString(splitLocation.country, 120);
+  const { firstName, lastName } = parseProfileName(sanitizeString(input.fullName, 160));
 
   return {
-    fullName: sanitizeString(input.fullName, 160),
+    firstName: sanitizeString(firstName, 80),
+    lastName: sanitizeString(lastName, 80),
+    displayName: joinProfileName(firstName, lastName),
     email,
     phone: sanitizeString(input.phone, 40),
     city,
@@ -206,7 +210,8 @@ export async function saveProfile(
         create: {
           userId,
           email: payload.email,
-          fullName: payload.fullName,
+          firstName: payload.firstName,
+          lastName: payload.lastName,
           phone: payload.phone,
           city: payload.city,
           country: payload.country,
@@ -220,7 +225,8 @@ export async function saveProfile(
         },
         update: {
           email: payload.email,
-          fullName: payload.fullName,
+          firstName: payload.firstName,
+          lastName: payload.lastName,
           phone: payload.phone,
           city: payload.city,
           country: payload.country,
@@ -265,20 +271,24 @@ export async function saveProfile(
         });
       }
 
-      await tx.engine.upsert({
+      await tx.architecture.upsert({
         where: { userId },
         create: {
           userId,
-          parsedData: payload.engineParsedData,
+          targetRole: payload.targetTitle ?? "",
+          content: payload.engineParsedData ?? {},
         },
         update: {
-          parsedData: payload.engineParsedData,
+          content: payload.engineParsedData,
+          ...(payload.targetTitle ? { targetRole: payload.targetTitle } : {}),
         },
       });
 
       await tx.user.update({
         where: { id: userId },
-        data: { onboardingStep: 4 },
+        data: {
+          onboardingStep: 4,
+        },
       });
 
       return profile.id;

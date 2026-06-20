@@ -1,0 +1,62 @@
+export {
+  AI_MODELS_CACHE_KEY,
+  AI_PROVIDERS,
+  ALL_AI_PROVIDERS,
+  APP_RUNTIME,
+  appConfig,
+  buildDefaultModelCatalog,
+  DEFAULT_AI_MODELS_UPDATE_HOURS,
+  getDefaultModelsForProvider,
+  getMaxTokenBuffer,
+  getProviderChatUrl,
+  getProviderConfig,
+  getProviderDocumentationUrl,
+  getProviderHandshakeUrl,
+  getProviderIconRef,
+  getProviderModelsUrl,
+  getProviderRegistryEntry,
+  getServiceEntry,
+  getTargetAiModel,
+  isAiProvider,
+  PROVIDER_REGISTRY,
+  SERVICE_REGISTRY,
+  SYSTEM_DEFAULTS,
+  type AiModelsCache,
+  type AiProvider,
+  type LegacyAppConfig as AppConfig,
+  type ProviderConfig,
+  type ProviderIconRef,
+  type ProviderRegistryEntry,
+  type ServiceRegistryEntry,
+  type SystemDefaults,
+} from "@/src/lib/config/app.config";
+
+export {
+  fetchProviderModelsFromApi,
+  getDefaultModelForProvider,
+} from "@/src/lib/config/model-discovery";
+
+export {
+  filterCareerGradeModels,
+  HANDSHAKE_PROVIDERS,
+  isCareerGradeModel,
+  isHandshakeProvider,
+  sortCareerGradeModels,
+  suggestPrimaryFuel,
+  type HandshakeProvider,
+} from "@/src/lib/config/career-grade-models";
+
+export {
+  bootstrapModelCache,
+  clearAiModelsCache,
+  getCachedModels,
+  getCachedModelsForProvider,
+  hydrateModelCacheFromStorage,
+  refreshModelCache,
+  scheduleBackgroundModelRefresh,
+  setModelCacheStorage,
+  stopBackgroundModelRefresh,
+  updateCachedProviderModels,
+  type ModelCacheStorage,
+  type RefreshModelCacheOptions,
+} from "@/src/lib/config/model-cache";

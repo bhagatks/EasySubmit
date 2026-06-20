@@ -1,0 +1,73 @@
+"use server";
+
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { extractLoginIdentity } from "@/lib/auth/extract-login-identity";
+import { prisma } from "@/lib/prisma";
+
+export type ProfileIdentity = {
+  firstName: string | null;
+  lastName: string | null;
+  email: string;
+};
+
+export type LoginIdentitySnapshot = {
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+  name: string | null;
+};
+
+export async function getLoginIdentity(): Promise<LoginIdentitySnapshot | null> {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.id) {
+    return null;
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: {
+      firstName: true,
+      lastName: true,
+      email: true,
+      name: true,
+    },
+  });
+
+  if (!user) {
+    return null;
+  }
+
+  const identity = extractLoginIdentity({
+    name: user.name,
+    given_name: user.firstName,
+    family_name: user.lastName,
+  });
+
+  return {
+    firstName: identity.firstName || null,
+    lastName: identity.lastName || null,
+    email: user.email,
+    name: identity.displayName || user.name,
+  };
+}
+
+export async function getProfileIdentity(): Promise<ProfileIdentity | null> {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.id) {
+    return null;
+  }
+
+  const profile = await prisma.profile.findUnique({
+    where: { userId: session.user.id },
+    select: {
+      firstName: true,
+      lastName: true,
+      email: true,
+    },
+  });
+
+  return profile;
+}

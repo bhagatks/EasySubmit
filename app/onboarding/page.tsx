@@ -6,8 +6,11 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { completeOnboarding, completeStep } from "@/app/actions/onboarding";
+import { getLoginIdentity, getProfileIdentity } from "@/app/actions/profile";
+import { IdentityCanvasGhost } from "@/components/onboarding/hub/IdentityCanvasGhost";
 import { CalibrationPanel } from "@/components/onboarding/hub/CalibrationPanel";
 import { CalibrationPulse } from "@/components/onboarding/hub/CalibrationPulse";
+import { IgnitionGate } from "@/src/components/auth/IgnitionGate";
 import {
   CoordinatesPanel,
   type CoordinatesValues,
@@ -15,6 +18,7 @@ import {
 import { FuelPanel } from "@/components/onboarding/hub/FuelPanel";
 import { RefineryPanel } from "@/components/onboarding/hub/RefineryPanel";
 import { SystemStatusBreadcrumb } from "@/components/onboarding/hub/SystemStatusBreadcrumb";
+import { SignOutButton } from "@/components/auth/SignOutButton";
 import {
   PrimeResume,
   type PrimeResumeData,
@@ -34,6 +38,11 @@ import { formatFullPhone } from "@/lib/phone/phone";
 import type { StructuredResume } from "@/lib/resume/heuristicParser";
 import { formatDateRangeParts } from "@/lib/resume/dates";
 import { cn } from "@/lib/utils";
+import { useOnboardingStore } from "@/stores/onboardingStore";
+import { useIgnitionStore } from "@/src/stores/use-ignition-store";
+import { isIdentityPhaseComplete } from "@/lib/onboarding/identity";
+import { formatLanguagesForResume } from "@/lib/onboarding/languages";
+import { parseProfileName } from "@/lib/profile/name";
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
@@ -133,17 +142,77 @@ export default function OnboardingPage() {
   const [rawResumeText, setRawResumeText] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [calibrationStarted, setCalibrationStarted] = useState(false);
+  const [isLaunching, setIsLaunching] = useState(false);
+  const [ignitionResume, setIgnitionResume] = useState(false);
+  const [profileFirstName, setProfileFirstName] = useState("");
+  const [profileLastName, setProfileLastName] = useState("");
+  const [loginFirstName, setLoginFirstName] = useState("");
+  const [loginLastName, setLoginLastName] = useState("");
   const calibrationRanRef = useRef(false);
+  const hasHydrated = useIgnitionStore((state) => state._hasHydrated);
 
-  const sessionName = session?.user?.name ?? "";
+  const sessionNameParts = parseProfileName(session?.user?.name);
+  const sessionFirstName =
+    session?.user?.firstName ??
+    loginFirstName ??
+    profileFirstName ??
+    sessionNameParts.firstName ??
+    "";
+  const sessionLastName =
+    session?.user?.lastName ??
+    loginLastName ??
+    profileLastName ??
+    sessionNameParts.lastName ??
+    "";
   const sessionEmail = session?.user?.email ?? "";
+  const identity = useOnboardingStore((state) => state.identity);
+  const identityPhaseComplete = useOnboardingStore(
+    (state) => state.identityPhaseComplete,
+  );
+  const setStudioSkills = useOnboardingStore((state) => state.setStudioSkills);
+  const languages = useOnboardingStore((state) => state.languages);
+  const roleLocked = identity.targetRole.trim().length > 0;
 
   useEffect(() => {
+    void getLoginIdentity().then((login) => {
+      if (!login) return;
+      setLoginFirstName(login.firstName ?? "");
+      setLoginLastName(login.lastName ?? "");
+    });
+
+    void getProfileIdentity().then((profile) => {
+      if (!profile) return;
+      setProfileFirstName(profile.firstName ?? "");
+      setProfileLastName(profile.lastName ?? "");
+    });
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setIgnitionResume(params.get("ignition") === "1");
+  }, []);
+
+  useEffect(() => {
+    if (status === "loading" || !hasHydrated) return;
+
     const sessionStep = session?.user?.onboardingStep ?? 0;
-    if (sessionStep >= 4) {
+    const ignitionComplete = useIgnitionStore.getState().isIgnitionComplete();
+
+    if (sessionStep >= 4 && ignitionComplete) {
       router.replace("/dashboard");
+      return;
     }
-  }, [session?.user?.onboardingStep, router]);
+
+    if (ignitionResume || (sessionStep >= 4 && !ignitionComplete)) {
+      setPhase(4);
+    }
+  }, [
+    hasHydrated,
+    ignitionResume,
+    router,
+    session?.user?.onboardingStep,
+    status,
+  ]);
 
   const goToPhase = useCallback((next: number, dir: 1 | -1 = 1) => {
     setDirection(dir);
@@ -152,19 +221,44 @@ export default function OnboardingPage() {
 
   const handleCoordinatesChange = useCallback((values: CoordinatesValues) => {
     setCoordinates(values);
-    setResumeData(coordinatesToPrimeResume(values));
-  }, []);
+    setResumeData(coordinatesToPrimeResume(values, identity));
+  }, [identity]);
+
+  useEffect(() => {
+    if (phase >= 3) return;
+
+    setResumeData((current) => {
+      const targetRole = identity.targetRole.trim();
+      if (
+        targetRole === (current.headline?.trim() ?? "") &&
+        targetRole === (current.profile?.targetRole?.trim() ?? "")
+      ) {
+        return current;
+      }
+
+      return {
+        ...current,
+        headline: targetRole || null,
+        profile: {
+          ...current.profile,
+          targetRole: targetRole || null,
+        },
+      };
+    });
+  }, [identity.targetRole, phase]);
 
   const handleCoordinatesContinue = useCallback(
     async (values: CoordinatesValues) => {
       setCoordinates(values);
-      setResumeData(coordinatesToPrimeResume(values));
+      setResumeData(coordinatesToPrimeResume(values, identity));
 
       const { city, country } = parseCityState(values.cityState);
       const fullName = [values.firstName, values.lastName].filter(Boolean).join(" ");
 
       try {
         const result = await completeStep(1, {
+          firstName: values.firstName,
+          lastName: values.lastName,
           fullName,
           email: values.email,
           phone: formatFullPhone(values.phoneDialCode, values.phone),
@@ -178,23 +272,25 @@ export default function OnboardingPage() {
 
       goToPhase(2);
     },
-    [goToPhase, updateSession],
+    [goToPhase, identity, updateSession],
   );
 
   const handleFuelParsed = useCallback(
     ({ data, rawText }: { data: StructuredResume; rawText: string }) => {
       const form = mergeParsedWithCoordinates(data, coordinates);
-      const mergedCoordinates = hubFormToCoordinates(form);
+      const parsedSkills =
+        data.skills.length > 0 ? [...data.skills] : parseSkillsText(form.skillsText);
 
       setParsedStructured(data);
       setRawResumeText(rawText);
-      setCoordinates(mergedCoordinates);
+      setCoordinates(hubFormToCoordinates(form));
       setRefineryInitial(form);
+      setStudioSkills(parsedSkills);
       setResumeData(refineryFormToPrimeResume(form));
       setIsScanning(false);
       goToPhase(3);
     },
-    [coordinates, goToPhase],
+    [coordinates, goToPhase, setStudioSkills],
   );
 
   const handleRefineryChange = useCallback((form: HubRefineryForm) => {
@@ -214,18 +310,34 @@ export default function OnboardingPage() {
     goToPhase(2, -1);
   }, [goToPhase]);
 
-  useEffect(() => {
-    if (phase !== 4 || !finalForm || calibrationRanRef.current) return;
+  const handleLaunchToDashboard = useCallback(() => {
+    const sessionStep = session?.user?.onboardingStep ?? 0;
+
+    if (sessionStep >= 4) {
+      if (!useIgnitionStore.getState().isIgnitionComplete() || isLaunching) return;
+      setIsLaunching(true);
+      router.push("/dashboard");
+      return;
+    }
+
+    if (!finalForm || calibrationRanRef.current || isLaunching) return;
 
     calibrationRanRef.current = true;
+    setIsLaunching(true);
     setCalibrationStarted(true);
 
     const { city, country } = parseCityState(finalForm.cityState);
     const skills = parseSkillsText(finalForm.skillsText);
+    const resumeLanguages = formatLanguagesForResume(
+      useOnboardingStore.getState().languages,
+    );
+    const { provider, activeModel } = useIgnitionStore.getState();
 
     void (async () => {
       try {
         await completeOnboarding({
+          firstName: finalForm.firstName,
+          lastName: finalForm.lastName,
           fullName: formFullName(finalForm),
           email: finalForm.email,
           phone: finalForm.phone,
@@ -235,6 +347,8 @@ export default function OnboardingPage() {
           skills,
           resumeRawText: rawResumeText,
           parsedData: {
+            aiProvider: provider,
+            primaryFuel: activeModel,
             experiences: finalForm.experience
               .filter((entry) => !entry.hidden)
               .map((entry) => ({
@@ -269,10 +383,7 @@ export default function OnboardingPage() {
               .filter((entry) => !entry.hidden)
               .map((entry) => entry.text.trim())
               .filter(Boolean),
-            languages: finalForm.languages
-              .filter((entry) => !entry.hidden)
-              .map((entry) => entry.text.trim())
-              .filter(Boolean),
+            languages: resumeLanguages,
             skills,
             structured: parsedStructured,
           },
@@ -284,10 +395,11 @@ export default function OnboardingPage() {
       } catch {
         calibrationRanRef.current = false;
         setCalibrationStarted(false);
+        setIsLaunching(false);
         goToPhase(3, -1);
       }
     })();
-  }, [finalForm, goToPhase, parsedStructured, phase, rawResumeText, router, updateSession]);
+  }, [finalForm, goToPhase, isLaunching, parsedStructured, rawResumeText, router, session?.user?.onboardingStep, updateSession]);
 
   const handleBreadcrumbNavigate = useCallback(
     (targetPhase: number) => {
@@ -295,6 +407,20 @@ export default function OnboardingPage() {
       goToPhase(targetPhase, -1);
     },
     [goToPhase, phase],
+  );
+
+  const isPhaseComplete = useCallback(
+    (phaseId: number, activeStep: number) => {
+      if (phaseId === 1) {
+        return (
+          identityPhaseComplete &&
+          isIdentityPhaseComplete(identity) &&
+          phaseId < activeStep
+        );
+      }
+      return phaseId < activeStep;
+    },
+    [identity, identityPhaseComplete],
   );
 
   const isCalibrating = phase === 4 && calibrationStarted;
@@ -306,7 +432,10 @@ export default function OnboardingPage() {
       case 1:
         return (
           <CoordinatesPanel
-            initialFullName={sessionName}
+            key={`${sessionFirstName}|${sessionLastName}|${sessionEmail}`}
+            initialFirstName={sessionFirstName}
+            initialLastName={sessionLastName}
+            initialFullName={session?.user?.name ?? ""}
             initialEmail={sessionEmail}
             monoClass={jetbrainsMono.className}
             onChange={handleCoordinatesChange}
@@ -334,10 +463,16 @@ export default function OnboardingPage() {
           />
         );
       case 4:
-        return (
+        return calibrationStarted ? (
           <CalibrationPanel
             targetTitle={calibrationTitle}
             monoClass={jetbrainsMono.className}
+          />
+        ) : (
+          <IgnitionGate
+            monoClass={jetbrainsMono.className}
+            onLaunch={handleLaunchToDashboard}
+            isLaunching={isLaunching}
           />
         );
       default:
@@ -387,8 +522,26 @@ export default function OnboardingPage() {
           style={{ backgroundColor: CANVAS_BG }}
         >
           <div className="mx-auto flex min-h-full w-full max-w-4xl justify-center px-6 py-10 sm:px-10">
-            <div className="relative w-full max-w-[min(100%,32rem)]">
-              <PrimeResume resume={resumeData} className="min-h-[520px]" />
+            <div className="relative w-full max-w-[min(100%,32rem)] min-h-[520px]">
+              {phase === 1 ? (
+                <IdentityCanvasGhost monoClass={jetbrainsMono.className} />
+              ) : null}
+              <motion.div
+                className="relative"
+                initial={false}
+                animate={{
+                  opacity: phase === 1 && !roleLocked ? 0 : 1,
+                  scale: phase === 1 && roleLocked ? 1 : phase === 1 ? 0.98 : 1,
+                }}
+                transition={{ duration: 0.45, ease: [0.25, 0.46, 0.45, 0.94] }}
+              >
+                <PrimeResume
+                  resume={resumeData}
+                  showTargetRole={phase < 3}
+                  languageEntries={phase >= 3 ? languages : []}
+                  className="min-h-[520px]"
+                />
+              </motion.div>
               <ScanningBeam active={isScanning} />
               <CalibrationPulse active={isCalibrating} targetTitle={calibrationTitle} />
             </div>
@@ -399,14 +552,19 @@ export default function OnboardingPage() {
           aria-label="Onboarding panel"
           className="flex min-h-0 w-full shrink-0 flex-col border-white/10 bg-surface lg:w-[40%] lg:border-l"
         >
-          <header className="shrink-0 border-b border-white/10 px-6 py-5">
-            <SystemStatusBreadcrumb
-              currentStep={phase}
-              monoClass={jetbrainsMono.className}
-              isCalibrating={phase === 4}
-              minNavigablePhase={minNavigablePhase}
-              onNavigate={handleBreadcrumbNavigate}
-            />
+          <header className="shrink-0 border-b border-white/10">
+            <div className="flex items-stretch">
+              <SystemStatusBreadcrumb
+                currentStep={phase}
+                isCalibrating={phase === 4}
+                minNavigablePhase={minNavigablePhase}
+                isPhaseComplete={isPhaseComplete}
+                onNavigate={handleBreadcrumbNavigate}
+              />
+              <div className="flex shrink-0 items-center border-l border-white/10 px-2 sm:px-3">
+                <SignOutButton iconOnly />
+              </div>
+            </div>
           </header>
 
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-6">

@@ -270,8 +270,21 @@ export function structuredToPrimeResume(
 
 export function coordinatesToPrimeResume(
   coordinates: CoordinatesValues,
+  identity?: { targetRole?: string },
 ): PrimeResumeData {
-  return refineryFormToPrimeResume(coordinatesToRefineryForm(coordinates));
+  const targetRole = identity?.targetRole?.trim() ?? "";
+  const resume = refineryFormToPrimeResume(coordinatesToRefineryForm(coordinates));
+
+  if (!targetRole) return resume;
+
+  return {
+    ...resume,
+    headline: targetRole,
+    profile: {
+      ...resume.profile,
+      targetRole,
+    },
+  };
 }
 
 export function profileToResumePatch(

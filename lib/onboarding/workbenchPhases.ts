@@ -52,3 +52,22 @@ export function workbenchPhaseHeader(id: number): string {
   const phase = getWorkbenchPhase(id);
   return phase ? `Phase ${id} · ${phase.label}` : `Phase ${id}`;
 }
+
+export function nextWorkbenchPhaseLabel(currentPhaseId: number): string | undefined {
+  return getWorkbenchPhase(currentPhaseId + 1)?.label;
+}
+
+export function proceedToNextPhaseLabel(currentPhaseId: number): string {
+  const next = nextWorkbenchPhaseLabel(currentPhaseId);
+  return next ? `Proceed to ${next}` : "Continue";
+}
+
+export function continueToNextPhaseLabel(currentPhaseId: number): string {
+  const next = nextWorkbenchPhaseLabel(currentPhaseId);
+  return next ? `Continue to ${next}` : "Continue";
+}
+
+export function advancingToNextPhaseLabel(currentPhaseId: number): string {
+  const next = nextWorkbenchPhaseLabel(currentPhaseId);
+  return next ? `Advancing to ${next}…` : "Advancing…";
+}

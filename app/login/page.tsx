@@ -1,7 +1,7 @@
 "use client";
 
 import { JetBrains_Mono } from "next/font/google";
-import { signIn } from "next-auth/react";
+import { signIn, signOut } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { MarketTruth } from "@/components/MarketTruth";
@@ -127,17 +127,42 @@ function LoginPanel() {
 
   useEffect(() => {
     const authError = searchParams.get("error");
+    if (authError === "OAuthAccountNotLinked") {
+      setError(
+        "That email is already linked to another sign-in method. Use the same provider you signed up with, or try again — Google and LinkedIn with the same email should both work.",
+      );
+      return;
+    }
     if (authError) {
       setError("Authentication failed. Please try again.");
     }
   }, [searchParams]);
 
   const isLoading = loadingProvider !== null;
+  const signedOut = searchParams.get("signedOut") === "1";
 
-  function handleOAuth(provider: AuthProvider) {
+  async function handleOAuth(provider: AuthProvider) {
     setLoadingProvider(provider);
     setError(null);
-    void signIn(provider, { callbackUrl: "/onboarding" });
+
+    try {
+      // Clear any surviving EasySubmit session cookie before OAuth (httpOnly cookies
+      // are not removed when users clear "application data" in the browser).
+      await signOut({ redirect: false });
+    } catch {
+      // Already signed out — continue into provider OAuth.
+    }
+
+    const authParams: Record<string, string> =
+      provider === "linkedin"
+        ? {
+            prompt: "login",
+            max_age: "0",
+            enable_extended_login: "true",
+          }
+        : { prompt: "select_account" };
+
+    void signIn(provider, { callbackUrl: "/onboarding" }, authParams);
   }
 
   return (
@@ -145,6 +170,13 @@ function LoginPanel() {
       <LoginPanelChrome>
         <div className="flex flex-col items-center text-center">
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Login</h1>
+
+          {signedOut ? (
+            <p className="mt-4 text-sm text-muted-foreground">
+              You&apos;re signed out of EasySubmit. Choose a provider below to sign in
+              again.
+            </p>
+          ) : null}
 
           {error ? (
             <p role="alert" className="mt-4 text-sm text-destructive">
@@ -156,7 +188,7 @@ function LoginPanel() {
             <button
               type="button"
               disabled={isLoading}
-              onClick={() => handleOAuth("google")}
+              onClick={() => void handleOAuth("google")}
               className={SOCIAL_BUTTON_CLASS}
             >
               <GoogleIcon />
@@ -166,7 +198,7 @@ function LoginPanel() {
             <button
               type="button"
               disabled={isLoading}
-              onClick={() => handleOAuth("linkedin")}
+              onClick={() => void handleOAuth("linkedin")}
               className={SOCIAL_BUTTON_CLASS}
             >
               <LinkedInIcon />

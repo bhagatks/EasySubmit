@@ -13,6 +13,7 @@ import {
 import { buildRefineryDefaults } from "@/lib/resume/refineryDefaults";
 import { cn } from "@/lib/utils";
 import { useOnboardingStore } from "@/stores/onboardingStore";
+import { SignOutButton } from "@/components/auth/SignOutButton";
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
@@ -156,10 +157,18 @@ export function RefineryWorkbench() {
     () =>
       buildRefineryDefaults({
         parsed: parsedResumeData,
+        sessionFirstName: session?.user?.firstName,
+        sessionLastName: session?.user?.lastName,
         sessionName: session?.user?.name,
         sessionEmail: session?.user?.email,
       }),
-    [parsedResumeData, session?.user?.email, session?.user?.name],
+    [
+      parsedResumeData,
+      session?.user?.email,
+      session?.user?.firstName,
+      session?.user?.lastName,
+      session?.user?.name,
+    ],
   );
 
   const defaultSkills = useMemo(() => {
@@ -270,19 +279,24 @@ export function RefineryWorkbench() {
           className="flex min-h-0 flex-[2] flex-col border-t border-white/10 bg-surface lg:border-l lg:border-t-0"
         >
           <header className="shrink-0 border-b border-white/10 px-5 py-4 sm:px-6">
-            <p
-              className="text-[11px] font-medium uppercase tracking-[0.2em] text-primary"
-              style={{ fontFamily: "var(--font-jetbrains), ui-monospace, monospace" }}
-            >
-              <Sparkles className="mr-1.5 inline h-3.5 w-3.5 align-text-bottom" aria-hidden="true" />
-              Engine Tuning
-            </p>
-            <h1 className="mt-2 font-display text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
-              Calibrate profile signals
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Edits sync live to your digital resume preview.
-            </p>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p
+                  className="text-[11px] font-medium uppercase tracking-[0.2em] text-primary"
+                  style={{ fontFamily: "var(--font-jetbrains), ui-monospace, monospace" }}
+                >
+                  <Sparkles className="mr-1.5 inline h-3.5 w-3.5 align-text-bottom" aria-hidden="true" />
+                  Engine Tuning
+                </p>
+                <h1 className="mt-2 font-display text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+                  Calibrate profile signals
+                </h1>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Edits sync live to your digital resume preview.
+                </p>
+              </div>
+              <SignOutButton iconOnly />
+            </div>
           </header>
 
           <form className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 py-5 sm:px-6">

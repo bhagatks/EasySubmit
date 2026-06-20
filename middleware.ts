@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 const PUBLIC_PATHS = ["/", "/login"] as const;
+const PUBLIC_PREFIXES = ["/auth/"] as const;
 const ONBOARDING_PATH = "/onboarding";
 const DASHBOARD_PATH = "/dashboard";
 const COMPLETED_ONBOARDING_STEP = 4;
@@ -12,9 +13,17 @@ function matchesPath(pathname: string, basePath: string): boolean {
 }
 
 function isPublicPath(pathname: string): boolean {
+  if (PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
+    return true;
+  }
+
   return PUBLIC_PATHS.some(
     (path) => pathname === path || (path !== "/" && matchesPath(pathname, path)),
   );
+}
+
+function isLoginReauthPath(pathname: string, searchParams: URLSearchParams): boolean {
+  return pathname === "/login" && searchParams.get("signedOut") === "1";
 }
 
 function isAuthApiPath(pathname: string): boolean {
@@ -29,6 +38,13 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (isAuthApiPath(pathname) || isResumeApiPath(pathname)) {
+    return NextResponse.next();
+  }
+
+  if (
+    isLoginReauthPath(pathname, request.nextUrl.searchParams) ||
+    pathname.startsWith("/auth/")
+  ) {
     return NextResponse.next();
   }
 
@@ -58,7 +74,11 @@ export async function middleware(request: NextRequest) {
 
   if (onboardingComplete) {
     if (onOnboarding) {
-      return NextResponse.redirect(new URL(DASHBOARD_PATH, request.url));
+      const ignitionResume = request.nextUrl.searchParams.get("ignition") === "1";
+      if (!ignitionResume) {
+        return NextResponse.redirect(new URL(DASHBOARD_PATH, request.url));
+      }
+      return NextResponse.next();
     }
 
     if (pathname === "/login") {

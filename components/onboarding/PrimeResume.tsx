@@ -1,10 +1,15 @@
+"use client";
+
 import type { ReactNode } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { Inter } from "next/font/google";
 import {
   CONTACT_LINE_SEPARATOR,
   RESUME_SECTION_TITLES,
 } from "@/lib/resume/resumeSpec";
+import { normalizeSkillList } from "@/lib/onboarding/normalizeSkills";
 import { formatLocationLabel, parseLocationLabel } from "@/lib/resume/dates";
+import type { LanguageEntry } from "@/stores/onboardingStore";
 import { cn } from "@/lib/utils";
 
 const inter = Inter({
@@ -64,6 +69,17 @@ export type PrimeResumeData = {
 type PrimeResumeProps = {
   resume: PrimeResumeData;
   className?: string;
+  /** When false, header matches ATS spec (name + contact only). Default false. */
+  showTargetRole?: boolean;
+  /** Live language vectors from global state — optional Studio section at canvas bottom. */
+  languageEntries?: LanguageEntry[];
+};
+
+const languageFade = {
+  initial: { opacity: 0, y: 5 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -4 },
+  transition: { duration: 0.28, ease: [0.25, 0.46, 0.45, 0.94] as const },
 };
 
 function formatDateRange(
@@ -108,7 +124,16 @@ function SectionTitle({ children }: { children: ReactNode }) {
   );
 }
 
-function ProfileHeader({ resume }: { resume: PrimeResumeData }) {
+function ProfileHeader({
+  resume,
+  showTargetRole = false,
+}: {
+  resume: PrimeResumeData;
+  showTargetRole?: boolean;
+}) {
+  const targetRole =
+    resume.headline?.trim() || resume.profile?.targetRole?.trim() || "";
+
   const contactParts = [
     formatContactLocation(resume.location ?? ""),
     resume.phone?.trim(),
@@ -117,13 +142,28 @@ function ProfileHeader({ resume }: { resume: PrimeResumeData }) {
   ].filter(Boolean) as string[];
 
   return (
-    <header className="mb-6">
+    <header className="mb-6 text-center">
       <h1
         className="text-[20px] font-bold leading-tight tracking-tight"
         style={{ color: INK }}
       >
         {resume.fullName?.trim() || <Placeholder>Your Name</Placeholder>}
       </h1>
+
+      {showTargetRole ? (
+        targetRole ? (
+          <p
+            className="mt-1.5 text-[12px] font-medium leading-snug"
+            style={{ color: PRIMARY }}
+          >
+            {targetRole}
+          </p>
+        ) : (
+          <p className="mt-1.5 text-[12px] font-medium leading-snug" style={{ color: MUTED }}>
+            <Placeholder>Target role</Placeholder>
+          </p>
+        )
+      ) : null}
 
       {contactParts.length > 0 ? (
         <p className="mt-2.5 text-[10px] leading-relaxed text-[oklch(0.45_0.02_268)]">
@@ -284,15 +324,68 @@ function EducationSection({
 }
 
 function SkillsSection({ skills }: { skills: string[] }) {
-  const visibleSkills = skills.filter((skill) => skill.trim());
+  const visibleSkills = normalizeSkillList(skills);
   if (visibleSkills.length === 0) return null;
 
   return (
-    <section>
+    <>
       <SectionTitle>{RESUME_SECTION_TITLES.skills}</SectionTitle>
-      <p className="text-[10.5px] leading-relaxed text-[oklch(0.25_0.02_268/0.85)]">
+      <p className="text-[12px] leading-relaxed text-[oklch(0.25_0.02_268/0.88)]">
         {visibleSkills.join(", ")}
       </p>
+    </>
+  );
+}
+
+function LanguagesSection({ entries }: { entries: LanguageEntry[] }) {
+  const visible = entries.filter(
+    (entry) => entry.name.trim().length > 0 && entry.level.trim().length > 0,
+  );
+
+  if (visible.length === 0) return null;
+
+  return (
+    <section className="mt-7" aria-label={RESUME_SECTION_TITLES.languages}>
+      <SectionTitle>{RESUME_SECTION_TITLES.languages}</SectionTitle>
+      <ul className="space-y-3" role="list">
+        <AnimatePresence initial={false} mode="popLayout">
+          {visible.map((entry) => (
+            <motion.li
+              key={`${entry.name.trim().toLowerCase()}-${entry.level.trim()}`}
+              layout
+              role="listitem"
+              initial={languageFade.initial}
+              animate={languageFade.animate}
+              exit={languageFade.exit}
+              transition={languageFade.transition}
+            >
+              <p
+                className={cn(inter.className, "text-[11px] font-semibold leading-snug")}
+                style={{ color: INK }}
+              >
+                {entry.name.trim()}
+              </p>
+              <p
+                className={cn(inter.className, "mt-0.5 text-[10.5px] leading-relaxed")}
+                style={{ color: MUTED }}
+              >
+                {entry.level.trim()}
+              </p>
+            </motion.li>
+          ))}
+        </AnimatePresence>
+      </ul>
+    </section>
+  );
+}
+
+function SkillsSectionBlock({ skills }: { skills: string[] }) {
+  const visibleSkills = normalizeSkillList(skills);
+  if (visibleSkills.length === 0) return null;
+
+  return (
+    <section className="mt-7" aria-label={RESUME_SECTION_TITLES.skills}>
+      <SkillsSection skills={skills} />
     </section>
   );
 }
@@ -325,7 +418,15 @@ function OptionalLinesSection({
 }
 
 /** ATS-ordered resume preview — section order from {@link lib/resume/resumeSpec}. */
-export function PrimeResume({ resume, className }: PrimeResumeProps) {
+export function PrimeResume({
+  resume,
+  className,
+  showTargetRole = false,
+  languageEntries = [],
+}: PrimeResumeProps) {
+  const useLiveLanguages = languageEntries.length > 0;
+  const legacyLanguageLines = useLiveLanguages ? [] : (resume.languages ?? []);
+
   return (
     <div className={cn("flex w-full justify-center", className)}>
       <article
@@ -337,14 +438,21 @@ export function PrimeResume({ resume, className }: PrimeResumeProps) {
         aria-label="Resume preview"
       >
         <div className="px-[6%] py-[5.5%]">
-          <ProfileHeader resume={resume} />
+          <ProfileHeader resume={resume} showTargetRole={showTargetRole} />
           <SummarySection summary={resume.summary} />
-          <SkillsSection skills={resume.skills ?? []} />
+          <SkillsSectionBlock skills={resume.skills ?? []} />
           <ExperienceSection experience={resume.experience ?? []} />
           <EducationSection education={resume.education ?? []} />
           <OptionalLinesSection title={RESUME_SECTION_TITLES.certifications} lines={resume.certifications ?? []} />
           <OptionalLinesSection title={RESUME_SECTION_TITLES.projects} lines={resume.projects ?? []} />
-          <OptionalLinesSection title={RESUME_SECTION_TITLES.languages} lines={resume.languages ?? []} />
+          {useLiveLanguages ? (
+            <LanguagesSection entries={languageEntries} />
+          ) : (
+            <OptionalLinesSection
+              title={RESUME_SECTION_TITLES.languages}
+              lines={legacyLanguageLines}
+            />
+          )}
         </div>
       </article>
     </div>

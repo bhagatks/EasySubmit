@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { DM_Sans, Space_Grotesk } from "next/font/google";
+import { AppProviders } from "@/components/providers/app-providers";
 import { ThemeProvider } from "@/components/theme-provider";
-import { AuthProvider } from "@/components/providers/auth-provider";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -36,7 +36,7 @@ export default function RootLayout({
     >
       <body className="font-sans antialiased">
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
-          <AuthProvider>{children}</AuthProvider>
+          <AppProviders>{children}</AppProviders>
         </ThemeProvider>
       </body>
     </html>

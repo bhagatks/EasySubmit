@@ -66,9 +66,9 @@ export const COUNTRY_CODE_OPTIONS: CountryCodeOption[] = [
 
 export const DEFAULT_DIAL_CODE = "+1";
 
-const DIAL_CODES_BY_LENGTH = [...new Set(COUNTRY_CODE_OPTIONS.map((c) => c.dialCode))].sort(
-  (a, b) => b.length - a.length,
-);
+const DIAL_CODES_BY_LENGTH = Array.from(
+  new Set(COUNTRY_CODE_OPTIONS.map((c) => c.dialCode)),
+).sort((a, b) => b.length - a.length);
 
 export function findCountryByDialCode(dialCode: string): CountryCodeOption | undefined {
   return COUNTRY_CODE_OPTIONS.find((country) => country.dialCode === dialCode);

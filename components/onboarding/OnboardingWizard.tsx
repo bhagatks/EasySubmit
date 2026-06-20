@@ -94,23 +94,25 @@ function wizardReducer(
 function getSocialHeadlinePrefill(
   provider: string | undefined,
   name: string | null | undefined,
+  firstName: string | null | undefined,
   storedRole: string | null,
 ): string {
   if (storedRole?.trim()) {
     return storedRole.trim();
   }
 
-  if (!name?.trim()) {
+  const headlineSource = name?.trim() || firstName?.trim() || "";
+  if (!headlineSource) {
     return "";
   }
 
   if (provider === "linkedin") {
-    const pipeSegments = name.split("|").map((segment) => segment.trim());
+    const pipeSegments = headlineSource.split("|").map((segment) => segment.trim());
     if (pipeSegments.length > 1 && pipeSegments[1].length > 2) {
       return pipeSegments[1];
     }
 
-    const atMatch = name.match(/^(.+?)\s+at\s+(.+)$/i);
+    const atMatch = headlineSource.match(/^(.+?)\s+at\s+(.+)$/i);
     if (atMatch?.[1] && atMatch[1].trim().length > 2) {
       return atMatch[1].trim();
     }
@@ -220,9 +222,10 @@ export default function OnboardingWizard() {
       getSocialHeadlinePrefill(
         session?.provider,
         session?.user?.name,
+        session?.user?.firstName,
         selectedRole,
       ),
-    [session?.provider, session?.user?.name, selectedRole],
+    [session?.provider, session?.user?.name, session?.user?.firstName, selectedRole],
   );
 
   useEffect(() => {
