@@ -7,10 +7,7 @@ import {
   getTargetAiModel,
   type AiProvider,
 } from "@/src/lib/config/app.config";
-
-function geminiKeyParam(apiKey: string): string {
-  return encodeURIComponent(apiKey.trim());
-}
+import { geminiApiHeaders, geminiModelsListUrl } from "@/src/lib/ai/gemini-api";
 
 function filterOpenAiModels(provider: AiProvider, ids: string[]): string[] {
   if (provider === "openai") {
@@ -61,8 +58,9 @@ export async function fetchProviderModelsFromApi(
 
   try {
     if (provider === "gemini") {
-      const url = `${getProviderHandshakeUrl(provider)}?key=${geminiKeyParam(key)}`;
-      const res = await fetch(url);
+      const res = await fetch(geminiModelsListUrl(), {
+        headers: geminiApiHeaders(key),
+      });
       if (!res.ok) return null;
       const json = (await res.json()) as {
         models?: Array<{ name?: string; supportedGenerationMethods?: string[] }>;

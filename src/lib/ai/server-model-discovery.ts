@@ -1,7 +1,18 @@
 import {
   getProviderHandshakeUrl,
+  getDefaultModelsForProvider,
+  PROVIDER_REGISTRY,
   type AiProvider,
 } from "@/src/lib/config/app.config";
+import { geminiApiHeaders, geminiModelsListUrl } from "@/src/lib/ai/gemini-api";
+import { validateGeminiKey } from "@/src/lib/ai/validate-gemini-key";
+
+const OPENAI_COMPATIBLE_PROVIDERS: AiProvider[] = [
+  "openai",
+  "groq",
+  "deepseek",
+  "openrouter",
+];
 
 export type ProviderHandshakeErrorCode =
   | "invalid_key"
@@ -25,6 +36,11 @@ type ProviderErrorBody = {
 
 function geminiKeyParam(apiKey: string): string {
   return encodeURIComponent(apiKey.trim());
+}
+
+/** @deprecated Prefer `geminiApiHeaders` — kept for legacy query-param fallback. */
+function geminiLegacyQueryUrl(apiKey: string): string {
+  return `${geminiModelsListUrl()}?key=${geminiKeyParam(apiKey)}`;
 }
 
 function mapHttpFailure(status: number, body?: ProviderErrorBody | null): ProviderHandshakeResult {
@@ -88,6 +104,67 @@ function filterOpenAiDiscoveryModels(provider: AiProvider, ids: string[]): strin
     .sort();
 }
 
+function bundledOpenAiCompatibleModels(provider: AiProvider): string[] {
+  return filterOpenAiDiscoveryModels(provider, getDefaultModelsForProvider(provider));
+}
+
+/**
+ * Restricted OpenAI project keys often cannot list models but can chat.
+ * AutoApply-style fallback: one minimal completion, then bundled career catalog.
+ */
+async function probeOpenAiCompatibleChat(
+  provider: AiProvider,
+  apiKey: string,
+): Promise<ProviderHandshakeResult> {
+  if (!OPENAI_COMPATIBLE_PROVIDERS.includes(provider)) {
+    return {
+      ok: false,
+      code: "forbidden",
+      message: "This key cannot list models. Check provider permissions.",
+    };
+  }
+
+  const entry = PROVIDER_REGISTRY[provider];
+  const probeModel = entry.defaultModels[0];
+  const url = `${entry.baseUrl}/v1/chat/completions`;
+
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${apiKey.trim()}`,
+    "Content-Type": "application/json",
+  };
+
+  if (provider === "openrouter") {
+    headers["HTTP-Referer"] = "https://easysubmit.ai";
+    headers["X-Title"] = "EasySubmit";
+  }
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      model: probeModel,
+      messages: [{ role: "user", content: "OK" }],
+      max_tokens: 1,
+    }),
+    cache: "no-store",
+  });
+
+  if (res.ok || res.status === 429) {
+    const models = bundledOpenAiCompatibleModels(provider);
+    if (models.length === 0) {
+      return {
+        ok: false,
+        code: "provider_error",
+        message: "Key verified via chat but no bundled models are configured.",
+      };
+    }
+    return { ok: true, models };
+  }
+
+  const body = await parseProviderErrorBody(res);
+  return mapHttpFailure(res.status, body);
+}
+
 async function fetchOpenAiCompatibleModels(
   provider: AiProvider,
   apiKey: string,
@@ -108,6 +185,9 @@ async function fetchOpenAiCompatibleModels(
 
   if (!res.ok) {
     const body = await parseProviderErrorBody(res);
+    if (res.status === 403 || res.status === 404) {
+      return probeOpenAiCompatibleChat(provider, apiKey);
+    }
     return mapHttpFailure(res.status, body);
   }
 
@@ -118,11 +198,7 @@ async function fetchOpenAiCompatibleModels(
   );
 
   if (models.length === 0) {
-    return {
-      ok: false,
-      code: "provider_error",
-      message: "Provider handshake succeeded but returned no chat models.",
-    };
+    return probeOpenAiCompatibleChat(provider, apiKey);
   }
 
   return { ok: true, models };
@@ -159,13 +235,21 @@ async function fetchAnthropicModels(apiKey: string): Promise<ProviderHandshakeRe
   return { ok: true, models };
 }
 
-async function fetchGeminiModels(apiKey: string): Promise<ProviderHandshakeResult> {
-  const url = `${getProviderHandshakeUrl("gemini")}?key=${geminiKeyParam(apiKey)}`;
-  const res = await fetch(url, { cache: "no-store" });
+async function fetchGeminiModelsViaRest(apiKey: string): Promise<string[] | null> {
+  const trimmedKey = apiKey.trim();
+  const headerRes = await fetch(geminiModelsListUrl(), {
+    headers: geminiApiHeaders(trimmedKey),
+    cache: "no-store",
+  });
+
+  let res = headerRes;
+
+  if (!headerRes.ok && headerRes.status === 401 && !trimmedKey.startsWith("AQ.")) {
+    res = await fetch(geminiLegacyQueryUrl(trimmedKey), { cache: "no-store" });
+  }
 
   if (!res.ok) {
-    const body = await parseProviderErrorBody(res);
-    return mapHttpFailure(res.status, body);
+    return null;
   }
 
   const json = (await res.json()) as {
@@ -182,13 +266,24 @@ async function fetchGeminiModels(apiKey: string): Promise<ProviderHandshakeResul
     )
     .map((model) => model.name!.replace("models/", ""));
 
-  if (models.length === 0) {
+  return models.length > 0 ? models : null;
+}
+
+async function fetchGeminiModels(apiKey: string): Promise<ProviderHandshakeResult> {
+  const validated = await validateGeminiKey(apiKey);
+  if (!validated.ok) {
     return {
       ok: false,
-      code: "provider_error",
-      message: "Gemini handshake succeeded but returned no generation models.",
+      code: validated.code,
+      message: validated.message,
     };
   }
+
+  const fromRest = await fetchGeminiModelsViaRest(apiKey);
+  const models =
+    fromRest && fromRest.length > 0
+      ? [...new Set([...fromRest, ...validated.models])].sort()
+      : validated.models;
 
   return { ok: true, models };
 }

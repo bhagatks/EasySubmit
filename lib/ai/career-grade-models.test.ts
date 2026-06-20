@@ -52,6 +52,7 @@ describe("career-grade-models", () => {
 
   it("accepts career-grade models for expanded providers", () => {
     expect(isCareerGradeModel("gemini", "gemini-2.5-flash")).toBe(true);
+    expect(isCareerGradeModel("gemini", "gemini-1.5-flash")).toBe(true);
     expect(isCareerGradeModel("groq", "llama-3.3-70b-versatile")).toBe(true);
     expect(isCareerGradeModel("deepseek", "deepseek-chat")).toBe(true);
     expect(isCareerGradeModel("openrouter", "openai/gpt-4o")).toBe(true);

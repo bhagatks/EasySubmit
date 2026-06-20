@@ -1,21 +1,30 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { readSessionApiKeyCipher } from "@/src/lib/ai/session-key-vault";
 import { useIgnitionStore } from "@/src/stores/use-ignition-store";
 
+type DashboardIgnitionGuardProps = {
+  /** Server truth from `users.vaultKeyId`. */
+  vaultKeyId?: string | null;
+};
+
 /**
- * On dashboard entry only: if BYOK / Primary Fuel is missing after rehydration,
- * send the user to onboarding Ignition Gate instead of the Key Protector overlay.
- * Key Protector remains for provider auth failures (401/403) during active use.
+ * On dashboard entry: if BYOK is missing (no server vault + no local cipher), send the
+ * user to AI Keys or onboarding ignition — unless they are already on the keys page.
  */
-export function DashboardIgnitionGuard() {
+export function DashboardIgnitionGuard({ vaultKeyId }: DashboardIgnitionGuardProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const hasHydrated = useIgnitionStore((state) => state._hasHydrated);
 
   useEffect(() => {
     if (!hasHydrated) return;
+
+    if (pathname.startsWith("/dashboard/keys")) {
+      return;
+    }
 
     void (async () => {
       const state = useIgnitionStore.getState();
@@ -26,14 +35,20 @@ export function DashboardIgnitionGuard() {
 
       const cipher = readSessionApiKeyCipher();
       const latest = useIgnitionStore.getState();
-      if (!cipher && !latest.apiKey) {
-        if (latest.isLocked && latest.lockSource === "missing_key") {
-          latest.unlockIgnition();
-        }
-        router.replace("/onboarding?ignition=1");
+      const hasClientKey = Boolean(cipher || latest.apiKey);
+      const hasServerVault = Boolean(vaultKeyId);
+
+      if (hasServerVault || hasClientKey) {
+        return;
       }
+
+      if (latest.isLocked && latest.lockSource === "missing_key") {
+        latest.unlockIgnition();
+      }
+
+      router.replace("/dashboard/keys");
     })();
-  }, [hasHydrated, router]);
+  }, [hasHydrated, pathname, router, vaultKeyId]);
 
   return null;
 }

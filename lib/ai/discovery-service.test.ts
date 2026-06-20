@@ -31,7 +31,7 @@ describe("performEngineHandshake", () => {
     }
   });
 
-  it("returns NO_CAREER_MODELS when key lacks flagship access", async () => {
+  it("falls back to bundled career-grade defaults when API list has no matches", async () => {
     vi.mocked(handshakeProviderModels).mockResolvedValue({
       ok: true,
       models: ["gpt-3.5-turbo", "text-embedding-3-small"],
@@ -42,10 +42,10 @@ describe("performEngineHandshake", () => {
       apiKey: "sk-test",
     });
 
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.code).toBe(ENGINE_ERRORS.NO_CAREER_MODELS);
-      expect(result.error.terminalLine).toContain("NO_CAREER_MODELS");
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.models.length).toBeGreaterThan(0);
+      expect(result.models).toContain("gpt-4o");
     }
   });
 

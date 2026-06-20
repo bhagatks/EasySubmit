@@ -4,6 +4,10 @@
 
 Next.js 14 (App Router) web app + future Chrome extension (MV3). Primary entry after login: `/onboarding/step-1`. Marketing site at `/`.
 
+## Data model
+
+Postgres (Prisma) + Supabase Vault BYOK + client Zustand stores. Login identity (`users`) is separate from career data (`profiles` + nested rows) and engine state (`architectures` JSONB). Diagrams, entity map, and feature mapping: [`docs/database-schema.md`](./database-schema.md#data-model-overview). Boot and routing rules: [`docs/IDENTITY_AND_BOOT_RULES.md`](./IDENTITY_AND_BOOT_RULES.md).
+
 ## Runtime
 
 | Surface | Stack | Entry |
@@ -119,10 +123,11 @@ Dark-first Trust Tech palette in `app/globals.css`: deep navy, electric primary 
 
 | Date | Summary |
 |------|---------|
+| 2026-06-19 | `docs/database-schema.md`: data model overview — ER diagram, end-to-end flow diagram, feature→table mapping; `ARCHITECTURE.md` links to overview |
 | 2026-06-19 | Dashboard AI Keys (`/dashboard/keys`): lists vaulted BYOK per provider, edit/add via embedded Ignition Gate, multi-key + set active |
 | 2026-06-19 | Dashboard overview wired to Headless Engine: `getDashboardStats`, `Overview.tsx` (60/40 canvas, Engine Cold, verification from Architecture JSONB, BYOK mint badge) |
 | 2026-06-19 | `executeEngineRefinement` (`app/actions/ai/engine.ts`): vault decrypt → Vercel AI SDK Career Architecture refinement → `saveUsageLog`; `VAULT_LOCK` triggers Ignition Gate |
-| 2026-06-19 | `igniteEngineVault` server action (`app/actions/ai/ignition.ts`): Vercel AI SDK key verify → Supabase `vault_user_key` → `user.vaultKeyId`; unlocks Ignition Gate right panel |
+| 2026-06-19 | Gemini BYOK: AutoApply-style `@google/generative-ai` ping (`gemini-1.5-flash`, 1 token) + optional REST model enrich |
 | 2026-06-19 | Headless Engine schema: `Architecture` (replaces `Engine`), `UsageLog` ledger, `User.vaultKeyId` + `activeProvider` pointers; Career Architecture stores state, not secrets |
 | 2026-06-19 | Supabase Vault BYOK: `user_api_keys` + `vault_user_key` / `unvault_user_key` / `revoke_user_key` SQL functions; `lib/vault/user-key-vault.ts` + `app/actions/ai/vault-key.ts` for server-side key persistence |
 | 2026-06-19 | Login identity: `users.firstName` / `users.lastName` extracted at OAuth (`lib/auth/extract-login-identity.ts`); session exposes split names; onboarding Coordinates prefill from login profile |

@@ -14,7 +14,7 @@ import {
 } from "@/src/lib/ai/engine-errors";
 import { getProviderConfig } from "@/src/lib/config/app.config";
 import {
-  intersectCareerGradeModels,
+  filterCareerGradeModels,
   isHandshakeProvider,
   suggestPrimaryFuel,
   type HandshakeProvider,
@@ -60,8 +60,8 @@ async function fetchProviderModelCatalog(
 }
 
 /**
- * Handshake: hit provider models endpoint, confirm key validity, and verify
- * career-grade model access (strict — no bundled fallback).
+ * Handshake: hit provider models endpoint (or chat probe fallback), confirm key
+ * validity, and resolve career-grade models with bundled defaults when needed.
  */
 export async function performEngineHandshake(
   input: EngineHandshakeInput,
@@ -90,7 +90,7 @@ export async function performEngineHandshake(
     return toFailure(catalog);
   }
 
-  const careerGradeModels = intersectCareerGradeModels(handshakeProvider, catalog.models);
+  const careerGradeModels = filterCareerGradeModels(handshakeProvider, catalog.models);
 
   if (careerGradeModels.length === 0) {
     return {

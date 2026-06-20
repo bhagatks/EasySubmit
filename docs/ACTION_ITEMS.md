@@ -11,7 +11,7 @@
 | Set `NEXTAUTH_URL` to prod domain | **Pending** | Must match deployed URL exactly |
 | Google OAuth redirect URI | **Pending** | `https://<domain>/api/auth/callback/google` |
 | LinkedIn OAuth redirect URI | **Pending** | `https://<domain>/api/auth/callback/linkedin` |
-| Run Prisma migrate on production DB | **Pending** | `DATABASE_URL` → Supabase Postgres |
+| Run Prisma migrate on production DB | **Blocked — P3009** | See `docs/MIGRATION_RECOVERY.md` — resolve failed `20260618043606_init`, then `npm run db:migrate` + `scripts/vault-functions-only.sql` if needed |
 | Supabase Storage bucket `resumes` | **Pending** | Private, authenticated upload |
 
 ## Post-deploy smoke test

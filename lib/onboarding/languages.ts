@@ -1,25 +1,7 @@
 import type { LanguageEntry } from "@/stores/onboardingStore";
-import { PROFICIENCY_LEVELS } from "@/src/lib/constants/languages";
+import { formatProficiencyShort } from "@/lib/resume/proficiency";
 
-const PROFICIENCY_SHORT_LABELS: Record<(typeof PROFICIENCY_LEVELS)[number], string> = {
-  "Native or Bilingual": "Native",
-  "Full Professional": "Full Professional",
-  "Professional Working": "Professional",
-  "Limited Working": "Limited",
-  "Elementary": "Elementary",
-};
-
-/** Chip-friendly proficiency label — e.g. `Native or Bilingual` → `Native`. */
-export function formatProficiencyShort(level: string): string {
-  const trimmed = level.trim();
-  if (!trimmed) return "";
-
-  const match = PROFICIENCY_LEVELS.find(
-    (entry) => entry.toLowerCase() === trimmed.toLowerCase(),
-  );
-
-  return match ? PROFICIENCY_SHORT_LABELS[match] : trimmed;
-}
+export { formatProficiencyShort };
 
 /** Chip display — e.g. `English (Native)`. */
 export function formatLanguageChipLabel(entry: LanguageEntry): string {

@@ -7,12 +7,10 @@ import {
   readEphemeralSecret,
   scrubEphemeralSecret,
 } from "@/lib/vault/scrub-secret";
-import { verifyApiKeyWithAiSdk } from "@/src/lib/ai/ai-sdk-handshake";
 import { performEngineHandshake } from "@/src/lib/ai/discovery-service";
 import {
   ENGINE_ERRORS,
   formatEngineTerminalError,
-  mapProviderFailureToEngineError,
 } from "@/src/lib/ai/engine-errors";
 import {
   isHandshakeProvider,
@@ -20,6 +18,10 @@ import {
 } from "@/src/lib/config/career-grade-models";
 
 import { vaultUserApiKey } from "@/lib/vault/user-key-vault";
+import {
+  isVaultSchemaMissingError,
+  VAULT_SETUP_MESSAGE,
+} from "@/lib/vault/vault-schema-error";
 
 export type IgniteEngineVaultInput = {
   rawKey: string;
@@ -51,8 +53,11 @@ export type IgniteEngineVaultResult =
   | IgniteEngineVaultFailure;
 
 /**
- * Ignition Gate vault flow: verify BYOK via Vercel AI SDK, vault in Supabase,
- * persist `user.vaultKeyId`, and return unlock status for the right panel.
+ * Ignition Gate vault flow: BYOK handshake (provider model list + career-grade filter),
+ * vault in Supabase, persist `user.vaultKeyId`, and return unlock status.
+ *
+ * Does not call generateContent for verify — that burned Gemini free-tier quota and
+ * duplicated the models-list handshake that already proves key validity.
  */
 export async function igniteEngineVault(
   input: IgniteEngineVaultInput,
@@ -98,18 +103,6 @@ export async function igniteEngineVault(
       };
     }
 
-    const sdkVerify = await verifyApiKeyWithAiSdk(provider, keyMaterial);
-    if (!sdkVerify.ok) {
-      const err = mapProviderFailureToEngineError(sdkVerify.code, sdkVerify.message);
-      return {
-        success: false,
-        unlocked: false,
-        error: err.message,
-        terminalLine: err.terminalLine,
-        code: err.code,
-      };
-    }
-
     const discovery = await performEngineHandshake({ provider, apiKey: keyMaterial });
     if (!discovery.success) {
       return {
@@ -134,11 +127,26 @@ export async function igniteEngineVault(
       suggestedPrimaryFuel: discovery.suggestedPrimaryFuel,
       discoveredAt: discovery.discoveredAt,
     };
-  } catch {
-    const err = formatEngineTerminalError(
-      ENGINE_ERRORS.PROVIDER_ERROR,
-      "Ignition vault failed. Retry in a moment.",
-    );
+  } catch (error) {
+    if (isVaultSchemaMissingError(error)) {
+      const err = formatEngineTerminalError(
+        ENGINE_ERRORS.VAULT_NOT_CONFIGURED,
+        VAULT_SETUP_MESSAGE,
+      );
+      return {
+        success: false,
+        unlocked: false,
+        error: err.message,
+        terminalLine: err.terminalLine,
+        code: err.code,
+      };
+    }
+
+    const detail =
+      error instanceof Error
+        ? error.message
+        : "Ignition vault failed. Retry in a moment.";
+    const err = formatEngineTerminalError(ENGINE_ERRORS.PROVIDER_ERROR, detail);
     return {
       success: false,
       unlocked: false,

@@ -59,6 +59,7 @@ const CAREER_GRADE_PATTERNS: Record<HandshakeProvider, RegExp[]> = {
   gemini: [
     /^gemini-2\.5/,
     /^gemini-2\.0/,
+    /^gemini-1\.5-flash/,
     /^gemini-1\.5-pro/,
     /^gemini-pro(?!-vision)/,
     /^gemini-flash-latest$/,

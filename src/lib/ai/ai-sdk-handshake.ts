@@ -13,11 +13,18 @@ const VERIFY_PROMPT = "Reply with the single word OK.";
 const VERIFY_MODEL: Record<AiProvider, string> = {
   openai: "gpt-4o-mini",
   anthropic: "claude-3-5-haiku-latest",
-  gemini: "gemini-2.0-flash",
+  gemini: "gemini-2.5-flash",
   groq: "llama-3.3-70b-versatile",
   deepseek: "deepseek-chat",
   openrouter: "openai/gpt-4o-mini",
 };
+
+/** Models to try when verifying Gemini BYOK — 2.0-flash free tier is often limit: 0. */
+const GEMINI_VERIFY_MODELS = [
+  "gemini-2.5-flash",
+  "gemini-flash-latest",
+  "gemini-1.5-flash",
+] as const;
 
 export type AiSdkVerifyErrorCode =
   | "missing_key"
@@ -32,6 +39,34 @@ export type AiSdkVerifyResult =
   | { ok: true }
   | { ok: false; code: AiSdkVerifyErrorCode; message: string };
 
+function isQuotaOrBillingFailure(message: string): boolean {
+  return /spending cap|quota|billing|exceeded.*(limit|cap)|insufficient.*(quota|credit|balance)/i.test(
+    message,
+  );
+}
+
+function summarizeGeminiQuotaError(message: string): string | null {
+  if (!/free_tier|generativelanguage\.googleapis\.com/i.test(message)) {
+    return null;
+  }
+
+  if (/limit:\s*0/i.test(message)) {
+    return (
+      "Gemini free tier is not active for this API key project (limit: 0). " +
+      "Link a billing account to the Google Cloud project behind the key in AI Studio / Cloud Console — " +
+      "free-tier quotas often stay at zero until billing is linked. " +
+      "Check rate limits under AI Studio → API keys. " +
+      "Docs: https://ai.google.dev/gemini-api/docs/rate-limits"
+    );
+  }
+
+  return null;
+}
+
+function normalizeProviderFailureMessage(message: string): string {
+  return summarizeGeminiQuotaError(message) ?? message;
+}
+
 function mapAiSdkFailure(error: unknown): AiSdkVerifyResult {
   if (error instanceof APICallError) {
     const status = error.statusCode ?? 0;
@@ -43,11 +78,20 @@ function mapAiSdkFailure(error: unknown): AiSdkVerifyResult {
     if (status === 403) {
       return { ok: false, code: "forbidden", message };
     }
-    if (status === 402) {
-      return { ok: false, code: "insufficient_quota", message };
+    if (status === 402 || isQuotaOrBillingFailure(message)) {
+      return {
+        ok: false,
+        code: "insufficient_quota",
+        message: normalizeProviderFailureMessage(message),
+      };
     }
     if (status === 429) {
-      return { ok: false, code: "rate_limited", message };
+      const normalized = normalizeProviderFailureMessage(message);
+      const code =
+        /limit:\s*0/i.test(message) || isQuotaOrBillingFailure(message)
+          ? "insufficient_quota"
+          : "rate_limited";
+      return { ok: false, code, message: normalized };
     }
 
     return { ok: false, code: "provider_error", message };
@@ -59,6 +103,14 @@ function mapAiSdkFailure(error: unknown): AiSdkVerifyResult {
         ok: false,
         code: "network_error",
         message: "Could not reach the provider. Check your connection and try again.",
+      };
+    }
+
+    if (isQuotaOrBillingFailure(error.message)) {
+      return {
+        ok: false,
+        code: "insufficient_quota",
+        message: normalizeProviderFailureMessage(error.message),
       };
     }
 
@@ -94,18 +146,40 @@ export async function verifyApiKeyWithAiSdk(
         model: anthropic(modelId),
         prompt: VERIFY_PROMPT,
         maxOutputTokens: 1,
+        maxRetries: 0,
       });
       return { ok: true };
     }
 
     if (provider === "gemini") {
       const google = createGoogleGenerativeAI({ apiKey: key });
-      await generateText({
-        model: google(modelId),
-        prompt: VERIFY_PROMPT,
-        maxOutputTokens: 1,
-      });
-      return { ok: true };
+      let lastFailure: AiSdkVerifyResult = {
+        ok: false,
+        code: "provider_error",
+        message: "Gemini handshake failed.",
+      };
+
+      for (const modelId of GEMINI_VERIFY_MODELS) {
+        try {
+          await generateText({
+            model: google(modelId),
+            prompt: VERIFY_PROMPT,
+            maxOutputTokens: 1,
+            maxRetries: 0,
+          });
+          return { ok: true };
+        } catch (error) {
+          lastFailure = mapAiSdkFailure(error);
+          if (
+            !lastFailure.ok &&
+            (lastFailure.code === "invalid_key" || lastFailure.code === "forbidden")
+          ) {
+            return lastFailure;
+          }
+        }
+      }
+
+      return lastFailure;
     }
 
     const entry = PROVIDER_REGISTRY[provider];
@@ -126,6 +200,7 @@ export async function verifyApiKeyWithAiSdk(
       model: openai(modelId),
       prompt: VERIFY_PROMPT,
       maxOutputTokens: 1,
+      maxRetries: 0,
     });
 
     return { ok: true };

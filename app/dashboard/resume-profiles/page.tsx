@@ -1,8 +1,11 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { authOptions } from "@/lib/auth";
+import { requireDashboardSession } from "@/lib/auth/require-dashboard-session";
 import { prisma } from "@/lib/prisma";
 import { joinProfileName } from "@/lib/profile/name";
+import { Button } from "@/components/ui/button";
 
 export default async function ResumeProfilesPage() {
   const session = await getServerSession(authOptions);
@@ -10,6 +13,8 @@ export default async function ResumeProfilesPage() {
   if (!session?.user?.id) {
     redirect("/login");
   }
+
+  await requireDashboardSession(session.user.id);
 
   const profile = await prisma.profile.findUnique({
     where: { userId: session.user.id },
@@ -66,8 +71,13 @@ export default async function ResumeProfilesPage() {
           </p>
         </div>
       ) : (
-        <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-          No resume profile yet. Complete onboarding to create your default profile.
+        <div className="rounded-2xl border border-dashed border-border p-8 text-center">
+          <p className="text-sm text-muted-foreground">
+            No resume profile yet. Complete onboarding to create your default profile.
+          </p>
+          <Button variant="hero" className="mt-4 rounded-xl" asChild>
+            <Link href="/onboarding">Continue onboarding</Link>
+          </Button>
         </div>
       )}
     </div>

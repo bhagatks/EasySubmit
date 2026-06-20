@@ -13,6 +13,7 @@ export const ENGINE_ERRORS = {
   NO_CAREER_MODELS: "NO_CAREER_MODELS",
   NETWORK_ERROR: "NETWORK_ERROR",
   PROVIDER_ERROR: "PROVIDER_ERROR",
+  VAULT_NOT_CONFIGURED: "VAULT_NOT_CONFIGURED",
 } as const;
 
 export type EngineErrorCode = (typeof ENGINE_ERRORS)[keyof typeof ENGINE_ERRORS];
@@ -37,6 +38,8 @@ const ERROR_MESSAGES: Record<EngineErrorCode, string> = {
     "Key is valid but no career-grade models are accessible (gpt-4o / claude-3-5-sonnet tier).",
   NETWORK_ERROR: "Could not reach the provider — check network and retry.",
   PROVIDER_ERROR: "Provider returned an unexpected error during handshake.",
+  VAULT_NOT_CONFIGURED:
+    "Supabase Vault is not installed — run `npx prisma migrate deploy` against this database.",
 };
 
 export function formatEngineTerminalError(

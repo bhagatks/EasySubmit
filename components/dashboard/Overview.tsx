@@ -111,18 +111,6 @@ export async function DashboardOverview({
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {engineHot ? (
-            <span
-              className="rounded-full border px-2.5 py-0.5 text-xs font-medium"
-              style={{
-                color: SYSTEM_MINT,
-                borderColor: "oklch(0.82 0.16 165 / 0.4)",
-                backgroundColor: "oklch(0.82 0.16 165 / 0.1)",
-              }}
-            >
-              BYOK active
-            </span>
-          ) : null}
           <Button variant="hero">
             <Plus className="h-4 w-4" /> New tailored resume
           </Button>

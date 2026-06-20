@@ -6,6 +6,17 @@ import { Button } from "@/components/ui/button";
 import { LogoIcon } from "@/components/ui/logo";
 import { cn } from "@/lib/utils";
 
+const SYSTEM_MINT = "oklch(0.82 0.16 165)";
+
+const mintStatusPillClass =
+  "rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors hover:brightness-110";
+
+const mintStatusPillStyle = {
+  color: SYSTEM_MINT,
+  borderColor: "oklch(0.82 0.16 165 / 0.4)",
+  backgroundColor: "oklch(0.82 0.16 165 / 0.1)",
+} as const;
+
 export function Navbar() {
   const { status } = useSession();
   const isAuthenticated = status === "authenticated";
@@ -51,14 +62,12 @@ export function Navbar() {
               </Button>
             </Link>
           ) : (
-            <Link href="/login">
-              <Button
-                variant="ghost"
-                size="sm"
-                className={cn("font-dm text-sm text-white/60 hover:text-white")}
-              >
-                Sign In
-              </Button>
+            <Link
+              href="/login"
+              className={mintStatusPillClass}
+              style={mintStatusPillStyle}
+            >
+              Sign In
             </Link>
           )}
         </div>

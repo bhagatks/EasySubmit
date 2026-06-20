@@ -180,6 +180,13 @@ export const SYSTEM_DEFAULTS: SystemDefaults = {
   aiModelsUpdateHours: 24,
 };
 
+/** Default BYOK provider — always labeled Recommended in AI provider pickers. */
+export const RECOMMENDED_AI_PROVIDER = SYSTEM_DEFAULTS.targetAiProvider;
+
+export function isRecommendedAiProvider(provider: AiProvider): boolean {
+  return provider === RECOMMENDED_AI_PROVIDER;
+}
+
 /** Runtime URLs and cache keys derived from system defaults. */
 export const APP_RUNTIME = {
   DASHBOARD_URL: getIsDev()

@@ -318,9 +318,8 @@ export function IgnitionGate({
         try {
           await restoreDiscoveryFromCache(provider, trimmedKey, cachedModels);
           setUsedCachedDiscovery(true);
-          return;
         } catch {
-          /* fall through to live handshake */
+          setUsedCachedDiscovery(false);
         }
       }
     }
@@ -400,6 +399,10 @@ export function IgnitionGate({
                 style={{ color: MUTED }}
               >
                 AI Brain
+              </p>
+              <p className="mb-2 text-xs leading-relaxed" style={{ color: MUTED }}>
+                {getProviderRegistryEntry(SYSTEM_DEFAULTS.targetAiProvider).label} is recommended
+                for cost, speed, and free-tier availability.
               </p>
               <ProviderFuelSelect
                 value={provider}

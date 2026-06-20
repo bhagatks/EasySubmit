@@ -32,24 +32,26 @@ function readPercent(value: unknown): number | undefined {
 function readApplications(value: unknown): ArchitectureApplication[] {
   if (!Array.isArray(value)) return [];
 
-  return value
-    .map((entry) => {
-      const row = asRecord(entry);
-      if (!row) return null;
+  const results: ArchitectureApplication[] = [];
 
-      const role = typeof row.role === "string" ? row.role : "";
-      const company = typeof row.company === "string" ? row.company : "";
-      if (!role || !company) return null;
+  for (const entry of value) {
+    const row = asRecord(entry);
+    if (!row) continue;
 
-      return {
-        role,
-        company,
-        status: typeof row.status === "string" ? row.status : "Applied",
-        score: readPercent(row.score ?? row.atsScore),
-        when: typeof row.when === "string" ? row.when : undefined,
-      } satisfies ArchitectureApplication;
-    })
-    .filter((row): row is ArchitectureApplication => row !== null);
+    const role = typeof row.role === "string" ? row.role : "";
+    const company = typeof row.company === "string" ? row.company : "";
+    if (!role || !company) continue;
+
+    results.push({
+      role,
+      company,
+      status: typeof row.status === "string" ? row.status : "Applied",
+      score: readPercent(row.score ?? row.atsScore),
+      when: typeof row.when === "string" ? row.when : undefined,
+    });
+  }
+
+  return results;
 }
 
 /** Parse Career Architecture JSONB metadata for dashboard widgets. */

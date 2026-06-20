@@ -100,6 +100,8 @@ async function applyLoginIdentityToToken(
 
   if (dbUser) {
     token.onboardingStep = dbUser.onboardingStep;
+  } else {
+    token.onboardingStep = 0;
   }
 }
 

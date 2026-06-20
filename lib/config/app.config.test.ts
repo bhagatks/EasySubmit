@@ -15,7 +15,9 @@ import {
   getProviderRegistryEntry,
   getTargetAiModel,
   isAiProvider,
+  isRecommendedAiProvider,
   PROVIDER_REGISTRY,
+  RECOMMENDED_AI_PROVIDER,
   SERVICE_REGISTRY,
   SYSTEM_DEFAULTS,
 } from "@/src/lib/config/app.config";
@@ -66,6 +68,12 @@ describe("app.config", () => {
     expect(SYSTEM_DEFAULTS.maxTokenBuffer).toBe(8192);
     expect(getMaxTokenBuffer()).toBe(8192);
     expect(getTargetAiModel()).toBe("gemini-2.5-flash");
+  });
+
+  it("marks Google Gemini as the recommended BYOK provider", () => {
+    expect(RECOMMENDED_AI_PROVIDER).toBe("gemini");
+    expect(isRecommendedAiProvider("gemini")).toBe(true);
+    expect(isRecommendedAiProvider("openai")).toBe(false);
   });
 
   it("builds default model catalog from registry", () => {

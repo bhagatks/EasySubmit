@@ -10,18 +10,26 @@ RETURNS UUID AS $$
 DECLARE
   secret_id UUID;
   secret_name TEXT;
+  secret_description TEXT;
+  existing_id UUID;
 BEGIN
   secret_name := user_id_val || '-' || provider_name;
+  secret_description := 'BYOK for ' || provider_name;
 
-  DELETE FROM vault.secrets WHERE name = secret_name;
+  SELECT id INTO existing_id
+  FROM vault.secrets
+  WHERE name = secret_name
+  LIMIT 1;
 
-  INSERT INTO vault.secrets (name, secret, description)
-  VALUES (secret_name, raw_key, 'BYOK for ' || provider_name)
-  RETURNING id INTO secret_id;
+  IF existing_id IS NOT NULL THEN
+    PERFORM vault.update_secret(existing_id, raw_key, secret_name, secret_description);
+    RETURN existing_id;
+  END IF;
 
+  secret_id := vault.create_secret(raw_key, secret_name, secret_description);
   RETURN secret_id;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, vault;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, vault, extensions;
 
 -- Read a vaulted BYOK key for server-side AI calls (never expose to the client).
 CREATE OR REPLACE FUNCTION public.unvault_user_key(user_id_val TEXT, provider_name TEXT)
@@ -36,7 +44,7 @@ BEGIN
 
   RETURN decrypted;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, vault;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, vault, extensions;
 
 -- Remove a vaulted secret by id (scoped to the owning user prefix).
 CREATE OR REPLACE FUNCTION public.revoke_user_key(user_id_val TEXT, secret_id_val UUID)
@@ -46,7 +54,7 @@ BEGIN
   WHERE id = secret_id_val
     AND name LIKE user_id_val || '-%';
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, vault;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, vault, extensions;
 
 -- CreateTable
 CREATE TABLE "user_api_keys" (

@@ -1,5 +1,78 @@
 # Client State & Database Schema
 
+Canonical field reference for Postgres (`prisma/schema.prisma`), Supabase Vault BYOK, and client-side stores. For login vs resume separation and boot routing, see [`IDENTITY_AND_BOOT_RULES.md`](./IDENTITY_AND_BOOT_RULES.md).
+
+## Data model overview
+
+EasySubmit splits **who signed in** from **what they apply with** and **how the AI engine runs**. Login tables gate routing; career tables power ATS resume and autofill; engine tables hold parsed AI state (never secrets).
+
+| Domain | Tables | Purpose |
+|--------|--------|---------|
+| **Login identity** | `users`, `accounts`, `sessions` | Auth, `onboardingStep` gate, BYOK pointers (`vaultKeyId`, `activeProvider`) |
+| **Career / resume** | `profiles` + `experiences`, `projects`, `educations`, `certifications` | ATS resume source of truth; synced to extension engine (planned) |
+| **Headless engine** | `architectures`, `usage_logs` | Parsed career JSONB, calibration score, per-request AI cost ledger |
+| **BYOK secrets** | `user_api_keys` + Supabase `vault.secrets` | One vaulted key per provider; Postgres stores UUID pointers only |
+| **Global config** | `app_config` | Model refresh intervals, AI defaults, pricing map for usage widgets |
+
+**Rule:** OAuth and session updates write `users` only. Onboarding and resume editors write `profiles` (+ nested rows) and may upsert `architectures`. Resume contact edits must **never** write back to `users`.
+
+### Entity relationships
+
+```mermaid
+erDiagram
+    User ||--o| Profile : "1:1 today"
+    User ||--o| Architecture : "1:1"
+    User ||--o{ UserApiKey : "BYOK refs"
+    User ||--o{ UsageLog : "AI spend"
+    User ||--o{ Account : "OAuth"
+    User ||--o{ Session : "NextAuth"
+
+    Profile ||--o{ Experience : ""
+    Profile ||--o{ Project : ""
+    Profile ||--o{ Education : ""
+    Profile ||--o{ Certification : ""
+
+    UserApiKey }o--|| VaultSecret : "vaultSecretId pointer"
+```
+
+### Feature → data mapping
+
+| Product feature | Primary data |
+|-----------------|--------------|
+| Login / session | `users`, `accounts`, `sessions` |
+| Onboarding progress | `users.onboardingStep` + `useOnboardingStore` (client) |
+| Resume editing | `profiles` + child tables |
+| AI resume parsing / mapping | `profiles.resumeRawText` → `architectures.content` (JSONB) |
+| BYOK / Ignition Gate | Vault + `user_api_keys` + `users.vaultKeyId` + `useIgnitionStore` (client cipher) |
+| Dashboard stats / verification | `architectures.content` metadata + `usage_logs` |
+| Model discovery | `app_config` + `model-cache` (`localStorage`) |
+| Billing / credits / PRO tier | **Not in schema yet** — docs describe planned gatekeeper; code path today is BYOK-first |
+
+### End-to-end data flow
+
+```mermaid
+flowchart TD
+    A[OAuth Login] --> B[users + accounts]
+    B --> C{onboardingStep less than 4?}
+    C -->|yes| D[Onboarding wizard]
+    D --> E[profiles + experiences + ...]
+    D --> F[architectures.content JSONB]
+    D --> G[Ignition Gate BYOK]
+    G --> H[user_api_keys + vault]
+    G --> I[user.vaultKeyId + activeProvider]
+    C -->|no| J{Profile complete and BYOK?}
+    J -->|no| D
+    J -->|yes| K[Dashboard]
+    K --> L[executeEngineRefinement]
+    L --> H
+    L --> F
+    L --> M[usage_logs]
+```
+
+**Write paths:** `completeStep` / `updateUserOnboarding` / `saveProfile` (`app/actions/onboarding.ts`, `app/actions/save-profile.ts`) upsert `profiles` and `architectures` in transactions. `igniteEngineVault` (`app/actions/ai/ignition.ts`) vaults keys and sets `users.vaultKeyId`. `executeEngineRefinement` (`app/actions/ai/engine.ts`) reads vault + `architectures`, writes refined JSONB and `usage_logs`.
+
+---
+
 ## Auth (NextAuth)
 
 Session via `/api/auth/[...nextauth]` (`lib/auth.ts`). Protected routes: `/onboarding/*`, `/dashboard/*`. Env vars in `lib/env.ts`.
