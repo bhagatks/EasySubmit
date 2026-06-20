@@ -23,6 +23,36 @@ const PRIMARY = "oklch(0.62 0.21 265)";
 const PAPER = "oklch(0.98 0.01 268)";
 const MUTED = "oklch(0.45 0.02 268)";
 
+/** ATS spacing rhythm — preview px @ 16px root; mirror in docx paragraph styles when export ships. */
+const SPACE = {
+  /** Page inset (~0.5"–1" on letter; % tracks preview width). */
+  page: "px-[6%] py-[5.5%]",
+  /** 20px — uniform gap between header and each section (was gap-7 / 28px). */
+  sectionStack: "gap-5",
+  /** 8px below heading + 4px above rule + rule → body (12px total below title text). */
+  titleAfter: "mb-2 pb-1",
+  /** 16px between jobs or education entries. */
+  entryStack: "space-y-4",
+  /** 4px between bullets or optional lines. */
+  lineStack: "space-y-1",
+  /** 12px between language rows. */
+  languageStack: "space-y-3",
+  /** 2px title row → company/school line. */
+  titleToSecondary: "mt-0.5",
+  /** 8px company line → bullet list. */
+  secondaryToBullets: "mt-2",
+} as const;
+
+/** ATS typography — mirrors EASYSUBMIT_RESUME_RULES §2 in preview px. */
+const BODY_TEXT_CLASS =
+  "text-[10.5px] leading-[1.55] text-[oklch(0.25_0.02_268/0.88)]";
+const SUBHEAD_BOLD_CLASS = "min-w-0 flex-1 text-[11px] font-bold leading-snug";
+const SECONDARY_LINE_CLASS = cn(
+  SPACE.titleToSecondary,
+  "text-[10px] italic leading-snug text-[oklch(0.45_0.02_268)]",
+);
+const META_LINE_CLASS = "shrink-0 text-[10px] tabular-nums text-[oklch(0.45_0.02_268)]";
+
 export type PrimeResumeExperience = {
   id?: string;
   title: string;
@@ -118,7 +148,12 @@ function formatContactLocation(location: string): string {
 
 function SectionTitle({ children }: { children: ReactNode }) {
   return (
-    <h2 className="mb-3 mt-7 border-b border-[oklch(0.25_0.02_268/0.15)] pb-1.5 text-[12px] font-bold uppercase tracking-[0.08em] text-[oklch(0.25_0.02_268)] first:mt-0">
+    <h2
+      className={cn(
+        SPACE.titleAfter,
+        "border-b border-[oklch(0.25_0.02_268/0.15)] text-[12px] font-bold uppercase tracking-[0.08em] text-[oklch(0.25_0.02_268)]",
+      )}
+    >
       {children}
     </h2>
   );
@@ -142,7 +177,7 @@ function ProfileHeader({
   ].filter(Boolean) as string[];
 
   return (
-    <header className="mb-6 text-center">
+    <header className="text-center">
       <h1
         className="text-[20px] font-bold leading-tight tracking-tight"
         style={{ color: INK }}
@@ -184,9 +219,7 @@ function SummarySection({ summary }: { summary?: string | null }) {
   return (
     <section>
       <SectionTitle>{RESUME_SECTION_TITLES.professionalSummary}</SectionTitle>
-      <p className="text-[12px] leading-relaxed text-[oklch(0.25_0.02_268/0.88)]">
-        {summary.trim()}
-      </p>
+      <p className={BODY_TEXT_CLASS}>{summary.trim()}</p>
     </section>
   );
 }
@@ -204,7 +237,7 @@ function ExperienceSection({
   return (
     <section>
       <SectionTitle>{RESUME_SECTION_TITLES.professionalExperience}</SectionTitle>
-      <ul className="space-y-6">
+      <ul className={SPACE.entryStack}>
         {entries.map((entry, index) => {
           const dateRange = formatDateRange(entry.startDate, entry.endDate);
           const bullets = entry.bullets?.filter((line) => line.trim()) ?? [];
@@ -215,7 +248,7 @@ function ExperienceSection({
           if (!hasContent) {
             return (
               <li key={entry.id ?? `exp-${index}`}>
-                <p className="text-[12px]">
+                <p className={BODY_TEXT_CLASS}>
                   <Placeholder>Experience entries will appear here</Placeholder>
                 </p>
               </li>
@@ -225,21 +258,16 @@ function ExperienceSection({
           return (
             <li key={entry.id ?? `exp-${index}`} className="break-words">
               <div className="flex items-start justify-between gap-3">
-                <span
-                  className="min-w-0 flex-1 text-[11px] font-bold leading-snug"
-                  style={{ color: INK }}
-                >
+                <span className={cn(SUBHEAD_BOLD_CLASS)} style={{ color: INK }}>
                   {entry.title.trim() || "Job Title"}
                 </span>
                 {dateRange ? (
-                  <span className="shrink-0 text-[10px] tabular-nums text-[oklch(0.45_0.02_268)]">
-                    {dateRange}
-                  </span>
+                  <span className={META_LINE_CLASS}>{dateRange}</span>
                 ) : null}
               </div>
 
               {(entry.company.trim() || entry.location?.trim()) ? (
-                <p className="mt-0.5 text-[10px] italic leading-snug text-[oklch(0.45_0.02_268)]">
+                <p className={SECONDARY_LINE_CLASS}>
                   {[entry.company.trim(), entry.location?.trim()]
                     .filter(Boolean)
                     .join(" — ")}
@@ -247,11 +275,11 @@ function ExperienceSection({
               ) : null}
 
               {bullets.length > 0 ? (
-                <ul className="mt-2 list-disc space-y-1 pl-4 marker:text-[oklch(0.45_0.02_268)]">
+                <ul className={cn(SPACE.secondaryToBullets, "list-disc pl-4 marker:text-[oklch(0.45_0.02_268)]", SPACE.lineStack)}>
                   {bullets.map((bullet, bulletIndex) => (
                     <li
                       key={`${entry.id ?? index}-bullet-${bulletIndex}`}
-                      className="text-[10.5px] leading-[1.55] text-[oklch(0.25_0.02_268/0.88)]"
+                      className={BODY_TEXT_CLASS}
                     >
                       {bullet}
                     </li>
@@ -277,7 +305,7 @@ function EducationSection({
   return (
     <section>
       <SectionTitle>{RESUME_SECTION_TITLES.education}</SectionTitle>
-      <ul className="space-y-4">
+      <ul className={SPACE.entryStack}>
         {entries.map((entry, index) => {
           const dateRange = formatDateRange(entry.startDate, entry.endDate);
           const degreeLine = [entry.degree, entry.field]
@@ -288,7 +316,7 @@ function EducationSection({
           if (!hasContent) {
             return (
               <li key={entry.id ?? `edu-${index}`}>
-                <p className="text-[12px]">
+                <p className={BODY_TEXT_CLASS}>
                   <Placeholder>Education entries will appear here</Placeholder>
                 </p>
               </li>
@@ -298,20 +326,15 @@ function EducationSection({
           return (
             <li key={entry.id ?? `edu-${index}`} className="break-words">
               <div className="flex items-start justify-between gap-3">
-                <span
-                  className="min-w-0 flex-1 text-[11px] font-bold leading-snug"
-                  style={{ color: INK }}
-                >
+                <span className={cn(SUBHEAD_BOLD_CLASS)} style={{ color: INK }}>
                   {degreeLine || entry.school.trim() || "Degree"}
                 </span>
                 {dateRange ? (
-                  <span className="shrink-0 text-[10px] tabular-nums text-[oklch(0.45_0.02_268)]">
-                    {dateRange}
-                  </span>
+                  <span className={META_LINE_CLASS}>{dateRange}</span>
                 ) : null}
               </div>
               {entry.school.trim() && degreeLine ? (
-                <p className="mt-0.5 text-[10px] italic leading-snug text-[oklch(0.45_0.02_268)]">
+                <p className={SECONDARY_LINE_CLASS}>
                   {[entry.school.trim(), entry.field?.trim()].filter(Boolean).join(" — ")}
                 </p>
               ) : null}
@@ -330,9 +353,7 @@ function SkillsSection({ skills }: { skills: string[] }) {
   return (
     <>
       <SectionTitle>{RESUME_SECTION_TITLES.skills}</SectionTitle>
-      <p className="text-[12px] leading-relaxed text-[oklch(0.25_0.02_268/0.88)]">
-        {visibleSkills.join(", ")}
-      </p>
+      <p className={BODY_TEXT_CLASS}>{visibleSkills.join(", ")}</p>
     </>
   );
 }
@@ -345,9 +366,9 @@ function LanguagesSection({ entries }: { entries: LanguageEntry[] }) {
   if (visible.length === 0) return null;
 
   return (
-    <section className="mt-7" aria-label={RESUME_SECTION_TITLES.languages}>
+    <section aria-label={RESUME_SECTION_TITLES.languages}>
       <SectionTitle>{RESUME_SECTION_TITLES.languages}</SectionTitle>
-      <ul className="space-y-3" role="list">
+      <ul className={SPACE.languageStack} role="list">
         <AnimatePresence initial={false} mode="popLayout">
           {visible.map((entry) => (
             <motion.li
@@ -366,7 +387,7 @@ function LanguagesSection({ entries }: { entries: LanguageEntry[] }) {
                 {entry.name.trim()}
               </p>
               <p
-                className={cn(inter.className, "mt-0.5 text-[10.5px] leading-relaxed")}
+                className={cn(inter.className, "mt-0.5", BODY_TEXT_CLASS)}
                 style={{ color: MUTED }}
               >
                 {entry.level.trim()}
@@ -384,7 +405,7 @@ function SkillsSectionBlock({ skills }: { skills: string[] }) {
   if (visibleSkills.length === 0) return null;
 
   return (
-    <section className="mt-7" aria-label={RESUME_SECTION_TITLES.skills}>
+    <section aria-label={RESUME_SECTION_TITLES.skills}>
       <SkillsSection skills={skills} />
     </section>
   );
@@ -403,11 +424,11 @@ function OptionalLinesSection({
   return (
     <section>
       <SectionTitle>{title}</SectionTitle>
-      <ul className="space-y-1.5">
+      <ul className={SPACE.lineStack}>
         {visible.map((line, index) => (
           <li
             key={`${title}-${index}`}
-            className="break-words text-[10.5px] leading-relaxed text-[oklch(0.25_0.02_268/0.88)]"
+            className={cn("break-words", BODY_TEXT_CLASS)}
           >
             {line}
           </li>
@@ -437,7 +458,7 @@ export function PrimeResume({
         style={{ backgroundColor: PAPER, color: INK }}
         aria-label="Resume preview"
       >
-        <div className="px-[6%] py-[5.5%]">
+        <div className={cn(SPACE.page, "flex flex-col", SPACE.sectionStack)}>
           <ProfileHeader resume={resume} showTargetRole={showTargetRole} />
           <SummarySection summary={resume.summary} />
           <SkillsSectionBlock skills={resume.skills ?? []} />

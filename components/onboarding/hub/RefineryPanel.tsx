@@ -20,11 +20,7 @@ import { PhoneField } from "@/components/onboarding/hub/PhoneField";
 import { StudioSkillsField } from "@/components/onboarding/hub/StudioSkillsField";
 import { LanguagesField } from "@/components/onboarding/hub/LanguagesField";
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
-import {
-  continueToNextPhaseLabel,
-  getWorkbenchPhase,
-  workbenchPhaseHeader,
-} from "@/lib/onboarding/workbenchPhases";
+import { getWorkbenchPhase, workbenchPhaseHeader } from "@/lib/onboarding/workbenchPhases";
 import { DEFAULT_DIAL_CODE } from "@/lib/phone/countryCodes";
 import {
   formatFullPhone,
@@ -669,7 +665,7 @@ export function RefineryPanel({
               Proceed
             </>
           ) : (
-            continueToNextPhaseLabel(3)
+            "Synthesize Architecture."
           )}
         </button>
       </form>

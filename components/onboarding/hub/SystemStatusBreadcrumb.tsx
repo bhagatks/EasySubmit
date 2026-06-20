@@ -19,7 +19,8 @@ const PRIMARY = "oklch(0.62 0.21 265)";
 type SystemStatusBreadcrumbProps = {
   currentStep: number;
   className?: string;
-  isCalibrating?: boolean;
+  /** When true, synthesis overlay is active — breadcrumb stays on Studio. */
+  isSynthesizing?: boolean;
   /** Phases below this index cannot be navigated to (e.g. 2 locks Phase 1 after Import). */
   minNavigablePhase?: number;
   /** Override default completion check (phase.id < activeStep). */
@@ -30,12 +31,12 @@ type SystemStatusBreadcrumbProps = {
 export function SystemStatusBreadcrumb({
   currentStep,
   className,
-  isCalibrating = false,
+  isSynthesizing = false,
   minNavigablePhase = 1,
   isPhaseComplete,
   onNavigate,
 }: SystemStatusBreadcrumbProps) {
-  const activeStep = isCalibrating ? 4 : currentStep;
+  const activeStep = currentStep;
 
   return (
     <nav
@@ -51,7 +52,7 @@ export function SystemStatusBreadcrumb({
           Boolean(onNavigate) &&
           phase.id < currentStep &&
           phase.id >= minNavigablePhase &&
-          !isCalibrating;
+          !isSynthesizing;
 
         return (
           <button

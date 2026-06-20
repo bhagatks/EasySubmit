@@ -1,4 +1,4 @@
-/** User-facing labels for the 4-phase onboarding workbench (hub `/onboarding`). */
+/** User-facing labels for the 3-phase onboarding workbench (hub `/onboarding`). */
 
 export type WorkbenchPhaseDef = {
   id: number;
@@ -32,13 +32,6 @@ export const WORKBENCH_PHASES: WorkbenchPhaseDef[] = [
     headline: "Refine your resume",
     description:
       "ATS section order — header, summary, skills, experience, education, then optional blocks.",
-  },
-  {
-    id: 4,
-    label: "Launch",
-    code: "LAUNCH",
-    headline: "Launching your profile",
-    description: "Your digital twin is being prepared for the dashboard.",
   },
 ];
 

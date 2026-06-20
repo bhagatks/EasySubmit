@@ -8,9 +8,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { completeOnboarding, completeStep } from "@/app/actions/onboarding";
 import { getLoginIdentity, getProfileIdentity } from "@/app/actions/profile";
 import { IdentityCanvasGhost } from "@/components/onboarding/hub/IdentityCanvasGhost";
-import { CalibrationPanel } from "@/components/onboarding/hub/CalibrationPanel";
-import { CalibrationPulse } from "@/components/onboarding/hub/CalibrationPulse";
-import { IgnitionGate } from "@/src/components/auth/IgnitionGate";
+import { SynthesisTransition } from "@/components/onboarding/SynthesisTransition";
 import {
   CoordinatesPanel,
   type CoordinatesValues,
@@ -39,7 +37,6 @@ import type { StructuredResume } from "@/lib/resume/heuristicParser";
 import { formatDateRangeParts } from "@/lib/resume/dates";
 import { cn } from "@/lib/utils";
 import { useOnboardingStore } from "@/stores/onboardingStore";
-import { useIgnitionStore } from "@/src/stores/use-ignition-store";
 import { isIdentityPhaseComplete } from "@/lib/onboarding/identity";
 import { formatLanguagesForResume } from "@/lib/onboarding/languages";
 import { parseProfileName } from "@/lib/profile/name";
@@ -50,8 +47,7 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
-const TOTAL_PHASES = 4;
-const CALIBRATION_MS = 2500;
+const TOTAL_PHASES = 3;
 
 const CANVAS_BG = "oklch(0.16 0.04 268)";
 const PRIMARY = "oklch(0.62 0.21 265)";
@@ -135,21 +131,17 @@ export default function OnboardingPage() {
   );
   const [refineryInitial, setRefineryInitial] =
     useState<HubRefineryForm>(emptyHubRefineryForm());
-  const [finalForm, setFinalForm] = useState<HubRefineryForm | null>(null);
   const [parsedStructured, setParsedStructured] = useState<StructuredResume | null>(
     null,
   );
   const [rawResumeText, setRawResumeText] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
-  const [calibrationStarted, setCalibrationStarted] = useState(false);
-  const [isLaunching, setIsLaunching] = useState(false);
-  const [ignitionResume, setIgnitionResume] = useState(false);
+  const [isSynthesizing, setIsSynthesizing] = useState(false);
   const [profileFirstName, setProfileFirstName] = useState("");
   const [profileLastName, setProfileLastName] = useState("");
   const [loginFirstName, setLoginFirstName] = useState("");
   const [loginLastName, setLoginLastName] = useState("");
   const calibrationRanRef = useRef(false);
-  const hasHydrated = useIgnitionStore((state) => state._hasHydrated);
 
   const sessionNameParts = parseProfileName(session?.user?.name);
   const sessionFirstName =
@@ -188,31 +180,14 @@ export default function OnboardingPage() {
   }, []);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    setIgnitionResume(params.get("ignition") === "1");
-  }, []);
-
-  useEffect(() => {
-    if (status === "loading" || !hasHydrated) return;
+    if (status === "loading") return;
 
     const sessionStep = session?.user?.onboardingStep ?? 0;
-    const ignitionComplete = useIgnitionStore.getState().isIgnitionComplete();
 
-    if (sessionStep >= 4 && ignitionComplete) {
+    if (sessionStep >= 4) {
       router.replace("/dashboard");
-      return;
     }
-
-    if (ignitionResume || (sessionStep >= 4 && !ignitionComplete)) {
-      setPhase(4);
-    }
-  }, [
-    hasHydrated,
-    ignitionResume,
-    router,
-    session?.user?.onboardingStep,
-    status,
-  ]);
+  }, [router, session?.user?.onboardingStep, status]);
 
   const goToPhase = useCallback((next: number, dir: 1 | -1 = 1) => {
     setDirection(dir);
@@ -297,116 +272,94 @@ export default function OnboardingPage() {
     setResumeData(refineryFormToPrimeResume(form));
   }, []);
 
-  const handleFinalizeEngine = useCallback(
+  const handleSynthesizeArchitecture = useCallback(
     (form: HubRefineryForm) => {
-      setFinalForm(form);
+      if (calibrationRanRef.current || isSynthesizing) return;
+
       setResumeData(refineryFormToPrimeResume(form));
-      goToPhase(4);
+      calibrationRanRef.current = true;
+      setIsSynthesizing(true);
+
+      const { city, country } = parseCityState(form.cityState);
+      const skills = parseSkillsText(form.skillsText);
+      const resumeLanguages = formatLanguagesForResume(
+        useOnboardingStore.getState().languages,
+      );
+
+      void (async () => {
+        try {
+          await completeOnboarding({
+            firstName: form.firstName,
+            lastName: form.lastName,
+            fullName: formFullName(form),
+            email: form.email,
+            phone: form.phone,
+            city,
+            country,
+            summary: form.professionalSummary,
+            skills,
+            resumeRawText: rawResumeText,
+            parsedData: {
+              experiences: form.experience
+                .filter((entry) => !entry.hidden)
+                .map((entry) => ({
+                  title: entry.title,
+                  company: entry.company,
+                  location: entry.location,
+                  dateRange: formatDateRangeParts({
+                    start: { month: entry.startMonth, year: entry.startYear },
+                    end: { month: entry.endMonth, year: entry.endYear },
+                  }),
+                  bullets: entry.bullets
+                    .split("\n")
+                    .map((line) => line.trim())
+                    .filter(Boolean),
+                })),
+              education: form.education
+                .filter((entry) => !entry.hidden)
+                .map((entry) => ({
+                  degree: entry.degree,
+                  school: entry.school,
+                  location: entry.location,
+                  date: formatDateRangeParts({
+                    start: { month: entry.startMonth, year: entry.startYear },
+                    end: { month: entry.endMonth, year: entry.endYear },
+                  }),
+                })),
+              certifications: form.certifications
+                .filter((entry) => !entry.hidden)
+                .map((entry) => entry.text.trim())
+                .filter(Boolean),
+              projects: form.projects
+                .filter((entry) => !entry.hidden)
+                .map((entry) => entry.text.trim())
+                .filter(Boolean),
+              languages: resumeLanguages,
+              skills,
+              structured: parsedStructured,
+            },
+          });
+
+          await updateSession({ onboardingStep: 4 });
+        } catch {
+          calibrationRanRef.current = false;
+          setIsSynthesizing(false);
+        }
+      })();
     },
-    [goToPhase],
+    [isSynthesizing, parsedStructured, rawResumeText, updateSession],
   );
 
   const handleRefineryBack = useCallback(() => {
     goToPhase(2, -1);
   }, [goToPhase]);
 
-  const handleLaunchToDashboard = useCallback(() => {
-    const sessionStep = session?.user?.onboardingStep ?? 0;
-
-    if (sessionStep >= 4) {
-      if (!useIgnitionStore.getState().isIgnitionComplete() || isLaunching) return;
-      setIsLaunching(true);
-      router.push("/dashboard");
-      return;
-    }
-
-    if (!finalForm || calibrationRanRef.current || isLaunching) return;
-
-    calibrationRanRef.current = true;
-    setIsLaunching(true);
-    setCalibrationStarted(true);
-
-    const { city, country } = parseCityState(finalForm.cityState);
-    const skills = parseSkillsText(finalForm.skillsText);
-    const resumeLanguages = formatLanguagesForResume(
-      useOnboardingStore.getState().languages,
-    );
-    const { provider, activeModel } = useIgnitionStore.getState();
-
-    void (async () => {
-      try {
-        await completeOnboarding({
-          firstName: finalForm.firstName,
-          lastName: finalForm.lastName,
-          fullName: formFullName(finalForm),
-          email: finalForm.email,
-          phone: finalForm.phone,
-          city,
-          country,
-          summary: finalForm.professionalSummary,
-          skills,
-          resumeRawText: rawResumeText,
-          parsedData: {
-            aiProvider: provider,
-            primaryFuel: activeModel,
-            experiences: finalForm.experience
-              .filter((entry) => !entry.hidden)
-              .map((entry) => ({
-                title: entry.title,
-                company: entry.company,
-                location: entry.location,
-                dateRange: formatDateRangeParts({
-                  start: { month: entry.startMonth, year: entry.startYear },
-                  end: { month: entry.endMonth, year: entry.endYear },
-                }),
-                bullets: entry.bullets
-                  .split("\n")
-                  .map((line) => line.trim())
-                  .filter(Boolean),
-              })),
-            education: finalForm.education
-              .filter((entry) => !entry.hidden)
-              .map((entry) => ({
-                degree: entry.degree,
-                school: entry.school,
-                location: entry.location,
-                date: formatDateRangeParts({
-                  start: { month: entry.startMonth, year: entry.startYear },
-                  end: { month: entry.endMonth, year: entry.endYear },
-                }),
-              })),
-            certifications: finalForm.certifications
-              .filter((entry) => !entry.hidden)
-              .map((entry) => entry.text.trim())
-              .filter(Boolean),
-            projects: finalForm.projects
-              .filter((entry) => !entry.hidden)
-              .map((entry) => entry.text.trim())
-              .filter(Boolean),
-            languages: resumeLanguages,
-            skills,
-            structured: parsedStructured,
-          },
-        });
-
-        await new Promise((resolve) => window.setTimeout(resolve, CALIBRATION_MS));
-        await updateSession({ onboardingStep: 4 });
-        router.push("/dashboard");
-      } catch {
-        calibrationRanRef.current = false;
-        setCalibrationStarted(false);
-        setIsLaunching(false);
-        goToPhase(3, -1);
-      }
-    })();
-  }, [finalForm, goToPhase, isLaunching, parsedStructured, rawResumeText, router, session?.user?.onboardingStep, updateSession]);
-
   const handleBreadcrumbNavigate = useCallback(
     (targetPhase: number) => {
-      if (targetPhase >= phase || phase === 4) return;
+      if (targetPhase >= phase || isSynthesizing) return;
       goToPhase(targetPhase, -1);
     },
-    [goToPhase, phase],
+    [goToPhase, isSynthesizing, phase],
   );
 
   const isPhaseComplete = useCallback(
@@ -423,9 +376,7 @@ export default function OnboardingPage() {
     [identity, identityPhaseComplete],
   );
 
-  const isCalibrating = phase === 4 && calibrationStarted;
   const minNavigablePhase = phase >= 2 ? 2 : 1;
-  const calibrationTitle = formFullName(finalForm ?? refineryInitial) || "Your profile";
 
   const renderPhasePanel = () => {
     switch (phase) {
@@ -458,21 +409,8 @@ export default function OnboardingPage() {
             rawText={rawResumeText}
             monoClass={jetbrainsMono.className}
             onChange={handleRefineryChange}
-            onFinalize={handleFinalizeEngine}
+            onFinalize={handleSynthesizeArchitecture}
             onBack={handleRefineryBack}
-          />
-        );
-      case 4:
-        return calibrationStarted ? (
-          <CalibrationPanel
-            targetTitle={calibrationTitle}
-            monoClass={jetbrainsMono.className}
-          />
-        ) : (
-          <IgnitionGate
-            monoClass={jetbrainsMono.className}
-            onLaunch={handleLaunchToDashboard}
-            isLaunching={isLaunching}
           />
         );
       default:
@@ -543,7 +481,6 @@ export default function OnboardingPage() {
                 />
               </motion.div>
               <ScanningBeam active={isScanning} />
-              <CalibrationPulse active={isCalibrating} targetTitle={calibrationTitle} />
             </div>
           </div>
         </section>
@@ -556,7 +493,7 @@ export default function OnboardingPage() {
             <div className="flex items-stretch">
               <SystemStatusBreadcrumb
                 currentStep={phase}
-                isCalibrating={phase === 4}
+                isSynthesizing={isSynthesizing}
                 minNavigablePhase={minNavigablePhase}
                 isPhaseComplete={isPhaseComplete}
                 onNavigate={handleBreadcrumbNavigate}
@@ -585,6 +522,13 @@ export default function OnboardingPage() {
           </div>
         </section>
       </div>
+
+      <SynthesisTransition
+        active={isSynthesizing}
+        resume={resumeData}
+        redirectTo="/dashboard/keys"
+        durationMs={5000}
+      />
     </div>
   );
 }

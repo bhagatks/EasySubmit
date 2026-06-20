@@ -5,29 +5,46 @@
 | Route | Purpose | Auth |
 |-------|---------|------|
 | `/login` | Google + LinkedIn OAuth | Public |
-| `/onboarding` | **Default entry** — 60/40 Unified Workbench: left ATS-ordered `PrimeResume` preview, right Identity → Import → Studio → Launch; System Status breadcrumb (Phase 1 locked after Import); Studio **Upload** back → Import; **`?ignition=1`** re-opens Launch / Ignition Gate for returning users without a local BYOK key | NextAuth required |
+| `/onboarding` | **Default entry** — 60/40 Unified Workbench: left ATS-ordered `PrimeResume` preview, right Identity → Import → Studio; System Status breadcrumb (Phase 1 locked after Import); Studio **Upload** back → Import | NextAuth required |
 | `/onboarding/step-1` | Redirect → `/onboarding` | NextAuth required |
 | `/onboarding/workbench` | Redirect → `/onboarding` (alias) | NextAuth required |
 | `/onboarding/refinery` | Legacy full-screen refinery workbench | NextAuth required |
 | `/onboarding/step-4` | `ResumeMapping` AI scanner | NextAuth required |
-| `/dashboard` | Post-onboarding overview (stats, recent applications, ATS Guarantee) | NextAuth required |
+| `/dashboard` | Post-onboarding overview — **Cold Engine** when `vaultKeyId` is null (blurred resume canvas, BYOK inactive badge, Ignition Chamber CTA); hot engine when vaulted | NextAuth required |
 | `/dashboard/resume-profiles` | Default resume profile list (one row from onboarding; `+` reserved) | NextAuth required |
 | `/dashboard/applications` | Application tracker (stub) | NextAuth required |
-| `/dashboard/keys` | BYOK / AI key management (stub) | NextAuth required |
+| `/dashboard/keys` | **Ignition Chamber** — post-onboarding BYOK vault (Power Cells, IGNITE handshake) | NextAuth required |
 | `/dashboard/settings` | Account settings (stub) | NextAuth required |
 
 Middleware (`middleware.ts`) and `app/onboarding/layout.tsx` both redirect unauthenticated users to `/login`. **Sign out** — `SignOutButton` clears client state, ends the NextAuth session, and returns everyone to `/login?signedOut=1` (same flow for Google and LinkedIn).
 
 ## Unified Workbench (`/onboarding`)
 
-Primary onboarding path — client state in `app/onboarding/page.tsx` (not Zustand). Left canvas: `PrimeResume` live-sync. Right panel: four phases with Framer Motion transitions.
+Primary onboarding path — client state in `app/onboarding/page.tsx` (not Zustand). Left canvas: `PrimeResume` live-sync. Right panel: three phases with Framer Motion transitions.
 
 | Phase | Panel | Data captured | Navigation |
 |-------|-------|---------------|------------|
 | 1 · Identity | `CoordinatesPanel` | `firstName`, `lastName`, `cityState` (Nominatim debounce + locate via `CityStateField`), `phone` with country-code selector (default US +1), `email`, `linkedIn` | Continue → Import; `completeStep(1)` |
 | 2 · Import | `FuelPanel` | Resume PDF/DOCX → `parseResumeFile` (browser Open-Resume pipeline) | **No back to Phase 1** (`minNavigablePhase=2` on breadcrumb); auto-advance to Studio after parse |
-| 3 · Studio | `RefineryPanel` | ATS section order (Header → Summary → Skills → Experience → Education → optional Certifications/Projects/Languages); `mergeParsedWithCoordinates` prefills contact from Phase 1 | **Upload** back button → Import (re-upload); Continue to Launch → Phase 4 |
-| 4 · Launch | `IgnitionGate` → `CalibrationPanel` | BYOK handshake + Primary Fuel model selection; **Launch to Dashboard** runs `completeOnboarding` + 2.5s pulse | — |
+| 3 · Studio | `RefineryPanel` | ATS section order (Header → Summary → Skills → Experience → Education → optional Certifications/Projects/Languages); `mergeParsedWithCoordinates` prefills contact from Phase 1 | **Upload** back button → Import (re-upload); **Synthesize Architecture.** → see bridge below |
+
+### Synthesis Transition (Phase 3 → Dashboard)
+
+After Studio, **Synthesize Architecture.** does **not** advance to a fourth onboarding phase. Instead:
+
+1. **`SynthesisTransition`** (`components/onboarding/SynthesisTransition.tsx`) — full-screen mint scanning beam, JSON particle flow, JetBrains Mono status copy (~3s).
+2. **`completeOnboarding`** — persists profile + Career Architecture JSONB (no BYOK / AI provider required).
+3. **Redirect → `/dashboard`** — user lands on the dashboard with architecture drafted.
+
+If **`users.vaultKeyId`** is null, the dashboard renders in **Cold Engine** state (overview blurred resume canvas, `BYOK Inactive • Engine Cold`, Ignition Chamber hint). BYOK is optional at onboarding exit.
+
+```text
+Phase 3 Studio  →  SynthesisTransition  →  /dashboard  →  (optional) Phase 4 Ignition Chamber
+```
+
+| Phase | Where | Purpose | BYOK required? |
+|-------|--------|---------|----------------|
+| 4 · Ignition Chamber (post-onboarding) | `/dashboard/keys` | Vault provider keys into Power Cells; `igniteEngineVault` + Ignition Blast; Prime Paper unlock | Yes, to run headless engine |
 
 Resume section order and preview typography follow **`EASYSUBMIT_RESUME_RULES.md`** at the repository root (code constants in `lib/resume/resumeSpec.ts`). Golden fixtures: `ATS_Universal_Resume_Template.pdf` / `.docx` (download via `/api/resume/ats-template`).
 
@@ -40,7 +57,7 @@ Merge logic: `lib/onboarding/hubResume.ts` — parsed resume contact fields win 
 - **Background:** deep navy (`oklch(0.16 0.04 268)`)
 - **Desktop:** progress panel (left), step content (right)
 - **Mobile:** progress on top, content below
-- **Macro phases (4):** Profile → Experience → Goals → AI Mapping (`lib/onboarding/phases.ts`)
+- **Macro phases (4):** Profile → Experience → Goals → AI Mapping (`lib/onboarding/phases.ts`) — legacy wizard only; hub workbench uses 3 phases + Synthesis Transition
 - **Transitions:** Framer Motion `AnimatePresence` (`OnboardingStepTransition`)
 
 ## Wizard steps
@@ -68,7 +85,9 @@ Canonical identity separation and app-load routing: **`docs/IDENTITY_AND_BOOT_RU
 
 `/login` — Google + LinkedIn via `/api/auth/[...nextauth]`.
 
-On successful OAuth: redirect → `/onboarding`. Returning users with `onboardingStep >= 4` but no local BYOK vault are redirected from `/dashboard` to `/onboarding?ignition=1` (Launch phase) instead of the Key Protector overlay.
+On successful OAuth: redirect → `/onboarding` until `onboardingStep >= 4`, then **`/dashboard`**.
+
+**Cold Engine on first dashboard visit:** Users who complete onboarding without a vaulted key (`vaultKeyId` null) land on **`/dashboard`** with Engine Cold UI — not blocked from the dashboard. `DashboardIgnitionGuard` may redirect them to **`/dashboard/keys`** (Ignition Chamber) when neither server vault nor local BYOK cipher is present.
 
 **Env:** `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`.
 
@@ -97,4 +116,17 @@ Store: `stores/onboardingStore.ts` — persisted to `sessionStorage` (key: `easy
 
 ## Post-onboarding
 
-`/dashboard` — authenticated welcome screen (features TBD).
+### Dashboard (`/dashboard`)
+
+Authenticated home after `onboardingStep >= 4`. Overview (`DashboardOverview`) shows stats, recent applications (when engine hot), and verification metrics when BYOK is active.
+
+| Engine state | Condition | UI |
+|--------------|-----------|-----|
+| **Cold Engine** | `vaultKeyId` null | Blurred resume preview, **Neural Calibration Pending** watermark, `BYOK Inactive • Engine Cold` badge, glass hint → Ignition Chamber |
+| **Hot Engine** | `vaultKeyId` set | High-contrast canvas, recent applications, ATS Guarantee verification panel |
+
+### Phase 4 · Ignition Chamber (`/dashboard/keys`)
+
+Post-onboarding BYOK — **not** part of the `/onboarding` workbench. Users vault OpenAI, Anthropic, Gemini, Groq, or DeepSeek keys into Power Cells. Successful **`igniteEngineVault`** triggers **Ignition Blast** (mint bloom, screen shake, `POWER STABILIZED` overlay) and unlocks Prime Paper on the chamber canvas.
+
+See **`docs/ARCHITECTURE.md`** for vault schema and headless engine contracts.

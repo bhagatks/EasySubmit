@@ -77,8 +77,19 @@ export type IgnitionGateProps = {
   setAsActiveOnSave?: boolean;
   /** Called after successful vault + model discovery in manage mode. */
   onKeySaved?: () => void;
+  /** Called when `igniteEngineVault` returns success (handshake + vault complete). */
+  onVaultSuccess?: (payload: {
+    provider: HandshakeProvider;
+    providerLabel: string;
+  }) => void;
   manageTitle?: string;
   manageDescription?: string;
+  /** Manage-mode primary action label (default: Validate & Vault Key). */
+  manageSubmitLabel?: string;
+  /** Manage-mode confirm label after discovery (default: Save Key). */
+  manageConfirmLabel?: string;
+  /** Mint glow styling for manage-mode action buttons. */
+  manageIgniteGlow?: boolean;
 };
 
 function toneColor(tone: TerminalLine["tone"]): string {
@@ -154,8 +165,12 @@ export function IgnitionGate({
   lockProvider = false,
   setAsActiveOnSave = true,
   onKeySaved,
+  onVaultSuccess,
   manageTitle,
   manageDescription,
+  manageSubmitLabel,
+  manageConfirmLabel,
+  manageIgniteGlow = false,
 }: IgnitionGateProps) {
   const isProtectMode = variant === "protect";
   const isManageMode = variant === "manage";
@@ -187,8 +202,10 @@ export function IgnitionGate({
   const handshakeValidated = useIgnitionStore(selectHandshakeValidated);
   const providerLabel = getIgnitionProviderLabel(storedProvider);
   const isHandshaking = discoveryStatus === "handshaking";
-  const showConfigPhase = handshakeValidated && discoveryStatus === "ready";
-  const canLaunch = !isProtectMode && isIgnitionComplete() && !isLaunching;
+  const showConfigPhase =
+    !isManageMode && handshakeValidated && discoveryStatus === "ready";
+  const canLaunch =
+    variant === "launch" && !isProtectMode && isIgnitionComplete() && !isLaunching;
   const canResume = isProtectMode && isIgnitionComplete() && !isLaunching;
 
   useEffect(() => {
@@ -300,6 +317,22 @@ export function IgnitionGate({
     [terminalLines],
   );
 
+  const finishManageSave = (result: {
+    success: boolean;
+    unlocked?: boolean;
+    provider?: HandshakeProvider;
+    providerLabel?: string;
+  }) => {
+    if (!isManageMode || !result.success || !result.unlocked || !result.provider) {
+      return;
+    }
+    onVaultSuccess?.({
+      provider: result.provider,
+      providerLabel: result.providerLabel ?? getProviderRegistryEntry(result.provider).label,
+    });
+    onKeySaved?.();
+  };
+
   const handleValidate = async (event: FormEvent) => {
     event.preventDefault();
     const trimmedKey = apiKey.trim();
@@ -311,28 +344,46 @@ export function IgnitionGate({
     const lastDiscovery = readLastDiscoveryTimestamp();
     const canUseCachedDiscovery = isDiscoveryCacheFresh(lastDiscovery, refreshIntervalMinutes);
 
-    if (canUseCachedDiscovery) {
+    if (!isManageMode && canUseCachedDiscovery) {
       const cachedModels = getCachedModelsForProvider(provider);
 
       if (cachedModels.length > 0) {
         try {
           await restoreDiscoveryFromCache(provider, trimmedKey, cachedModels);
           setUsedCachedDiscovery(true);
+          return;
         } catch {
           setUsedCachedDiscovery(false);
         }
       }
     }
 
-    await runDiscovery(provider, trimmedKey, {
+    const result = await runDiscovery(provider, trimmedKey, {
       setAsActive: isManageMode ? makeActive : true,
     });
+
+    finishManageSave(result);
   };
 
   const handleProviderChange = (next: HandshakeProvider) => {
     setProviderState(next);
     setProvider(next);
   };
+
+  const manageSaveText = manageConfirmLabel ?? manageSubmitLabel ?? "Save Key";
+  const primarySubmitLabel = isManageMode
+    ? isHandshaking
+      ? "Validating…"
+      : manageSaveText
+    : isHandshaking
+      ? "Igniting…"
+      : "Validate & Discover Models";
+  const igniteButtonClass = cn(
+    monoClass,
+    "h-11 w-full rounded-xl text-[11px] uppercase tracking-[0.14em]",
+    manageIgniteGlow &&
+      "border-0 bg-mint text-[oklch(0.16_0.04_268)] shadow-[0_0_28px_oklch(0.82_0.16_165/0.45)] hover:brightness-110",
+  );
 
   const panel = (
     <div className={cn("flex flex-1 flex-col", fullScreen && "relative z-10")}>
@@ -470,21 +521,24 @@ export function IgnitionGate({
               </div>
             </div>
 
-            {!showConfigPhase ? (
+            {!showConfigPhase || isManageMode ? (
               <Button
                 type="submit"
                 disabled={!apiKey.trim() || isHandshaking || isLaunching}
+                variant={manageIgniteGlow && isManageMode ? "mint" : undefined}
                 className={cn(
-                  monoClass,
-                  "h-11 w-full rounded-xl border-0 text-[11px] uppercase tracking-[0.14em]",
+                  igniteButtonClass,
+                  !(manageIgniteGlow && isManageMode) &&
+                    "border-0 text-[11px] uppercase tracking-[0.14em]",
+                  !(manageIgniteGlow && isManageMode) && monoClass,
                 )}
-                style={{ backgroundColor: PRIMARY, color: TEXT }}
+                style={
+                  manageIgniteGlow && isManageMode
+                    ? undefined
+                    : { backgroundColor: PRIMARY, color: TEXT }
+                }
               >
-                {isHandshaking
-                  ? "Validating…"
-                  : isManageMode
-                    ? "Validate & Vault Key"
-                    : "Validate & Discover Models"}
+                {primarySubmitLabel}
               </Button>
             ) : null}
           </form>
@@ -642,30 +696,6 @@ export function IgnitionGate({
           ) : null}
         </AnimatePresence>
       </div>
-
-      <AnimatePresence initial={false}>
-        {isManageMode && showConfigPhase ? (
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 8 }}
-            transition={{ duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] }}
-            className="mt-6"
-          >
-            <Button
-              type="button"
-              variant="mint"
-              size="xl"
-              disabled={isLaunching || !isIgnitionComplete()}
-              onClick={() => onKeySaved?.()}
-              className={cn(monoClass, "w-full rounded-xl text-[11px] uppercase tracking-[0.14em]")}
-            >
-              <KeyRound className="h-4 w-4" aria-hidden="true" />
-              Save Key
-            </Button>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
 
       <AnimatePresence initial={false}>
         {canLaunch ? (

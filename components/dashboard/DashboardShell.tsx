@@ -27,7 +27,7 @@ import {
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { Button } from "@/components/ui/button";
 import { LogoIcon } from "@/components/ui/logo";
-import { DashboardFuelBadge } from "@/components/dashboard/DashboardFuelBadge";
+import { BYOKStatusBadge } from "@/components/dashboard/BYOKStatus";
 
 const navItems = [
   { title: "Overview", href: "/dashboard", icon: LayoutDashboard },
@@ -111,7 +111,7 @@ export function DashboardShell({ children, vaultKeyId }: DashboardShellProps) {
             <SidebarTrigger />
             <div className="text-sm text-muted-foreground">Dashboard</div>
             <div className="ml-auto flex items-center gap-2">
-              <DashboardFuelBadge vaultKeyId={vaultKeyId} />
+              <BYOKStatusBadge vaultKeyId={vaultKeyId} />
               <SignOutButton iconOnly />
             </div>
           </header>

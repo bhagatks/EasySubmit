@@ -123,6 +123,11 @@ Dark-first Trust Tech palette in `app/globals.css`: deep navy, electric primary 
 
 | Date | Summary |
 |------|---------|
+| 2026-06-19 | Studio `PrimeResume` spacing: unified `SPACE` rhythm (`gap-7` section stack, consistent entry/line stacks) aligned with ATS rules §0/§2 |
+| 2026-06-19 | Ignition Blast: 400ms mint bloom from clicked power cell + chamber screen-shake, `POWER STABILIZED` JetBrains overlay on `igniteEngineVault` success; post-blast `router.refresh()` + Prime Paper blur→active |
+| 2026-06-19 | `/dashboard/keys` Ignition Chamber: 60/40 vault bay + Console power cells (OpenAI→DeepSeek), `EMPTY SLOT` / glowing `CELL ACTIVE.`, grid + engine glow, empty-slot → IGNITE vault entry |
+| 2026-06-19 | Dashboard Engine Cold: `vaultKeyId` null → pulsing `BYOK Inactive • Engine Cold` badge, glass hint + Ignition Chamber CTA, blurred resume canvas with Neural Calibration Pending watermark |
+| 2026-06-19 | `SynthesisTransition`: full-viewport mint scanning beam, edge→center JSON particle flow, Prime Paper skeleton, JetBrains Mono status copy, 3s `onComplete` → `/dashboard` |
 | 2026-06-19 | `docs/database-schema.md`: data model overview — ER diagram, end-to-end flow diagram, feature→table mapping; `ARCHITECTURE.md` links to overview |
 | 2026-06-19 | Dashboard AI Keys (`/dashboard/keys`): lists vaulted BYOK per provider, edit/add via embedded Ignition Gate, multi-key + set active |
 | 2026-06-19 | Dashboard overview wired to Headless Engine: `getDashboardStats`, `Overview.tsx` (60/40 canvas, Engine Cold, verification from Architecture JSONB, BYOK mint badge) |
