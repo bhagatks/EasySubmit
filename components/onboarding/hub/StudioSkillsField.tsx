@@ -11,7 +11,7 @@ import { useCallback, useMemo, useState } from "react";
 import { fuzzySearchMasterSkills } from "@/src/lib/constants/skills";
 import { normalizeSkillList } from "@/lib/onboarding/normalizeSkills";
 import { MIN_STUDIO_SKILLS } from "@/lib/onboarding/studio";
-import { useOnboardingStore } from "@/stores/onboardingStore";
+import { useOnboardingStore } from "@/src/stores/onboarding-store";
 import { cn } from "@/lib/utils";
 
 const CANVAS = "oklch(0.16 0.04 268)";

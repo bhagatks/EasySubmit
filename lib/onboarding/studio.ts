@@ -1,4 +1,4 @@
-import type { StudioState } from "@/stores/onboardingStore";
+import type { StudioState } from "@/src/stores/onboarding-store";
 
 export const MIN_STUDIO_SKILLS = 6;
 

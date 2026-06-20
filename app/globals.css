@@ -39,9 +39,6 @@
   --color-ring: var(--ring);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -101,7 +98,7 @@
   --mint: oklch(0.82 0.16 165);
   --mint-foreground: oklch(0.18 0.05 268);
 
-  --destructive: oklch(0.65 0.22 25);
+  --destructive: oklch(0.55 0.22 25);
   --destructive-foreground: oklch(0.98 0.01 250);
 
   --border: oklch(0.32 0.04 268 / 0.5);
@@ -110,9 +107,6 @@
 
   --chart-1: oklch(0.62 0.21 265);
   --chart-2: oklch(0.82 0.16 165);
-  --chart-3: oklch(0.7 0.15 230);
-  --chart-4: oklch(0.78 0.18 90);
-  --chart-5: oklch(0.65 0.2 320);
 
   --sidebar: oklch(0.19 0.045 268);
   --sidebar-foreground: oklch(0.92 0.015 250);
@@ -179,7 +173,7 @@
   min-height: 297mm;
   background-color: var(--color-paper);
   color: oklch(0.25 0.02 268);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 20px 50px oklch(0.05 0.04 268 / 0.5);
 }
 
 .page-break {

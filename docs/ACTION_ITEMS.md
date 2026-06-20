@@ -6,8 +6,8 @@
 |------|--------|-------|
 | Fix production build (`npm run build`) | Done | Extension page + lucide `Github` → `Code2` |
 | Connect GitHub repo to Vercel | **Pending** | `bhagatks/EasySubmit` |
-| Set production env vars in Vercel | **Pending** | See `.env.prod.example` (Supabase `yofgnflcqajqsepbfdkc`) |
-| Set QA/preview env vars (optional) | **Pending** | See `.env.qa.example` (Supabase `dwccqrbpwbnuoiihpgth`) |
+| Set production env vars in Vercel | **Pending** | See `.env.vercel.example` (Supabase `yofgnflcqajqsepbfdkc`) |
+| Set QA/preview env vars (optional) | **Pending** | Vercel Preview: use dev Supabase vars from `.env.example` |
 | Set `NEXTAUTH_URL` to prod domain | **Pending** | Must match deployed URL exactly |
 | Google OAuth redirect URI | **Pending** | `https://<domain>/api/auth/callback/google` |
 | LinkedIn OAuth redirect URI | **Pending** | `https://<domain>/api/auth/callback/linkedin` |
@@ -23,6 +23,4 @@
 
 ## Follow-up (not blocking deploy)
 
-- Wire step-4 success to `completeResumeMapping()` if users should continue wizard instead of dashboard
-- Remove unused `components/layout/OnboardingLayout.tsx` (superseded by flow shell)
 - Add `@testing-library/react` harness for onboarding UI (see sidepanel rule pattern)

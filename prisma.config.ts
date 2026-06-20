@@ -8,7 +8,8 @@ const shellDatabaseUrl = process.env.DATABASE_URL;
 dotenv.config({ path: ".env" });
 dotenv.config({ path: ".env.local", override: true });
 
-if (shellDatabaseUrl) {
+// Vercel / CI inject DATABASE_URL directly — only fall back to shell when files omit it.
+if (!process.env.DATABASE_URL && shellDatabaseUrl) {
   process.env.DATABASE_URL = shellDatabaseUrl;
 }
 

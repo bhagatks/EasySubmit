@@ -1,4 +1,4 @@
-import type { Location } from "@/stores/onboardingStore";
+import type { Location } from "@/src/stores/onboarding-store";
 
 export interface NominatimAddress {
   city?: string;

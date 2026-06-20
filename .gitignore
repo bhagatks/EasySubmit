@@ -10,6 +10,8 @@ out/
 *.pem
 .env
 .env*.local
+.env.vercel.deploy.tmp
+.easysubmit-mode
 
 # debug
 npm-debug.log*

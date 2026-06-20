@@ -1,15 +1,15 @@
 ---
-description: ATS resume formatting rules and golden template fixtures (repo root)
+description: ATS resume formatting rules and golden template fixtures
 globs: lib/resume/**,components/onboarding/PrimeResume.tsx,components/onboarding/hub/RefineryPanel.tsx,lib/onboarding/hubResume.ts,app/api/resume/**
 alwaysApply: false
 ---
 
 # EasySubmit Resume Format (canonical)
 
-**Rules document:** `EASYSUBMIT_RESUME_RULES.md` (repository root)  
-**Golden fixtures:** `ATS_Universal_Resume_Template.pdf`, `ATS_Universal_Resume_Template.docx` (repository root)  
+**Rules document:** `docs/resume/RULES.md`  
+**Golden fixtures:** `assets/resume/templates/` (PDF + DOCX)  
 **Code constants:** `lib/resume/resumeSpec.ts` — section order, titles, API download paths  
-**Server paths:** `lib/resume/resumeFixtures.server.ts` — root fixture file paths
+**Server paths:** `lib/resume/resumeFixtures.server.ts` — fixture file paths
 
 ## Section order (fixed — never reorder)
 
@@ -28,4 +28,4 @@ No multi-column, tables, text boxes, header/footer fields, images, hidden text, 
 
 - Import section titles from `RESUME_SECTION_TITLES` in `lib/resume/resumeSpec.ts`
 - Match `PrimeResume` section order to `RESUME_SECTION_ORDER`
-- Parser changes: validate against root `ATS_Universal_Resume_Template.pdf` (`npm run validate:ats-template`)
+- Parser changes: validate against `assets/resume/templates/ATS_Universal_Resume_Template.pdf` (`npm run validate:ats-template`)

@@ -9,7 +9,7 @@ import {
 } from "@/lib/onboarding/payload";
 import { createClient } from "@/lib/supabase/client";
 import { LogoIcon } from "@/components/ui/logo";
-import { useOnboardingStore } from "@/stores/onboardingStore";
+import { useOnboardingStore } from "@/src/stores/onboarding-store";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -55,7 +55,7 @@ export default function SignupPage() {
         throw new Error(body.error ?? "Failed to save profile");
       }
     },
-    [onboardingState]
+    [onboardingState],
   );
 
   const completeSignupAfterAuth = useCallback(async () => {
@@ -129,31 +129,31 @@ export default function SignupPage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-simplifyBg px-6 py-12">
+    <main className="flex min-h-screen flex-col items-center justify-center bg-background px-6 py-12">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
           <div className="mb-4 flex justify-center">
             <LogoIcon className="h-10 w-10" aria-hidden="true" />
           </div>
-          <p className="text-sm font-semibold uppercase tracking-wider text-simplifyBlue">
+          <p className="text-sm font-semibold uppercase tracking-wider text-primary">
             EasySubmit.ai
           </p>
-          <h1 className="mt-2 text-3xl font-semibold text-simplifyDark">
+          <h1 className="mt-2 text-3xl font-semibold text-foreground">
             Create your account
           </h1>
-          <p className="mt-2 text-sm text-gray-500">
+          <p className="mt-2 text-sm text-muted-foreground">
             Save your profile and start applying to matched jobs.
           </p>
         </div>
 
-        <div className="rounded bg-white p-6 shadow-sm">
+        <div className="rounded-xl border border-border bg-card p-6 shadow-elevated">
           {error && (
-            <p className="mb-4 rounded bg-red-50 px-3 py-2 text-sm text-red-600">
+            <p className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {error}
             </p>
           )}
           {message && (
-            <p className="mb-4 rounded bg-green-50 px-3 py-2 text-sm text-green-700">
+            <p className="mb-4 rounded-lg border border-mint/40 bg-mint/10 px-3 py-2 text-sm text-mint">
               {message}
             </p>
           )}
@@ -162,7 +162,7 @@ export default function SignupPage() {
             <div>
               <label
                 htmlFor="email"
-                className="mb-1 block text-sm font-medium text-simplifyDark"
+                className="mb-1 block text-sm font-medium text-foreground"
               >
                 Email
               </label>
@@ -172,7 +172,7 @@ export default function SignupPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded border border-gray-200 px-4 py-3 text-sm focus:border-simplifyBlue focus:outline-none focus:ring-1 focus:ring-simplifyBlue"
+                className="w-full rounded-xl border border-border bg-input px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                 placeholder="you@example.com"
               />
             </div>
@@ -180,7 +180,7 @@ export default function SignupPage() {
             <div>
               <label
                 htmlFor="password"
-                className="mb-1 block text-sm font-medium text-simplifyDark"
+                className="mb-1 block text-sm font-medium text-foreground"
               >
                 Password
               </label>
@@ -191,7 +191,7 @@ export default function SignupPage() {
                 minLength={8}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded border border-gray-200 px-4 py-3 text-sm focus:border-simplifyBlue focus:outline-none focus:ring-1 focus:ring-simplifyBlue"
+                className="w-full rounded-xl border border-border bg-input px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                 placeholder="At least 8 characters"
               />
             </div>
@@ -199,23 +199,23 @@ export default function SignupPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded bg-simplifyBlue py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? "Creating account..." : "Create account"}
             </button>
           </form>
 
           <div className="my-6 flex items-center gap-3">
-            <div className="h-px flex-1 bg-gray-200" />
-            <span className="text-xs text-gray-400">or</span>
-            <div className="h-px flex-1 bg-gray-200" />
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-xs text-muted-foreground">or</span>
+            <div className="h-px flex-1 bg-border" />
           </div>
 
           <button
             type="button"
             onClick={handleGoogleSignup}
             disabled={loading}
-            className="flex w-full items-center justify-center gap-2 rounded border border-gray-200 bg-white py-3 text-sm font-medium text-simplifyDark transition-colors hover:bg-gray-50 disabled:opacity-50"
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-surface py-3 text-sm font-medium text-foreground transition-colors hover:bg-surface-elevated disabled:opacity-50"
           >
             <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24">
               <path
@@ -239,12 +239,12 @@ export default function SignupPage() {
           </button>
         </div>
 
-        <p className="mt-6 text-center text-xs text-gray-500">
+        <p className="mt-6 text-center text-xs text-muted-foreground">
           By signing up, you agree to our Terms of Service and Privacy Policy.
         </p>
 
-        <p className="mt-4 text-center text-sm text-gray-500">
-          <Link href="/onboarding" className="text-simplifyBlue hover:underline">
+        <p className="mt-4 text-center text-sm text-muted-foreground">
+          <Link href="/onboarding" className="text-primary hover:underline">
             Back to onboarding
           </Link>
         </p>

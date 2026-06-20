@@ -4,8 +4,8 @@ vi.mock("@/app/actions/ai/ignition", () => ({
   igniteEngineVault: vi.fn(),
 }));
 
-vi.mock("@/app/actions/ai/discovery", () => ({
-  discoverAiModels: vi.fn(),
+vi.mock("@/app/actions/ai/discovery-service", () => ({
+  runEngineDiscovery: vi.fn(),
 }));
 
 import { useIgnitionStore, INITIAL_IGNITION_STORE } from "@/src/stores/use-ignition-store";

@@ -4,9 +4,10 @@ import { groupLinesIntoSections } from "@/lib/resume/openResume/group-lines-into
 import { groupTextItemsIntoLines } from "@/lib/resume/openResume/group-text-items-into-lines";
 import { parseResumeFromPdfBuffer } from "@/lib/resume/openResume/index";
 import { readPdfFromBuffer } from "@/lib/resume/openResume/readPdf";
+import { getBhagathSamplePdfPath } from "@/lib/resume/resumeFixtures.server";
 
 async function main() {
-  const buf = await readFile("ATS_Bhagath_Sample.pdf");
+  const buf = await readFile(getBhagathSamplePdfPath());
   const textItems = await readPdfFromBuffer(buf);
   const lines = groupTextItemsIntoLines(textItems);
   const sections = groupLinesIntoSections(lines);

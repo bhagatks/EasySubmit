@@ -28,11 +28,11 @@ Primary onboarding path — client state in `app/onboarding/page.tsx` (not Zusta
 |-------|-------|---------------|------------|
 | 1 · Identity | `CoordinatesPanel` | `firstName`, `lastName`, `cityState` (Nominatim debounce + locate via `CityStateField`), `phone` with country-code selector (default US +1), `email` | Continue → Import; `completeStep(1)` |
 | 2 · Import | `FuelPanel` | Resume PDF/DOCX → `parseResumeFile` (browser Open-Resume pipeline) | **No back to Phase 1** (`minNavigablePhase=2` on breadcrumb); auto-advance to Studio after parse |
-| 3 · Studio | `RefineryPanel` | ATS section order (Header → Summary → Skills → Experience → Education → optional Certifications/Projects/Languages); `mergeParsedWithCoordinates` prefills contact from Phase 1 | **Upload** back button → Import (re-upload); **Synthesize Architecture.** → see bridge below |
+| 3 · Studio | `RefineryPanel` | ATS section order (Header → Summary → Skills → Experience → Education → optional Certifications/Projects/Languages); `mergeParsedWithCoordinates` prefills contact from Phase 1 | **Import** back → re-upload; **Finalize & continue** → see bridge below |
 
 ### Synthesis Transition (Phase 3 → Dashboard)
 
-After Studio, **Synthesize Architecture.** does **not** advance to a fourth onboarding phase. Instead:
+After Studio, **Finalize & continue** does **not** advance to a fourth onboarding phase. Instead:
 
 1. **`SynthesisTransition`** (`components/onboarding/SynthesisTransition.tsx`) — full-screen mint scanning beam, JSON particle flow, JetBrains Mono status copy (~3s).
 2. **`completeOnboarding`** — persists profile + Career Architecture JSONB (no BYOK / AI provider required).
@@ -48,7 +48,7 @@ Phase 3 Studio  →  SynthesisTransition  →  /dashboard  →  (optional) Phase
 |-------|--------|---------|----------------|
 | 4 · Ignition Chamber (post-onboarding) | `/dashboard/keys` | Vault provider keys into Power Cells; `igniteEngineVault` + Ignition Blast; Prime Paper unlock | Yes, to run headless engine |
 
-Resume section order and preview typography follow **`EASYSUBMIT_RESUME_RULES.md`** at the repository root (code constants in `lib/resume/resumeSpec.ts`). Golden fixtures: `ATS_Universal_Resume_Template.pdf` / `.docx` (download via `/api/resume/ats-template`).
+Resume section order and preview typography follow **`docs/resume/RULES.md`** (code constants in `lib/resume/resumeSpec.ts`). Golden fixtures: `assets/resume/templates/` (download via `/api/resume/ats-template`).
 
 Merge logic: `lib/onboarding/hubResume.ts` — parsed resume contact fields win when present; Phase 1 manual entry fills gaps.
 

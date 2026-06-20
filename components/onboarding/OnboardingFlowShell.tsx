@@ -11,7 +11,7 @@ import {
   ONBOARDING_PHASES,
   type OnboardingPhaseId,
 } from "@/lib/onboarding/phases";
-import { useOnboardingStore } from "@/stores/onboardingStore";
+import { useOnboardingStore } from "@/src/stores/onboarding-store";
 
 const contentVariants = {
   enter: (dir: number) => ({

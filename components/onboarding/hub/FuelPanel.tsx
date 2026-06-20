@@ -12,12 +12,9 @@ import {
   ATS_TEMPLATE_PDF_FILENAME,
 } from "@/lib/resume/resumeSpec";
 import { IngestionTerminal } from "@/components/onboarding/hub/IngestionTerminal";
+import { WorkbenchPhaseIntro } from "@/components/onboarding/hub/WorkbenchPhaseIntro";
 import type { CoordinatesValues } from "@/components/onboarding/hub/CoordinatesPanel";
-import {
-  advancingToNextPhaseLabel,
-  getWorkbenchPhase,
-  workbenchPhaseHeader,
-} from "@/lib/onboarding/workbenchPhases";
+import { advancingToNextPhaseLabel } from "@/lib/onboarding/workbenchPhases";
 import { formatFullPhone } from "@/lib/phone/phone";
 import type { StructuredResume } from "@/lib/resume/heuristicParser";
 import {
@@ -40,23 +37,9 @@ const RESUME_ACCEPT = {
 
 const SUCCESS_HOLD_MS = 1400;
 
-async function downloadResumeTemplate(path: string, filename: string) {
-  const response = await fetch(path);
-  if (!response.ok) {
-    throw new Error(`Could not download ${filename}`);
-  }
-
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.rel = "noopener";
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
-}
+const TEMPLATE_LINK_CLASS = cn(
+  "rounded-lg px-2 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] underline-offset-2 transition-colors hover:bg-white/[0.06] hover:underline",
+);
 
 type FuelPanelProps = {
   monoClass: string;
@@ -74,7 +57,6 @@ export function FuelPanel({
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
-  const [templateError, setTemplateError] = useState<string | null>(null);
   const [processingFileName, setProcessingFileName] = useState<string | null>(null);
   const [logLines, setLogLines] = useState<IngestionLogLine[]>([]);
   const parsedRef = useRef<{ data: StructuredResume; rawText: string } | null>(null);
@@ -87,20 +69,6 @@ export function FuelPanel({
       }
     };
   }, []);
-
-  const handleTemplateDownload = useCallback(
-    async (path: string, filename: string) => {
-      setTemplateError(null);
-      try {
-        await downloadResumeTemplate(path, filename);
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Template download failed";
-        setTemplateError(message);
-      }
-    },
-    [],
-  );
 
   const animateProcessingLog = useCallback(() => {
     const base = buildProcessingLogLines();
@@ -188,30 +156,39 @@ export function FuelPanel({
 
   return (
     <div className="flex flex-1 flex-col">
-      <p
-        className={cn(monoClass, "text-[11px] font-medium uppercase tracking-[0.2em]")}
-        style={{ color: PRIMARY }}
-      >
-        <FileUp className="mr-1.5 inline h-3.5 w-3.5 align-text-bottom" aria-hidden="true" />
-        {workbenchPhaseHeader(2)}
-      </p>
-      <h2
-        className="mt-3 font-display text-xl font-semibold tracking-tight sm:text-2xl"
-        style={{ color: "oklch(0.98 0.01 268)" }}
-      >
-        {getWorkbenchPhase(2)?.headline ?? "Import your resume"}
-      </h2>
-      <p className="mt-2 text-sm leading-relaxed" style={{ color: MUTED }}>
-        {getWorkbenchPhase(2)?.description}
-      </p>
+      <WorkbenchPhaseIntro
+        phaseId={2}
+        monoClass={monoClass}
+        icon={<FileUp className="h-3.5 w-3.5" aria-hidden="true" />}
+        actions={
+          <>
+            <a
+              href={ATS_TEMPLATE_PDF_API_PATH}
+              download={ATS_TEMPLATE_PDF_FILENAME}
+              className={cn(monoClass, TEMPLATE_LINK_CLASS)}
+              style={{ color: PRIMARY }}
+            >
+              Sample PDF
+            </a>
+            <a
+              href={ATS_TEMPLATE_DOCX_API_PATH}
+              download={ATS_TEMPLATE_DOCX_FILENAME}
+              className={cn(monoClass, TEMPLATE_LINK_CLASS)}
+              style={{ color: PRIMARY }}
+            >
+              Sample DOCX
+            </a>
+          </>
+        }
+      />
 
       {(coordinates.firstName || coordinates.email) && (
         <div
-          className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs leading-relaxed"
+          className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-xs leading-relaxed"
           style={{ color: MUTED }}
         >
           <p
-            className={cn(monoClass, "mb-1 text-[10px] uppercase tracking-[0.14em]")}
+            className={cn(monoClass, "mb-0.5 text-[10px] uppercase tracking-[0.14em]")}
             style={{ color: MINT }}
           >
             From Identity
@@ -231,7 +208,7 @@ export function FuelPanel({
       <div
         {...getRootProps({
           className: cn(
-            "relative mt-8 flex min-h-[220px] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-dashed px-6 py-10 transition-all duration-300",
+            "relative mt-4 flex min-h-[220px] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-dashed px-6 py-10 transition-all duration-300",
             "border-[oklch(0.62_0.21_265_/_0.25)] bg-[oklch(0.62_0.21_265_/_0.04)]",
             isProcessing && "cursor-wait border-[oklch(0.62_0.21_265_/_0.55)]",
             showSuccess && "border-[oklch(0.82_0.16_165_/_0.5)]",
@@ -313,10 +290,8 @@ export function FuelPanel({
               className="flex flex-col items-center text-center"
             >
               <div
-                className="flex h-16 w-16 items-center justify-center rounded-xl border"
+                className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]"
                 style={{
-                  borderColor: "oklch(0.62 0.21 265 / 0.25)",
-                  backgroundColor: "oklch(0.62 0.21 265 / 0.08)",
                   boxShadow: "0 0 32px -8px oklch(0.62 0.21 265 / 0.35)",
                 }}
               >
@@ -344,47 +319,6 @@ export function FuelPanel({
       </div>
 
       <IngestionTerminal lines={logLines} monoClass={monoClass} />
-
-      <p className="mt-4 text-center text-xs" style={{ color: MUTED }}>
-        Need a reference layout?{" "}
-        <button
-          type="button"
-          onClick={() =>
-            void handleTemplateDownload(
-              ATS_TEMPLATE_PDF_API_PATH,
-              ATS_TEMPLATE_PDF_FILENAME,
-            )
-          }
-          className="underline underline-offset-2 transition-colors hover:text-[oklch(0.98_0.01_268)]"
-          style={{ color: PRIMARY }}
-        >
-          ATS sample PDF
-        </button>
-        {" · "}
-        <button
-          type="button"
-          onClick={() =>
-            void handleTemplateDownload(
-              ATS_TEMPLATE_DOCX_API_PATH,
-              ATS_TEMPLATE_DOCX_FILENAME,
-            )
-          }
-          className="underline underline-offset-2 transition-colors hover:text-[oklch(0.98_0.01_268)]"
-          style={{ color: PRIMARY }}
-        >
-          DOCX
-        </button>
-      </p>
-
-      {templateError ? (
-        <p
-          role="alert"
-          className="mt-2 text-center text-xs"
-          style={{ color: "oklch(0.65 0.2 25)" }}
-        >
-          {templateError}
-        </p>
-      ) : null}
 
       {fileError ? (
         <p

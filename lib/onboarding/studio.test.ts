@@ -4,7 +4,7 @@ import {
   MIN_STUDIO_SKILLS,
   selectCanProceedToCalibration,
 } from "@/lib/onboarding/studio";
-import { useOnboardingStore } from "@/stores/onboardingStore";
+import { useOnboardingStore } from "@/src/stores/onboarding-store";
 
 const SAMPLE_SKILLS = ["React", "TypeScript", "Node.js", "AWS", "SQL", "Git"];
 

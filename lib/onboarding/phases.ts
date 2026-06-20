@@ -1,4 +1,4 @@
-import { ONBOARDING_STEP } from "@/stores/onboardingStore";
+import { ONBOARDING_STEP } from "@/src/stores/onboarding-store";
 
 export const ONBOARDING_PHASES = [
   { id: 1, label: "Profile" },

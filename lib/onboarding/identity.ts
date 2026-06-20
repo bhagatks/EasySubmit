@@ -1,4 +1,4 @@
-import type { IdentityState } from "@/stores/onboardingStore";
+import type { IdentityState } from "@/src/stores/onboarding-store";
 
 /** Identity phase is complete when target role is set (languages are optional in Studio). */
 export function isIdentityPhaseComplete(identity: IdentityState): boolean {

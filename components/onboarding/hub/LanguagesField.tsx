@@ -14,7 +14,7 @@ import {
   type ProficiencyLevel,
 } from "@/lib/resume/proficiency";
 import { RESUME_SECTION_TITLES } from "@/lib/resume/resumeSpec";
-import { useOnboardingStore } from "@/stores/onboardingStore";
+import { useOnboardingStore } from "@/src/stores/onboarding-store";
 import { cn } from "@/lib/utils";
 
 const PRIMARY = "oklch(0.62 0.21 265)";

@@ -1,7 +1,7 @@
 #!/usr/bin/env npx tsx
 /**
  * Smoke-test the server PDF pipeline against ATS_Universal_Resume_Template.pdf
- * at the repository root. Browser parsing (readPdfClient) is preferred in prod;
+ * Golden template under assets/resume/templates/. Browser parsing (readPdfClient) is preferred in prod;
  * this uses the legacy Node pdfjs path for quick CI/dev checks.
  */
 import { readFile } from "node:fs/promises";

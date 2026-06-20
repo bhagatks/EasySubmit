@@ -11,8 +11,7 @@ case "$cmd" in
   easy)
     case "$sub" in
       prod|production)
-        echo "→ EasySubmit production (build + start)"
-        exec npm run easy:prod
+        exec bash "$ROOT/scripts/easy-prod.sh"
         ;;
       "")
         exec bash "$ROOT/scripts/easy-dev.sh"
@@ -27,8 +26,8 @@ case "$cmd" in
   *)
     echo "Usage: run easy [prod]" >&2
     echo "" >&2
-    echo "  run easy       Start Next.js dev server" >&2
-    echo "  run easy prod  Build and start production server" >&2
+    echo "  run easy       Local dev (.env.local)" >&2
+    echo "  run easy prod  Deploy to Vercel (prod env from Vercel only)" >&2
     exit 1
     ;;
 esac

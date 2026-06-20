@@ -1,5 +1,6 @@
-import { RefineryWorkbench } from "@/components/onboarding/RefineryWorkbench";
+import { redirect } from "next/navigation";
 
-export default function RefineryPage() {
-  return <RefineryWorkbench />;
+/** Legacy route — canonical workbench is `/onboarding`. */
+export default function RefineryAliasPage() {
+  redirect("/onboarding");
 }

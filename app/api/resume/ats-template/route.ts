@@ -38,7 +38,7 @@ export async function GET(request: Request) {
     });
   } catch {
     return NextResponse.json(
-      { error: "ATS template file not found at project root." },
+      { error: "ATS template file not found under assets/resume/templates." },
       { status: 404 },
     );
   }

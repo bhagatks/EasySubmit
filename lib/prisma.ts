@@ -13,6 +13,15 @@ function createPrismaClient() {
     throw new Error("DATABASE_URL is not set");
   }
 
+  if (process.env.NODE_ENV === "development") {
+    try {
+      const { hostname, username } = new URL(connectionString);
+      console.info(`[prisma] ${username} @ ${hostname}`);
+    } catch {
+      // ignore malformed URL — Pool connect will surface the error
+    }
+  }
+
   const pool = new Pool({ connectionString });
   const adapter = new PrismaPg(pool);
 

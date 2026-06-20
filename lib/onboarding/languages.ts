@@ -1,4 +1,4 @@
-import type { LanguageEntry } from "@/stores/onboardingStore";
+import type { LanguageEntry } from "@/src/stores/onboarding-store";
 import { formatProficiencyShort } from "@/lib/resume/proficiency";
 
 export { formatProficiencyShort };

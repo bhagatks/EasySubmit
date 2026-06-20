@@ -13,7 +13,7 @@ vi.mock("next-auth/react", () => ({
   signOut: signOutMock,
 }));
 
-vi.mock("@/stores/onboardingStore", () => ({
+vi.mock("@/src/stores/onboarding-store", () => ({
   useOnboardingStore: {
     getState: () => ({ resetStore: resetStoreMock }),
   },

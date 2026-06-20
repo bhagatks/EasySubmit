@@ -2,7 +2,7 @@ import type {
   ExperienceLevel,
   JobTimeline,
   Location,
-} from "@/stores/onboardingStore";
+} from "@/src/stores/onboarding-store";
 import {
   getPrimaryAddress,
   getResidentialLocation,

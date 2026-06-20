@@ -1,4 +1,4 @@
-import type { Location } from "@/stores/onboardingStore";
+import type { Location } from "@/src/stores/onboarding-store";
 
 /** Location marked as the user's home base (primary resume address). */
 export function getResidentialLocation(

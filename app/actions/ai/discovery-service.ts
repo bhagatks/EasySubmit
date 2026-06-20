@@ -54,10 +54,3 @@ export async function runEngineDiscovery(
 
   return result;
 }
-
-/** @deprecated Use runEngineDiscovery */
-export async function discoverAiModelsViaService(
-  input: RunEngineDiscoveryInput,
-): Promise<RunEngineDiscoveryResult> {
-  return runEngineDiscovery(input);
-}

@@ -8,30 +8,29 @@ export type WorkbenchPhaseDef = {
   description: string;
 };
 
+export const WORKBENCH_FINALIZE_LABEL = "Finalize & continue";
+
 export const WORKBENCH_PHASES: WorkbenchPhaseDef[] = [
   {
     id: 1,
     label: "Identity",
     code: "IDENTITY",
     headline: "Contact & identity",
-    description:
-      "Header details for your resume — they carry into import and studio.",
+    description: "Add contact details and target role — they flow into your resume.",
   },
   {
     id: 2,
     label: "Import",
     code: "IMPORT",
     headline: "Import your resume",
-    description:
-      "Drop PDF or Word — Word converts to PDF first, then uses the same parser as PDF uploads.",
+    description: "Drop PDF or Word to parse into the studio editor.",
   },
   {
     id: 3,
     label: "Studio",
     code: "STUDIO",
     headline: "Refine your resume",
-    description:
-      "ATS section order — header, summary, skills, experience, education, then optional blocks.",
+    description: "Edit sections in ATS order — preview updates live on the left.",
   },
 ];
 

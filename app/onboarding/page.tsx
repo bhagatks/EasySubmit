@@ -37,7 +37,7 @@ import { formatFullPhone } from "@/lib/phone/phone";
 import type { StructuredResume } from "@/lib/resume/heuristicParser";
 import { formatDateRangeParts } from "@/lib/resume/dates";
 import { cn } from "@/lib/utils";
-import { useOnboardingStore } from "@/stores/onboardingStore";
+import { useOnboardingStore } from "@/src/stores/onboarding-store";
 import { isIdentityPhaseComplete } from "@/lib/onboarding/identity";
 import { formatLanguagesForResume } from "@/lib/onboarding/languages";
 import { parseProfileName } from "@/lib/profile/name";

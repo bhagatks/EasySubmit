@@ -1,4 +1,4 @@
-import type { ParsedResumeData } from "@/stores/onboardingStore";
+import type { ParsedResumeData } from "@/src/stores/onboarding-store";
 import { joinProfileName } from "@/lib/profile/name";
 import {
   extractExperiencesFromText,

@@ -1,22 +1,33 @@
 /**
  * Canonical resume formatting constants.
- * Rules document: EASYSUBMIT_RESUME_RULES.md (repository root)
- * Golden fixtures: ATS_Universal_Resume_Template.pdf / .docx (repository root)
+ * Rules document: docs/resume/RULES.md
+ * Golden fixtures: assets/resume/templates/
  */
 
-export const RESUME_RULES_FILENAME = "EASYSUBMIT_RESUME_RULES.md";
+export const RESUME_ASSETS_DIR = "assets/resume";
+export const RESUME_RULES_RELATIVE_PATH = "docs/resume/RULES.md";
+export const ATS_TEMPLATE_RELATIVE_DIR = `${RESUME_ASSETS_DIR}/templates`;
+export const BHAGATH_SAMPLE_RELATIVE_DIR = `${RESUME_ASSETS_DIR}/samples`;
 
-/** ATS body fonts — single family only; see EASYSUBMIT_RESUME_RULES.md §1. */
+/** @deprecated Use RESUME_RULES_RELATIVE_PATH — basename kept for legacy references */
+export const RESUME_RULES_FILENAME = "RULES.md";
+
+/** ATS body fonts — single family only; see docs/resume/RULES.md §1. */
 export {
   DEFAULT_RESUME_FONT_ID,
   RESUME_FONTS,
   type ResumeFontId,
 } from "@/lib/resume/resume-fonts";
+
 export const ATS_TEMPLATE_PDF_FILENAME = "ATS_Universal_Resume_Template.pdf";
 export const ATS_TEMPLATE_DOCX_FILENAME = "ATS_Universal_Resume_Template.docx";
 export const BHAGATH_SAMPLE_PDF_FILENAME = "ATS_Bhagath_Sample.pdf";
 
-/** Fixed ATS section order — see EASYSUBMIT_RESUME_RULES.md §3. */
+export const ATS_TEMPLATE_PDF_RELATIVE_PATH = `${ATS_TEMPLATE_RELATIVE_DIR}/${ATS_TEMPLATE_PDF_FILENAME}`;
+export const ATS_TEMPLATE_DOCX_RELATIVE_PATH = `${ATS_TEMPLATE_RELATIVE_DIR}/${ATS_TEMPLATE_DOCX_FILENAME}`;
+export const BHAGATH_SAMPLE_PDF_RELATIVE_PATH = `${BHAGATH_SAMPLE_RELATIVE_DIR}/${BHAGATH_SAMPLE_PDF_FILENAME}`;
+
+/** Fixed ATS section order — see docs/resume/RULES.md §3. */
 export const RESUME_SECTION_ORDER = [
   "header",
   "professionalSummary",

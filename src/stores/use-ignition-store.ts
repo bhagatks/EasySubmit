@@ -4,10 +4,7 @@ import {
   igniteEngineVault,
   type IgniteEngineVaultResult,
 } from "@/app/actions/ai/ignition";
-import {
-  discoverAiModels,
-  type DiscoverAiModelsResult,
-} from "@/app/actions/ai/discovery";
+import type { RunEngineDiscoveryResult } from "@/src/lib/ai/neural-controller";
 import {
   formatIgnitionLockMessage,
   isProviderAuthFailureCode,
@@ -78,7 +75,7 @@ type IgnitionStoreActions = {
   setPrimaryFuel: (modelId: string) => void;
   /** @deprecated Use unlock flow */
   setProvider: (provider: HandshakeProvider) => void;
-  applyDiscoveryResult: (result: DiscoverAiModelsResult) => void;
+  applyDiscoveryResult: (result: RunEngineDiscoveryResult) => void;
 };
 
 export type IgnitionStore = IgnitionStoreState & IgnitionStoreActions;
@@ -369,9 +366,11 @@ export const useIgnitionStore = create<IgnitionStore>()(
 
       applyDiscoveryResult: (result) => {
         if (!result.success) {
+          const terminalMessage =
+            result.error.terminalLine ?? result.error.message;
           set({
             discoveryStatus: "error",
-            discoveryError: result.error,
+            discoveryError: terminalMessage,
             availableModels: [],
             activeModel: null,
             recommendedModel: null,

@@ -21,7 +21,11 @@ import { StudioSkillsField } from "@/components/onboarding/hub/StudioSkillsField
 import { LanguagesField } from "@/components/onboarding/hub/LanguagesField";
 import { StudioCollapsibleSection } from "@/components/resume/StudioCollapsibleSection";
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
-import { getWorkbenchPhase, workbenchPhaseHeader } from "@/lib/onboarding/workbenchPhases";
+import {
+  getWorkbenchPhase,
+  WORKBENCH_FINALIZE_LABEL,
+} from "@/lib/onboarding/workbenchPhases";
+import { WorkbenchPhaseIntro } from "@/components/onboarding/hub/WorkbenchPhaseIntro";
 import { DEFAULT_DIAL_CODE } from "@/lib/phone/countryCodes";
 import {
   formatFullPhone,
@@ -41,7 +45,7 @@ import {
 } from "@/lib/resume/studio-editor-sections";
 import { TargetRoleField } from "@/components/onboarding/hub/TargetRoleField";
 import { MIN_STUDIO_SKILLS, selectCanProceedToCalibration } from "@/lib/onboarding/studio";
-import { useOnboardingStore } from "@/stores/onboardingStore";
+import { useOnboardingStore } from "@/src/stores/onboarding-store";
 import { cn } from "@/lib/utils";
 
 const PRIMARY = "oklch(0.62 0.21 265)";
@@ -279,81 +283,77 @@ export function RefineryPanel({
     isProceedLocked ||
     (isProfileMode && !targetRole.trim());
 
-  const resolvedPhaseLabel = phaseLabel ?? workbenchPhaseHeader(3);
-  const resolvedHeaderTitle = headerTitle ?? getWorkbenchPhase(3)?.headline ?? "Refine your resume";
-  const resolvedHeaderDescription =
-    headerDescription ?? getWorkbenchPhase(3)?.description ?? "";
   const resolvedBackLabel = backLabel ?? getWorkbenchPhase(2)?.label ?? "Import";
   const resolvedFinalizeLabel =
     finalizeLabel ??
-    (isProfileMode ? "Save profile" : "Synthesize Architecture.");
+    (isProfileMode ? "Save profile" : WORKBENCH_FINALIZE_LABEL);
+  const studioSubtitle =
+    headerDescription?.trim() ||
+    getWorkbenchPhase(3)?.description ||
+    "Edit sections in ATS order — preview updates live on the left.";
 
   return (
     <div className={cn(isProfileMode ? "flex flex-col" : "flex flex-1 flex-col")}>
       {!isProfileMode ? (
-        <>
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p
-                className={cn(monoClass, "text-[11px] font-medium uppercase tracking-[0.2em]")}
-                style={{ color: PRIMARY }}
-              >
-                <Sparkles className="mr-1.5 inline h-3.5 w-3.5 align-text-bottom" aria-hidden="true" />
-                {resolvedPhaseLabel}
-              </p>
-              <h2
-                className="mt-3 font-display text-xl font-semibold tracking-tight sm:text-2xl"
-                style={{ color: "oklch(0.98 0.01 268)" }}
-              >
-                {resolvedHeaderTitle}
-              </h2>
-              <p className="mt-2 text-sm leading-relaxed" style={{ color: MUTED }}>
-                {resolvedHeaderDescription}
-              </p>
-            </div>
-            {onBack ? (
-              <button
-                type="button"
-                onClick={onBack}
-                className={cn(
-                  monoClass,
-                  "inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors hover:border-[oklch(0.62_0.21_265_/_0.35)]",
-                )}
-                style={{ color: "oklch(0.98 0.01 268)" }}
-              >
-                <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-                {resolvedBackLabel}
-              </button>
-            ) : null}
-          </div>
-
-          {rawText?.trim() ? (
-            <div className="mt-4">
-              <button
-                type="button"
-                onClick={() => setShowRawText((current) => !current)}
-                className={cn(
-                  monoClass,
-                  "text-[10px] font-semibold uppercase tracking-[0.12em]",
-                )}
-                style={{ color: PRIMARY }}
-              >
-                {showRawText ? "Hide Raw Text" : "View Raw Text"}
-              </button>
-              {showRawText ? (
-                <pre className="mt-3 max-h-32 overflow-y-auto rounded-xl border border-white/10 bg-[oklch(0.12_0.03_268)] p-3 text-[10px] leading-relaxed text-[oklch(0.75_0.02_268)]">
-                  {rawText}
-                </pre>
+        <WorkbenchPhaseIntro
+          phaseId={3}
+          monoClass={monoClass}
+          icon={<Sparkles className="h-3.5 w-3.5" aria-hidden="true" />}
+          subtitle={
+            headerTitle?.trim()
+              ? `${headerTitle.trim()} — ${studioSubtitle}`
+              : studioSubtitle
+          }
+          actions={
+            <>
+              {rawText?.trim() ? (
+                <button
+                  type="button"
+                  onClick={() => setShowRawText((current) => !current)}
+                  className={cn(
+                    monoClass,
+                    "inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] transition-colors hover:bg-white/[0.06]",
+                  )}
+                  style={{ color: PRIMARY }}
+                >
+                  {showRawText ? (
+                    <EyeOff className="h-3 w-3" aria-hidden="true" />
+                  ) : (
+                    <Eye className="h-3 w-3" aria-hidden="true" />
+                  )}
+                  {showRawText ? "Hide raw" : "Raw text"}
+                </button>
               ) : null}
-            </div>
-          ) : null}
-        </>
+              {onBack ? (
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className={cn(
+                    monoClass,
+                    "inline-flex items-center gap-1 rounded-lg border border-white/10 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] transition-colors hover:border-[oklch(0.62_0.21_265_/_0.35)]",
+                  )}
+                  style={{ color: "oklch(0.98 0.01 268)" }}
+                >
+                  <ArrowLeft className="h-3 w-3" aria-hidden="true" />
+                  {resolvedBackLabel}
+                </button>
+              ) : null}
+            </>
+          }
+          footer={
+            showRawText && rawText?.trim() ? (
+              <pre className="max-h-28 w-full overflow-y-auto rounded-xl border border-white/10 bg-[oklch(0.12_0.03_268)] p-3 text-[10px] leading-relaxed text-[oklch(0.75_0.02_268)]">
+                {rawText}
+              </pre>
+            ) : null
+          }
+        />
       ) : null}
 
       <form
         className={cn(
           "flex flex-col space-y-3",
-          isProfileMode ? "mt-0" : "mt-6 flex-1",
+          isProfileMode ? "mt-0" : "mt-4 flex-1",
         )}
         onSubmit={handleSubmit((values) =>
           onFinalize({

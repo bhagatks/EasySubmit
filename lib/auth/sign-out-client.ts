@@ -1,7 +1,7 @@
 import { signOut } from "next-auth/react";
 import { clearSessionApiKeyVault } from "@/src/lib/ai/session-key-vault";
 import { useIgnitionStore } from "@/src/stores/use-ignition-store";
-import { useOnboardingStore } from "@/stores/onboardingStore";
+import { useOnboardingStore } from "@/src/stores/onboarding-store";
 
 const ONBOARDING_STORAGE_KEY = "easysubmit-onboarding";
 const IGNITION_PREFS_STORAGE_KEY = "easysubmit-ignition-prefs";

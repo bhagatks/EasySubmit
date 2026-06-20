@@ -5,11 +5,8 @@ import { type FormEvent, useEffect, useState } from "react";
 import { CityStateField } from "@/components/onboarding/hub/CityStateField";
 import { PhoneField } from "@/components/onboarding/hub/PhoneField";
 import { TargetRoleField } from "@/components/onboarding/hub/TargetRoleField";
-import {
-  getWorkbenchPhase,
-  proceedToNextPhaseLabel,
-  workbenchPhaseHeader,
-} from "@/lib/onboarding/workbenchPhases";
+import { proceedToNextPhaseLabel } from "@/lib/onboarding/workbenchPhases";
+import { WorkbenchPhaseIntro } from "@/components/onboarding/hub/WorkbenchPhaseIntro";
 import { isIdentityPhaseComplete } from "@/lib/onboarding/identity";
 import { DEFAULT_DIAL_CODE } from "@/lib/phone/countryCodes";
 import {
@@ -18,7 +15,7 @@ import {
   isValidPhoneNumber,
 } from "@/lib/phone/phone";
 import { splitFullName } from "@/lib/resume/openResume/adapter";
-import { useOnboardingStore } from "@/stores/onboardingStore";
+import { useOnboardingStore } from "@/src/stores/onboarding-store";
 import { cn } from "@/lib/utils";
 
 const PRIMARY = "oklch(0.62 0.21 265)";
@@ -196,25 +193,14 @@ export function CoordinatesPanel({
 
   return (
     <div className="flex flex-1 flex-col">
-      <p
-        className={cn(monoClass, "text-[11px] font-medium uppercase tracking-[0.2em]")}
-        style={{ color: PRIMARY }}
-      >
-        <Crosshair className="mr-1.5 inline h-3.5 w-3.5 align-text-bottom" aria-hidden="true" />
-        {workbenchPhaseHeader(1)}
-      </p>
-      <h2
-        className="mt-3 font-display text-xl font-semibold tracking-tight sm:text-2xl"
-        style={{ color: "oklch(0.98 0.01 268)" }}
-      >
-        {getWorkbenchPhase(1)?.headline ?? "Contact & identity"}
-      </h2>
-      <p className="mt-2 text-sm leading-relaxed" style={{ color: MUTED }}>
-        {getWorkbenchPhase(1)?.description}
-      </p>
+      <WorkbenchPhaseIntro
+        phaseId={1}
+        monoClass={monoClass}
+        icon={<Crosshair className="h-3.5 w-3.5" aria-hidden="true" />}
+      />
 
       <form
-        className="mt-8 flex flex-1 flex-col space-y-5"
+        className="mt-4 flex flex-1 flex-col space-y-5"
         onSubmit={handleSubmit}
         autoComplete="off"
       >

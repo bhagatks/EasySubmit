@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { Crosshair } from "lucide-react";
-import { useOnboardingStore } from "@/stores/onboardingStore";
+import { useOnboardingStore } from "@/src/stores/onboarding-store";
 import { cn } from "@/lib/utils";
 
 const CANVAS = "oklch(0.16 0.04 268)";

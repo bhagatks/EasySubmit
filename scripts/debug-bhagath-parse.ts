@@ -1,9 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { openResumeToStructured } from "@/lib/resume/openResume/adapter";
 import { parseResumeFromPdfBuffer } from "@/lib/resume/openResume/index";
+import { getBhagathSamplePdfPath } from "@/lib/resume/resumeFixtures.server";
 
 async function main() {
-  const buf = await readFile("ATS_Bhagath_Sample.pdf");
+  const buf = await readFile(getBhagathSamplePdfPath());
   const r = await parseResumeFromPdfBuffer(buf);
   const s = openResumeToStructured(r);
   console.log(

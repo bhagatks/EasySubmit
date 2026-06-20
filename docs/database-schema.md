@@ -110,7 +110,7 @@ Server loader: `src/lib/services/config-service.ts` → `getAppConfig()` reads `
 | `sessionStorage` | `easysubmit-ignition-api-key-cipher` | AES-GCM encrypted BYOK key (tab session) |
 | `sessionStorage` | `easysubmit-ignition-vault-key` | Per-tab vault key for cipher |
 
-Legacy shim: `stores/ignitionStore.ts` re-exports from `src/stores/use-ignition-store.ts`.
+Legacy shim removed — import from `src/stores/use-ignition-store.ts` directly.
 
 | Field | Type | Description |
 |-------|------|-------------|

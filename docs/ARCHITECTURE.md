@@ -2,7 +2,7 @@
 
 ## Overview
 
-Next.js 14 (App Router) web app + future Chrome extension (MV3). Primary entry after login: `/onboarding/step-1`. Marketing site at `/`.
+Next.js 14 (App Router) web app + future Chrome extension (MV3). Primary entry after login: `/onboarding`. Marketing site at `/`.
 
 ## Data model
 
@@ -13,7 +13,7 @@ Postgres (Prisma) + Supabase Vault BYOK + client Zustand stores. Login identity 
 | Surface | Stack | Entry |
 |---------|-------|-------|
 | Marketing | Next.js 14, Tailwind, dark-first tokens | `/` |
-| Web onboarding | Next.js, Framer Motion, Zustand | `/onboarding` (workbench); `/onboarding/refinery` (legacy full-screen); `/onboarding/step-4` (AI mapping) |
+| Web onboarding | Next.js, Framer Motion, Zustand | `/onboarding` (3-phase workbench); legacy aliases redirect here |
 | Auth login | NextAuth (Google + LinkedIn OAuth) | `/login` → `/api/auth/[...nextauth]` |
 | Auth signup | Supabase Auth (legacy path) | `/auth/signup` |
 | Dashboard | NextAuth-protected shell + sidebar nav | `/dashboard` (+ `/dashboard/resume-profiles`, `/applications`, `/keys`, `/settings`) |
@@ -23,9 +23,9 @@ Postgres (Prisma) + Supabase Vault BYOK + client Zustand stores. Login identity 
 ## Auth & route protection
 
 - **`middleware.ts`** — Auth gate: anonymous → `/` + `/login` only; logged-in `onboardingStep < 4` → `/onboarding`; `onboardingStep >= 4` → `/dashboard` allowed (JWT via NextAuth)
-- **`lib/supabase/`** — `client.ts`, `server.ts`, `middleware.ts` (`@supabase/ssr`); keys via `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` or `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- **`lib/supabase/`** — `client.ts`, `server.ts`; keys via `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` or `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - **`app/onboarding/layout.tsx`** — server session check + `OnboardingFlowShell`
-- **`lib/auth.ts`** — NextAuth options; post-login redirect → `/onboarding/step-1`
+- **`lib/auth.ts`** — NextAuth options; post-login redirect → `/onboarding`
 - **`lib/env.ts`** + **`types/env.d.ts`** — typed OAuth / NextAuth env vars
 
 ## Directory map
@@ -36,9 +36,10 @@ app/
   login/                    OAuth sign-in UI
   onboarding/
     layout.tsx              Auth gate + flow shell
-    page.tsx                Full wizard
-    step-1/page.tsx         Wizard entry (post-login)
-    step-4/page.tsx         ResumeMapping scanner
+    page.tsx                3-phase Unified Workbench (Identity → Import → Studio)
+    step-1/page.tsx         Redirect → `/onboarding`
+    step-4/page.tsx         Redirect → `/onboarding`
+    refinery/page.tsx       Redirect → `/onboarding`
   dashboard/
     layout.tsx              KeyProtector + sidebar shell
     page.tsx                Overview (stats, recent apps, ATS guarantee)
@@ -48,15 +49,14 @@ app/
     settings/               Account settings (`AccountSettings`)
 components/
   onboarding/
-    OnboardingFlowShell.tsx Asymmetric layout + 4-phase progress
-    OnboardingWizard.tsx    Session-driven 4-step wizard (`onboardingStep`)
-    Step1Profile.tsx        Target job title + desired salary
-    Step4Mapping.tsx        AI resume mapping animation
-  ui/button.tsx             shadcn-style variants (hero, mint, xl)
+    OnboardingFlowShell.tsx Asymmetric layout + phase progress (legacy routes)
+    hub/                    CoordinatesPanel, FuelPanel, RefineryPanel, IgnitionGate re-export
+    PrimeResume.tsx         ATS-ordered live canvas (onboarding + dashboard studio)
+  ui/                       Minimal shadcn set (button, sidebar, dialog, resizable, …)
 lib/
   auth.ts                   NextAuth config
   env.ts                    Server env validation
-  supabase/                 SSR clients + session refresh helper
+  supabase/                 SSR clients
   onboarding/phases.ts      Macro phase mapping (Profile → AI Mapping)
 src/lib/config/
   app.config.ts             SERVICE_REGISTRY + SYSTEM_DEFAULTS — AI single source of truth
@@ -66,14 +66,15 @@ src/lib/config/
   model-cache.ts            In-memory + localStorage model catalog cache
 app/actions/ai/
   discovery-service.ts      Server action — BYOK handshake + ENGINE_ERRORS
-  discovery.ts              Legacy wrapper → discovery-service
+  engine.ts                 Career Architecture refinement (Vercel AI SDK)
 src/lib/ai/
+  neural-controller.ts      Single export surface for discovery + refinement
   discovery-service.ts      Handshake orchestration + career-grade gate
   engine-errors.ts          ENGINE_ERRORS + JetBrains Mono terminalLine formatter
-stores/
-  ignitionStore.ts          Deprecated re-export → src/stores/use-ignition-store.ts
-src/stores/
-  use-ignition-store.ts     Ignition BYOK state (isLocked, encrypted apiKey, activeModel)
+src/
+  stores/                   onboarding-store.ts, use-ignition-store.ts
+  hooks/                    use-mobile.tsx
+  types/                    env.d.ts, next-auth.d.ts
 src/components/auth/
   IgnitionGate.tsx          Full-screen OKLCH cinematic BYOK gate (terminal + discovery list)
   KeyProtector.tsx          Dashboard-only overlay when isLocked (via app/dashboard/layout)
@@ -84,45 +85,37 @@ components/dashboard/
   DashboardIgnitionGuard.tsx  Redirects to /onboarding?ignition=1 when BYOK missing; KeyProtector for auth failures only
 components/ui/
   sidebar.tsx                 shadcn sidebar (collapsible, mobile sheet)
-middleware.ts               Supabase session refresh + NextAuth route protection
-docs/                       System of record
+middleware.ts               NextAuth route protection (onboardingStep gate)
+docs/                       System of record (+ docs/resume/RULES.md)
+assets/resume/              ATS golden templates + sample PDFs (not web-served)
+config/                     vitest.config.ts, tailwind.config.ts
+public/                     Web-static assets only
 ```
 
 ## Onboarding flow
 
+### Unified Workbench (`app/onboarding/page.tsx`)
+
+- **3 phases:** Identity (Coordinates) → Import (Fuel) → Studio (Refinery)
+- Left canvas: `PrimeResume` + `ScanningBeam` during parse
+- Right panel: hub panels with `SystemStatusBreadcrumb`
+- Finalize → `SynthesisTransition` → `completeOnboarding` → `/dashboard/keys`
+- Full-screen shell bypasses `OnboardingFlowShell` sidebar chrome
+
 ### Layout (`OnboardingFlowShell`)
 
 - Deep navy background (`oklch(0.16 0.04 268)`)
-- Desktop: progress panel (left) + glass content card (right)
-- Mobile: progress stacked above content
-- **4 macro phases:** Profile → Experience → Goals → AI Mapping
-- Step transitions: Framer Motion `AnimatePresence` via `OnboardingStepTransition`
-
-### Wizard (`OnboardingWizard`)
-
-Driven by `session.user.onboardingStep` (JWT + `completeStep` / `updateUserOnboarding`).
-
-| Step | Component | Data / action |
-|------|-----------|----------------|
-| 1 | `Step1Profile` | `selectedRole`, `minSalary` → `completeStep(1)` |
-| 2 | `Step3Locations` | `targetLocations[]` → `completeStep(2)` |
-| 3 | `Step4ResumeUpload` | resume file / skip → `completeStep(3)` |
-| 4 | `Step4Mapping` | electric-blue scan → Experience / Skills / Contact buckets → verified seal → `completeStep(4)` → `/dashboard` |
-
-Framer Motion: `OnboardingStepTransition` + per-step fade/blur on step change.
-
-### AI mapping (step 4)
-
-`Step4Mapping`: horizontal electric-blue scan (`oklch(0.62 0.21 265)`) over resume preview (3s); data snippets fly into Experience / Skills / Contact buckets → `LogoIcon` verified seal → `completeStep(4)` → `router.push('/dashboard')`.
+- Used for legacy route wrappers; canonical workbench is full-screen at `/onboarding`
 
 ## Design system
 
-Dark-first Trust Tech palette in `app/globals.css`: deep navy, electric primary `oklch(0.62 0.21 265)`, mint accent `oklch(0.82 0.16 165)`. Typography: Space Grotesk (`font-display`), DM Sans (`font-sans`). Global radius 12px (`rounded-xl`).
+Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268)`, engine glow `oklch(0.62 0.21 265)`, system mint `oklch(0.82 0.16 165)`, warning red `oklch(0.55 0.22 25)`. Typography: Space Grotesk (`font-display`), DM Sans (`font-sans`). Global radius 12px (`rounded-xl`). App icon: `app/icon.svg` (navy monogram).
 
 ## Changelog
 
 | Date | Summary |
 |------|---------|
+| 2026-06-20 | Onboarding workbench: compact one-line phase headers (Identity, Import, Studio); ATS samples as header links; finalize CTA → **Finalize & continue** |
 | 2026-06-20 | Schema consolidation: single `profiles` table with `content` JSONB; dropped `architectures`, child resume tables, unused profile columns |
 | 2026-06-20 | Postgres table inventory doc (`docs/TABLE_INVENTORY.md`) |
 | 2026-06-20 | Identity phase: LinkedIn URL removed from `CoordinatesPanel`; Studio Header shows empty-state hint; LinkedIn comes from resume parse or Studio edit |

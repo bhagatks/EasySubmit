@@ -12,7 +12,7 @@ import type { ResumeFontId } from "@/lib/resume/resume-fonts";
 import { useResumePreviewFont } from "@/components/resume/resume-preview-font-context";
 import { normalizeSkillList } from "@/lib/onboarding/normalizeSkills";
 import { formatLocationLabel, parseLocationLabel } from "@/lib/resume/dates";
-import type { LanguageEntry } from "@/stores/onboardingStore";
+import type { LanguageEntry } from "@/src/stores/onboarding-store";
 import { cn } from "@/lib/utils";
 
 const inter = Inter({
