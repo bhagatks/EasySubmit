@@ -60,8 +60,8 @@ export async function getProfileIdentity(): Promise<ProfileIdentity | null> {
     return null;
   }
 
-  const profile = await prisma.profile.findUnique({
-    where: { userId: session.user.id },
+  const profile = await prisma.profile.findFirst({
+    where: { userId: session.user.id, isDefault: true },
     select: {
       firstName: true,
       lastName: true,

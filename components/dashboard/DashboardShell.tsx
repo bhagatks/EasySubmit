@@ -28,6 +28,8 @@ import { SignOutButton } from "@/components/auth/SignOutButton";
 import { Button } from "@/components/ui/button";
 import { LogoIcon } from "@/components/ui/logo";
 import { BYOKStatusBadge } from "@/components/dashboard/BYOKStatus";
+import { DashboardStudioSidebarEffect } from "@/components/dashboard/DashboardStudioSidebarEffect";
+import { cn } from "@/lib/utils";
 
 const navItems = [
   { title: "Overview", href: "/dashboard", icon: LayoutDashboard },
@@ -102,20 +104,35 @@ function DashboardSidebar() {
 }
 
 export function DashboardShell({ children, vaultKeyId }: DashboardShellProps) {
+  const pathname = usePathname();
+  const isStudioEdit =
+    pathname.startsWith("/dashboard/resume-profiles/") &&
+    pathname.endsWith("/edit");
+
   return (
     <SidebarProvider>
+      <DashboardStudioSidebarEffect />
       <div className="flex min-h-screen w-full bg-background text-foreground">
         <DashboardSidebar />
-        <div className="flex flex-1 flex-col">
-          <header className="flex h-14 items-center gap-3 border-b border-border/60 px-4">
+        <div className="flex min-h-0 flex-1 flex-col">
+          <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border/60 px-4">
             <SidebarTrigger />
-            <div className="text-sm text-muted-foreground">Dashboard</div>
+            <div className="text-sm text-muted-foreground">
+              {isStudioEdit ? "Resume Studio" : "Dashboard"}
+            </div>
             <div className="ml-auto flex items-center gap-2">
               <BYOKStatusBadge vaultKeyId={vaultKeyId} />
               <SignOutButton iconOnly />
             </div>
           </header>
-          <main className="flex-1 p-6">{children}</main>
+          <main
+            className={cn(
+              "flex min-h-0 flex-1 flex-col",
+              isStudioEdit ? "overflow-hidden p-4 md:p-5" : "p-6",
+            )}
+          >
+            {children}
+          </main>
         </div>
       </div>
     </SidebarProvider>

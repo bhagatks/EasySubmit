@@ -25,8 +25,7 @@ model User {
   updatedAt        DateTime       @updatedAt
   accounts         Account[]
   sessions         Session[]
-  profile          Profile?
-  architecture     Architecture?
+  profiles         Profile[]
   apiKeys          UserApiKey[]
   usageLogs        UsageLog[]
 
@@ -91,7 +90,8 @@ model VerificationToken {
 /// Career profile synced across web dashboard and extension engine.
 model Profile {
   id               String          @id @default(cuid())
-  userId           String          @unique
+  userId           String
+  isDefault        Boolean         @default(false)
   firstName        String?
   lastName         String?
   email            String
@@ -108,12 +108,15 @@ model Profile {
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
   user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  architecture     Architecture?
   experiences      Experience[]
   projects         Project[]
   educations       Education[]
   certifications   Certification[]
 
   @@index([email])
+  @@index([userId])
+  @@index([userId, isDefault])
   @@map("profiles")
 }
 
@@ -189,13 +192,13 @@ model Certification {
 /// Headless engine career architecture — structured state pointers, not secrets.
 model Architecture {
   id               String   @id @default(cuid())
-  userId           String   @unique
+  profileId        String   @unique
   targetRole       String
   calibrationScore Int      @default(0)
   content          Json
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile          Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
   @@index([targetRole])
   @@map("architectures")

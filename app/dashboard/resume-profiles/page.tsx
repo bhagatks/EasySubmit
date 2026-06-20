@@ -3,8 +3,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { authOptions } from "@/lib/auth";
 import { requireDashboardSession } from "@/lib/auth/require-dashboard-session";
-import { prisma } from "@/lib/prisma";
-import { joinProfileName } from "@/lib/profile/name";
+import { listResumeProfiles } from "@/app/actions/resume-profiles";
+import { ResumeProfilesList } from "@/components/dashboard/ResumeProfilesList";
 import { Button } from "@/components/ui/button";
 
 export default async function ResumeProfilesPage() {
@@ -16,19 +16,11 @@ export default async function ResumeProfilesPage() {
 
   await requireDashboardSession(session.user.id);
 
-  const profile = await prisma.profile.findUnique({
-    where: { userId: session.user.id },
-    select: {
-      id: true,
-      firstName: true,
-      lastName: true,
-      targetTitle: true,
-      updatedAt: true,
-    },
-  });
+  const result = await listResumeProfiles();
 
-  const displayName =
-    joinProfileName(profile?.firstName, profile?.lastName) || "Default profile";
+  if (!result.success) {
+    redirect("/login");
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -38,38 +30,18 @@ export default async function ResumeProfilesPage() {
             Resume profiles
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Career data used for resumes and autofill — separate from your login account.
+            Career profiles for autofill — separate from your login. Role labels the list; contact name is secondary.
           </p>
         </div>
-        {/* + icon for additional profiles — wired in a follow-up */}
-        <button
-          type="button"
-          disabled
-          title="Additional profiles coming soon"
-          className="flex h-10 w-10 items-center justify-center rounded-xl border border-dashed border-border text-muted-foreground opacity-50"
-          aria-label="Add resume profile (coming soon)"
-        >
-          +
-        </button>
+        <Button variant="hero" size="icon" className="h-10 w-10 rounded-xl shrink-0" asChild>
+          <Link href="/dashboard/resume-profiles/new" aria-label="Add resume profile">
+            +
+          </Link>
+        </Button>
       </div>
 
-      {profile ? (
-        <div className="rounded-2xl border border-border bg-surface/60 p-5">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium text-foreground">{displayName}</p>
-              <p className="text-xs text-muted-foreground">
-                {profile.targetTitle ?? "No target role yet"}
-              </p>
-            </div>
-            <span className="rounded-full bg-mint/15 px-2 py-0.5 text-[10px] font-medium text-mint">
-              Default
-            </span>
-          </div>
-          <p className="mt-3 text-xs text-muted-foreground">
-            Last updated {profile.updatedAt.toLocaleDateString()}
-          </p>
-        </div>
+      {result.profiles.length > 0 ? (
+        <ResumeProfilesList profiles={result.profiles} canDelete={result.canDelete} />
       ) : (
         <div className="rounded-2xl border border-dashed border-border p-8 text-center">
           <p className="text-sm text-muted-foreground">

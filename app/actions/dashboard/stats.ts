@@ -51,12 +51,18 @@ export async function getDashboardStats(): Promise<DashboardStatsResult> {
       select: {
         vaultKeyId: true,
         activeProvider: true,
-        architecture: {
+        profiles: {
+          where: { isDefault: true },
+          take: 1,
           select: {
-            targetRole: true,
-            calibrationScore: true,
-            content: true,
-            updatedAt: true,
+            architecture: {
+              select: {
+                targetRole: true,
+                calibrationScore: true,
+                content: true,
+                updatedAt: true,
+              },
+            },
           },
         },
       },
@@ -75,7 +81,7 @@ export async function getDashboardStats(): Promise<DashboardStatsResult> {
     return { success: false, error: "User not found" };
   }
 
-  const architecture = user.architecture;
+  const architecture = user.profiles[0]?.architecture;
   const metadata = parseArchitectureMetadata(architecture?.content);
   const applications = metadata.applications ?? [];
 

@@ -5,6 +5,10 @@ import { revalidatePath } from "next/cache";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { parseProfileName } from "@/lib/profile/name";
+import {
+  profileEmailForUser,
+  upsertProfileArchitecture,
+} from "@/lib/profile/resume-profile-core";
 import type { Prisma } from "@/lib/generated/prisma/client";
 
 export type CompleteOnboardingInput = {
@@ -119,60 +123,56 @@ function buildArchitecturePatch(data: Record<string, unknown>): Prisma.Architect
   return patch;
 }
 
-async function upsertUserArchitecture(
+async function upsertProfileArchitectureForUser(
   tx: Prisma.TransactionClient,
-  userId: string,
+  profileId: string,
   architecturePatch: Prisma.ArchitectureUpdateInput,
   profilePatch: Prisma.ProfileUpdateInput,
 ) {
   if (Object.keys(architecturePatch).length > 0) {
-    await tx.architecture.upsert({
-      where: { userId },
-      create: {
-        userId,
-        targetRole:
-          (architecturePatch.targetRole as string | undefined) ??
-          (profilePatch.targetTitle as string | undefined) ??
-          "",
-        calibrationScore:
-          (architecturePatch.calibrationScore as number | undefined) ?? 0,
-        content:
-          (architecturePatch.content as Prisma.InputJsonValue | undefined) ?? {},
-      },
-      update: architecturePatch,
-    });
+    await upsertProfileArchitecture(
+      tx,
+      profileId,
+      architecturePatch,
+      profilePatch.targetTitle as string | null | undefined,
+    );
     return;
   }
 
-  await tx.architecture.upsert({
-    where: { userId },
-    create: {
-      userId,
-      targetRole: (profilePatch.targetTitle as string | undefined) ?? "",
-      content: {},
-    },
-    update: {},
-  });
+  await upsertProfileArchitecture(
+    tx,
+    profileId,
+    {},
+    profilePatch.targetTitle as string | null | undefined,
+  );
 }
 
 function isPdfFile(file: File): boolean {
   return file.type === "application/pdf" || /\.pdf$/i.test(file.name);
 }
 
-function profileEmailForUser(userId: string, email?: string | null): string {
-  return email ?? `${userId}@users.easysubmit.local`;
+function profileEmailForUserId(userId: string, email?: string | null): string {
+  return profileEmailForUser(userId, email);
 }
 
-async function upsertUserProfile(
+async function upsertDefaultUserProfile(
   tx: Prisma.TransactionClient,
   userId: string,
   email: string | null | undefined,
   profilePatch: Prisma.ProfileUpdateInput,
-) {
+): Promise<string> {
   const profileEmail =
-    (profilePatch.email as string | undefined) ?? profileEmailForUser(userId, email);
+    (profilePatch.email as string | undefined) ??
+    profileEmailForUserId(userId, email);
+
+  const existingDefault = await tx.profile.findFirst({
+    where: { userId, isDefault: true },
+    select: { id: true },
+  });
+
   const createData: Prisma.ProfileUncheckedCreateInput = {
     userId,
+    isDefault: true,
     email: profileEmail,
     targetTitle: profilePatch.targetTitle as string | null | undefined,
     minSalary: profilePatch.minSalary as number | null | undefined,
@@ -188,16 +188,42 @@ async function upsertUserProfile(
     skills: profilePatch.skills as string[] | undefined,
   };
 
-  await tx.profile.upsert({
+  if (existingDefault) {
+    await tx.profile.update({
+      where: { id: existingDefault.id },
+      data: {
+        ...(email || profilePatch.email
+          ? { email: (profilePatch.email as string | undefined) ?? profileEmail }
+          : {}),
+        ...profilePatch,
+        isDefault: true,
+      },
+    });
+    return existingDefault.id;
+  }
+
+  const anyProfile = await tx.profile.findFirst({
     where: { userId },
-    create: createData,
-    update: {
-      ...(email || profilePatch.email
-        ? { email: (profilePatch.email as string | undefined) ?? profileEmail }
-        : {}),
-      ...profilePatch,
-    },
+    select: { id: true },
   });
+
+  if (anyProfile) {
+    await tx.profile.updateMany({ where: { userId }, data: { isDefault: false } });
+    await tx.profile.update({
+      where: { id: anyProfile.id },
+      data: {
+        ...(email || profilePatch.email
+          ? { email: (profilePatch.email as string | undefined) ?? profileEmail }
+          : {}),
+        ...profilePatch,
+        isDefault: true,
+      },
+    });
+    return anyProfile.id;
+  }
+
+  const created = await tx.profile.create({ data: createData });
+  return created.id;
 }
 
 export async function uploadResumeFuel(formData: FormData) {
@@ -253,8 +279,18 @@ export async function completeOnboarding(data: CompleteOnboardingInput = {}) {
       data: { onboardingStep: 4 },
     });
 
-    await upsertUserProfile(tx, userId, session.user.email, profilePatch);
-    await upsertUserArchitecture(tx, userId, architecturePatch, profilePatch);
+    const profileId = await upsertDefaultUserProfile(
+      tx,
+      userId,
+      session.user.email,
+      profilePatch,
+    );
+    await upsertProfileArchitectureForUser(
+      tx,
+      profileId,
+      architecturePatch,
+      profilePatch,
+    );
   });
 
   revalidatePath("/onboarding");
@@ -290,11 +326,31 @@ export async function updateUserOnboarding(step: number, formData: unknown) {
       data: { onboardingStep: step },
     });
 
+    let profileId: string | null = null;
+
     if (Object.keys(profilePatch).length > 0) {
-      await upsertUserProfile(tx, userId, session.user.email, profilePatch);
+      profileId = await upsertDefaultUserProfile(
+        tx,
+        userId,
+        session.user.email,
+        profilePatch,
+      );
+    } else {
+      const existing = await tx.profile.findFirst({
+        where: { userId, isDefault: true },
+        select: { id: true },
+      });
+      profileId = existing?.id ?? null;
     }
 
-    await upsertUserArchitecture(tx, userId, architecturePatch, profilePatch);
+    if (profileId) {
+      await upsertProfileArchitectureForUser(
+        tx,
+        profileId,
+        architecturePatch,
+        profilePatch,
+      );
+    }
   });
 
   revalidatePath("/onboarding");
@@ -321,11 +377,31 @@ export async function completeStep(stepNumber: number, data: unknown) {
       data: { onboardingStep: nextOnboardingStep },
     });
 
+    let profileId: string | null = null;
+
     if (Object.keys(profilePatch).length > 0) {
-      await upsertUserProfile(tx, userId, session.user.email, profilePatch);
+      profileId = await upsertDefaultUserProfile(
+        tx,
+        userId,
+        session.user.email,
+        profilePatch,
+      );
+    } else {
+      const existing = await tx.profile.findFirst({
+        where: { userId, isDefault: true },
+        select: { id: true },
+      });
+      profileId = existing?.id ?? null;
     }
 
-    await upsertUserArchitecture(tx, userId, architecturePatch, profilePatch);
+    if (profileId) {
+      await upsertProfileArchitectureForUser(
+        tx,
+        profileId,
+        architecturePatch,
+        profilePatch,
+      );
+    }
   });
 
   revalidatePath("/onboarding");

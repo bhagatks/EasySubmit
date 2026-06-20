@@ -22,6 +22,7 @@ import {
   type PrimeResumeData,
 } from "@/components/onboarding/PrimeResume";
 import { ScanningBeam } from "@/components/resume/ScanningBeam";
+import { ResumeStudioWorkbench } from "@/components/resume/ResumeStudioWorkbench";
 import {
   coordinatesToPrimeResume,
   emptyCoordinatesValues,
@@ -239,6 +240,7 @@ export default function OnboardingPage() {
           phone: formatFullPhone(values.phoneDialCode, values.phone),
           city,
           country,
+          targetTitle: identity.targetRole.trim() || undefined,
         });
         await updateSession({ onboardingStep: result.onboardingStep });
       } catch {
@@ -296,6 +298,7 @@ export default function OnboardingPage() {
             phone: form.phone,
             city,
             country,
+            targetTitle: useOnboardingStore.getState().identity.targetRole.trim() || undefined,
             summary: form.professionalSummary,
             skills,
             resumeRawText: rawResumeText,
@@ -453,74 +456,68 @@ export default function OnboardingPage() {
     >
       <PhaseProgressBar phase={phase} />
 
-      <div className="flex min-h-0 flex-1">
-        <section
-          aria-label="Resume canvas"
-          className="relative hidden min-h-0 w-[60%] shrink-0 overflow-y-auto lg:block"
-          style={{ backgroundColor: CANVAS_BG }}
-        >
-          <div className="mx-auto flex min-h-full w-full max-w-4xl justify-center px-6 py-10 sm:px-10">
-            <div className="relative w-full max-w-[min(100%,32rem)] min-h-[520px]">
-              {phase === 1 ? (
-                <IdentityCanvasGhost monoClass={jetbrainsMono.className} />
-              ) : null}
-              <motion.div
-                className="relative"
-                initial={false}
-                animate={{
-                  opacity: phase === 1 && !roleLocked ? 0 : 1,
-                  scale: phase === 1 && roleLocked ? 1 : phase === 1 ? 0.98 : 1,
-                }}
-                transition={{ duration: 0.45, ease: [0.25, 0.46, 0.45, 0.94] }}
-              >
-                <PrimeResume
-                  resume={resumeData}
-                  showTargetRole={phase < 3}
-                  languageEntries={phase >= 3 ? languages : []}
-                  className="min-h-[520px]"
-                />
-              </motion.div>
-              <ScanningBeam active={isScanning} />
-            </div>
-          </div>
-        </section>
-
-        <section
-          aria-label="Onboarding panel"
-          className="flex min-h-0 w-full shrink-0 flex-col border-white/10 bg-surface lg:w-[40%] lg:border-l"
-        >
-          <header className="shrink-0 border-b border-white/10">
-            <div className="flex items-stretch">
-              <SystemStatusBreadcrumb
-                currentStep={phase}
-                isSynthesizing={isSynthesizing}
-                minNavigablePhase={minNavigablePhase}
-                isPhaseComplete={isPhaseComplete}
-                onNavigate={handleBreadcrumbNavigate}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <ResumeStudioWorkbench
+          variant="onboarding"
+          monoClass={jetbrainsMono.className}
+          className="min-h-0 flex-1"
+          panelScrolls={false}
+          previewPrefix={phase === 1 ? <IdentityCanvasGhost monoClass={jetbrainsMono.className} /> : null}
+          preview={
+            <motion.div
+              className="relative w-full"
+              initial={false}
+              animate={{
+                opacity: phase === 1 && !roleLocked ? 0 : 1,
+                scale: phase === 1 && roleLocked ? 1 : phase === 1 ? 0.98 : 1,
+              }}
+              transition={{ duration: 0.45, ease: [0.25, 0.46, 0.45, 0.94] }}
+            >
+              <PrimeResume
+                resume={resumeData}
+                showTargetRole={phase < 3}
+                languageEntries={phase >= 3 ? languages : []}
+                variant="workbench"
+                className="w-full"
               />
-              <div className="flex shrink-0 items-center border-l border-white/10 px-2 sm:px-3">
-                <SignOutButton iconOnly />
+            </motion.div>
+          }
+          previewOverlay={<ScanningBeam active={isScanning} />}
+          panel={
+            <div className="flex h-full min-h-0 flex-col">
+              <header className="shrink-0 border-b border-white/10">
+                <div className="flex items-stretch">
+                  <SystemStatusBreadcrumb
+                    currentStep={phase}
+                    isSynthesizing={isSynthesizing}
+                    minNavigablePhase={minNavigablePhase}
+                    isPhaseComplete={isPhaseComplete}
+                    onNavigate={handleBreadcrumbNavigate}
+                  />
+                  <div className="flex shrink-0 items-center border-l border-white/10 px-2 sm:px-3">
+                    <SignOutButton iconOnly />
+                  </div>
+                </div>
+              </header>
+              <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-6 py-6">
+                <AnimatePresence mode="wait" custom={direction}>
+                  <motion.div
+                    key={phase}
+                    custom={direction}
+                    variants={stepMotion}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    transition={stepTransition}
+                    className="flex flex-1 flex-col"
+                  >
+                    {renderPhasePanel()}
+                  </motion.div>
+                </AnimatePresence>
               </div>
             </div>
-          </header>
-
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-6">
-            <AnimatePresence mode="wait" custom={direction}>
-              <motion.div
-                key={phase}
-                custom={direction}
-                variants={stepMotion}
-                initial="initial"
-                animate="animate"
-                exit="exit"
-                transition={stepTransition}
-                className="flex flex-1 flex-col"
-              >
-                {renderPhasePanel()}
-              </motion.div>
-            </AnimatePresence>
-          </div>
-        </section>
+          }
+        />
       </div>
 
       <SynthesisTransition

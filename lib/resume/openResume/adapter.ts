@@ -1,5 +1,6 @@
 import type { StructuredResume } from "@/lib/resume/heuristicParser";
 import type { Resume } from "@/lib/resume/openResume/types";
+import { normalizeStructuredResume } from "@/lib/resume/normalizeResumeText";
 
 export function splitFullName(fullName: string): {
   firstName: string;
@@ -47,7 +48,7 @@ export function openResumeToStructured(resume: Resume): StructuredResume {
     ].filter((line) => line.trim()),
   );
 
-  return {
+  return normalizeStructuredResume({
     name: resume.profile.name?.trim() || null,
     email: resume.profile.email?.trim() || null,
     phone: resume.profile.phone?.trim() || null,
@@ -78,7 +79,7 @@ export function openResumeToStructured(resume: Resume): StructuredResume {
     certifications: resume.custom.descriptions.filter((line) => line.trim()),
     projects: projectDescriptions,
     languages: [],
-  };
+  });
 }
 
 export function structuredFullName(data: StructuredResume): string {

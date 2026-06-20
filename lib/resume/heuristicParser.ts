@@ -1,3 +1,11 @@
+import {
+  normalizeBulletLine,
+  normalizeDateRangeString,
+  normalizeResumeLine,
+  normalizeStructuredResume,
+  stripLeadingBulletMarker,
+} from "@/lib/resume/normalizeResumeText";
+
 const EMAIL_REGEX = /\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b/;
 const PHONE_REGEX =
   /(?:\+?\d{1,3}[\s.-]?)?(?:\(\d{3}\)|\d{3})[\s.-]?\d{3}[\s.-]?\d{4}\b/;
@@ -5,7 +13,6 @@ const PHONE_REGEX =
 const DATE_RANGE_REGEX =
   /(?:(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+\d{4}|\d{1,2}\/\d{4}|\d{4})\s*[-–—~to]+\s*(?:(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+\d{4}|\d{1,2}\/\d{4}|\d{4}|Present|Current|Now)/i;
 
-const BULLET_REGEX = /^[\s•\-\*·▪◦‣▸►→✓✔○●]\s*/;
 const URL_REGEX = /https?:\/\/|www\.|linkedin\.com|github\.com/i;
 
 const SECTION_KEYWORDS = {
@@ -52,7 +59,7 @@ export type StructuredResume = {
 type ResumeSection = keyof typeof SECTION_KEYWORDS | "other";
 
 function cleanLine(line: string): string {
-  return line.replace(/\s+/g, " ").trim();
+  return normalizeResumeLine(line);
 }
 
 function normalizeLines(text: string): string[] {
@@ -164,11 +171,11 @@ function stripDateFromLine(line: string): string {
 }
 
 function isBulletLine(line: string): boolean {
-  return BULLET_REGEX.test(line);
+  return stripLeadingBulletMarker(line) !== normalizeResumeLine(line);
 }
 
 function stripBullet(line: string): string {
-  return cleanLine(line.replace(BULLET_REGEX, ""));
+  return normalizeBulletLine(line);
 }
 
 function parseRoleCompany(line: string): { role: string; company: string } {
@@ -342,7 +349,7 @@ export function parseResumeHeuristics(text: string): StructuredResume {
   const experience = parseExperienceLines(experienceLines);
   const education = parseEducationLines(educationLines);
 
-  return {
+  return normalizeStructuredResume({
     name: extractName(lines),
     email: extractEmail(text),
     phone: extractPhone(text),
@@ -355,5 +362,5 @@ export function parseResumeHeuristics(text: string): StructuredResume {
     certifications: [],
     projects: [],
     languages: [],
-  };
+  });
 }

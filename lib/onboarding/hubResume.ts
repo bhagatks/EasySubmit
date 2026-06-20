@@ -14,6 +14,10 @@ import {
   splitPhoneNumber,
 } from "@/lib/phone/phone";
 import { splitFullName } from "@/lib/resume/openResume/adapter";
+import {
+  normalizeBulletText,
+  normalizeResumeLine,
+} from "@/lib/resume/normalizeResumeText";
 
 export type HubRefineryForm = {
   firstName: string;
@@ -137,20 +141,20 @@ export function mergeParsedWithCoordinates(
     phone: mergedPhone,
     email: pickParsedField(data.email, coordinates.email),
     linkedIn: pickParsedField(data.linkedIn, coordinates.linkedIn),
-    professionalSummary: data.summary?.trim() ?? "",
-    skillsText: data.skills.join(", "),
+    professionalSummary: normalizeResumeLine(data.summary?.trim() ?? ""),
+    skillsText: data.skills.map((skill) => normalizeResumeLine(skill)).join(", "),
     experience: data.experience.map((entry, index) => {
       const range = parseDateRangeString(entry.date);
       return {
         id: `exp-${index}`,
-        title: entry.role,
-        company: entry.company,
+        title: normalizeResumeLine(entry.role),
+        company: normalizeResumeLine(entry.company),
         location: "",
         startMonth: range.start.month,
         startYear: range.start.year,
         endMonth: range.end.month,
         endYear: range.end.year,
-        bullets: entry.description.join("\n"),
+        bullets: normalizeBulletText(entry.description.join("\n")),
         hidden: false,
       };
     }),
@@ -194,7 +198,7 @@ export function parsedToRefineryForm(data: StructuredResume): HubRefineryForm {
 function parseSkillsText(skillsText: string): string[] {
   return skillsText
     .split(/[,;|•·\/]|\n/)
-    .map((skill) => skill.trim())
+    .map((skill) => normalizeResumeLine(skill))
     .filter(Boolean);
 }
 
@@ -228,9 +232,8 @@ export function refineryFormToPrimeResume(
           endDate: entry.endMonth.trim() && entry.endYear.trim()
             ? `${entry.endMonth.trim()} ${entry.endYear.trim()}`
             : entry.endYear.trim() || null,
-          bullets: entry.bullets
+          bullets: normalizeBulletText(entry.bullets)
             .split("\n")
-            .map((line) => line.trim())
             .filter(Boolean),
         };
       }),

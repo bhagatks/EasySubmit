@@ -70,11 +70,17 @@ export async function executeEngineRefinement(
     select: {
       vaultKeyId: true,
       activeProvider: true,
-      architecture: {
+      profiles: {
+        where: { isDefault: true },
+        take: 1,
         select: {
-          targetRole: true,
-          calibrationScore: true,
-          content: true,
+          architecture: {
+            select: {
+              targetRole: true,
+              calibrationScore: true,
+              content: true,
+            },
+          },
         },
       },
     },
@@ -99,7 +105,7 @@ export async function executeEngineRefinement(
   }
 
   const provider = user.activeProvider as HandshakeProvider;
-  const architecture = user.architecture;
+  const architecture = user.profiles[0]?.architecture;
   const targetRole = architecture?.targetRole ?? "";
   const calibrationScore = architecture?.calibrationScore ?? 0;
   const sourceContent =

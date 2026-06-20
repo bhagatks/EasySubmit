@@ -115,7 +115,7 @@ async function seedDefaultResumeProfile(
     family_name?: string | null;
   },
 ) {
-  const existing = await prisma.profile.findUnique({
+  const existing = await prisma.profile.findFirst({
     where: { userId },
     select: { id: true },
   });
@@ -134,6 +134,7 @@ async function seedDefaultResumeProfile(
     data: {
       userId,
       email,
+      isDefault: true,
       firstName: identity.firstName || undefined,
       lastName: identity.lastName || undefined,
     },

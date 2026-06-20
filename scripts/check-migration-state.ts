@@ -1,4 +1,4 @@
-import { prisma } from "../lib/prisma.ts";
+import { prisma } from "../lib/prisma";
 
 async function main() {
   const migrations = await prisma.$queryRaw`
@@ -7,9 +7,9 @@ async function main() {
     ORDER BY started_at
   `;
 
-  const tables = await prisma.$queryRaw`
+  const tables = (await prisma.$queryRaw`
     SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename
-  `;
+  `) as Array<{ tablename: string }>;
 
   const vaultFns = await prisma.$queryRaw`
     SELECT p.proname AS name
@@ -19,12 +19,12 @@ async function main() {
     ORDER BY p.proname
   `;
 
-  const userCols = await prisma.$queryRaw`
+  const userCols = (await prisma.$queryRaw`
     SELECT column_name
     FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'users'
     ORDER BY column_name
-  `;
+  `) as Array<{ column_name: string }>;
 
   console.log("MIGRATIONS:", JSON.stringify(migrations, null, 2));
   console.log(

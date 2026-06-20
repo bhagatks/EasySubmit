@@ -40,9 +40,9 @@ stop_existing_servers
 
 clear_production_next_cache
 
-echo "→ Syncing Prisma schema to database"
+echo "→ Applying Prisma migrations"
 npx prisma generate
-npx prisma db push --accept-data-loss
+npx prisma migrate deploy
 
 echo "→ EasySubmit dev server (http://localhost:$PORT)"
 exec npx next dev -p "$PORT"

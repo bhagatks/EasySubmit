@@ -1,31 +1,11 @@
 import type { Lines, TextItem } from "@/lib/resume/openResume/types";
+import {
+  normalizeBulletLines,
+  RESUME_BULLET_GLYPHS,
+} from "@/lib/resume/normalizeResumeText";
 
-/**
- * List of bullet points
- * Reference: https://stackoverflow.com/questions/56540160/why-isnt-there-a-medium-small-black-circle-in-unicode
- * U+22C5   DOT OPERATOR (⋅)
- * U+2219   BULLET OPERATOR (∙)
- * U+1F784  BLACK SLIGHTLY SMALL CIRCLE (🞄)
- * U+2022   BULLET (•) -------- most common
- * U+2981   Z NOTATION SPOT (⦁)
- * U+26AB   MEDIUM BLACK CIRCLE (⚫︎)
- * U+25CF   BLACK CIRCLE (●)
- * U+2B24   BLACK LARGE CIRCLE (⬤)
- * U+26AC   MEDIUM SMALL WHITE CIRCLE ⚬
- * U+25CB   WHITE CIRCLE ○
- */
-export const BULLET_POINTS = [
-  "⋅",
-  "∙",
-  "🞄",
-  "•",
-  "⦁",
-  "⚫︎",
-  "●",
-  "⬤",
-  "⚬",
-  "○",
-];
+/** @deprecated Prefer RESUME_BULLET_GLYPHS from normalizeResumeText */
+export const BULLET_POINTS: string[] = [...RESUME_BULLET_GLYPHS];
 
 /**
  * Convert bullet point lines into a string array aka descriptions.
@@ -34,7 +14,9 @@ export const getBulletPointsFromLines = (lines: Lines): string[] => {
   // Simply return all lines with text item joined together if there is no bullet point
   const firstBulletPointLineIndex = getFirstBulletPointLineIdx(lines);
   if (firstBulletPointLineIndex === undefined) {
-    return lines.map((line) => line.map((item) => item.text).join(" "));
+    return normalizeBulletLines(
+      lines.map((line) => line.map((item) => item.text).join(" ")),
+    );
   }
 
   // Otherwise, process and remove bullet points
@@ -60,10 +42,12 @@ export const getBulletPointsFromLines = (lines: Lines): string[] => {
   }
 
   // Divide the single string using bullet point as divider
-  return lineStr
-    .split(commonBulletPoint)
-    .map((text) => text.trim())
-    .filter((text) => !!text);
+  return normalizeBulletLines(
+    lineStr
+      .split(commonBulletPoint)
+      .map((text) => text.trim())
+      .filter((text) => !!text),
+  );
 };
 
 const getMostCommonBulletPoint = (str: string): string => {
@@ -74,7 +58,7 @@ const getMostCommonBulletPoint = (str: string): string => {
     },
     {}
   );
-  let bulletWithMostCount = BULLET_POINTS[0];
+  let bulletWithMostCount: string = BULLET_POINTS[0];
   let bulletMaxCount = 0;
   for (let char of str) {
     if (bulletToCount.hasOwnProperty(char)) {

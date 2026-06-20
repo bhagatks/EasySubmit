@@ -11,7 +11,9 @@
 | `/onboarding/refinery` | Legacy full-screen refinery workbench | NextAuth required |
 | `/onboarding/step-4` | `ResumeMapping` AI scanner | NextAuth required |
 | `/dashboard` | Post-onboarding overview — **Cold Engine** when `vaultKeyId` is null (blurred resume canvas, BYOK inactive badge, Ignition Chamber CTA); hot engine when vaulted | NextAuth required |
-| `/dashboard/resume-profiles` | Default resume profile list (one row from onboarding; `+` reserved) | NextAuth required |
+| `/dashboard/resume-profiles` | Resume profile list (role label + person subtitle); Edit, Set default, Delete when >1; `+` → new (copy default or blank) → Studio editor | NextAuth required |
+| `/dashboard/resume-profiles/new` | Choose copy-from-default or blank starter | NextAuth required |
+| `/dashboard/resume-profiles/[id]/edit` | Resume Studio — same Refinery controls as onboarding Phase 3 + profile role field | NextAuth required |
 | `/dashboard/applications` | Application tracker (stub) | NextAuth required |
 | `/dashboard/keys` | **Ignition Chamber** — post-onboarding BYOK vault (Power Cells, IGNITE handshake) | NextAuth required |
 | `/dashboard/settings` | Account settings (stub) | NextAuth required |

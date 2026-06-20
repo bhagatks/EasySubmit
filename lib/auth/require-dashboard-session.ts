@@ -28,6 +28,11 @@ export async function requireDashboardSession(
       onboardingStep: true,
       vaultKeyId: true,
       activeProvider: true,
+      profiles: {
+        where: { isDefault: true },
+        take: 1,
+        select: { id: true },
+      },
     },
   });
 
@@ -41,5 +46,14 @@ export async function requireDashboardSession(
     redirect("/onboarding");
   }
 
-  return user;
+  if (user.profiles.length === 0) {
+    redirect("/onboarding");
+  }
+
+  return {
+    id: user.id,
+    onboardingStep: user.onboardingStep,
+    vaultKeyId: user.vaultKeyId,
+    activeProvider: user.activeProvider,
+  };
 }

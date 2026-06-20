@@ -5,6 +5,13 @@
  */
 
 export const RESUME_RULES_FILENAME = "EASYSUBMIT_RESUME_RULES.md";
+
+/** ATS body fonts — single family only; see EASYSUBMIT_RESUME_RULES.md §1. */
+export {
+  DEFAULT_RESUME_FONT_ID,
+  RESUME_FONTS,
+  type ResumeFontId,
+} from "@/lib/resume/resume-fonts";
 export const ATS_TEMPLATE_PDF_FILENAME = "ATS_Universal_Resume_Template.pdf";
 export const ATS_TEMPLATE_DOCX_FILENAME = "ATS_Universal_Resume_Template.docx";
 export const BHAGATH_SAMPLE_PDF_FILENAME = "ATS_Bhagath_Sample.pdf";

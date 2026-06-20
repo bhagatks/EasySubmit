@@ -33,7 +33,8 @@ import {
   RESUME_SECTION_TITLES,
   SUMMARY_PLACEHOLDER,
 } from "@/lib/resume/resumeSpec";
-import { selectCanProceedToCalibration } from "@/lib/onboarding/studio";
+import { TargetRoleField } from "@/components/onboarding/hub/TargetRoleField";
+import { MIN_STUDIO_SKILLS, selectCanProceedToCalibration } from "@/lib/onboarding/studio";
 import { useOnboardingStore } from "@/stores/onboardingStore";
 import { cn } from "@/lib/utils";
 
@@ -50,7 +51,18 @@ type RefineryPanelProps = {
   monoClass: string;
   onChange: (values: HubRefineryForm) => void;
   onFinalize: (values: HubRefineryForm) => void;
-  onBack: () => void;
+  onBack?: () => void;
+  /** Dashboard resume profile studio — local skills + target role field. */
+  mode?: "onboarding" | "profile";
+  targetRole?: string;
+  onTargetRoleChange?: (role: string) => void;
+  studioSkills?: string[];
+  onStudioSkillsChange?: (skills: string[]) => void;
+  backLabel?: string;
+  finalizeLabel?: string;
+  headerTitle?: string;
+  headerDescription?: string;
+  phaseLabel?: string;
 };
 
 function SectionTitle({
@@ -162,10 +174,24 @@ export function RefineryPanel({
   onChange,
   onFinalize,
   onBack,
+  mode = "onboarding",
+  targetRole = "",
+  onTargetRoleChange,
+  studioSkills,
+  onStudioSkillsChange,
+  backLabel,
+  finalizeLabel,
+  headerTitle,
+  headerDescription,
+  phaseLabel,
 }: RefineryPanelProps) {
   const [showRawText, setShowRawText] = useState(false);
-  const studioSkills = useOnboardingStore((state) => state.studio.skills);
-  const canProceedToCalibration = useOnboardingStore(selectCanProceedToCalibration);
+  const onboardingCanProceed = useOnboardingStore(selectCanProceedToCalibration);
+  const isProfileMode = mode === "profile";
+  const localSkillCount = studioSkills?.length ?? 0;
+  const canProceedToCalibration = isProfileMode
+    ? localSkillCount >= MIN_STUDIO_SKILLS
+    : onboardingCanProceed;
   const { register, control, handleSubmit, watch, reset, setValue } =
     useForm<HubRefineryForm>({
       defaultValues: initialValues,
@@ -176,6 +202,7 @@ export function RefineryPanel({
   const educationFields = useFieldArray({ control, name: "education" });
   const certFields = useFieldArray({ control, name: "certifications" });
   const projectFields = useFieldArray({ control, name: "projects" });
+  const languageFields = useFieldArray({ control, name: "languages" });
 
   useEffect(() => {
     reset(initialValues);
@@ -203,7 +230,19 @@ export function RefineryPanel({
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(watched.email?.trim() ?? "");
 
   const isProceedLocked = !canProceedToCalibration;
-  const isProceedDisabled = !isValid || isProceedLocked;
+  const isProceedDisabled =
+    !isValid ||
+    isProceedLocked ||
+    (isProfileMode && !targetRole.trim());
+
+  const resolvedPhaseLabel = phaseLabel ?? workbenchPhaseHeader(3);
+  const resolvedHeaderTitle = headerTitle ?? getWorkbenchPhase(3)?.headline ?? "Refine your resume";
+  const resolvedHeaderDescription =
+    headerDescription ?? getWorkbenchPhase(3)?.description ?? "";
+  const resolvedBackLabel = backLabel ?? getWorkbenchPhase(2)?.label ?? "Import";
+  const resolvedFinalizeLabel =
+    finalizeLabel ??
+    (isProfileMode ? "Save profile" : "Synthesize Architecture.");
 
   return (
     <div className="flex flex-1 flex-col">
@@ -214,30 +253,32 @@ export function RefineryPanel({
             style={{ color: PRIMARY }}
           >
             <Sparkles className="mr-1.5 inline h-3.5 w-3.5 align-text-bottom" aria-hidden="true" />
-            {workbenchPhaseHeader(3)}
+            {resolvedPhaseLabel}
           </p>
           <h2
             className="mt-3 font-display text-xl font-semibold tracking-tight sm:text-2xl"
             style={{ color: "oklch(0.98 0.01 268)" }}
           >
-            {getWorkbenchPhase(3)?.headline ?? "Refine your resume"}
+            {resolvedHeaderTitle}
           </h2>
           <p className="mt-2 text-sm leading-relaxed" style={{ color: MUTED }}>
-            {getWorkbenchPhase(3)?.description}
+            {resolvedHeaderDescription}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onBack}
-          className={cn(
-            monoClass,
-            "inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors hover:border-[oklch(0.62_0.21_265_/_0.35)]",
-          )}
-          style={{ color: "oklch(0.98 0.01 268)" }}
-        >
-          <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-          {getWorkbenchPhase(2)?.label ?? "Import"}
-        </button>
+        {onBack ? (
+          <button
+            type="button"
+            onClick={onBack}
+            className={cn(
+              monoClass,
+              "inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors hover:border-[oklch(0.62_0.21_265_/_0.35)]",
+            )}
+            style={{ color: "oklch(0.98 0.01 268)" }}
+          >
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+            {resolvedBackLabel}
+          </button>
+        ) : null}
       </div>
 
       {rawText?.trim() ? (
@@ -266,12 +307,32 @@ export function RefineryPanel({
         onSubmit={handleSubmit((values) =>
           onFinalize({
             ...values,
-            skillsText: studioSkills.join(", "),
+            skillsText: isProfileMode
+              ? (studioSkills ?? []).join(", ")
+              : useOnboardingStore.getState().studio.skills.join(", "),
           }),
         )}
         autoComplete="off"
       >
-        <StudioSkillsField monoClass={monoClass} />
+        {isProfileMode && onTargetRoleChange ? (
+          <section>
+            <SectionTitle monoClass={monoClass}>Profile role</SectionTitle>
+            <p className="mb-3 text-xs" style={{ color: MUTED }}>
+              Names this resume profile in your list — not printed on the resume.
+            </p>
+            <TargetRoleField
+              monoClass={monoClass}
+              value={targetRole}
+              onChange={onTargetRoleChange}
+            />
+          </section>
+        ) : null}
+
+        <StudioSkillsField
+          monoClass={monoClass}
+          skills={isProfileMode ? studioSkills : undefined}
+          onSkillsChange={isProfileMode ? onStudioSkillsChange : undefined}
+        />
 
         {/* 1. Header */}
         <section>
@@ -639,7 +700,23 @@ export function RefineryPanel({
           }
         />
 
-        <LanguagesField monoClass={monoClass} idPrefix="studio-languages" />
+        {isProfileMode ? (
+          <OptionalListSection
+            title={RESUME_SECTION_TITLES.languages}
+            items={watched.languages ?? []}
+            monoClass={monoClass}
+            placeholder="Language — proficiency (e.g. English — Native)"
+            onAdd={() =>
+              languageFields.append({ id: `lang-${Date.now()}`, text: "", hidden: false })
+            }
+            onRemove={(index) => languageFields.remove(index)}
+            onUpdate={(index, text) =>
+              setValue(`languages.${index}.text`, text, { shouldDirty: true })
+            }
+          />
+        ) : (
+          <LanguagesField monoClass={monoClass} idPrefix="studio-languages" />
+        )}
 
         <button
           type="submit"
@@ -662,10 +739,10 @@ export function RefineryPanel({
           {isProceedLocked ? (
             <>
               <Lock className="h-4 w-4 shrink-0" aria-hidden="true" />
-              Proceed
+              {resolvedFinalizeLabel}
             </>
           ) : (
-            "Synthesize Architecture."
+            resolvedFinalizeLabel
           )}
         </button>
       </form>

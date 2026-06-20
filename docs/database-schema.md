@@ -20,8 +20,8 @@ EasySubmit splits **who signed in** from **what they apply with** and **how the 
 
 ```mermaid
 erDiagram
-    User ||--o| Profile : "1:1 today"
-    User ||--o| Architecture : "1:1"
+    User ||--o{ Profile : "many"
+    Profile ||--o| Architecture : "1:1"
     User ||--o{ UserApiKey : "BYOK refs"
     User ||--o{ UsageLog : "AI spend"
     User ||--o{ Account : "OAuth"
@@ -196,12 +196,13 @@ Server helpers: `lib/vault/user-key-vault.ts`. Client action: `app/actions/ai/va
 
 ## PostgreSQL — `profiles` (Prisma `Profile`)
 
-1:1 with `User`. Source of truth for career profile synced to the extension engine.
+Many per `User`; one `isDefault` for extension/autofill default. Source of truth for career profile synced to the extension engine.
 
 | Column | Type | Description |
 |--------|------|-------------|
 | `id` | `cuid` | Primary key |
-| `userId` | `string` unique | FK → `users.id` |
+| `userId` | `string` | FK → `users.id` |
+| `isDefault` | `boolean` default `false` | Default profile for autofill; onboarding sets first profile `true` |
 | `firstName` | `string?` | Given name |
 | `lastName` | `string?` | Family name |
 | `email` | `string` | Required contact email |
@@ -232,8 +233,8 @@ Headless engine career architecture — structured state, not secrets. Replaces 
 | Column | Type | Description |
 |--------|------|-------------|
 | `id` | `cuid` | Primary key |
-| `userId` | `string` unique | FK → `users.id` |
-| `targetRole` | `string` | Career target role (e.g. Staff Engineer) |
+| `profileId` | `string` unique | FK → `profiles.id` |
+| `targetRole` | `string` | Profile list label / career target (mirrors `profiles.targetTitle`) |
 | `calibrationScore` | `int` default `0` | Launch calibration / ATS readiness score |
 | `content` | `jsonb` | Architecture payload (parsed resume mapping, skills graph, etc.) |
 | `createdAt` / `updatedAt` | `datetime` | |

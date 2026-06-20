@@ -7,6 +7,9 @@ import {
   CONTACT_LINE_SEPARATOR,
   RESUME_SECTION_TITLES,
 } from "@/lib/resume/resumeSpec";
+import { getResumeFontStack } from "@/lib/resume/resume-fonts";
+import type { ResumeFontId } from "@/lib/resume/resume-fonts";
+import { useResumePreviewFont } from "@/components/resume/resume-preview-font-context";
 import { normalizeSkillList } from "@/lib/onboarding/normalizeSkills";
 import { formatLocationLabel, parseLocationLabel } from "@/lib/resume/dates";
 import type { LanguageEntry } from "@/stores/onboardingStore";
@@ -103,6 +106,10 @@ type PrimeResumeProps = {
   showTargetRole?: boolean;
   /** Live language vectors from global state — optional Studio section at canvas bottom. */
   languageEntries?: LanguageEntry[];
+  /** Workbench: natural height, no internal scroll — pagination handled by parent. */
+  variant?: "default" | "workbench";
+  /** Override preview font (workbench); otherwise reads ResumePreviewFontProvider. */
+  resumeFontId?: ResumeFontId;
 };
 
 const languageFade = {
@@ -444,18 +451,33 @@ export function PrimeResume({
   className,
   showTargetRole = false,
   languageEntries = [],
+  variant = "default",
+  resumeFontId: resumeFontIdProp,
 }: PrimeResumeProps) {
+  const contextFontId = useResumePreviewFont();
   const useLiveLanguages = languageEntries.length > 0;
   const legacyLanguageLines = useLiveLanguages ? [] : (resume.languages ?? []);
+  const isWorkbench = variant === "workbench";
+  const resumeFontId = resumeFontIdProp ?? contextFontId;
+  const bodyFontFamily = isWorkbench
+    ? getResumeFontStack(resumeFontId)
+    : undefined;
 
   return (
     <div className={cn("flex w-full justify-center", className)}>
       <article
         className={cn(
           inter.className,
-          "w-full max-w-[min(100%,32rem)] min-h-[min(32rem,72vh)] max-h-[min(90vh,1100px)] overflow-y-auto rounded-[2px] shadow-[0_20px_50px_rgba(0,0,0,0.5)]",
+          "w-full rounded-[2px] shadow-[0_20px_50px_rgba(0,0,0,0.5)]",
+          isWorkbench
+            ? "max-w-none"
+            : "max-w-[min(100%,32rem)] min-h-[min(32rem,72vh)] max-h-[min(90vh,1100px)] overflow-y-auto",
         )}
-        style={{ backgroundColor: PAPER, color: INK }}
+        style={{
+          backgroundColor: PAPER,
+          color: INK,
+          ...(bodyFontFamily ? { fontFamily: bodyFontFamily } : {}),
+        }}
         aria-label="Resume preview"
       >
         <div className={cn(SPACE.page, "flex flex-col", SPACE.sectionStack)}>

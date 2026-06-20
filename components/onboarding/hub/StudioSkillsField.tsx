@@ -25,11 +25,19 @@ const FOCUS_RING =
 
 type StudioSkillsFieldProps = {
   monoClass: string;
+  /** When provided, skills are controlled locally (dashboard studio) instead of onboarding store. */
+  skills?: string[];
+  onSkillsChange?: (skills: string[]) => void;
 };
 
-export function StudioSkillsField({ monoClass }: StudioSkillsFieldProps) {
-  const skills = useOnboardingStore((state) => state.studio.skills);
+export function StudioSkillsField({
+  monoClass,
+  skills: controlledSkills,
+  onSkillsChange,
+}: StudioSkillsFieldProps) {
+  const storeSkills = useOnboardingStore((state) => state.studio.skills);
   const toggleSkill = useOnboardingStore((state) => state.toggleSkill);
+  const skills = controlledSkills ?? storeSkills;
   const [query, setQuery] = useState("");
 
   const selectedSkills = normalizeSkillList(skills);
@@ -51,8 +59,29 @@ export function StudioSkillsField({ monoClass }: StudioSkillsFieldProps) {
   function addSkill(skill: string) {
     const next = skill.trim();
     if (!next || isSelected(next)) return;
-    toggleSkill(next);
+
+    if (onSkillsChange) {
+      const normalized = normalizeSkillList(skills);
+      if (normalized.some((entry) => entry.toLowerCase() === next.toLowerCase())) {
+        return;
+      }
+      onSkillsChange([...normalized, next]);
+    } else {
+      toggleSkill(next);
+    }
     setQuery("");
+  }
+
+  function removeSkill(skill: string) {
+    if (onSkillsChange) {
+      onSkillsChange(
+        normalizeSkillList(skills).filter(
+          (entry) => entry.toLowerCase() !== skill.toLowerCase(),
+        ),
+      );
+    } else {
+      toggleSkill(skill);
+    }
   }
 
   return (
@@ -102,7 +131,7 @@ export function StudioSkillsField({ monoClass }: StudioSkillsFieldProps) {
               <li key={skill} className="min-w-0">
                 <button
                   type="button"
-                  onClick={() => toggleSkill(skill)}
+                  onClick={() => removeSkill(skill)}
                   className={cn(
                     monoClass,
                     "flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-[11px] font-medium tracking-[0.02em] transition-opacity hover:opacity-90",

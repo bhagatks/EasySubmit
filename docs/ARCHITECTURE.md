@@ -123,7 +123,8 @@ Dark-first Trust Tech palette in `app/globals.css`: deep navy, electric primary 
 
 | Date | Summary |
 |------|---------|
-| 2026-06-19 | Studio `PrimeResume` spacing: unified `SPACE` rhythm (`gap-7` section stack, consistent entry/line stacks) aligned with ATS rules §0/§2 |
+| 2026-06-20 | Resume parser text normalization (`lib/resume/normalizeResumeText.ts`): strip PDF junk, leading list markers, smart quotes; preserve C++/AT&T/accents; wired through OpenResume, heuristic parser, hub merge, studio DB |
+| 2026-06-20 | Shared `ResumeStudioWorkbench`: P2 scale-to-fit paginated preview, page-size select (default A4), dashed page-break lines, resizable 50/50 split (persisted), mobile Preview/Edit tabs; sidebar icon-rail on profile edit |
 | 2026-06-19 | Ignition Blast: 400ms mint bloom from clicked power cell + chamber screen-shake, `POWER STABILIZED` JetBrains overlay on `igniteEngineVault` success; post-blast `router.refresh()` + Prime Paper blur→active |
 | 2026-06-19 | `/dashboard/keys` Ignition Chamber: 60/40 vault bay + Console power cells (OpenAI→DeepSeek), `EMPTY SLOT` / glowing `CELL ACTIVE.`, grid + engine glow, empty-slot → IGNITE vault entry |
 | 2026-06-19 | Dashboard Engine Cold: `vaultKeyId` null → pulsing `BYOK Inactive • Engine Cold` badge, glass hint + Ignition Chamber CTA, blurred resume canvas with Neural Calibration Pending watermark |

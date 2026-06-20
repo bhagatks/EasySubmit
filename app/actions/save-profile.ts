@@ -12,6 +12,9 @@ import {
   sanitizeString,
   sanitizeStringArray,
 } from "@/lib/profile/sanitize";
+import {
+  upsertProfileArchitecture,
+} from "@/lib/profile/resume-profile-core";
 import { parseProfileName, joinProfileName } from "@/lib/profile/name";
 import { splitLocationField } from "@/lib/resume/extractSections";
 import type {
@@ -205,40 +208,55 @@ export async function saveProfile(
     const payload = sanitizeProfilePayload(input);
 
     const profileId = await prisma.$transaction(async (tx) => {
-      const profile = await tx.profile.upsert({
-        where: { userId },
-        create: {
-          userId,
-          email: payload.email,
-          firstName: payload.firstName,
-          lastName: payload.lastName,
-          phone: payload.phone,
-          city: payload.city,
-          country: payload.country,
-          targetTitle: payload.targetTitle,
-          minSalary: payload.minSalary,
-          workMode: payload.workMode,
-          summary: payload.summary,
-          resumeRawText: payload.resumeRawText,
-          coreCompetencies: payload.coreCompetencies,
-          skills: payload.skills,
-        },
-        update: {
-          email: payload.email,
-          firstName: payload.firstName,
-          lastName: payload.lastName,
-          phone: payload.phone,
-          city: payload.city,
-          country: payload.country,
-          targetTitle: payload.targetTitle,
-          minSalary: payload.minSalary,
-          workMode: payload.workMode,
-          summary: payload.summary,
-          resumeRawText: payload.resumeRawText,
-          coreCompetencies: payload.coreCompetencies,
-          skills: payload.skills,
-        },
+      const existingDefault = await tx.profile.findFirst({
+        where: { userId, isDefault: true },
+        select: { id: true },
       });
+
+      let profile: { id: string };
+
+      if (existingDefault) {
+        profile = await tx.profile.update({
+          where: { id: existingDefault.id },
+          data: {
+            email: payload.email,
+            firstName: payload.firstName,
+            lastName: payload.lastName,
+            phone: payload.phone,
+            city: payload.city,
+            country: payload.country,
+            targetTitle: payload.targetTitle,
+            minSalary: payload.minSalary,
+            workMode: payload.workMode,
+            summary: payload.summary,
+            resumeRawText: payload.resumeRawText,
+            coreCompetencies: payload.coreCompetencies,
+            skills: payload.skills,
+            isDefault: true,
+          },
+        });
+      } else {
+        await tx.profile.updateMany({ where: { userId }, data: { isDefault: false } });
+        profile = await tx.profile.create({
+          data: {
+            userId,
+            isDefault: true,
+            email: payload.email,
+            firstName: payload.firstName,
+            lastName: payload.lastName,
+            phone: payload.phone,
+            city: payload.city,
+            country: payload.country,
+            targetTitle: payload.targetTitle,
+            minSalary: payload.minSalary,
+            workMode: payload.workMode,
+            summary: payload.summary,
+            resumeRawText: payload.resumeRawText,
+            coreCompetencies: payload.coreCompetencies,
+            skills: payload.skills,
+          },
+        });
+      }
 
       await tx.experience.deleteMany({ where: { profileId: profile.id } });
       await tx.project.deleteMany({ where: { profileId: profile.id } });
@@ -271,18 +289,15 @@ export async function saveProfile(
         });
       }
 
-      await tx.architecture.upsert({
-        where: { userId },
-        create: {
-          userId,
-          targetRole: payload.targetTitle ?? "",
-          content: payload.engineParsedData ?? {},
-        },
-        update: {
+      await upsertProfileArchitecture(
+        tx,
+        profile.id,
+        {
           content: payload.engineParsedData,
           ...(payload.targetTitle ? { targetRole: payload.targetTitle } : {}),
         },
-      });
+        payload.targetTitle,
+      );
 
       await tx.user.update({
         where: { id: userId },
