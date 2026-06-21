@@ -122,4 +122,60 @@ describe("getAppConfig", () => {
 
     expect(map.default).toEqual({ inputPer1k: 0.001, outputPer1k: 0.002 });
   });
+
+  it("loads enhanceWithAi timeout from the database", async () => {
+    vi.mocked(prisma.appConfig.findMany).mockResolvedValue([
+      {
+        key: "enhanceWithAi",
+        value: { enhanceWithAiTimeoutMs: 25_000 },
+      },
+    ]);
+
+    const config = await getAppConfig("enhanceWithAi");
+
+    expect(config.enhanceWithAiTimeoutMs).toBe(25_000);
+  });
+
+  it("falls back to 90s enhance timeout when row is missing", async () => {
+    vi.mocked(prisma.appConfig.findMany).mockResolvedValue([]);
+
+    const snapshot = await getAppConfig();
+
+    expect(snapshot.enhanceWithAi.enhanceWithAiTimeoutMs).toBe(90_000);
+  });
+
+  it("loads aiEngine defaults when row is missing", async () => {
+    vi.mocked(prisma.appConfig.findMany).mockResolvedValue([]);
+
+    const snapshot = await getAppConfig();
+
+    expect(snapshot.aiEngine.system.modelId).toBe("gemini-2.5-flash-lite");
+    expect(snapshot.aiEngine.system.maxKeySlots).toBe(3);
+    expect(snapshot.aiEngine.quotas.system.enable).toBe(true);
+    expect(snapshot.aiEngine.quotas.system.dailyEnhancements).toBe(5);
+    expect(snapshot.aiEngine.quotas.customer.aiDailyUnlimited).toBe(true);
+    expect(snapshot.aiEngine.customerDailyEnhancementCap).toBe(50);
+  });
+
+  it("parses aiEngine from database", async () => {
+    vi.mocked(prisma.appConfig.findMany).mockResolvedValue([
+      {
+        key: "aiEngine",
+        value: {
+          system: { modelId: "gemini-2.5-flash", maxKeySlots: 3 },
+          quotas: {
+            system: { enable: true, dailyEnhancements: 8, dailyCalls: 30 },
+            customer: { aiDailyUnlimited: false, dailyEnhancements: 40, dailyCalls: 150 },
+          },
+          customerDailyEnhancementCap: 40,
+        },
+      },
+    ]);
+
+    const engine = await getAppConfig("aiEngine");
+
+    expect(engine.system.modelId).toBe("gemini-2.5-flash");
+    expect(engine.quotas.system.dailyEnhancements).toBe(8);
+    expect(engine.customerDailyEnhancementCap).toBe(40);
+  });
 });

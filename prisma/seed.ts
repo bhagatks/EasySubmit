@@ -2,6 +2,11 @@ import dotenv from "dotenv";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { PrismaClient } from "../lib/generated/prisma/client";
+import {
+  AI_ENGINE_CONFIG_KEY,
+  AI_ENGINE_DEFAULTS,
+} from "../src/lib/services/ai-engine-config";
+import { getFeatureFlagSeedRows } from "../src/lib/services/feature-flags-service";
 
 dotenv.config({ path: ".env" });
 dotenv.config({ path: ".env.local", override: true });
@@ -9,6 +14,7 @@ dotenv.config({ path: ".env.local", override: true });
 const DATA_REFRESH_KEY = "dataRefresh";
 const AI_CONFIG_KEY = "aiConfig";
 const AI_PRICING_MAP_KEY = "ai_pricing_map";
+const ENHANCE_WITH_AI_CONFIG_KEY = "enhanceWithAi";
 
 const DATA_REFRESH_VALUE = {
   aiModelsUpdate: 1440,
@@ -43,6 +49,12 @@ const AI_PRICING_MAP_VALUE = {
     { match: "llama", inputPer1k: 0.00005, outputPer1k: 0.00008 },
   ],
 };
+
+const ENHANCE_WITH_AI_VALUE = {
+  enhanceWithAiTimeoutMs: 90_000,
+};
+
+const AI_ENGINE_VALUE = AI_ENGINE_DEFAULTS;
 
 function createPrismaClient() {
   const connectionString = process.env.DATABASE_URL;
@@ -94,8 +106,45 @@ async function main() {
       },
     });
 
+    await prisma.appConfig.upsert({
+      where: { key: ENHANCE_WITH_AI_CONFIG_KEY },
+      create: {
+        key: ENHANCE_WITH_AI_CONFIG_KEY,
+        value: ENHANCE_WITH_AI_VALUE,
+      },
+      update: {
+        value: ENHANCE_WITH_AI_VALUE,
+      },
+    });
+
+    await prisma.appConfig.upsert({
+      where: { key: AI_ENGINE_CONFIG_KEY },
+      create: {
+        key: AI_ENGINE_CONFIG_KEY,
+        value: AI_ENGINE_VALUE,
+      },
+      update: {
+        value: AI_ENGINE_VALUE,
+      },
+    });
+
+    for (const flag of getFeatureFlagSeedRows()) {
+      await prisma.featureFlag.upsert({
+        where: { key: flag.key },
+        create: {
+          key: flag.key,
+          enabled: flag.defaultEnabled,
+          description: flag.description,
+          ...(flag.defaultExtra ? { extra: flag.defaultExtra } : {}),
+        },
+        update: {
+          description: flag.description,
+        },
+      });
+    }
+
     console.log(
-      `Seeded AppConfig keys: ${DATA_REFRESH_KEY}, ${AI_CONFIG_KEY}, ${AI_PRICING_MAP_KEY}`,
+      `Seeded AppConfig keys: ${DATA_REFRESH_KEY}, ${AI_CONFIG_KEY}, ${AI_PRICING_MAP_KEY}, ${ENHANCE_WITH_AI_CONFIG_KEY}, ${AI_ENGINE_CONFIG_KEY}; feature_flags registry`,
     );
   } finally {
     await prisma.$disconnect();

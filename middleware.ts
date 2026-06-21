@@ -2,7 +2,7 @@ import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/", "/login"] as const;
+const PUBLIC_PATHS = ["/", "/login", "/terms", "/privacy"] as const;
 const PUBLIC_PREFIXES = ["/auth/"] as const;
 const ONBOARDING_PATH = "/onboarding";
 const DASHBOARD_PATH = "/dashboard";

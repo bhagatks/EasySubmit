@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { requireDashboardSession } from "@/lib/auth/require-dashboard-session";
 import { getResumeProfileStudio } from "@/app/actions/resume-profiles";
+import { getFeatureFlags } from "@/src/lib/services/feature-flags-service";
 import { ResumeStudioEditor } from "@/components/dashboard/ResumeStudioEditor";
 
 type EditResumeProfilePageProps = {
@@ -21,7 +22,10 @@ export default async function EditResumeProfilePage({
   await requireDashboardSession(session.user.id);
 
   const { id } = await params;
-  const result = await getResumeProfileStudio(id);
+  const [result, featureFlags] = await Promise.all([
+    getResumeProfileStudio(id),
+    getFeatureFlags(),
+  ]);
 
   if (!result.success) {
     notFound();
@@ -34,6 +38,7 @@ export default async function EditResumeProfilePage({
         initialTargetTitle={result.targetTitle}
         initialForm={result.form}
         rawResumeText={result.rawResumeText}
+        enhanceWithAiEnabled={featureFlags.enhanceWithAiResumeProfile}
       />
     </div>
   );

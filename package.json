@@ -17,7 +17,9 @@
     "validate:bhagath-sample": "npx --yes tsx scripts/validate-bhagath-sample.ts",
     "test": "vitest run --config config/vitest.config.ts",
     "test:watch": "vitest --config config/vitest.config.ts",
-    "db:migrate": "prisma migrate deploy"
+    "db:migrate": "prisma migrate deploy",
+    "db:import-system-keys": "npx --yes tsx scripts/import-system-keys-to-vault.ts",
+    "pool:status": "npx --yes tsx scripts/pool-status.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.85",

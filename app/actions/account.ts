@@ -20,6 +20,9 @@ export type AccountSettingsSnapshot = {
   connectedProviders: AuthProviderId[];
   vaultKeyId: string | null;
   activeProvider: string | null;
+  aiSourcePreference: string;
+  aiEnhancementsToday: number;
+  aiCallsToday: number;
 };
 
 export type UpdateLoginProfileInput = {
@@ -61,6 +64,10 @@ export async function getAccountSettings(): Promise<AccountSettingsSnapshot | nu
       lastAuthProvider: true,
       vaultKeyId: true,
       activeProvider: true,
+      aiSourcePreference: true,
+      aiEnhancementsToday: true,
+      aiCallsToday: true,
+      aiQuotaResetAt: true,
       accounts: {
         select: { provider: true },
       },
@@ -95,6 +102,9 @@ export async function getAccountSettings(): Promise<AccountSettingsSnapshot | nu
     connectedProviders,
     vaultKeyId: user.vaultKeyId,
     activeProvider: user.activeProvider,
+    aiSourcePreference: user.aiSourcePreference,
+    aiEnhancementsToday: user.aiEnhancementsToday,
+    aiCallsToday: user.aiCallsToday,
   };
 }
 

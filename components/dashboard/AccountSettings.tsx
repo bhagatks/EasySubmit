@@ -10,6 +10,15 @@ import {
   type AuthProviderId,
   updateLoginProfile,
 } from "@/app/actions/account";
+import { updateAiSourcePreference } from "@/app/actions/ai/enhance-resume";
+import {
+  LegalDocumentLink,
+  useLegalDocumentOverlay,
+} from "@/components/legal/legal-document-overlay";
+import {
+  SYSTEM_AI_DAILY_CALL_LIMIT,
+  SYSTEM_AI_DAILY_ENHANCEMENT_LIMIT,
+} from "@/src/lib/ai/engine/constants";
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -110,6 +119,9 @@ export function AccountSettings({ initial }: AccountSettingsProps) {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState<AuthProviderId | null>(null);
+  const [aiSource, setAiSource] = useState(initial.aiSourcePreference || "auto");
+  const [aiPrefBusy, setAiPrefBusy] = useState(false);
+  const { openDocument, overlay } = useLegalDocumentOverlay();
 
   const engineHot = Boolean(initial.vaultKeyId);
   const initials = accountInitials(initial.firstName, initial.lastName, initial.email);
@@ -144,8 +156,22 @@ export function AccountSettings({ initial }: AccountSettingsProps) {
     await signIn(provider, { callbackUrl: "/dashboard/settings" });
   }
 
+  async function handleAiSourceChange(value: "auto" | "customer" | "system") {
+    setAiPrefBusy(true);
+    setError(null);
+    const result = await updateAiSourcePreference(value);
+    setAiPrefBusy(false);
+    if (!result.success) {
+      setError(result.error);
+      return;
+    }
+    setAiSource(value);
+  }
+
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <>
+      {overlay}
+      <div className="mx-auto max-w-3xl space-y-6">
       <div>
         <h1 className="font-display text-2xl font-semibold tracking-tight">Settings</h1>
         <p className="mt-2 text-sm text-muted-foreground">
@@ -264,39 +290,102 @@ export function AccountSettings({ initial }: AccountSettingsProps) {
 
       <SettingsSection
         title="Plan & engine"
-        description="Billing and credits are coming soon. BYOK keys are managed separately."
+        description="AI source, daily usage on EasySubmit AI, and BYOK key management."
       >
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <div
-              className={cn(
-                "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
-                engineHot ? "bg-mint/15 text-mint" : "bg-muted text-muted-foreground",
-              )}
-            >
-              {engineHot ? (
-                <Sparkles className="h-4 w-4" aria-hidden="true" />
-              ) : (
-                <Snowflake className="h-4 w-4" aria-hidden="true" />
-              )}
-            </div>
-            <div>
-              <p className="text-sm font-medium">
-                {engineHot ? "Engine active" : "Engine cold"}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {engineHot
-                  ? `BYOK connected${initial.activeProvider ? ` · ${initial.activeProvider}` : ""}`
-                  : "Add an AI key to unlock the headless engine."}
-              </p>
-            </div>
+        <div className="space-y-6">
+          <div className="rounded-xl border border-border/80 bg-background/40 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
+            <p>
+              EasySubmit can enhance your resume using <strong className="text-foreground">your API key</strong>{" "}
+              or <strong className="text-foreground">EasySubmit AI</strong> (Google Gemini). Work history
+              and skills are processed to generate suggestions; contact details are not sent to AI.
+            </p>
+            <p className="mt-2">
+              With EasySubmit AI, data is handled under{" "}
+              <a
+                href="https://ai.google.dev/gemini-api/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline"
+              >
+                Google Gemini API terms
+              </a>
+              . With BYOK, your provider&apos;s terms apply. See our{" "}
+              <LegalDocumentLink documentId="terms" onOpen={openDocument}>
+                Terms of Service
+              </LegalDocumentLink>{" "}
+              and{" "}
+              <LegalDocumentLink documentId="privacy" onOpen={openDocument}>
+                Privacy Policy
+              </LegalDocumentLink>
+              .
+            </p>
           </div>
-          <Button asChild variant="outline" className="rounded-xl">
-            <Link href="/dashboard/keys">
-              <Key className="h-4 w-4" aria-hidden="true" />
-              Manage AI keys
-            </Link>
-          </Button>
+
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium">AI source</legend>
+            {(
+              [
+                ["auto", "Automatic (my key if added, otherwise EasySubmit AI)"],
+                ["customer", "My API key only"],
+                ["system", "EasySubmit AI only"],
+              ] as const
+            ).map(([value, label]) => (
+              <label
+                key={value}
+                className="flex cursor-pointer items-center gap-2 rounded-xl border border-border/80 px-3 py-2.5 text-sm"
+              >
+                <input
+                  type="radio"
+                  name="aiSource"
+                  value={value}
+                  checked={aiSource === value}
+                  disabled={aiPrefBusy}
+                  onChange={() => void handleAiSourceChange(value)}
+                  className="accent-primary"
+                />
+                {label}
+              </label>
+            ))}
+          </fieldset>
+
+          <p className="text-xs text-muted-foreground">
+            EasySubmit AI today: {initial.aiEnhancementsToday}/{SYSTEM_AI_DAILY_ENHANCEMENT_LIMIT}{" "}
+            enhancements · {initial.aiCallsToday}/{SYSTEM_AI_DAILY_CALL_LIMIT} AI calls (resets UTC
+            midnight). BYOK is unlimited.
+          </p>
+
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div
+                className={cn(
+                  "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+                  engineHot ? "bg-mint/15 text-mint" : "bg-muted text-muted-foreground",
+                )}
+              >
+                {engineHot ? (
+                  <Sparkles className="h-4 w-4" aria-hidden="true" />
+                ) : (
+                  <Snowflake className="h-4 w-4" aria-hidden="true" />
+                )}
+              </div>
+              <div>
+                <p className="text-sm font-medium">
+                  {engineHot ? "BYOK vaulted" : "No BYOK key yet"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {engineHot
+                    ? `Active provider${initial.activeProvider ? `: ${initial.activeProvider}` : ""}`
+                    : "Add a key for unlimited AI, or use EasySubmit AI within daily limits."}
+                </p>
+              </div>
+            </div>
+            <Button asChild variant="outline" className="rounded-xl">
+              <Link href="/dashboard/keys">
+                <Key className="h-4 w-4" aria-hidden="true" />
+                Manage AI keys
+              </Link>
+            </Button>
+          </div>
         </div>
       </SettingsSection>
 
@@ -308,5 +397,6 @@ export function AccountSettings({ initial }: AccountSettingsProps) {
         <SignOutButton variant="ghost" label="Sign out" className="rounded-xl" />
       </SettingsSection>
     </div>
+    </>
   );
 }

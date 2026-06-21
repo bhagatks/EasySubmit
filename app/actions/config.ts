@@ -6,9 +6,10 @@ import {
   type AiConfigRecord,
   type AppConfigSnapshot,
   type DataRefreshConfig,
+  type EnhanceWithAiConfig,
 } from "@/src/lib/services/config-service";
 
-export type AppConfigKey = "dataRefresh" | "aiConfig" | "ai_pricing_map";
+export type AppConfigKey = "dataRefresh" | "aiConfig" | "ai_pricing_map" | "enhanceWithAi";
 
 /** Fetch a single `app_config` namespace by key. */
 export async function fetchAppConfigValue<K extends AppConfigKey>(
@@ -18,7 +19,9 @@ export async function fetchAppConfigValue<K extends AppConfigKey>(
     ? DataRefreshConfig
     : K extends "aiConfig"
       ? AiConfigRecord | null
-      : AiPricingMap
+      : K extends "ai_pricing_map"
+        ? AiPricingMap
+        : EnhanceWithAiConfig
 > {
   if (key === "dataRefresh") {
     return (await getAppConfig("dataRefresh")) as never;
@@ -28,7 +31,11 @@ export async function fetchAppConfigValue<K extends AppConfigKey>(
     return (await getAppConfig("aiConfig")) as never;
   }
 
-  return (await getAppConfig("ai_pricing_map")) as never;
+  if (key === "ai_pricing_map") {
+    return (await getAppConfig("ai_pricing_map")) as never;
+  }
+
+  return (await getAppConfig("enhanceWithAi")) as never;
 }
 
 /** Client-safe fetch of `app_config.dataRefresh` (interval in minutes). */
@@ -44,4 +51,9 @@ export async function fetchAiPricingMap(): Promise<AiPricingMap> {
 /** Full engine config snapshot (data refresh, AI defaults, pricing map). */
 export async function fetchAppConfigSnapshot(): Promise<AppConfigSnapshot> {
   return getAppConfig();
+}
+
+/** Client-side Enhance with AI controls (timeout, etc.). */
+export async function fetchEnhanceWithAiConfig(): Promise<EnhanceWithAiConfig> {
+  return getAppConfig("enhanceWithAi");
 }

@@ -190,7 +190,7 @@ export function AiKeysManager({ initialKeys }: AiKeysManagerProps) {
           </Button>
         </div>
 
-        {error ? <InlineAlert>{error}</InlineAlert> : null}
+        {error ? <InlineAlert surface="glass">{error}</InlineAlert> : null}
 
         {keys.length === 0 && !editor ? (
           <div

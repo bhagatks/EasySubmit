@@ -28,6 +28,8 @@ type SystemStatusBreadcrumbProps = {
   onNavigate?: (step: number) => void;
 };
 
+export type { SystemStatusBreadcrumbProps };
+
 export function SystemStatusBreadcrumb({
   currentStep,
   className,

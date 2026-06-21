@@ -2,7 +2,9 @@
 
 ## Completed
 
-- **KeyProtector** — `app/dashboard/layout.tsx` only; when `isLocked`, full-screen Ignition Gate slides over **dashboard** routes (not landing/onboarding)
+- **AI Engine — Enhance with AI** — … **`[EnhanceAI]` pipeline `step` + `hint`** logs with traceId correlation; **`api_call_logs`** Postgres telemetry via `src/shared/observability` (`[ApiCall]` prefix, provider/slot/label/billingMode/latency/tokens); **system key pool v1** — per-call acquire/failover (`executeWithPoolRetry`), 3-slot Alpha/Beta/Gamma, 3k daily platform cap, Gamma paid overflow hot-toggle, Pass 2 stickiness + `partialEnhance`
+- **Glossy UI system** — Shared primitives in `components/ui/`: `DialogContent appearance="glossy"`, `AppAlertDialog`, `GlossyPromoOverlay`, `GlossyFullscreenShell`, `InlineAlert` (`surface="glass"`); used across login, BYOK nudge, confirm dialogs, enhance AI, IgnitionGate, SynthesisTransition
+- **Legal & auth** — `/terms`, `/privacy` (Teal/Rezi-style); reusable `components/legal/` overlay for in-app Terms/Privacy; login consent below OAuth buttons with overlay links; Settings Plan & engine privacy copy + AI source toggle; `termsAcceptedAt` on OAuth sign-in
 - **Ignition Gate UI** — `src/components/auth/IgnitionGate.tsx`: `ProviderFuelSelect` dropdown for 6 BYOK providers with Lucide icons; scanning-beam validation; cache skip via `lastDiscovery`; Launch/Resume gated on `isIgnitionComplete()`
 - **Dashboard gate** — `components/dashboard/DashboardIgnitionGuard.tsx` syncs client ignition with server `vaultKeyId` (resets stale session after key revoke); no navigation block on missing BYOK; one-time `DashboardByokNudge` toast; `BYOK Inactive` on sidebar AI Keys tab; `KeyProtector` overlay reserved for provider auth failures during active use
 - **Ignition store** — `src/stores/use-ignition-store.ts`: `unlock`/`lock`/`setActiveModel`; `provider` + `activeModel` in `localStorage`; BYOK `apiKey` AES-GCM encrypted in `sessionStorage` only; `restoreIgnitionFromSession` repopulates `availableModels` from model cache on reload
@@ -12,7 +14,7 @@
 - **Typed env** — `lib/env.ts`, `types/env.d.ts` for OAuth credentials
 - **Login UI** — Google-only OAuth on deep navy glass card (`LogoIcon` w-12, `size="xl"` CTA); `SessionProvider` via `components/providers/auth-provider.tsx`
 - **Sign out** — `components/auth/SignOutButton.tsx` + `lib/auth/sign-out-client.ts`; available on all onboarding routes via `OnboardingFlowShell`; clears Zustand onboarding/ignition storage then NextAuth `signOut` → `/login`
-- **Onboarding hub** — `/onboarding`: 3-phase Unified Workbench with compact phase headers; finalize CTA **Finalize & continue** (was Synthesize Architecture); ATS sample PDF/DOCX in Import header
+- **Onboarding hub** — `/onboarding`: 3-phase Unified Workbench with unified top chrome (`OnboardingWorkbenchChrome`: EasySubmit brand + phase label/description + phase actions + Sign Out, progress bar, Identity \| Import \| Studio tabs); finalize CTA **Finalize & continue**; ATS sample PDF/DOCX in Import header actions; Studio header: Raw text, Expand all, Import back, Enhance with AI (when flag + system AI on)
 - **Resume spec** — `docs/resume/RULES.md`; golden templates in `assets/resume/templates/`; `lib/resume/resumeSpec.ts`; Fuel panel sample download via `/api/resume/ats-template`
 - **Open-Resume parser** — PDF via browser Open-Resume engine; **DOCX → PDF** via `docx-to-pdf-wasm` on `/api/resume/convert-docx`, then same PDF parser; heuristic DOCX fallback if conversion parse fails; parsed text normalized via `lib/resume/normalizeResumeText.ts` (junk chars, list markers, smart quotes)
 - **Onboarding workbench** — `/onboarding` is the default post-login entry: 60/40 split (Coordinates → Fuel → Refinery), full-screen shell (no sidebar); `/onboarding/step-1` and `/onboarding/workbench` redirect here

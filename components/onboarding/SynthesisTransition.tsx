@@ -8,6 +8,7 @@ import {
   PrimeResume,
   type PrimeResumeData,
 } from "@/components/onboarding/PrimeResume";
+import { GlossyFullscreenShell } from "@/components/ui/glossy-fullscreen-shell";
 import { cn } from "@/lib/utils";
 
 const jetbrainsMono = JetBrains_Mono({
@@ -16,7 +17,6 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
-const NAVY = "oklch(0.16 0.04 268)";
 const MINT = "oklch(0.82 0.16 165)";
 const PRIMARY = "oklch(0.62 0.21 265)";
 const PAPER = "oklch(0.98 0.01 268)";
@@ -297,34 +297,20 @@ export function SynthesisTransition({
   if (!active) return null;
 
   return (
-    <div
+    <GlossyFullscreenShell
       role="status"
       aria-live="polite"
-      aria-busy="true"
+      aria-busy
       aria-label="Synthesizing career architecture"
-      className={cn(
-        jetbrainsMono.className,
-        "fixed inset-0 z-50 flex flex-col items-center justify-center overflow-hidden",
-        className,
-      )}
-      style={{ backgroundColor: NAVY }}
+      zIndex={50}
+      className={cn(jetbrainsMono.className, className)}
+      contentClassName="relative items-center justify-center overflow-hidden px-6 py-10 sm:px-10"
     >
       <ViewportScanningBeam reducedMotion={reducedMotion} />
 
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 z-[1] opacity-25"
-        style={{
-          backgroundImage: `
-            radial-gradient(circle at 50% 40%, oklch(0.62 0.21 265 / 0.16), transparent 58%),
-            radial-gradient(circle at 50% 50%, oklch(0.82 0.16 165 / 0.07), transparent 50%)
-          `,
-        }}
-      />
-
       <JsonParticleFlow particles={particles} reducedMotion={reducedMotion} />
 
-      <div className="relative z-[3] flex w-full max-w-4xl flex-1 flex-col items-center justify-center px-6 py-10 sm:px-10">
+      <div className="relative z-[3] flex w-full max-w-4xl flex-col items-center justify-center">
         <div className="relative w-full max-w-[min(100%,32rem)] min-h-[min(32rem,58vh)]">
           <article
             aria-hidden="true"
@@ -387,7 +373,7 @@ export function SynthesisTransition({
           </p>
         </motion.div>
       </div>
-    </div>
+    </GlossyFullscreenShell>
   );
 }
 

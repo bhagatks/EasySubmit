@@ -45,7 +45,7 @@ describe("handshakeProviderModels", () => {
     expect(String(fetchMock.mock.calls[1]?.[0])).toContain("/v1/chat/completions");
   });
 
-  it("uses AutoApply-style Gemini ping then enriches from REST model list", async () => {
+  it("uses Gemini SDK ping then enriches from REST model list", async () => {
     vi.mocked(validateGeminiKey).mockResolvedValue({
       ok: true,
       pingModel: "gemini-1.5-flash",

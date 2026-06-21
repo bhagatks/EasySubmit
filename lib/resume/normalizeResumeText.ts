@@ -141,8 +141,17 @@ export function normalizeBulletLine(line: string): string {
 }
 
 /** Normalize multiline bullet storage (one achievement per line). */
-export function normalizeBulletText(text: string): string {
-  return text
+export function normalizeBulletText(text: string | unknown): string {
+  let source = "";
+  if (typeof text === "string") {
+    source = text;
+  } else if (Array.isArray(text)) {
+    source = text
+      .filter((line): line is string => typeof line === "string")
+      .join("\n");
+  }
+
+  return source
     .split(/\r?\n/)
     .map((line) => normalizeBulletLine(line))
     .filter(Boolean)

@@ -72,7 +72,12 @@ easy_run_with_post_start() {
   done
 
   if kill -0 "$server_pid" 2>/dev/null; then
-    node "$ROOT/scripts/post-start.mjs" --port "$port" || true
+    if [[ "${EASY_OPEN_BROWSER:-0}" == "1" ]]; then
+      node "$ROOT/scripts/post-start.mjs" --port "$port" || true
+    else
+      echo "→ Dev server ready at http://localhost:${port}/login (open manually)"
+      echo "→ Set EASY_OPEN_BROWSER=1 to auto-open incognito login"
+    fi
   fi
 
   wait "$server_pid"

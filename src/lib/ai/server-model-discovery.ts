@@ -110,7 +110,7 @@ function bundledOpenAiCompatibleModels(provider: AiProvider): string[] {
 
 /**
  * Restricted OpenAI project keys often cannot list models but can chat.
- * AutoApply-style fallback: one minimal completion, then bundled career catalog.
+ * Chat completion fallback: one minimal completion, then bundled career catalog.
  */
 async function probeOpenAiCompatibleChat(
   provider: AiProvider,

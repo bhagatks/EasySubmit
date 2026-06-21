@@ -8,6 +8,7 @@ import {
 } from "@/src/lib/ai/discovery-service";
 import type { EngineTerminalError } from "@/src/lib/ai/engine-errors";
 import type { HandshakeProvider } from "@/src/lib/config/career-grade-models";
+import { createApiTraceId } from "@/src/shared/observability";
 
 export type RunEngineDiscoveryInput = {
   provider: HandshakeProvider;
@@ -42,7 +43,10 @@ export async function runEngineDiscovery(
     };
   }
 
-  const result = await performEngineHandshake(input);
+  const result = await performEngineHandshake(input, {
+    traceId: createApiTraceId(),
+    userId: session.user.id,
+  });
 
   if (!result.success) {
     return {

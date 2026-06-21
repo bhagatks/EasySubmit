@@ -15,6 +15,7 @@ EasySubmit splits **who signed in** from **what they apply with** and **how the 
 | **Headless engine** | `profiles.content`, `profiles.calibrationScore`, `usage_logs` | AI refinement reads/writes default profile JSONB |
 | **BYOK secrets** | `user_api_keys` + Supabase `vault.secrets` | One vaulted key per provider; Postgres stores UUID pointers only |
 | **Global config** | `app_config` | Model refresh intervals, AI defaults, pricing map for usage widgets |
+| **Feature flags** | `feature_flags` | Toggle Enhance with AI in onboarding vs resume profile studio |
 
 **Rule:** OAuth and session updates write `users` only. Onboarding and resume editors write `profiles` (including `content` JSONB). Resume contact edits must **never** write back to `users`.
 
@@ -162,6 +163,11 @@ Auth identity and onboarding gate only. Career data lives on `Profile`.
 | `onboardingStep` | `int` default `0` | Wizard step (0 = not started, 1–4 in progress) |
 | `vaultKeyId` | `uuid?` | Pointer to `vault.secrets.id` for active BYOK — never raw key material |
 | `activeProvider` | `string?` | Active BYOK provider (`openai`, `anthropic`, `gemini`, …) |
+| `aiSourcePreference` | `string` default `auto` | `auto` \| `customer` \| `system` — AI routing for Enhance |
+| `aiEnhancementsToday` | `int` default `0` | Daily EasySubmit AI enhancement count (resets UTC midnight) |
+| `aiCallsToday` | `int` default `0` | Daily EasySubmit AI API call count |
+| `aiQuotaResetAt` | `datetime` | Last quota counter reset timestamp |
+| `termsAcceptedAt` | `datetime?` | Last OAuth sign-in with terms checkbox accepted |
 | `lastAuthProvider` | `string?` | Last OAuth provider |
 | `createdAt` / `updatedAt` | `datetime` | |
 
@@ -228,6 +234,50 @@ Per-request AI usage ledger for cost tracking and quota enforcement.
 
 Server actions: `app/actions/ai/usage-log.ts` (`saveUsageLog`, `getUsageSpendSummary`); written by `executeEngineRefinement` after each AI call.
 
+## PostgreSQL — `api_call_logs` (Prisma `ApiCallLog`)
+
+Structured telemetry for external API calls (AI providers, discovery handshakes). Complements `[EnhanceAI]` console logs and `usage_logs` billing rollup.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | `cuid` | Primary key |
+| `traceId` | `string?` | Correlates with client/server Enhance trace (8-char id) |
+| `userId` | `string?` | FK → `users.id` (nullable, `ON DELETE SET NULL`) |
+| `domain` | `string` | `ai` \| `vault` \| `auth` \| `external` |
+| `operation` | `string` | e.g. `ai.enhance.generate_text`, `ai.discovery.models_list` |
+| `provider` | `string?` | e.g. `gemini`, `anthropic` |
+| `modelId` | `string?` | Provider model id |
+| `status` | `string` | `success` \| `error` \| `timeout` |
+| `httpStatus` | `int?` | HTTP status when applicable |
+| `durationMs` | `int` | Wall-clock latency |
+| `tokensUsed` | `int?` | Tokens when returned by provider |
+| `estimatedCost` | `decimal(12,6)?` | Estimated USD |
+| `aiMode` | `string?` | `customer` \| `system` |
+| `keySlot` | `int?` | System Gemini pool slot (0–2) |
+| `keySource` | `string?` | `vault` \| `env` |
+| `errorCode` / `errorMessage` | `string?` / `text?` | Failure details (no secrets) |
+| `metadata` | `jsonb?` | e.g. `{ pass: "optimize", feature: "enhance" }` |
+| `createdAt` | `datetime` | |
+
+**Module:** `src/shared/observability/` — `logApiCall()` writes `[ApiCall]` to console + async Postgres insert.
+
+**Example queries (Supabase SQL editor):**
+
+```sql
+-- Calls by system key slot (last 24h)
+SELECT "keySlot", status, COUNT(*) AS calls, AVG("durationMs")::int AS avg_ms
+FROM api_call_logs
+WHERE "createdAt" > NOW() - INTERVAL '24 hours' AND "aiMode" = 'system'
+GROUP BY "keySlot", status
+ORDER BY "keySlot", status;
+
+-- Trace a single Enhance run
+SELECT "createdAt", operation, status, "durationMs", "tokensUsed", "keySlot", metadata
+FROM api_call_logs
+WHERE "traceId" = '3e184715'
+ORDER BY "createdAt";
+```
+
 ## PostgreSQL — legacy tables
 
 **Removed:** `engines`, `architectures`, `experiences`, `projects`, `educations`, `certifications` — consolidated into `profiles.content` (2026-06-20).
@@ -247,8 +297,82 @@ Global runtime configuration keyed by namespace. Seeded via `prisma/seed.ts` (`p
 | `dataRefresh` | `{ aiModelsUpdate: 1440, interval: 1440, description: "…" }` | Model catalog refresh interval (minutes) |
 | `aiConfig` | `{ defaultProvider: "openai", discoveryEnabled: true, lastGlobalSync: ISO8601 }` | Global AI discovery defaults |
 | `ai_pricing_map` | `{ default: { inputPer1k, outputPer1k }, models: { [modelId]: rates }, patterns: [{ match, inputPer1k, outputPer1k }] }` | BYOK USD/1K token rates for usage widgets — update without deploy |
+| `enhanceWithAi` | `{ enhanceWithAiTimeoutMs: 90000 }` | Client-side max wait for Enhance with AI server action (ms). Client also bumps timeout to ≥135% of workload estimate. Legacy key `EnhanceWithAITimeout` accepted. Env fallback: `EASYSUBMIT_ENHANCE_WITH_AI_TIMEOUT_MS`. |
+| `aiEngine` | `{ system: { modelId, maxKeySlots }, quotas: { system: { enable, dailyCalls, dailyEnhancements }, customer: { aiDailyUnlimited, dailyCalls, dailyEnhancements } }, customerDailyEnhancementCap }` | `quotas.system.enable` gates EasySubmit system AI; when `false`, all routes require BYOK. `quotas.customer.aiDailyUnlimited` bypasses BYOK daily caps when `true`. System secrets live in Vault (below). |
 
-### Setup
+## PostgreSQL — `feature_flags` (Prisma `FeatureFlag`)
+
+One row per flag key — scales to many toggles without schema changes.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `key` | `string` PK | Stable flag id (snake_case), e.g. `enhance_with_ai_onboarding` |
+| `enabled` | `boolean` | When `true`, the feature is on |
+| `description` | `string?` | Human-readable note for ops |
+| `extra` | `json?` | Optional per-flag JSON config (rollout %, UI copy, limits, etc.) |
+| `createdAt` / `updatedAt` | `datetime` | |
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `enhance_with_ai_onboarding` | `true` | Show **Enhance with AI** in onboarding Studio top bar (phase 3) — also requires `app_config.aiEngine.quotas.system.enable` |
+| `enhance_with_ai_resume_profile` | `true` | Show **Enhance with AI** in dashboard resume profile studio header |
+
+Registry + defaults: `src/lib/services/feature-flags-service.ts` (`FEATURE_FLAG_REGISTRY`). Loader: `getFeatureFlags()` / `isFeatureEnabled(key)`. Client: `fetchFeatureFlags()`. New flags: add registry entry + seed row + migration `INSERT`.
+
+```sql
+-- Toggle one flag
+UPDATE feature_flags SET enabled = false, "updatedAt" = NOW()
+WHERE key = 'enhance_with_ai_onboarding';
+
+-- Add a new flag
+INSERT INTO feature_flags (key, enabled, description, extra, "updatedAt")
+VALUES ('my_new_flow', false, 'Optional description', '{"rolloutPercent": 10}'::jsonb, NOW())
+ON CONFLICT (key) DO NOTHING;
+
+-- Attach extra config to an existing flag
+UPDATE feature_flags
+SET extra = '{"maxRetries": 3, "bannerText": "Beta"}'::jsonb,
+    "updatedAt" = NOW()
+WHERE key = 'enhance_with_ai_onboarding';
+```
+
+## PostgreSQL — `system_api_keys` (Prisma `SystemApiKey`)
+
+Server-side references for EasySubmit system Gemini keys (slots 0–2). Raw secrets in Supabase Vault (`easysubmit-system-gemini-{slot}`).
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `slot` | `int` PK | Key slot index (0 … `aiEngine.system.maxKeySlots - 1`) |
+| `vaultSecretId` | `uuid` unique | Pointer to `vault.secrets.id` |
+| `label` | `string?` | Admin label |
+| `enabled` | `boolean` | When false, slot skipped by pool |
+| `provider` | `string` | Default `gemini` |
+| `billingMode` | `string` | `free` \| `paid` — slot 2 (Gamma) hot-switch to paid overflow |
+| `modelId` | `string` | Authoritative Gemini model per slot (default `gemini-2.5-flash-lite`) |
+| `callsToday` | `int` | Per-slot daily call counter |
+| `exhaustedUntil` | `timestamptz?` | Daily quota exhaustion (midnight PT) |
+| `quotaResetDate` | `string?` | Last reset calendar day in `America/Los_Angeles` (`YYYY-MM-DD`) |
+
+Vault SQL: `vault_system_key(slot, raw_key)`, `unvault_system_key(slot)`, `revoke_system_key(secret_id)`.
+
+**Import from env (one-time):** `npm run db:import-system-keys` with `EASYSUBMIT_SYSTEM_GEMINI_API_KEYS` set in the shell (not committed). Local dev may still use env fallback when the table is empty.
+
+**Remove env keys after import (production):**
+
+| Host | Steps |
+|------|--------|
+| **Vercel** | Project → Settings → Environment Variables → delete `EASYSUBMIT_SYSTEM_GEMINI_API_KEYS` (and legacy `EASYSUBMIT_SYSTEM_GEMINI_API_KEY`) for Production/Preview → redeploy |
+| **CLI** | `vercel env rm EASYSUBMIT_SYSTEM_GEMINI_API_KEYS production` then redeploy |
+| **Local** | Remove or comment out the line in `.env.local` — keep empty in `.env.example` only |
+
+Verify: `SELECT slot, label, enabled FROM system_api_keys ORDER BY slot;` — pool uses Vault when rows exist; env is ignored.
+
+## `users.aiDailyUnlimited` (deprecated)
+
+| Column | Default | Description |
+|--------|---------|-------------|
+| `aiDailyUnlimited` | `false` | **Deprecated** — use `app_config.aiEngine.quotas.customer.aiDailyUnlimited` instead. Column retained for migration compatibility; no longer read or written by the app.
+
 
 ```bash
 cp .env.example .env.local   # fill DATABASE_URL
@@ -261,5 +385,6 @@ npx prisma db seed
 
 | Date | Summary |
 |------|---------|
+| 2026-06-21 | System key pool v1: `system_api_keys` quota fields (`callsToday`, `exhaustedUntil`, `quotaResetDate`, `billingMode`, per-row `modelId`); Alpha/Beta/Gamma slots; `api_call_logs.keyLabel` + `billingMode` |
 | 2026-06-20 | Schema consolidation: merged `architectures` into `profiles.content` + `calibrationScore`; dropped child resume tables and `minSalary` / `workMode` / `coreCompetencies` |
 | 2026-06-20 | Added [`TABLE_INVENTORY.md`](./TABLE_INVENTORY.md) — per-table read/write audit |

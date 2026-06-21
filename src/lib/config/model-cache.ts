@@ -1,6 +1,6 @@
 /**
  * In-memory model catalog with optional persisted cache.
- * Simplified from AutoApplyAI's ai-models-cache (no Firestore listener layer).
+ * Optional local persistence only — no realtime sync layer.
  */
 import {
   AI_MODELS_CACHE_KEY,

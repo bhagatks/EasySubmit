@@ -30,7 +30,7 @@ export const WORKBENCH_PHASES: WorkbenchPhaseDef[] = [
     label: "Studio",
     code: "STUDIO",
     headline: "Refine your resume",
-    description: "Edit sections in ATS order — preview updates live on the left.",
+    description: "",
   },
 ];
 

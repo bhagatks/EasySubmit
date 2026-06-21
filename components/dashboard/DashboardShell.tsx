@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { LogoIcon } from "@/components/ui/logo";
 import { BYOKInactiveNavBadge, BYOKStatusBadge } from "@/components/dashboard/BYOKStatus";
 import { DashboardStudioSidebarEffect } from "@/components/dashboard/DashboardStudioSidebarEffect";
+import { StudioHeaderCenterProvider, StudioHeaderCenterSlot } from "@/components/resume/StudioHeaderCenter";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -115,8 +116,9 @@ export function DashboardShell({ children, vaultKeyId }: DashboardShellProps) {
 
   return (
     <SidebarProvider>
-      <DashboardStudioSidebarEffect />
-      <div
+      <StudioHeaderCenterProvider>
+        <DashboardStudioSidebarEffect />
+        <div
         className={cn(
           "flex w-full bg-background text-foreground",
           isStudioEdit ? "h-svh max-h-svh overflow-hidden" : "min-h-screen",
@@ -129,12 +131,21 @@ export function DashboardShell({ children, vaultKeyId }: DashboardShellProps) {
             isStudioEdit && "overflow-hidden",
           )}
         >
-          <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border/60 px-4">
-            <SidebarTrigger />
-            <div className="text-sm text-muted-foreground">
-              {isStudioEdit ? "Resume Studio" : "Dashboard"}
+          <header className="relative grid h-14 shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b border-border/60 px-4">
+            <div className="flex items-center gap-3 justify-self-start">
+              <SidebarTrigger />
+              <div className="text-sm text-muted-foreground">
+                {isStudioEdit ? "Resume Studio" : "Dashboard"}
+              </div>
             </div>
-            <div className="ml-auto flex items-center gap-2">
+            {isStudioEdit ? (
+              <div className="flex justify-center justify-self-center">
+                <StudioHeaderCenterSlot />
+              </div>
+            ) : (
+              <div />
+            )}
+            <div className="flex items-center gap-2 justify-self-end">
               <BYOKStatusBadge vaultKeyId={vaultKeyId} />
               <SignOutButton variant="pill" />
             </div>
@@ -148,7 +159,8 @@ export function DashboardShell({ children, vaultKeyId }: DashboardShellProps) {
             {children}
           </main>
         </div>
-      </div>
+        </div>
+      </StudioHeaderCenterProvider>
     </SidebarProvider>
   );
 }

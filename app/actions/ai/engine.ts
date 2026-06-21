@@ -27,6 +27,7 @@ import type {
   ExecuteEngineRefinementInput,
   ExecuteEngineRefinementResult,
 } from "@/src/lib/ai/engine-types";
+import { createApiTraceId, logApiCall } from "@/src/shared/observability";
 
 export type {
   ExecuteEngineRefinementInput,
@@ -113,6 +114,8 @@ export async function executeEngineRefinement(
 
   const modelId = resolveModelId(provider, input.modelId);
   const prompt = buildEngineRefinementPrompt(targetRole, sourceContent);
+  const traceId = createApiTraceId();
+  const refinementStartedAt = Date.now();
 
   const vaultRun = await withVaultDecryptedSecret(user.vaultKeyId, async (apiKey) => {
     const model = createAiSdkLanguageModel(provider, apiKey, modelId);
@@ -125,6 +128,21 @@ export async function executeEngineRefinement(
   });
 
   if (!vaultRun.ok) {
+    logApiCall({
+      traceId,
+      userId,
+      domain: "ai",
+      operation: "ai.engine.refinement",
+      provider,
+      modelId,
+      status: "error",
+      durationMs: Date.now() - refinementStartedAt,
+      aiMode: "customer",
+      keySource: "vault",
+      errorCode: "vault_decrypt_failed",
+      errorMessage: "Could not decrypt vaulted API key",
+      metadata: { feature: "engine_refinement" },
+    });
     return {
       success: false,
       status: "VAULT_LOCK",
@@ -154,6 +172,23 @@ export async function executeEngineRefinement(
     generation.usage,
     await getAppConfig("ai_pricing_map"),
   );
+
+  logApiCall({
+    traceId,
+    userId,
+    domain: "ai",
+    operation: "ai.engine.refinement",
+    provider,
+    modelId,
+    status: "success",
+    durationMs: Date.now() - refinementStartedAt,
+    tokensUsed: usagePayload.tokensUsed,
+    estimatedCost: usagePayload.estimatedCost,
+    aiMode: "customer",
+    keySource: "vault",
+    metadata: { feature: "engine_refinement" },
+  });
+
   await recordUsageLogForUser(userId, usagePayload);
 
   return {

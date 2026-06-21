@@ -12,6 +12,7 @@ import {
   ATS_TEMPLATE_PDF_FILENAME,
 } from "@/lib/resume/resumeSpec";
 import { IngestionTerminal } from "@/components/onboarding/hub/IngestionTerminal";
+import { InlineAlert } from "@/components/ui/inline-alert";
 import { WorkbenchPhaseIntro } from "@/components/onboarding/hub/WorkbenchPhaseIntro";
 import type { CoordinatesValues } from "@/components/onboarding/hub/CoordinatesPanel";
 import { advancingToNextPhaseLabel } from "@/lib/onboarding/workbenchPhases";
@@ -46,6 +47,7 @@ type FuelPanelProps = {
   coordinates: CoordinatesValues;
   onParsed: (payload: { data: StructuredResume; rawText: string }) => void;
   onScanningChange: (scanning: boolean) => void;
+  hidePhaseIntro?: boolean;
 };
 
 export function FuelPanel({
@@ -53,6 +55,7 @@ export function FuelPanel({
   coordinates,
   onParsed,
   onScanningChange,
+  hidePhaseIntro = false,
 }: FuelPanelProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -156,31 +159,33 @@ export function FuelPanel({
 
   return (
     <div className="flex flex-1 flex-col">
-      <WorkbenchPhaseIntro
-        phaseId={2}
-        monoClass={monoClass}
-        icon={<FileUp className="h-3.5 w-3.5" aria-hidden="true" />}
-        actions={
-          <>
-            <a
-              href={ATS_TEMPLATE_PDF_API_PATH}
-              download={ATS_TEMPLATE_PDF_FILENAME}
-              className={cn(monoClass, TEMPLATE_LINK_CLASS)}
-              style={{ color: PRIMARY }}
-            >
-              Sample PDF
-            </a>
-            <a
-              href={ATS_TEMPLATE_DOCX_API_PATH}
-              download={ATS_TEMPLATE_DOCX_FILENAME}
-              className={cn(monoClass, TEMPLATE_LINK_CLASS)}
-              style={{ color: PRIMARY }}
-            >
-              Sample DOCX
-            </a>
-          </>
-        }
-      />
+      {!hidePhaseIntro ? (
+        <WorkbenchPhaseIntro
+          phaseId={2}
+          monoClass={monoClass}
+          icon={<FileUp className="h-3.5 w-3.5" aria-hidden="true" />}
+          actions={
+            <>
+              <a
+                href={ATS_TEMPLATE_PDF_API_PATH}
+                download={ATS_TEMPLATE_PDF_FILENAME}
+                className={cn(monoClass, TEMPLATE_LINK_CLASS)}
+                style={{ color: PRIMARY }}
+              >
+                Sample PDF
+              </a>
+              <a
+                href={ATS_TEMPLATE_DOCX_API_PATH}
+                download={ATS_TEMPLATE_DOCX_FILENAME}
+                className={cn(monoClass, TEMPLATE_LINK_CLASS)}
+                style={{ color: PRIMARY }}
+              >
+                Sample DOCX
+              </a>
+            </>
+          }
+        />
+      ) : null}
 
       {(coordinates.firstName || coordinates.email) && (
         <div
@@ -321,17 +326,9 @@ export function FuelPanel({
       <IngestionTerminal lines={logLines} monoClass={monoClass} />
 
       {fileError ? (
-        <p
-          role="alert"
-          className="mt-4 rounded-xl border px-4 py-3 text-sm"
-          style={{
-            borderColor: "oklch(0.65 0.2 25 / 0.35)",
-            backgroundColor: "oklch(0.65 0.2 25 / 0.1)",
-            color: "oklch(0.98 0.01 268)",
-          }}
-        >
+        <InlineAlert surface="glass" variant="error" className="mt-4">
           {fileError}
-        </p>
+        </InlineAlert>
       ) : null}
     </div>
   );

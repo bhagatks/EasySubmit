@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getDefaultModelsForProvider } from "@/src/lib/config/app.config";
 
-/** Models to ping — same order as AutoApplyAI (1.5-flash first, then newer tiers). */
+/** Models to ping — flash tiers first (1.5-flash, then newer flash). */
 const GEMINI_PING_MODELS = [
   "gemini-1.5-flash",
   "gemini-2.5-flash",
@@ -43,8 +43,8 @@ function mapGeminiSdkError(error: unknown): {
 }
 
 /**
- * AutoApplyAI-style Gemini BYOK validation — minimal `generateContent` ping
- * (1 output token). Matches the flow that works in AutoApply for AQ. auth keys.
+ * Gemini BYOK validation — minimal `generateContent` ping (1 output token),
+ * then bundled career catalog when the ping succeeds.
  */
 export async function validateGeminiKey(apiKey: string): Promise<ValidateGeminiKeyResult> {
   const trimmed = apiKey.trim();

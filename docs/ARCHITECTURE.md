@@ -115,6 +115,20 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 
 | Date | Summary |
 |------|---------|
+| 2026-06-21 | Onboarding chrome: unified `OnboardingWorkbenchChrome` (logo + phase label + actions + Sign Out → progress bar → Identity \| Import \| Studio tabs); phase actions in header; Enhance with AI on Studio when enabled |
+| 2026-06-21 | Sign-out fix: `signOutUser` uses NextAuth `callbackUrl` redirect (no race with manual `/login` assign) |
+| 2026-06-21 | Enhance with AI preflight: button click checks feature flag + `aiEngine.quotas.system.enable` + route/quota before job-description dialog |
+| 2026-06-21 | Feature flags: `feature_flags.extra` JSON column for per-flag optional config |
+| 2026-06-21 | Feature flags: `feature_flags` key/value table (one row per flag); registry in `feature-flags-service.ts` |
+| 2026-06-21 | AI Engine quotas: `app_config.aiEngine.quotas.system.enable` gates system AI; `quotas.customer.aiDailyUnlimited` replaces per-user `users.aiDailyUnlimited` |
+| 2026-06-21 | BYOK unlimited auto-sync: `users.aiDailyUnlimited` set `true` on vault (`vaultUserApiKey`), cleared when last key revoked |
+| 2026-06-21 | System Gemini key pool v1: per-call `executeWithPoolRetry` (least-calls + round-robin, 3k platform cap fail-fast, Gamma paid overflow); slim `resolveAiRoute`; Pass 2 slot stickiness + `partialEnhance`; `capacity_exhausted` error |
+| 2026-06-21 | API observability (Option A): `api_call_logs` table + `src/shared/observability` (`logApiCall`, `[ApiCall]` console); wired to Enhance model calls, engine refinement, BYOK discovery handshake |
+| 2026-06-21 | Enhance with AI: default timeout 90s + workload-scaled client wait; in-dialog progress by payload size; `[EnhanceAI]` pipeline `step` + `hint` logs |
+| 2026-06-20 | Unified glossy UI system: `DialogContent appearance="glossy"`, `AppAlertDialog`, `GlossyPromoOverlay`, `GlossyFullscreenShell`, `InlineAlert` glass surface — migrated auth, BYOK, enhance AI, onboarding alerts |
+| 2026-06-20 | Reusable `LegalDocumentOverlay` + `TermsPrivacyConsent` (glossy in-app Terms/Privacy reader); login consent moved below OAuth buttons |
+| 2026-06-20 | AI Engine config: `app_config.aiEngine` (system model + quotas); system Gemini keys in Supabase Vault (`system_api_keys` slots 0–4); per-user `aiDailyUnlimited` BYOK cap bypass; import script `npm run db:import-system-keys` |
+| 2026-06-20 | AI Engine: Enhance with AI (header center) in Resume Studio + onboarding Studio; system Gemini key pool + daily quotas (5 enhancements / 20 calls); `/terms` + `/privacy`; login terms checkbox; Settings AI source + privacy copy |
 | 2026-06-20 | Onboarding workbench: compact one-line phase headers (Identity, Import, Studio); ATS samples as header links; finalize CTA → **Finalize & continue** |
 | 2026-06-20 | Schema consolidation: single `profiles` table with `content` JSONB; dropped `architectures`, child resume tables, unused profile columns |
 | 2026-06-20 | Postgres table inventory doc (`docs/TABLE_INVENTORY.md`) |
@@ -138,7 +152,7 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 | 2026-06-19 | Dashboard AI Keys (`/dashboard/keys`): lists vaulted BYOK per provider, edit/add via embedded Ignition Gate, multi-key + set active |
 | 2026-06-19 | Dashboard overview wired to Headless Engine: `getDashboardStats`, `Overview.tsx` (60/40 canvas, Engine Cold, verification from Architecture JSONB, BYOK mint badge) |
 | 2026-06-19 | `executeEngineRefinement` (`app/actions/ai/engine.ts`): vault decrypt → Vercel AI SDK Career Architecture refinement → `saveUsageLog`; `VAULT_LOCK` triggers Ignition Gate |
-| 2026-06-19 | Gemini BYOK: AutoApply-style `@google/generative-ai` ping (`gemini-1.5-flash`, 1 token) + optional REST model enrich |
+| 2026-06-19 | Gemini BYOK: `@google/generative-ai` SDK ping (`gemini-1.5-flash`, 1 token) + optional REST model enrich |
 | 2026-06-19 | Headless Engine schema: `Architecture` (replaces `Engine`), `UsageLog` ledger, `User.vaultKeyId` + `activeProvider` pointers; Career Architecture stores state, not secrets |
 | 2026-06-19 | Supabase Vault BYOK: `user_api_keys` + `vault_user_key` / `unvault_user_key` / `revoke_user_key` SQL functions; `lib/vault/user-key-vault.ts` + `app/actions/ai/vault-key.ts` for server-side key persistence |
 | 2026-06-19 | Login identity: `users.firstName` / `users.lastName` extracted at OAuth (`lib/auth/extract-login-identity.ts`); session exposes split names; onboarding Coordinates prefill from login profile |
@@ -147,7 +161,7 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 | 2026-06-19 | Onboarding sign out: `SignOutButton` in `OnboardingFlowShell` (full-screen top-right + legacy sidebar footer); `lib/auth/sign-out-client.ts` clears onboarding/ignition client storage then NextAuth `signOut` → `/login` |
 | 2026-06-19 | Dashboard ignition guard: `restoreIgnitionFromSession` rebuilds model catalog from cache after persist rehydration; guard waits for `_hasHydrated` so valid session keys are not cleared on every `/dashboard` visit |
 | 2026-06-19 | `PROVIDER_REGISTRY` expanded to 6 BYOK providers (OpenAI, Anthropic, Gemini, Groq, DeepSeek, OpenRouter) with `handshakeEndpoint`; Ignition Gate provider dropdown + Lucide icons; discovery handshake routes per provider | `getAppConfig("dataRefresh")` interval + `localStorage.lastDiscovery` skip live handshake when cache is fresh; uses `model-cache` catalog for fast Launch |
-| 2026-06-19 | `app_config` table + `prisma/seed.ts`: upserts `dataRefresh` and `aiConfig` defaults on deploy (`prisma db seed`) |
+| 2026-06-19 | `app_config` table + `prisma/seed.ts`: upserts `dataRefresh`, `aiConfig`, `ai_pricing_map`, and `enhanceWithAi` on deploy (`prisma db seed`) |
 | 2026-06-19 | Dashboard UI from Lovable bundle: `DashboardShell` sidebar (Overview, Resumes, Applications, AI Keys, Settings), overview stats/recent applications/ATS Guarantee cards; sub-routes stubbed; personalized greeting from session |
 | 2026-06-19 | `src/components/auth/IgnitionGate.tsx`: full-screen deep navy OKLCH gate with scanning-beam validation, System Log + `ClipboardButton`, mint-pulse Discovery List; `KeyProtector` + `DashboardIgnitionGuard` hide dashboard until `isLocked` is false |
 | 2026-06-19 | `discovery-service` server action: provider models handshake, strict career-grade validation, `ENGINE_ERRORS` terminal lines (`INVALID_KEY`, `INSUFFICIENT_QUOTA`, `NO_CAREER_MODELS`) |

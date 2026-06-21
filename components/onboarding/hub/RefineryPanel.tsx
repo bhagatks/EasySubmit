@@ -12,7 +12,7 @@ import {
   Sparkles,
   Trash2,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { CityStateField } from "@/components/onboarding/hub/CityStateField";
 import { DateRangeFields } from "@/components/onboarding/hub/DateRangeFields";
@@ -73,6 +73,25 @@ type RefineryPanelProps = {
   headerTitle?: string;
   headerDescription?: string;
   phaseLabel?: string;
+  /** When set (e.g. after AI enhance), overrides collapsible section open state. */
+  sectionExpansion?: Record<string, boolean> | null;
+  /** Hide in-panel phase intro — actions live in OnboardingWorkbenchHeader. */
+  hidePhaseIntro?: boolean;
+  onStudioToolbarChange?: (payload: RefineryStudioToolbarPayload | null) => void;
+};
+
+export type RefineryStudioToolbarUi = {
+  showRawText: boolean;
+  allSectionsExpanded: boolean;
+  hasRawText: boolean;
+};
+
+export type RefineryStudioToolbarPayload = {
+  ui: RefineryStudioToolbarUi;
+  actions: {
+    toggleRawText: () => void;
+    toggleAllSections: () => void;
+  };
 };
 
 function SectionTitle({
@@ -196,6 +215,9 @@ export function RefineryPanel({
   headerTitle,
   headerDescription,
   phaseLabel,
+  sectionExpansion,
+  hidePhaseIntro = false,
+  onStudioToolbarChange,
 }: RefineryPanelProps) {
   const [showRawText, setShowRawText] = useState(false);
   const onboardingCanProceed = useOnboardingStore(selectCanProceedToCalibration);
@@ -204,7 +226,7 @@ export function RefineryPanel({
   const canProceedToCalibration = isProfileMode
     ? localSkillCount >= MIN_STUDIO_SKILLS
     : onboardingCanProceed;
-  const { register, control, handleSubmit, watch, reset, setValue, getValues } =
+  const { register, control, handleSubmit, watch, setValue, getValues } =
     useForm<HubRefineryForm>({
       defaultValues: initialValues,
       mode: "onChange",
@@ -233,6 +255,12 @@ export function RefineryPanel({
     buildInitialStudioSectionState(coreSectionIds, editorVariant),
   );
 
+  useEffect(() => {
+    if (sectionExpansion) {
+      setExpandedSections(sectionExpansion);
+    }
+  }, [sectionExpansion]);
+
   const toggleSection = (sectionId: string) => {
     setExpandedSections((current) => ({
       ...current,
@@ -240,25 +268,75 @@ export function RefineryPanel({
     }));
   };
 
-  const skipWatchRef = useRef(false);
+  const allSectionKeys = useMemo(() => {
+    const ids: StudioEditorSectionId[] = [
+      ...(isProfileMode ? (["profileRole"] as const) : []),
+      "header",
+      "professionalSummary",
+      "skills",
+      "professionalExperience",
+      "education",
+      "certifications",
+      "projects",
+      "languages",
+    ];
+    return [...ids, ...customSectionFields.fields.map((field) => field.id)];
+  }, [isProfileMode, customSectionFields.fields]);
+
+  const allSectionsExpanded =
+    allSectionKeys.length > 0 &&
+    allSectionKeys.every((key) => Boolean(expandedSections[key]));
+
+  const toggleAllSections = useCallback(() => {
+    setExpandedSections((current) => {
+      const keys = allSectionKeys;
+      const nextExpanded = !(
+        keys.length > 0 && keys.every((key) => Boolean(current[key]))
+      );
+      const next = { ...current };
+      for (const key of keys) {
+        next[key] = nextExpanded;
+      }
+      return next;
+    });
+  }, [allSectionKeys]);
 
   useEffect(() => {
-    skipWatchRef.current = true;
-    reset(initialValues);
+    if (isProfileMode || !hidePhaseIntro) {
+      onStudioToolbarChange?.(null);
+      return;
+    }
 
-    const frameId = window.setTimeout(() => {
-      onChange(getValues());
-      skipWatchRef.current = false;
-    }, 0);
+    onStudioToolbarChange?.({
+      ui: {
+        showRawText,
+        allSectionsExpanded,
+        hasRawText: Boolean(rawText?.trim()),
+      },
+      actions: {
+        toggleRawText: () => setShowRawText((current) => !current),
+        toggleAllSections,
+      },
+    });
+  }, [
+    isProfileMode,
+    hidePhaseIntro,
+    showRawText,
+    allSectionsExpanded,
+    rawText,
+    onStudioToolbarChange,
+    toggleAllSections,
+  ]);
 
-    return () => window.clearTimeout(frameId);
-  }, [initialValues, reset, onChange, getValues]);
+  const headerActionClass = cn(
+    monoClass,
+    "inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] transition-colors hover:bg-white/[0.06]",
+  );
 
   const watched = watch();
 
   useEffect(() => {
     const subscription = watch(() => {
-      if (skipWatchRef.current) return;
       onChange(getValues());
     });
     return () => subscription.unsubscribe();
@@ -287,33 +365,23 @@ export function RefineryPanel({
   const resolvedFinalizeLabel =
     finalizeLabel ??
     (isProfileMode ? "Save profile" : WORKBENCH_FINALIZE_LABEL);
-  const studioSubtitle =
-    headerDescription?.trim() ||
-    getWorkbenchPhase(3)?.description ||
-    "Edit sections in ATS order — preview updates live on the left.";
+  const studioSubtitle = headerDescription?.trim() || getWorkbenchPhase(3)?.description || "";
 
   return (
     <div className={cn(isProfileMode ? "flex flex-col" : "flex flex-1 flex-col")}>
-      {!isProfileMode ? (
+      {!isProfileMode && !hidePhaseIntro ? (
         <WorkbenchPhaseIntro
           phaseId={3}
           monoClass={monoClass}
           icon={<Sparkles className="h-3.5 w-3.5" aria-hidden="true" />}
-          subtitle={
-            headerTitle?.trim()
-              ? `${headerTitle.trim()} — ${studioSubtitle}`
-              : studioSubtitle
-          }
+          subtitle={headerTitle?.trim() || studioSubtitle || undefined}
           actions={
             <>
               {rawText?.trim() ? (
                 <button
                   type="button"
                   onClick={() => setShowRawText((current) => !current)}
-                  className={cn(
-                    monoClass,
-                    "inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] transition-colors hover:bg-white/[0.06]",
-                  )}
+                  className={headerActionClass}
                   style={{ color: PRIMARY }}
                 >
                   {showRawText ? (
@@ -324,6 +392,20 @@ export function RefineryPanel({
                   {showRawText ? "Hide raw" : "Raw text"}
                 </button>
               ) : null}
+              <button
+                type="button"
+                onClick={toggleAllSections}
+                className={headerActionClass}
+                style={{ color: PRIMARY }}
+                aria-label={allSectionsExpanded ? "Collapse all sections" : "Expand all sections"}
+              >
+                {allSectionsExpanded ? (
+                  <ChevronUp className="h-3 w-3" aria-hidden="true" />
+                ) : (
+                  <ChevronDown className="h-3 w-3" aria-hidden="true" />
+                )}
+                {allSectionsExpanded ? "Collapse all" : "Expand all"}
+              </button>
               {onBack ? (
                 <button
                   type="button"
@@ -350,10 +432,16 @@ export function RefineryPanel({
         />
       ) : null}
 
+      {!isProfileMode && hidePhaseIntro && showRawText && rawText?.trim() ? (
+        <pre className="mb-3 max-h-28 w-full shrink-0 overflow-y-auto rounded-xl border border-white/10 bg-[oklch(0.12_0.03_268)] p-3 text-[10px] leading-relaxed text-[oklch(0.75_0.02_268)]">
+          {rawText}
+        </pre>
+      ) : null}
+
       <form
         className={cn(
           "flex flex-col space-y-3",
-          isProfileMode ? "mt-0" : "mt-4 flex-1",
+          isProfileMode ? "mt-0" : hidePhaseIntro ? "mt-0 flex-1" : "mt-4 flex-1",
         )}
         onSubmit={handleSubmit((values) =>
           onFinalize({

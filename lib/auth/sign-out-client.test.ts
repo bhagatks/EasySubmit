@@ -68,13 +68,23 @@ describe("sign-out-client", () => {
     expect(localStorage.getItem("easysubmit-ignition-prefs")).toBeNull();
   });
 
-  it("signOutUser clears client state then redirects to EasySubmit login", async () => {
+  it("signOutUser clears client state then signs out via NextAuth redirect", async () => {
     await signOutUser();
 
     expect(resetStoreMock).toHaveBeenCalledOnce();
     expect(resetIgnitionMock).toHaveBeenCalledOnce();
     expect(clearVaultMock).toHaveBeenCalledOnce();
-    expect(signOutMock).toHaveBeenCalledWith({ redirect: false });
-    expect(assignMock).toHaveBeenCalledWith("/login?signedOut=1");
+    expect(signOutMock).toHaveBeenCalledWith({ callbackUrl: "/login?signedOut=1" });
+    expect(assignMock).not.toHaveBeenCalled();
+  });
+
+  it("signOutUser falls back to server signout route when NextAuth signOut throws", async () => {
+    signOutMock.mockRejectedValueOnce(new Error("network"));
+
+    await signOutUser();
+
+    expect(assignMock).toHaveBeenCalledWith(
+      "/api/auth/signout?callbackUrl=%2Flogin%3FsignedOut%3D1",
+    );
   });
 });

@@ -1,5 +1,5 @@
 /**
- * Engine discovery handshake — AutoApplyAI-style model list fetch with
+ * Engine discovery handshake — provider model list fetch with
  * career-grade access validation and structured ENGINE_ERRORS.
  */
 import {
@@ -19,6 +19,7 @@ import {
   suggestPrimaryFuel,
   type HandshakeProvider,
 } from "@/src/lib/config/career-grade-models";
+import { logApiCall, type ApiCallLogContext } from "@/src/shared/observability";
 
 export type EngineHandshakeInput = {
   provider: HandshakeProvider;
@@ -65,6 +66,7 @@ async function fetchProviderModelCatalog(
  */
 export async function performEngineHandshake(
   input: EngineHandshakeInput,
+  logContext?: ApiCallLogContext,
 ): Promise<EngineHandshakeResult> {
   const provider = input.provider;
 
@@ -85,7 +87,24 @@ export async function performEngineHandshake(
     };
   }
 
+  const catalogStartedAt = Date.now();
   const catalog = await fetchProviderModelCatalog(handshakeProvider, apiKey);
+  logApiCall({
+    traceId: logContext?.traceId,
+    userId: logContext?.userId,
+    domain: "ai",
+    operation: "ai.discovery.models_list",
+    provider: handshakeProvider,
+    status: catalog.ok ? "success" : "error",
+    durationMs: Date.now() - catalogStartedAt,
+    aiMode: "customer",
+    errorCode: catalog.ok ? null : catalog.code,
+    errorMessage: catalog.ok ? null : catalog.message,
+    metadata: catalog.ok
+      ? { rawModelCount: catalog.models.length, feature: "ignition_handshake" }
+      : { feature: "ignition_handshake" },
+  });
+
   if (!catalog.ok) {
     return toFailure(catalog);
   }

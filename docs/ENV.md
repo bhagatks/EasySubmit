@@ -4,7 +4,7 @@ Two commands — local secrets on disk, production secrets on **Vercel only**.
 
 | Command | Purpose |
 |---------|---------|
-| **`run easy`** | Local dev — `.env.local`, migrations, dev server, incognito login |
+| **`run easy`** | Local dev — `.env.local`, migrations, dev server (browser manual by default) |
 | **`run easy prod`** | Deploy pipeline — tests → prod migrations (env pulled from Vercel) → `vercel deploy --prod` |
 
 ## Local dev
@@ -14,6 +14,14 @@ run easy
 ```
 
 Auto-creates `.env.local` from `.env.example` on first run. One-time: paste `DATABASE_URL` if still a placeholder.
+
+When the server is ready, the terminal prints the login URL — open it yourself in any browser.
+
+Optional auto-open incognito login (old behavior):
+
+```bash
+EASY_OPEN_BROWSER=1 run easy
+```
 
 ## Production deploy
 
@@ -47,4 +55,4 @@ One-time: `vercel login` and `vercel link` (prompted automatically).
 
 **Deploy fails on env pull:** ensure `DATABASE_URL` is set in Vercel Production environment variables.
 
-**OAuth loops locally:** use the incognito window `run easy` opens automatically.
+**OAuth loops locally:** use a fresh incognito/private window, or run `EASY_OPEN_BROWSER=1 run easy` to auto-open one.

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * After dev server is listening: open incognito login (fresh OAuth session).
+ * Optional: open incognito login after dev server is ready (fresh OAuth session).
+ * Only invoked when EASY_OPEN_BROWSER=1 — `npm run easy` does not open a browser by default.
  */
 import { execSync } from "node:child_process";
 
@@ -8,6 +9,11 @@ const args = process.argv.slice(2);
 function getArg(name, fallback) {
   const i = args.indexOf(`--${name}`);
   return i >= 0 && args[i + 1] ? args[i + 1] : fallback;
+}
+
+if (process.env.EASY_OPEN_BROWSER !== "1" && !args.includes("--force")) {
+  console.log("→ Skipping browser open (set EASY_OPEN_BROWSER=1 to enable)");
+  process.exit(0);
 }
 
 const port = getArg("port", "3000");

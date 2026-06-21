@@ -16,7 +16,8 @@ import { resolve } from "node:path";
 const root = process.cwd();
 const envFile = ".env.local";
 const example = ".env.example";
-const legacy = [".env.qa.local"];
+const legacySources = [".env.qa.local"];
+const redundantLocal = [".env", ...legacySources];
 
 function log(msg) {
   console.log(msg);
@@ -126,17 +127,13 @@ function flattenSymlinkSync(path) {
   return true;
 }
 
-function stripDatabaseUrlFromDotEnv() {
-  const dotEnv = resolve(root, ".env");
-  if (!existsSync(dotEnv)) return;
-  const text = readFileSync(dotEnv, "utf8");
-  if (!/^DATABASE_URL=/m.test(text)) return;
-  const next = text
-    .split("\n")
-    .filter((line) => !line.trim().startsWith("DATABASE_URL="))
-    .join("\n");
-  writeFileSync(dotEnv, `${next.replace(/\n?$/, "")}\n`);
-  log("→ Removed DATABASE_URL from .env (use .env.local for local dev only)");
+function removeRedundantEnvFiles() {
+  for (const file of redundantLocal) {
+    const path = resolve(root, file);
+    if (!existsSync(path)) continue;
+    unlinkSync(path);
+    log(`→ Removed redundant env file: ${file} (use .env.local only)`);
+  }
 }
 
 function ensureEnvFile() {
@@ -144,11 +141,12 @@ function ensureEnvFile() {
   const examplePath = resolve(root, example);
 
   if (!existsSync(envPath)) {
-    for (const legacyFile of legacy) {
+    for (const legacyFile of legacySources) {
       const legacyPath = resolve(root, legacyFile);
       if (existsSync(legacyPath)) {
         copyFileSync(legacyPath, envPath);
-        log(`→ Created ${envFile} from legacy ${legacyFile}`);
+        unlinkSync(legacyPath);
+        log(`→ Created ${envFile} from legacy ${legacyFile} (removed ${legacyFile})`);
         break;
       }
     }
@@ -179,5 +177,5 @@ function ensureEnvFile() {
   log(`→ Env ready (local: ${envFile})`);
 }
 
-stripDatabaseUrlFromDotEnv();
 ensureEnvFile();
+removeRedundantEnvFiles();

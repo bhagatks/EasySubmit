@@ -61,6 +61,12 @@ describe("normalizeBulletText", () => {
       normalizeBulletText("• Line one\n\n- Line two\n   \n• Line three"),
     ).toBe("Line one\nLine two\nLine three");
   });
+
+  it("accepts string arrays from AI payloads", () => {
+    expect(normalizeBulletText(["• Built APIs", "- Led team"])).toBe(
+      "Built APIs\nLed team",
+    );
+  });
 });
 
 describe("normalizeResumeLine", () => {

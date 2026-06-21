@@ -8,7 +8,7 @@ Last audited: **2026-06-20** (schema consolidation migration `20260620120000_con
 
 | Status | Count | Tables |
 |--------|------:|--------|
-| **Active** | 7 | `users`, `accounts`, `profiles`, `user_api_keys`, `usage_logs`, `app_config`, `_prisma_migrations` |
+| **Active** | 8 | `users`, `accounts`, `profiles`, `user_api_keys`, `usage_logs`, `app_config`, `feature_flags`, `_prisma_migrations` |
 | **Adapter (NextAuth)** | 2 | `sessions`, `verification_tokens` |
 | **Removed** | 5 | `architectures`, `experiences`, `projects`, `educations`, `certifications` |
 
@@ -66,6 +66,10 @@ Per-request AI cost ledger. **Kept.**
 ### `app_config`
 
 Global runtime config (`dataRefresh`, `aiConfig`, `ai_pricing_map`).
+
+### `feature_flags`
+
+Key/value rows (`key`, `enabled`, `description`) — add flags with `INSERT`, no new columns.
 
 ---
 

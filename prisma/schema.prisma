@@ -21,6 +21,14 @@ model User {
   vaultKeyId       String?        @db.Uuid
   /// Active BYOK provider (e.g. `anthropic`, `openai`, `gemini`).
   activeProvider   String?
+  /// `auto` | `customer` | `system` — which AI key powers enhance flows.
+  aiSourcePreference String       @default("auto")
+  aiEnhancementsToday Int         @default(0)
+  aiCallsToday        Int         @default(0)
+  aiQuotaResetAt      DateTime    @default(now())
+  /// Deprecated — use `app_config.aiEngine.quotas.customer.aiDailyUnlimited`.
+  aiDailyUnlimited    Boolean     @default(false)
+  termsAcceptedAt     DateTime?
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
   accounts         Account[]
@@ -28,6 +36,7 @@ model User {
   profiles         Profile[]
   apiKeys          UserApiKey[]
   usageLogs        UsageLog[]
+  apiCallLogs      ApiCallLog[]
 
   @@index([vaultKeyId])
   @@map("users")
@@ -46,6 +55,27 @@ model UserApiKey {
   @@unique([userId, provider])
   @@index([userId])
   @@map("user_api_keys")
+}
+
+/// EasySubmit system AI keys — raw secrets in Supabase Vault (`vault.secrets`).
+model SystemApiKey {
+  slot            Int       @id
+  vaultSecretId   String    @unique @db.Uuid
+  label           String?
+  enabled         Boolean   @default(true)
+  provider        String    @default("gemini")
+  /// `free` | `paid` — slot 2 (Gamma) switches to paid overflow via hot DB update.
+  billingMode     String    @default("free")
+  /// Authoritative Gemini model id for this slot.
+  modelId         String    @default("gemini-2.5-flash-lite")
+  callsToday      Int       @default(0)
+  exhaustedUntil  DateTime?
+  /// Last quota reset calendar day in America/Los_Angeles (`YYYY-MM-DD`).
+  quotaResetDate  String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("system_api_keys")
 }
 
 model Account {
@@ -131,6 +161,39 @@ model UsageLog {
   @@map("usage_logs")
 }
 
+/// Structured external API telemetry — AI provider calls, handshakes, vault ops.
+model ApiCallLog {
+  id            String   @id @default(cuid())
+  traceId       String?
+  userId        String?
+  domain        String
+  operation     String
+  provider      String?
+  modelId       String?
+  status        String
+  httpStatus    Int?
+  durationMs    Int
+  tokensUsed    Int?
+  estimatedCost Decimal? @db.Decimal(12, 6)
+  aiMode        String?
+  keySlot       Int?
+  keyLabel      String?
+  keySource     String?
+  billingMode   String?
+  errorCode     String?
+  errorMessage  String?  @db.Text
+  metadata      Json?
+  createdAt     DateTime @default(now())
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([traceId])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([domain, operation])
+  @@index([provider, status])
+  @@map("api_call_logs")
+}
+
 /// Global runtime configuration keyed by logical namespace (e.g. dataRefresh, aiConfig).
 model AppConfig {
   key       String   @id
@@ -139,4 +202,17 @@ model AppConfig {
   updatedAt DateTime @updatedAt
 
   @@map("app_config")
+}
+
+/// Global product feature toggles — one row per flag key.
+model FeatureFlag {
+  key         String   @id
+  enabled     Boolean  @default(false)
+  description String?
+  /// Optional per-flag JSON config (rollout hints, UI copy, limits, etc.).
+  extra       Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("feature_flags")
 }

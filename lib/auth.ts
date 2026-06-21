@@ -66,6 +66,7 @@ async function syncLoginUser(
       firstName: identity.firstName || null,
       lastName: identity.lastName || null,
       name: identity.displayName || null,
+      termsAcceptedAt: new Date(),
       ...(claims.picture ? { image: claims.picture } : {}),
     },
   });

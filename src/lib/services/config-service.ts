@@ -10,9 +10,32 @@ import {
   type DataRefreshConfig,
   type RefreshIntervalMinutes,
 } from "@/src/lib/services/config-shared";
+import {
+  AI_ENGINE_CONFIG_KEY,
+  AI_ENGINE_DEFAULTS,
+  parseAiEngineConfig,
+  type AiEngineConfig,
+} from "@/src/lib/services/ai-engine-config";
+import {
+  ENHANCE_WITH_AI_CONFIG_KEY,
+  ENHANCE_WITH_AI_SAFETY_DEFAULT,
+  parseEnhanceWithAiConfig,
+  type EnhanceWithAiConfig,
+} from "@/src/lib/services/enhance-with-ai-config";
 
 export type { AiPricingMap } from "@/src/lib/services/ai-pricing-map";
 export type { DataRefreshConfig, RefreshIntervalMinutes };
+export type { EnhanceWithAiConfig } from "@/src/lib/services/enhance-with-ai-config";
+export type { AiEngineConfig } from "@/src/lib/services/ai-engine-config";
+export {
+  AI_ENGINE_CONFIG_KEY,
+  AI_ENGINE_DEFAULTS,
+} from "@/src/lib/services/ai-engine-config";
+export {
+  ENHANCE_WITH_AI_CONFIG_KEY,
+  ENHANCE_WITH_AI_SAFETY_DEFAULT,
+  DEFAULT_ENHANCE_WITH_AI_TIMEOUT_MS,
+} from "@/src/lib/services/enhance-with-ai-config";
 export { DATA_REFRESH_SAFETY_DEFAULT, AI_PRICING_MAP_DEFAULT, AI_PRICING_MAP_KEY };
 
 export interface AiConfigRecord {
@@ -26,6 +49,8 @@ export interface AppConfigSnapshot {
   dataRefresh: DataRefreshConfig;
   aiConfig: AiConfigRecord | null;
   aiPricingMap: AiPricingMap;
+  enhanceWithAi: EnhanceWithAiConfig;
+  aiEngine: AiEngineConfig;
 }
 
 const DATA_REFRESH_KEY = "dataRefresh";
@@ -99,9 +124,19 @@ export async function getAppConfig(): Promise<AppConfigSnapshot>;
 export async function getAppConfig(key: "dataRefresh"): Promise<DataRefreshConfig>;
 export async function getAppConfig(key: "aiConfig"): Promise<AiConfigRecord | null>;
 export async function getAppConfig(key: "ai_pricing_map"): Promise<AiPricingMap>;
+export async function getAppConfig(key: "enhanceWithAi"): Promise<EnhanceWithAiConfig>;
+export async function getAppConfig(key: "aiEngine"): Promise<AiEngineConfig>;
 export async function getAppConfig(
-  key?: "dataRefresh" | "aiConfig" | "ai_pricing_map",
-): Promise<AppConfigSnapshot | DataRefreshConfig | AiConfigRecord | null | AiPricingMap> {
+  key?: "dataRefresh" | "aiConfig" | "ai_pricing_map" | "enhanceWithAi" | "aiEngine",
+): Promise<
+  | AppConfigSnapshot
+  | DataRefreshConfig
+  | AiConfigRecord
+  | null
+  | AiPricingMap
+  | EnhanceWithAiConfig
+  | AiEngineConfig
+> {
   const snapshot = await loadAppConfigSnapshot();
 
   if (key === "dataRefresh") {
@@ -116,13 +151,29 @@ export async function getAppConfig(
     return snapshot.aiPricingMap;
   }
 
+  if (key === "enhanceWithAi") {
+    return snapshot.enhanceWithAi;
+  }
+
+  if (key === "aiEngine") {
+    return snapshot.aiEngine;
+  }
+
   return snapshot;
 }
 
 async function loadAppConfigSnapshot(): Promise<AppConfigSnapshot> {
   const rows = await prisma.appConfig.findMany({
     where: {
-      key: { in: [DATA_REFRESH_KEY, AI_CONFIG_KEY, AI_PRICING_MAP_KEY] },
+      key: {
+        in: [
+          DATA_REFRESH_KEY,
+          AI_CONFIG_KEY,
+          AI_PRICING_MAP_KEY,
+          ENHANCE_WITH_AI_CONFIG_KEY,
+          AI_ENGINE_CONFIG_KEY,
+        ],
+      },
     },
     select: {
       key: true,
@@ -139,9 +190,18 @@ async function loadAppConfigSnapshot(): Promise<AppConfigSnapshot> {
   const aiPricingMap =
     parseAiPricingMap(byKey.get(AI_PRICING_MAP_KEY)) ?? AI_PRICING_MAP_DEFAULT;
 
+  const enhanceWithAi =
+    parseEnhanceWithAiConfig(byKey.get(ENHANCE_WITH_AI_CONFIG_KEY)) ??
+    ENHANCE_WITH_AI_SAFETY_DEFAULT;
+
+  const aiEngine =
+    parseAiEngineConfig(byKey.get(AI_ENGINE_CONFIG_KEY)) ?? AI_ENGINE_DEFAULTS;
+
   return {
     dataRefresh,
     aiConfig,
     aiPricingMap,
+    enhanceWithAi,
+    aiEngine,
   };
 }

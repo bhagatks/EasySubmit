@@ -2,10 +2,18 @@
 
 import { JetBrains_Mono } from "next/font/google";
 import { AnimatePresence, motion } from "framer-motion";
+import {
+  ArrowLeft,
+  ChevronDown,
+  ChevronUp,
+  Eye,
+  EyeOff,
+} from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { completeOnboarding, completeStep } from "@/app/actions/onboarding";
+import { fetchEnhanceOnboardingAvailable } from "@/app/actions/feature-flags";
 import { getLoginIdentity, getProfileIdentity } from "@/app/actions/profile";
 import { IdentityCanvasGhost } from "@/components/onboarding/hub/IdentityCanvasGhost";
 import { SynthesisTransition } from "@/components/onboarding/SynthesisTransition";
@@ -14,9 +22,20 @@ import {
   type CoordinatesValues,
 } from "@/components/onboarding/hub/CoordinatesPanel";
 import { FuelPanel } from "@/components/onboarding/hub/FuelPanel";
-import { RefineryPanel } from "@/components/onboarding/hub/RefineryPanel";
-import { SystemStatusBreadcrumb } from "@/components/onboarding/hub/SystemStatusBreadcrumb";
-import { SignOutButton } from "@/components/auth/SignOutButton";
+import {
+  RefineryPanel,
+  type RefineryStudioToolbarPayload,
+  type RefineryStudioToolbarUi,
+} from "@/components/onboarding/hub/RefineryPanel";
+import { OnboardingWorkbenchChrome } from "@/components/onboarding/hub/OnboardingWorkbenchChrome";
+import {
+  onboardingHeaderActionClass,
+  onboardingHeaderBackClass,
+  onboardingHeaderLinkClass,
+  ONBOARDING_HEADER_PRIMARY,
+} from "@/components/onboarding/hub/onboarding-header-styles";
+import { EnhanceWithAiButton } from "@/components/resume/EnhanceWithAiFlow";
+import { useResumeEnhanceFlow } from "@/components/resume/useResumeEnhanceFlow";
 import {
   PrimeResume,
   type PrimeResumeData,
@@ -39,8 +58,15 @@ import { formatDateRangeParts } from "@/lib/resume/dates";
 import { cn } from "@/lib/utils";
 import { useOnboardingStore } from "@/src/stores/onboarding-store";
 import { isIdentityPhaseComplete } from "@/lib/onboarding/identity";
+import { getWorkbenchPhase } from "@/lib/onboarding/workbenchPhases";
 import { formatLanguagesForResume } from "@/lib/onboarding/languages";
 import { parseProfileName } from "@/lib/profile/name";
+import {
+  ATS_TEMPLATE_DOCX_API_PATH,
+  ATS_TEMPLATE_DOCX_FILENAME,
+  ATS_TEMPLATE_PDF_API_PATH,
+  ATS_TEMPLATE_PDF_FILENAME,
+} from "@/lib/resume/resumeSpec";
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
@@ -48,10 +74,7 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
-const TOTAL_PHASES = 3;
-
 const CANVAS_BG = "oklch(0.16 0.04 268)";
-const PRIMARY = "oklch(0.62 0.21 265)";
 
 const EMPTY_RESUME: PrimeResumeData = {};
 
@@ -77,29 +100,6 @@ const stepTransition = {
   duration: 0.42,
   ease: [0.25, 0.46, 0.45, 0.94] as const,
 };
-
-function PhaseProgressBar({ phase }: { phase: number }) {
-  const progress = (phase / TOTAL_PHASES) * 100;
-
-  return (
-    <div
-      className="h-1 w-full shrink-0 overflow-hidden bg-white/10"
-      role="progressbar"
-      aria-valuenow={phase}
-      aria-valuemin={1}
-      aria-valuemax={TOTAL_PHASES}
-      aria-label={`Onboarding progress: phase ${phase} of ${TOTAL_PHASES}`}
-    >
-      <motion.div
-        className="h-full"
-        style={{ backgroundColor: PRIMARY }}
-        initial={false}
-        animate={{ width: `${progress}%` }}
-        transition={{ duration: 0.45, ease: [0.25, 0.46, 0.45, 0.94] }}
-      />
-    </div>
-  );
-}
 
 function parseCityState(cityState: string): { city: string; country: string } {
   const trimmed = cityState.trim();
@@ -134,6 +134,10 @@ export default function OnboardingPage() {
     useState<HubRefineryForm>(emptyHubRefineryForm());
   const [refineryForm, setRefineryForm] =
     useState<HubRefineryForm>(emptyHubRefineryForm());
+  const [refineryRevision, setRefineryRevision] = useState(0);
+  const [sectionExpansion, setSectionExpansion] = useState<Record<string, boolean> | null>(
+    null,
+  );
   const [parsedStructured, setParsedStructured] = useState<StructuredResume | null>(
     null,
   );
@@ -144,6 +148,14 @@ export default function OnboardingPage() {
   const [profileLastName, setProfileLastName] = useState("");
   const [loginFirstName, setLoginFirstName] = useState("");
   const [loginLastName, setLoginLastName] = useState("");
+  const [enhanceWithAiOnboarding, setEnhanceWithAiOnboarding] = useState(false);
+  const [finalizeError, setFinalizeError] = useState<string | null>(null);
+  const [studioToolbarUi, setStudioToolbarUi] = useState<RefineryStudioToolbarUi | null>(
+    null,
+  );
+  const studioToolbarActionsRef = useRef<
+    RefineryStudioToolbarPayload["actions"] | null
+  >(null);
   const calibrationRanRef = useRef(false);
 
   const sessionNameParts = parseProfileName(session?.user?.name);
@@ -181,6 +193,10 @@ export default function OnboardingPage() {
       setProfileFirstName(profile.firstName ?? "");
       setProfileLastName(profile.lastName ?? "");
     });
+  }, []);
+
+  useEffect(() => {
+    void fetchEnhanceOnboardingAvailable().then(setEnhanceWithAiOnboarding);
   }, []);
 
   useEffect(() => {
@@ -278,6 +294,39 @@ export default function OnboardingPage() {
     setRefineryForm(form);
   }, []);
 
+  const mergedRefineryForm = useMemo((): HubRefineryForm => {
+    const skillsText =
+      studioSkills.length > 0 ? studioSkills.join(", ") : refineryForm.skillsText;
+    return { ...refineryForm, skillsText };
+  }, [refineryForm, studioSkills]);
+
+  const handleEnhanceApply = useCallback(
+    (result: {
+      form: HubRefineryForm;
+      skills: string[];
+      sectionExpansion: Record<string, boolean>;
+    }) => {
+      setRefineryForm(result.form);
+      setStudioSkills(result.skills);
+      setSectionExpansion(result.sectionExpansion);
+      setRefineryRevision((revision) => revision + 1);
+      setResumeData(refineryFormToPrimeResume(result.form));
+    },
+    [setStudioSkills],
+  );
+
+  const { flowUi: enhanceFlowUi, openDialog: openEnhanceDialog, isLoading: isEnhancing } =
+    useResumeEnhanceFlow({
+      form: mergedRefineryForm,
+      targetRole: identity.targetRole,
+      rawResumeText,
+      forceSystem: true,
+      variant: "onboarding",
+      registerHeader: false,
+      enabled: enhanceWithAiOnboarding,
+      onApply: handleEnhanceApply,
+    });
+
   const studioPreview = useMemo(() => {
     const skillsText =
       studioSkills.length > 0
@@ -304,6 +353,8 @@ export default function OnboardingPage() {
   const handleSynthesizeArchitecture = useCallback(
     (form: HubRefineryForm) => {
       if (calibrationRanRef.current || isSynthesizing) return;
+
+      setFinalizeError(null);
 
       const skills =
         useOnboardingStore.getState().studio.skills.length > 0
@@ -381,9 +432,14 @@ export default function OnboardingPage() {
           });
 
           await updateSession({ onboardingStep: 4 });
-        } catch {
+        } catch (err) {
           calibrationRanRef.current = false;
           setIsSynthesizing(false);
+          setFinalizeError(
+            err instanceof Error
+              ? err.message
+              : "Could not save your profile. Please try again.",
+          );
         }
       })();
     },
@@ -418,6 +474,131 @@ export default function OnboardingPage() {
 
   const minNavigablePhase = phase >= 2 ? 2 : 1;
 
+  const handleStudioToolbarChange = useCallback(
+    (payload: RefineryStudioToolbarPayload | null) => {
+      studioToolbarActionsRef.current = payload?.actions ?? null;
+      setStudioToolbarUi((previous) => {
+        if (!payload) return null;
+        const { ui } = payload;
+        if (
+          previous &&
+          previous.showRawText === ui.showRawText &&
+          previous.allSectionsExpanded === ui.allSectionsExpanded &&
+          previous.hasRawText === ui.hasRawText
+        ) {
+          return previous;
+        }
+        return ui;
+      });
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (phase !== 3) {
+      studioToolbarActionsRef.current = null;
+      setStudioToolbarUi(null);
+    }
+  }, [phase]);
+
+  const headerActions = useMemo(() => {
+    const monoClass = jetbrainsMono.className;
+
+    if (phase === 2) {
+      return (
+        <>
+          <a
+            href={ATS_TEMPLATE_PDF_API_PATH}
+            download={ATS_TEMPLATE_PDF_FILENAME}
+            className={cn(monoClass, onboardingHeaderLinkClass)}
+            style={{ color: ONBOARDING_HEADER_PRIMARY }}
+          >
+            Sample PDF
+          </a>
+          <a
+            href={ATS_TEMPLATE_DOCX_API_PATH}
+            download={ATS_TEMPLATE_DOCX_FILENAME}
+            className={cn(monoClass, onboardingHeaderLinkClass)}
+            style={{ color: ONBOARDING_HEADER_PRIMARY }}
+          >
+            Sample DOCX
+          </a>
+        </>
+      );
+    }
+
+    if (phase === 3) {
+      const backLabel = getWorkbenchPhase(2)?.label ?? "Import";
+      const toolbar = studioToolbarUi;
+      const actions = studioToolbarActionsRef.current;
+
+      return (
+        <>
+          {toolbar?.hasRawText && actions ? (
+            <button
+              type="button"
+              onClick={() => actions.toggleRawText()}
+              className={cn(monoClass, onboardingHeaderActionClass)}
+              style={{ color: ONBOARDING_HEADER_PRIMARY }}
+            >
+              {toolbar.showRawText ? (
+                <EyeOff className="h-3 w-3" aria-hidden="true" />
+              ) : (
+                <Eye className="h-3 w-3" aria-hidden="true" />
+              )}
+              {toolbar.showRawText ? "Hide raw" : "Raw text"}
+            </button>
+          ) : null}
+          {actions ? (
+            <button
+              type="button"
+              onClick={() => actions.toggleAllSections()}
+              className={cn(monoClass, onboardingHeaderActionClass)}
+              style={{ color: ONBOARDING_HEADER_PRIMARY }}
+              aria-label={
+                toolbar?.allSectionsExpanded
+                  ? "Collapse all sections"
+                  : "Expand all sections"
+              }
+            >
+              {toolbar?.allSectionsExpanded ? (
+                <ChevronUp className="h-3 w-3" aria-hidden="true" />
+              ) : (
+                <ChevronDown className="h-3 w-3" aria-hidden="true" />
+              )}
+              {toolbar?.allSectionsExpanded ? "Collapse all" : "Expand all"}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={handleRefineryBack}
+            className={cn(monoClass, onboardingHeaderBackClass)}
+            style={{ color: "oklch(0.98 0.01 268)" }}
+          >
+            <ArrowLeft className="h-3 w-3" aria-hidden="true" />
+            {backLabel}
+          </button>
+          {enhanceWithAiOnboarding ? (
+            <EnhanceWithAiButton
+              variant="onboarding"
+              isLoading={isEnhancing}
+              onClick={openEnhanceDialog}
+            />
+          ) : null}
+        </>
+      );
+    }
+
+    return null;
+  }, [
+    phase,
+    studioToolbarUi,
+    handleRefineryBack,
+    enhanceWithAiOnboarding,
+    isEnhancing,
+    openEnhanceDialog,
+  ]);
+
   const renderPhasePanel = () => {
     switch (phase) {
       case 1:
@@ -431,6 +612,7 @@ export default function OnboardingPage() {
             monoClass={jetbrainsMono.className}
             onChange={handleCoordinatesChange}
             onContinue={(values) => void handleCoordinatesContinue(values)}
+            hidePhaseIntro
           />
         );
       case 2:
@@ -440,17 +622,22 @@ export default function OnboardingPage() {
             coordinates={coordinates}
             onParsed={handleFuelParsed}
             onScanningChange={setIsScanning}
+            hidePhaseIntro
           />
         );
       case 3:
         return (
           <RefineryPanel
-            initialValues={refineryInitial}
+            key={refineryRevision}
+            initialValues={mergedRefineryForm}
             rawText={rawResumeText}
             monoClass={jetbrainsMono.className}
             onChange={handleRefineryChange}
             onFinalize={handleSynthesizeArchitecture}
             onBack={handleRefineryBack}
+            sectionExpansion={sectionExpansion}
+            hidePhaseIntro
+            onStudioToolbarChange={handleStudioToolbarChange}
           />
         );
       default:
@@ -491,7 +678,17 @@ export default function OnboardingPage() {
       className="flex h-screen min-h-0 flex-col overflow-hidden"
       style={{ backgroundColor: CANVAS_BG }}
     >
-      <PhaseProgressBar phase={phase} />
+      <OnboardingWorkbenchChrome
+        phase={phase}
+        monoClass={jetbrainsMono.className}
+        headerActions={headerActions}
+        isSynthesizing={isSynthesizing}
+        minNavigablePhase={minNavigablePhase}
+        isPhaseComplete={isPhaseComplete}
+        onNavigate={handleBreadcrumbNavigate}
+      />
+
+      {enhanceFlowUi}
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <ResumeStudioWorkbench
@@ -521,21 +718,15 @@ export default function OnboardingPage() {
           previewOverlay={<ScanningBeam active={isScanning} />}
           panel={
             <div className="flex h-full min-h-0 flex-col">
-              <header className="shrink-0 border-b border-white/10">
-                <div className="flex items-stretch">
-                  <SystemStatusBreadcrumb
-                    currentStep={phase}
-                    isSynthesizing={isSynthesizing}
-                    minNavigablePhase={minNavigablePhase}
-                    isPhaseComplete={isPhaseComplete}
-                    onNavigate={handleBreadcrumbNavigate}
-                  />
-                  <div className="flex shrink-0 items-center border-l border-white/10 px-2 sm:px-3">
-                    <SignOutButton variant="pill" />
-                  </div>
-                </div>
-              </header>
               <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-6 py-6">
+                {finalizeError ? (
+                  <p
+                    className="mb-4 shrink-0 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200"
+                    role="alert"
+                  >
+                    {finalizeError}
+                  </p>
+                ) : null}
                 <AnimatePresence mode="wait" custom={direction}>
                   <motion.div
                     key={phase}

@@ -44,6 +44,7 @@ type CoordinatesPanelProps = {
   monoClass: string;
   onContinue: (values: CoordinatesValues) => void;
   onChange?: (values: CoordinatesValues) => void;
+  hidePhaseIntro?: boolean;
 };
 
 function TechLabel({
@@ -81,6 +82,7 @@ export function CoordinatesPanel({
   monoClass,
   onContinue,
   onChange,
+  hidePhaseIntro = false,
 }: CoordinatesPanelProps) {
   const identity = useOnboardingStore((state) => state.identity);
   const setTargetRole = useOnboardingStore((state) => state.setTargetRole);
@@ -193,14 +195,16 @@ export function CoordinatesPanel({
 
   return (
     <div className="flex flex-1 flex-col">
-      <WorkbenchPhaseIntro
-        phaseId={1}
-        monoClass={monoClass}
-        icon={<Crosshair className="h-3.5 w-3.5" aria-hidden="true" />}
-      />
+      {!hidePhaseIntro ? (
+        <WorkbenchPhaseIntro
+          phaseId={1}
+          monoClass={monoClass}
+          icon={<Crosshair className="h-3.5 w-3.5" aria-hidden="true" />}
+        />
+      ) : null}
 
       <form
-        className="mt-4 flex flex-1 flex-col space-y-5"
+        className={cn("flex flex-1 flex-col space-y-5", hidePhaseIntro ? "mt-0" : "mt-4")}
         onSubmit={handleSubmit}
         autoComplete="off"
       >

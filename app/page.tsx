@@ -319,8 +319,8 @@ function Footer() {
           <span>© {new Date().getFullYear()} EasySubmit.ai</span>
         </div>
         <div className="flex items-center gap-6">
-          <a href="#" className="hover:text-foreground">Privacy</a>
-          <a href="#" className="hover:text-foreground">Terms</a>
+          <Link href="/privacy" className="hover:text-foreground">Privacy</Link>
+          <Link href="/terms" className="hover:text-foreground">Terms</Link>
           <a href="#" className="inline-flex items-center gap-1.5 hover:text-foreground">
             <Code2 className="h-4 w-4" /> Open source
           </a>

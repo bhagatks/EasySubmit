@@ -5,6 +5,8 @@ import { signIn, signOut } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { MarketTruth } from "@/components/MarketTruth";
+import { TermsPrivacyConsent } from "@/components/legal/terms-privacy-consent";
+import { InlineAlert } from "@/components/ui/inline-alert";
 import { BrandWordmark } from "@/components/ui/brand-wordmark";
 import { EASYSUBMIT_TAGLINE } from "@/lib/brand";
 import { cn } from "@/lib/utils";
@@ -63,11 +65,7 @@ function LoginPanelChrome({ children }: { children: React.ReactNode }) {
 
         <div className="mx-auto w-full max-w-sm shrink-0">{children}</div>
 
-        <div className="flex flex-1 flex-col items-center justify-start pt-8 text-center lg:pt-10">
-          <p className="text-xs text-muted-foreground/65">
-            © {new Date().getFullYear()} EasySubmit.ai
-          </p>
-        </div>
+        <div className="flex flex-1 flex-col items-center justify-start pt-8 text-center lg:pt-10" />
       </div>
     </div>
   );
@@ -124,6 +122,7 @@ function LoginPanel() {
   const searchParams = useSearchParams();
   const [loadingProvider, setLoadingProvider] = useState<AuthProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   useEffect(() => {
     const authError = searchParams.get("error");
@@ -140,8 +139,11 @@ function LoginPanel() {
 
   const isLoading = loadingProvider !== null;
   const signedOut = searchParams.get("signedOut") === "1";
+  const hasStatusMessage = signedOut || Boolean(error);
 
   async function handleOAuth(provider: AuthProvider) {
+    if (!termsAccepted) return;
+
     setLoadingProvider(provider);
     setError(null);
 
@@ -179,15 +181,20 @@ function LoginPanel() {
           ) : null}
 
           {error ? (
-            <p role="alert" className="mt-4 text-sm text-destructive">
+            <InlineAlert surface="glass" variant="error" className="mt-4 text-left">
               {error}
-            </p>
+            </InlineAlert>
           ) : null}
 
-          <div className="mt-8 flex w-full flex-col gap-3 sm:mt-10 sm:gap-4">
+          <div
+            className={cn(
+              "flex w-full flex-col gap-3 sm:gap-4",
+              error ? "mt-8" : hasStatusMessage ? "mt-6" : "mt-8 sm:mt-10",
+            )}
+          >
             <button
               type="button"
-              disabled={isLoading}
+              disabled={isLoading || !termsAccepted}
               onClick={() => void handleOAuth("google")}
               className={SOCIAL_BUTTON_CLASS}
             >
@@ -197,13 +204,26 @@ function LoginPanel() {
 
             <button
               type="button"
-              disabled={isLoading}
+              disabled={isLoading || !termsAccepted}
               onClick={() => void handleOAuth("linkedin")}
               className={SOCIAL_BUTTON_CLASS}
             >
               <LinkedInIcon />
               {loadingProvider === "linkedin" ? "Redirecting…" : "Continue with LinkedIn"}
             </button>
+
+            <TermsPrivacyConsent
+              checked={termsAccepted}
+              onCheckedChange={setTermsAccepted}
+              disabled={isLoading}
+              variant="glass"
+              overlayPlacement="login-panel"
+              className="mt-1"
+            />
+
+            <p className="mt-2 text-xs text-muted-foreground/65">
+              © {new Date().getFullYear()} EasySubmit.ai
+            </p>
           </div>
         </div>
       </LoginPanelChrome>

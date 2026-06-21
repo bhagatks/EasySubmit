@@ -10,6 +10,7 @@ import {
   type PrimeResumeData,
 } from "@/components/onboarding/PrimeResume";
 import { ResumeStudioWorkbench } from "@/components/resume/ResumeStudioWorkbench";
+import { useResumeEnhanceFlow } from "@/components/resume/useResumeEnhanceFlow";
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
 import { refineryFormToPrimeResume } from "@/lib/onboarding/hubResume";
 import { studioSkillsFromForm } from "@/lib/profile/studio-form-db";
@@ -25,6 +26,7 @@ type ResumeStudioEditorProps = {
   initialTargetTitle: string;
   initialForm: HubRefineryForm;
   rawResumeText?: string | null;
+  enhanceWithAiEnabled?: boolean;
 };
 
 export function ResumeStudioEditor({
@@ -32,6 +34,7 @@ export function ResumeStudioEditor({
   initialTargetTitle,
   initialForm,
   rawResumeText,
+  enhanceWithAiEnabled = false,
 }: ResumeStudioEditorProps) {
   const router = useRouter();
   const [targetRole, setTargetRole] = useState(initialTargetTitle);
@@ -39,14 +42,47 @@ export function ResumeStudioEditor({
   const [studioSkills, setStudioSkills] = useState(() => studioSkillsFromForm(initialForm));
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [formRevision, setFormRevision] = useState(0);
+  const [sectionExpansion, setSectionExpansion] = useState<Record<string, boolean> | null>(
+    null,
+  );
 
-  const resumePreview = useMemo((): PrimeResumeData => {
-    const merged: HubRefineryForm = {
+  const mergedFormValues = useMemo(
+    (): HubRefineryForm => ({
       ...formValues,
       skillsText: studioSkills.join(", "),
-    };
-    return refineryFormToPrimeResume(merged);
-  }, [formValues, studioSkills]);
+    }),
+    [formValues, studioSkills],
+  );
+
+  const handleEnhanceApply = useCallback(
+    (result: {
+      form: HubRefineryForm;
+      skills: string[];
+      sectionExpansion: Record<string, boolean>;
+    }) => {
+      setFormValues(result.form);
+      setStudioSkills(result.skills);
+      setSectionExpansion(result.sectionExpansion);
+      setFormRevision((revision) => revision + 1);
+    },
+    [],
+  );
+
+  const { flowUi } = useResumeEnhanceFlow({
+    form: mergedFormValues,
+    targetRole,
+    profileId,
+    rawResumeText,
+    variant: "dashboard",
+    registerHeader: true,
+    enabled: enhanceWithAiEnabled,
+    onApply: handleEnhanceApply,
+  });
+
+  const resumePreview = useMemo((): PrimeResumeData => {
+    return refineryFormToPrimeResume(mergedFormValues);
+  }, [mergedFormValues]);
 
   const handleChange = useCallback((values: HubRefineryForm) => {
     setFormValues(values);
@@ -81,6 +117,7 @@ export function ResumeStudioEditor({
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
+      {flowUi}
       {error ? (
         <p className="mb-3 shrink-0 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-700">
           {error}
@@ -96,8 +133,9 @@ export function ResumeStudioEditor({
         }
         panel={
           <RefineryPanel
+            key={formRevision}
             mode="profile"
-            initialValues={initialForm}
+            initialValues={mergedFormValues}
             monoClass={jetbrainsMono.className}
             onChange={handleChange}
             onFinalize={handleFinalize}
@@ -106,6 +144,7 @@ export function ResumeStudioEditor({
             onTargetRoleChange={setTargetRole}
             studioSkills={studioSkills}
             onStudioSkillsChange={setStudioSkills}
+            sectionExpansion={sectionExpansion}
           />
         }
         panelScrolls

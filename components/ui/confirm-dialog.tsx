@@ -2,17 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
-
-const TECH_BORDER = "oklch(0.62 0.21 265 / 0.28)";
+import { GlossyModal } from "@/components/ui/glossy-modal";
 
 export type ConfirmDialogProps = {
   open: boolean;
@@ -51,21 +41,17 @@ export function ConfirmDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !pending && onOpenChange(next)}>
-      <DialogContent
-        hideClose
-        className={cn(
-          "max-w-md rounded-2xl border bg-surface/95 p-6 shadow-elevated sm:rounded-2xl",
-        )}
-        style={{ borderColor: TECH_BORDER }}
-        onPointerDownOutside={(event) => pending && event.preventDefault()}
-        onEscapeKeyDown={(event) => pending && event.preventDefault()}
-      >
-        <DialogHeader>
-          <DialogTitle className="font-display text-lg">{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
-        <DialogFooter className="mt-2 gap-2 sm:gap-2">
+    <GlossyModal
+      open={open}
+      onOpenChange={(next) => !pending && onOpenChange(next)}
+      busy={pending}
+      hideClose
+      placement="center"
+      title={title}
+      description={description}
+      className="w-[min(448px,calc(100vw-2rem))]"
+      footer={
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button
             type="button"
             variant="ghost"
@@ -77,15 +63,21 @@ export function ConfirmDialog({
           </Button>
           <Button
             type="button"
-            variant={confirmVariant === "destructive" ? "destructive" : confirmVariant === "mint" ? "mint" : "hero"}
+            variant={
+              confirmVariant === "destructive"
+                ? "destructive"
+                : confirmVariant === "mint"
+                  ? "mint"
+                  : "hero"
+            }
             className="rounded-xl"
             disabled={pending}
             onClick={() => void handleConfirm()}
           >
             {pending ? "Please wait…" : confirmLabel}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      }
+    />
   );
 }

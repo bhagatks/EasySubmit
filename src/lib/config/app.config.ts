@@ -2,8 +2,7 @@
  * EasySubmit AppConfig — single source of truth for AI provider metadata,
  * system defaults, and runtime constants.
  *
- * Pattern mirrors AutoApplyAI's split of `appConfig` (runtime URLs/defaults) +
- * `ai-provider-catalog` (provider registry), unified here for the Next.js app.
+ * Provider registry and runtime defaults unified for the Next.js app.
  */
 
 export type AiProvider =

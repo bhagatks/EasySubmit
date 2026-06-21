@@ -3,10 +3,15 @@
 import { motion } from "framer-motion";
 import { Check, Copy } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  GLOSSY_MINT,
+  GLOSSY_MINT_10,
+  GLOSSY_MINT_12,
+  GLOSSY_MINT_50,
+  GLOSSY_MUTED_RGB,
+  GLOSSY_NAVY_35,
+} from "@/components/ui/glossy-tokens";
 import { cn } from "@/lib/utils";
-
-const SYSTEM_MINT = "oklch(0.82 0.16 165)";
-const MUTED = "oklch(0.45 0.02 268)";
 const COPIED_MS = 1000;
 
 export type ClipboardButtonProps = {
@@ -68,15 +73,11 @@ export function ClipboardButton({
       )}
       animate={{
         backgroundColor: copied
-          ? [
-              "oklch(0.82 0.16 165 / 0.12)",
-              "oklch(0.82 0.16 165 / 0.5)",
-              "oklch(0.82 0.16 165 / 0.1)",
-            ]
-          : "oklch(0.16 0.04 268 / 0.35)",
+          ? [GLOSSY_MINT_12, GLOSSY_MINT_50, GLOSSY_MINT_10]
+          : GLOSSY_NAVY_35,
       }}
       transition={{ duration: COPIED_MS / 1000, ease: "easeOut" }}
-      style={{ color: copied ? SYSTEM_MINT : MUTED }}
+      style={{ color: copied ? GLOSSY_MINT : GLOSSY_MUTED_RGB }}
     >
       {copied ? (
         <Check className="h-4 w-4" aria-hidden="true" />

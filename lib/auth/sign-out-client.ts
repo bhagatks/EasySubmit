@@ -32,6 +32,16 @@ export function clearClientSessionState(): void {
 /** Sign out via NextAuth and return the user to `/login` (always stays on EasySubmit). */
 export async function signOutUser(): Promise<void> {
   clearClientSessionState();
-  await signOut({ redirect: false });
-  window.location.assign("/login?signedOut=1");
+
+  const callbackUrl = "/login?signedOut=1";
+
+  try {
+    // Let NextAuth finish clearing httpOnly cookies before landing on /login.
+    // Manual `location.assign` raced ahead of cookie deletion and left users signed in.
+    await signOut({ callbackUrl });
+  } catch {
+    window.location.assign(
+      `/api/auth/signout?callbackUrl=${encodeURIComponent(callbackUrl)}`,
+    );
+  }
 }

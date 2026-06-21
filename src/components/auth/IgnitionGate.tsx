@@ -14,6 +14,7 @@ import {
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { fetchDataRefreshConfig } from "@/app/actions/config";
 import { Button } from "@/components/ui/button";
+import { GlossyFullscreenShell } from "@/components/ui/glossy-fullscreen-shell";
 import { getWorkbenchPhase, workbenchPhaseHeader } from "@/lib/onboarding/workbenchPhases";
 import { cn } from "@/lib/utils";
 import { ProviderFuelSelect } from "@/src/components/shared/ProviderFuelSelect";
@@ -752,38 +753,11 @@ export function IgnitionGate({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-[120] flex flex-col overflow-y-auto backdrop-blur-2xl"
-      style={{ backgroundColor: "oklch(0.16 0.04 268 / 0.92)" }}
-      role="dialog"
-      aria-modal="true"
+    <GlossyFullscreenShell
       aria-label="Ignition Gate — engine authentication required"
+      contentClassName="mx-auto max-w-xl px-6 py-10 sm:py-14"
     >
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 overflow-hidden"
-      >
-        <div
-          className="absolute -left-1/4 top-0 h-[480px] w-[480px] rounded-full blur-3xl"
-          style={{ backgroundColor: "oklch(0.62 0.21 265 / 0.12)" }}
-        />
-        <div
-          className="absolute -right-1/4 bottom-0 h-[420px] w-[420px] rounded-full blur-3xl"
-          style={{ backgroundColor: "oklch(0.82 0.16 165 / 0.08)" }}
-        />
-        <div
-          className="absolute inset-0 opacity-[0.04]"
-          style={{
-            backgroundImage:
-              "linear-gradient(oklch(0.82 0.16 165 / 0.5) 1px, transparent 1px), linear-gradient(90deg, oklch(0.82 0.16 165 / 0.5) 1px, transparent 1px)",
-            backgroundSize: "48px 48px",
-          }}
-        />
-      </div>
-
-      <div className="relative mx-auto flex w-full max-w-xl flex-1 flex-col px-6 py-10 sm:py-14">
-        {panel}
-      </div>
-    </div>
+      {panel}
+    </GlossyFullscreenShell>
   );
 }
