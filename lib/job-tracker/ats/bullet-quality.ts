@@ -14,28 +14,50 @@ import type { PrimeResumeData } from "@/components/onboarding/PrimeResume";
 // Strong past-tense verbs that signal ownership and impact.
 
 const ACTION_VERBS = new Set([
-  // Leadership / management
+  // Leadership / management — past tense
   "led","managed","directed","oversaw","supervised","mentored","coached",
   "spearheaded","championed","orchestrated","established","founded","launched",
-  "initiated","drove","guided","facilitated","coordinated","delegated",
-  // Engineering / building
+  "initiated","drove","guided","facilitated","coordinated","delegated","owned",
+  // Leadership / management — gerund (current roles)
+  "leading","managing","directing","overseeing","supervising","mentoring","coaching",
+  "spearheading","championing","orchestrating","establishing","launching","initiating",
+  "driving","guiding","facilitating","coordinating","delegating","owning",
+  // Engineering / building — past tense
   "built","developed","designed","architected","engineered","implemented",
   "created","deployed","shipped","migrated","refactored","optimized","automated",
   "integrated","scaled","maintained","upgraded","modernized","containerized",
   "streamlined","consolidated","restructured","revamped","rewrote","extended",
-  // Analysis / research
+  // Engineering / building — gerund
+  "building","developing","designing","architecting","engineering","implementing",
+  "creating","deploying","shipping","migrating","refactoring","optimizing","automating",
+  "integrating","scaling","maintaining","upgrading","modernizing","containerizing",
+  "streamlining","consolidating","restructuring","revamping","rewriting","extending",
+  // Analysis / research — past tense
   "analyzed","researched","investigated","identified","evaluated","assessed",
   "audited","reviewed","diagnosed","monitored","tracked","measured","benchmarked",
-  // Impact / delivery
+  // Analysis / research — gerund
+  "analyzing","researching","investigating","identifying","evaluating","assessing",
+  "auditing","reviewing","diagnosing","monitoring","tracking","measuring","benchmarking",
+  // Impact / delivery — past tense
   "increased","decreased","reduced","improved","accelerated","boosted","cut",
   "saved","generated","grew","expanded","delivered","achieved","exceeded",
   "secured","raised","eliminated","resolved","fixed","closed","negotiated",
-  // Collaboration / communication
+  // Impact / delivery — gerund
+  "increasing","decreasing","reducing","improving","accelerating","boosting","cutting",
+  "saving","generating","growing","expanding","delivering","achieving","exceeding",
+  "securing","raising","eliminating","resolving","fixing","closing","negotiating",
+  // Collaboration / communication — past tense
   "partnered","collaborated","presented","documented","communicated","published",
   "trained","educated","onboarded","recruited","interviewed","hired",
-  // Data / reporting
+  // Collaboration / communication — gerund
+  "partnering","collaborating","presenting","documenting","communicating","publishing",
+  "training","educating","onboarding","recruiting","interviewing","hiring",
+  // Data / reporting — past tense
   "modeled","forecasted","reported","visualized","queried","processed",
   "transformed","extracted","loaded","cleaned","validated","aggregated",
+  // Data / reporting — gerund
+  "modeling","forecasting","reporting","visualizing","querying","processing",
+  "transforming","extracting","loading","cleaning","validating","aggregating",
 ]);
 
 // ─── Weak phrases ──────────────────────────────────────────────────────────────

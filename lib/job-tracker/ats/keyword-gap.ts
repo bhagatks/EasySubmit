@@ -24,6 +24,15 @@ const STOP_WORDS = new Set([
   "over","under","back","still","own","same","right","work","working","worked",
   "use","using","used","make","made","making","help","helping","helped",
   "ensure","ensuring","support","supporting","supported","including","include",
+  // HR / job-posting filler — not ATS skills
+  "position","positions","role","roles","opportunity","opportunities",
+  "candidate","candidates","apply","application","applications","hiring","hire",
+  "join","joining","compensation","benefits","benefit","pay","salary","package",
+  "culture","innovation","innovative","passionate","passion","growth","impact",
+  "environment","team","teams","company","organization","business","industry",
+  "experience","experiences","skill","skills","ability","abilities","knowledge",
+  "required","requirements","preferred","plus","bonus","ideal","strong","excellent",
+  "great","key","core","primary","secondary","relevant","related","demonstrated",
 ]);
 
 // Minimum token length to consider meaningful
