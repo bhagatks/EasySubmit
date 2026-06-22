@@ -48,12 +48,7 @@ Include metrics when truthfully available: team size, revenue, user growth, cost
 - Do not invent employers, dates, degrees, or metrics not supported by the candidate context.
 `.trim();
 
-/** Rough word count for length guardrails. */
-export function countCoverLetterWords(text: string): number {
-  return text
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean).length;
-}
-
-export const COVER_LETTER_WORD_TARGET = { min: 260, ideal: 325, max: 450 } as const;
+export {
+  countCoverLetterWords,
+  COVER_LETTER_WORD_TARGET,
+} from "@/lib/job-tracker/cover-letter-constants";

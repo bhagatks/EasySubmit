@@ -36,6 +36,18 @@ import { findProfileForUser } from "@/lib/profile/resume-profile-core";
 import { prisma } from "@/lib/prisma";
 import { resumeProfileDisplayLabel } from "@/lib/extension/resume-profiles";
 import { createEnhanceTraceId } from "@/src/lib/ai/engine/enhance-logger";
+import { computeResumeReadiness } from "@/lib/job-tracker/ats/resume-readiness-score";
+import { refineryFormToPrimeResume } from "@/lib/onboarding/hubResume";
+
+export type EnhanceResumeActionResult =
+  | {
+      success: true;
+      fallbackUsed?: boolean;
+      fallbackSummary?: string;
+      atsDelta?: { before: number; after: number };
+      enhanceSummary?: string;
+    }
+  | { success: false; error: string; code?: string };
 
 export type ReviewActionResult =
   | { success: true }
@@ -133,7 +145,7 @@ export async function saveJobLatexSource(input: {
   return { success: true };
 }
 
-export async function enhanceJobResumeFromReview(jobId: string): Promise<ReviewActionResult> {
+export async function enhanceJobResumeFromReview(jobId: string): Promise<EnhanceResumeActionResult> {
   const userId = await requireUserId();
   if (!userId) return { success: false, error: "Sign in required", code: "unauthorized" };
 
@@ -152,6 +164,10 @@ export async function enhanceJobResumeFromReview(jobId: string): Promise<ReviewA
     };
   }
 
+  // Snapshot ATS score before enhance
+  const beforePrime = refineryFormToPrimeResume(merged.form);
+  const beforeScore = computeResumeReadiness(beforePrime, merged.targetTitle, description).total;
+
   const traceId = createEnhanceTraceId();
   const enhanced = await enhanceResumeForUserId(userId, {
     profileId: merged.sourceProfileId,
@@ -160,7 +176,7 @@ export async function enhanceJobResumeFromReview(jobId: string): Promise<ReviewA
     jobDescription: description,
     rawResumeText: merged.rawResumeText,
     traceId,
-    variant: "pipeline",
+    variant: "dashboard",
   });
 
   if (!enhanced.success) {
@@ -204,8 +220,22 @@ export async function enhanceJobResumeFromReview(jobId: string): Promise<ReviewA
     await updateJobReviewDocuments(userId, jobId, coverPatch);
   }
 
+  // Snapshot ATS score after enhance
+  const afterPrime = refineryFormToPrimeResume(enhanced.form);
+  const afterScore = computeResumeReadiness(afterPrime, enhanced.targetRole, description).total;
+
   revalidatePath("/dashboard/job-tracker");
-  return { success: true };
+  return {
+    success: true,
+    fallbackUsed: enhanced.fallbackUsed,
+    fallbackSummary: enhanced.fallbackSummary,
+    atsDelta: { before: beforeScore, after: afterScore },
+    enhanceSummary: enhanced.fallbackUsed
+      ? enhanced.fallbackSummary
+      : changedSections.length > 0
+        ? `Updated ${changedSections.length} section${changedSections.length > 1 ? "s" : ""}: ${changedSections.join(", ")}.`
+        : undefined,
+  };
 }
 
 export async function enhanceJobCoverLetter(jobId: string): Promise<ReviewActionResult> {

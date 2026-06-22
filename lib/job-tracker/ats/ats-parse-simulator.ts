@@ -29,16 +29,19 @@ export type AtsParseResult = {
   warnings: string[];
 };
 
-function detectFieldWarnings(content: ResumeContentModel): string[] {
+function detectFieldWarnings(
+  content: ResumeContentModel,
+  data: PrimeResumeData,
+): string[] {
   const warnings: string[] = [...content.warnings];
 
   if (!content.name || content.name === "Applicant") {
     warnings.push("Name is missing — ATS may reject with no candidate name.");
   }
-  if (!content.contact.includes("@")) {
+  if (!data.email?.trim()) {
     warnings.push("Email missing — most ATS require it to create a candidate record.");
   }
-  if (!content.contact.match(/\d/)) {
+  if (!data.phone?.trim()) {
     warnings.push("Phone missing — common required field in Workday and iCIMS.");
   }
   if (!content.targetTitle && !content.summary) {
@@ -165,7 +168,7 @@ export function simulateAtsParse(
 ): AtsParseResult {
   const content = buildResumeContentFromPrime(data, targetTitle);
   const sections = sectionsFromContent(content);
-  const warnings = detectFieldWarnings(content);
+  const warnings = detectFieldWarnings(content, data);
   const totalChars = sections
     .flatMap((s) => s.lines)
     .reduce((sum, l) => sum + l.text.length, 0);

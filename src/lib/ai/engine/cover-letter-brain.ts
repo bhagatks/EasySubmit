@@ -94,8 +94,9 @@ export function normalizeCoverLetterBody(text: string): string {
     .replace(/```$/gm, "")
     .trim();
 
-  // Strip any model preamble before the greeting line
-  const greetingIndex = body.search(/\bDear\b/i);
+  // Strip any model preamble before the greeting line.
+  // Handles: Dear / Hello / Hi [Name] / To Whom It May Concern
+  const greetingIndex = body.search(/\b(Dear|Hello|Hi\b|To Whom)\b/i);
   if (greetingIndex > 0) {
     body = body.slice(greetingIndex);
   }

@@ -261,7 +261,6 @@ export async function buildResumeDocx(
   form: HubRefineryForm,
   targetTitle: string,
 ): Promise<Uint8Array> {
-  validateResumeForm(form);
   const content = buildResumeContentFromForm(form, targetTitle);
 
   const doc = new Document({

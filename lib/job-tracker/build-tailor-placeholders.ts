@@ -25,8 +25,10 @@ function capitalizeKeyword(value: string): string {
 }
 
 function firstAchievementLine(form: HubRefineryForm): string {
-  for (const entry of form.experience) {
-    if (entry.hidden) continue;
+  const visibleEntries = form.experience.filter(
+    (e) => !e.hidden && (e.title?.trim() || e.company?.trim()),
+  );
+  for (const entry of visibleEntries) {
     for (const line of entry.bullets?.split("\n") ?? []) {
       const bullet = line.replace(/^[-•*]\s*/, "").trim();
       if (bullet && METRIC_BULLET_PATTERN.test(bullet)) {

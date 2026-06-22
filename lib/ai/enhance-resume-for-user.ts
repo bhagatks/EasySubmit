@@ -1,5 +1,6 @@
 import { recordUsageLogForUser } from "@/app/actions/ai/usage-log";
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
+import { analyzeJobIntelligenceWithOnet } from "@/lib/job-tracker/ats/job-intelligence";
 import { prisma } from "@/lib/prisma";
 import type { StudioEditorSectionId } from "@/lib/resume/studio-editor-sections";
 import type { AiSourcePreference } from "@/src/lib/ai/engine/constants";
@@ -50,6 +51,9 @@ export type EnhanceResumeProfileSuccess = {
   aiMode: "customer" | "system";
   partialEnhance?: boolean;
   warning?: string;
+  /** True when AI failed and the deterministic fallback engine ran instead. */
+  fallbackUsed?: boolean;
+  fallbackSummary?: string;
 };
 
 export type EnhanceResumeProfileFailure = {
@@ -231,6 +235,12 @@ export async function enhanceResumeForUserId(
     };
   }
 
+  // Pre-compute ATS intelligence — feeds tactical prompts and deterministic fallback.
+  // Only when a job description is present (no JD = general enhance, no targeting possible).
+  const jobIntelligence = input.jobDescription?.trim()
+    ? await analyzeJobIntelligenceWithOnet(input.form, input.targetRole, input.jobDescription)
+    : undefined;
+
   const pricingMap = await getAppConfig("ai_pricing_map");
   const engineStartedAt = Date.now();
   const result = await runResumeEnhance(
@@ -242,6 +252,7 @@ export async function enhanceResumeForUserId(
       route,
       traceId,
       userId,
+      jobIntelligence,
     },
     pricingMap,
   );
@@ -276,30 +287,46 @@ export async function enhanceResumeForUserId(
     };
   }
 
-  const increment = incrementQuotaPatch(quotaRow, aiEngine, {
-    isEnhancement: true,
-    callCount: result.apiCallCount,
-    mode: route.mode,
-  });
+  // Only increment quota when AI actually ran (not deterministic fallback)
+  const usedFallback = Boolean(result.fallbackUsed);
 
-  await prisma.user.update({
-    where: { id: userId },
-    data: {
-      ...(resetPatch ?? {}),
-      ...increment,
-    },
-  });
-
-  if (result.tokensUsed > 0) {
-    await recordUsageLogForUser(userId, {
-      tokensUsed: result.tokensUsed,
-      modelId: result.modelId,
-      estimatedCost: result.estimatedCost,
+  if (!usedFallback) {
+    const increment = incrementQuotaPatch(quotaRow, aiEngine, {
+      isEnhancement: true,
+      callCount: result.apiCallCount,
+      mode: route.mode,
     });
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(resetPatch ?? {}),
+        ...increment,
+      },
+    });
+
+    if (result.tokensUsed > 0) {
+      await recordUsageLogForUser(userId, {
+        tokensUsed: result.tokensUsed,
+        modelId: result.modelId,
+        estimatedCost: result.estimatedCost,
+      });
+    }
+  } else if (resetPatch) {
+    // Still apply the quota reset even if fallback ran
+    await prisma.user.update({ where: { id: userId }, data: resetPatch });
   }
 
+  const incrementForSnapshot = usedFallback
+    ? { aiEnhancementsToday: quotaRow.aiEnhancementsToday, aiCallsToday: quotaRow.aiCallsToday }
+    : incrementQuotaPatch(quotaRow, aiEngine, {
+        isEnhancement: true,
+        callCount: result.apiCallCount,
+        mode: route.mode,
+      });
+
   const updatedSnapshot = buildQuotaSnapshot(
-    { ...quotaRow, ...increment },
+    { ...quotaRow, ...incrementForSnapshot },
     aiEngine,
     route.mode,
   );
@@ -322,6 +349,12 @@ export async function enhanceResumeForUserId(
           warning:
             result.partialEnhanceMessage ??
             "Job-specific optimization was incomplete. Your base enhancement was saved.",
+        }
+      : {}),
+    ...(usedFallback
+      ? {
+          fallbackUsed: true,
+          fallbackSummary: result.fallbackSummary,
         }
       : {}),
   };

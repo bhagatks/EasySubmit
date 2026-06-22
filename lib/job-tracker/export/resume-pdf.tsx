@@ -17,7 +17,6 @@ import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
 import {
   buildResumeContentFromForm,
   type ResumeContentModel,
-  validateResumeForm,
 } from "@/lib/job-tracker/export/resume-content-model";
 import {
   COLOR,
@@ -225,7 +224,6 @@ export async function buildResumePdf(
   form: HubRefineryForm,
   targetTitle: string,
 ): Promise<Uint8Array> {
-  validateResumeForm(form);
   const content = buildResumeContentFromForm(form, targetTitle);
   const doc = <ResumeDocument content={content} />;
   const blob = await pdf(doc).toBlob();

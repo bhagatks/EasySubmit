@@ -208,6 +208,7 @@ export const DEFAULT_COVER_LETTER_COMPOSITION: CoverLetterComposition = {
   closingId: COVER_LETTER_TEMPLATE_MATRIX.closings[0].id,
 };
 
-export { COVER_LETTER_WORD_TARGET as DETERMINISTIC_COVER_LETTER_WORD_TARGET } from "@/src/lib/ai/engine/cover-letter-rules";
-
-export { countCoverLetterWords as countTemplateWords } from "@/src/lib/ai/engine/cover-letter-rules";
+export {
+  COVER_LETTER_WORD_TARGET as DETERMINISTIC_COVER_LETTER_WORD_TARGET,
+  countCoverLetterWords as countTemplateWords,
+} from "@/lib/job-tracker/cover-letter-constants";

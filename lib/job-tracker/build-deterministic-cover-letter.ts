@@ -68,7 +68,7 @@ export function hubRefineryFormToResumeMarkdown(
   }
 
   const visibleExperience = form.experience.filter(
-    (entry) => !entry.hidden && (entry.title?.trim() || entry.company?.trim()),
+    (e) => !e.hidden && (e.title?.trim() || e.company?.trim()),
   );
   if (visibleExperience.length > 0) {
     lines.push("", "## Experience");

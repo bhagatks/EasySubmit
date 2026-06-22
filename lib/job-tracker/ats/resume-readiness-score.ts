@@ -124,9 +124,10 @@ function scoreBulletQuality(data: PrimeResumeData): ReadinessPillar {
     };
   }
 
-  // 50% weight on action verbs, 50% on quantification
+  // Action verbs carry more ATS signal than quantification alone —
+  // real resumes average 20–40% metric bullets so pure 50/50 is too punishing.
   const pts = Math.round(
-    (quality.actionVerbRate / 100) * 12.5 + (quality.quantificationRate / 100) * 12.5,
+    (quality.actionVerbRate / 100) * 17.5 + (quality.quantificationRate / 100) * 7.5,
   );
 
   if (quality.actionVerbRate < 70) {
@@ -149,7 +150,7 @@ function scoreBulletQuality(data: PrimeResumeData): ReadinessPillar {
 function scoreAtsCompliance(data: PrimeResumeData, targetTitle: string): ReadinessPillar {
   const parsed = simulateAtsParse(data, targetTitle);
   const warnings = parsed.warnings;
-  const pts = Math.max(0, 25 - warnings.length * 5);
+  const pts = Math.max(0, 25 - warnings.length * 3);
 
   return {
     label: "ATS Compliance",

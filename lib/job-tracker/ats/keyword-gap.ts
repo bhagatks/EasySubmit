@@ -166,11 +166,21 @@ export function analyzeKeywordGap(
     jdFreq.set(t, (jdFreq.get(t) ?? 0) + 1);
   }
 
-  // Keep only tokens that appear ≥2 times in JD — single mentions are noise
-  const candidateKeywords = Array.from(jdFreq.entries())
+  // Prefer tokens that appear ≥2 times; fall back to ≥1 for short JDs where
+  // few tokens repeat — otherwise candidateKeywords collapses to near-empty
+  // and coveragePercent becomes 0 regardless of resume quality.
+  const strictCandidates = Array.from(jdFreq.entries())
     .filter(([, freq]) => freq >= 2)
-    .sort((a, b) => b[1] - a[1]) // highest frequency first
+    .sort((a, b) => b[1] - a[1])
     .map(([kw]) => kw);
+
+  const candidateKeywords = strictCandidates.length >= 5
+    ? strictCandidates
+    : Array.from(jdFreq.entries())
+        .filter(([, freq]) => freq >= 1)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 25)
+        .map(([kw]) => kw);
 
   const matched: KeywordMatch[] = [];
   const missing: string[] = [];

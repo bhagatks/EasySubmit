@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useCallback, useState, type ReactNode } from "react";
+import { ArrowUp, Bot, TrendingUp } from "lucide-react";
 import {
   enhanceJobResumeFromReview,
   exportReviewDocument,
   loadReviewLatexWorkspace,
+  type EnhanceResumeActionResult,
 } from "@/app/actions/review-documents";
 import { DocumentToolbar, type DocumentToolbarAction } from "@/components/dashboard/review/DocumentToolbar";
 import { ReviewPreviewZoomControls } from "@/components/dashboard/review/ReviewPreviewZoomControls";
@@ -44,10 +46,74 @@ function PanelPlaceholder({
   );
 }
 
+type EnhanceFeedback = {
+  fallbackUsed: boolean;
+  atsDelta: { before: number; after: number } | null;
+  summary: string | null;
+};
+
+function EnhanceFeedbackCard({ feedback }: { feedback: EnhanceFeedback }) {
+  const delta = feedback.atsDelta;
+  const improved = delta && delta.after > delta.before;
+
+  return (
+    <div
+      className={
+        feedback.fallbackUsed
+          ? "absolute left-2 right-2 top-11 z-10 rounded-xl border border-amber-500/30 bg-[oklch(0.16_0.04_268/0.95)] px-3 py-2.5 text-xs shadow-lg"
+          : "absolute left-2 right-2 top-11 z-10 rounded-xl border border-mint/30 bg-[oklch(0.16_0.04_268/0.95)] px-3 py-2.5 text-xs shadow-lg"
+      }
+    >
+      <div className="flex items-start gap-2">
+        {feedback.fallbackUsed ? (
+          <Bot className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" aria-hidden="true" />
+        ) : (
+          <TrendingUp className="mt-0.5 h-3.5 w-3.5 shrink-0 text-mint" aria-hidden="true" />
+        )}
+        <div className="min-w-0 flex-1">
+          {feedback.fallbackUsed ? (
+            <p className="font-medium text-amber-300">Enhanced without AI (rules engine)</p>
+          ) : (
+            <p className="font-medium text-mint">Resume enhanced</p>
+          )}
+
+          {delta ? (
+            <div className="mt-1 flex items-center gap-1.5">
+              <span className="text-muted-foreground">ATS score</span>
+              <span className="font-mono font-semibold text-foreground">{delta.before}</span>
+              <ArrowUp
+                className={improved ? "h-3 w-3 text-mint" : "h-3 w-3 rotate-180 text-red-400"}
+                aria-hidden="true"
+              />
+              <span
+                className={
+                  improved
+                    ? "font-mono font-semibold text-mint"
+                    : "font-mono font-semibold text-red-400"
+                }
+              >
+                {delta.after}
+              </span>
+              {improved ? (
+                <span className="text-mint">(+{delta.after - delta.before} pts)</span>
+              ) : null}
+            </div>
+          ) : null}
+
+          {feedback.summary ? (
+            <p className="mt-1 text-muted-foreground">{feedback.summary}</p>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ReviewResumePanel({ entry, onRefresh }: ReviewResumePanelProps) {
   const preview = entry.tailoredResumePreview;
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [enhanceFeedback, setEnhanceFeedback] = useState<EnhanceFeedback | null>(null);
   const [latexOpen, setLatexOpen] = useState(false);
   const [latexPayload, setLatexPayload] = useState<{
     latex: string;
@@ -151,12 +217,18 @@ export function ReviewResumePanel({ entry, onRefresh }: ReviewResumePanelProps) 
         void (async () => {
           setBusy("enhance");
           setError(null);
-          const result = await enhanceJobResumeFromReview(entry.id);
+          setEnhanceFeedback(null);
+          const result: EnhanceResumeActionResult = await enhanceJobResumeFromReview(entry.id);
           setBusy(null);
           if (!result.success) {
             setError(result.error);
             return;
           }
+          setEnhanceFeedback({
+            fallbackUsed: result.fallbackUsed ?? false,
+            atsDelta: result.atsDelta ?? null,
+            summary: result.enhanceSummary ?? result.fallbackSummary ?? null,
+          });
           onRefresh();
         })();
       },
@@ -214,6 +286,8 @@ export function ReviewResumePanel({ entry, onRefresh }: ReviewResumePanelProps) 
           <p className="absolute left-2 right-2 top-11 z-10 rounded-lg border border-red-500/30 bg-[oklch(0.16_0.04_268/0.92)] px-3 py-1.5 text-xs text-red-300">
             {error}
           </p>
+        ) : enhanceFeedback ? (
+          <EnhanceFeedbackCard feedback={enhanceFeedback} />
         ) : null}
 
         <ReviewResumePreview

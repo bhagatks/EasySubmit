@@ -31,6 +31,11 @@ import {
 } from "@/src/lib/ai/engine/system-key-pool";
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
 import type { StudioEditorSectionId } from "@/lib/resume/studio-editor-sections";
+import type { JobIntelligence } from "@/lib/job-tracker/ats/job-intelligence";
+import {
+  deterministicEnhance,
+  type DeterministicEnhanceResult,
+} from "@/lib/job-tracker/ats/deterministic-enhancer";
 import { logApiCall } from "@/src/shared/observability";
 import type { ApiCallStatus } from "@/src/shared/observability";
 
@@ -42,6 +47,8 @@ export type RunEnhanceInput = {
   route: ResolvedAiRoute;
   traceId?: string;
   userId?: string | null;
+  /** Pre-computed ATS intelligence — used for tactical prompts and fallback. */
+  jobIntelligence?: JobIntelligence;
 };
 
 export type RunEnhanceSuccess = {
@@ -55,6 +62,10 @@ export type RunEnhanceSuccess = {
   matchScore?: number;
   partialEnhance?: boolean;
   partialEnhanceMessage?: string;
+  /** True when AI failed and the deterministic engine was used instead. */
+  fallbackUsed?: boolean;
+  fallbackSummary?: string;
+  fallbackChanges?: DeterministicEnhanceResult["changes"];
 };
 
 export type RunEnhanceFailure = {
@@ -287,6 +298,7 @@ async function runPass(
   userId: string | null | undefined,
   pricingMap?: AiPricingMap | null,
   preferredSlot?: number,
+  jobIntelligence?: JobIntelligence,
 ): Promise<{
   text: string;
   tokensUsed: number;
@@ -312,7 +324,7 @@ async function runPass(
   });
 
   const system = buildEnhanceSystemPrompt(ctx);
-  const prompt = buildEnhanceUserPrompt(ctx, pass);
+  const prompt = buildEnhanceUserPrompt(ctx, pass, pass === "optimize" ? jobIntelligence : undefined);
   const result = await callEnhanceModel(
     route,
     system,
@@ -374,6 +386,8 @@ export async function runResumeEnhance(
       traceId,
       input.userId,
       pricingMap,
+      undefined,
+      input.jobIntelligence,
     );
     totalTokens += pass1.tokensUsed;
     totalCost += pass1.estimatedCost;
@@ -418,6 +432,7 @@ export async function runResumeEnhance(
           input.userId,
           pricingMap,
           pass1.slot,
+          input.jobIntelligence,
         );
         totalTokens += pass2.tokensUsed;
         totalCost += pass2.estimatedCost;
@@ -488,38 +503,72 @@ export async function runResumeEnhance(
         : {}),
     };
   } catch (err) {
+    const aiMode = input.route.mode;
+    let errorCode: string = "provider_error";
+    let errorMessage = "AI enhancement failed.";
+
     if (err instanceof SystemKeyPoolError && err.code === "capacity_exhausted") {
-      logEnhance("engine", "run.error", {
-        traceId,
-        step: ENHANCE_PIPELINE.ENGINE_ERROR,
-        durationMs: Date.now() - startedAt,
-        code: err.code,
-        message: err.message,
-      });
-      return {
-        ok: false,
-        error: err.message,
-        code: "capacity_exhausted",
-      };
+      errorCode = err.code;
+      errorMessage = err.message;
+    } else {
+      const mapped = mapEnhanceProviderError(err, { aiMode });
+      errorCode = mapped.code;
+      errorMessage = mapped.userMessage;
     }
 
-    const aiMode = input.route.mode;
-    const mapped = mapEnhanceProviderError(err, { aiMode });
     logEnhance("engine", "run.error", {
       traceId,
       step: ENHANCE_PIPELINE.ENGINE_ERROR,
       durationMs: Date.now() - startedAt,
-      code: mapped.code,
+      code: errorCode,
       aiMode,
-      retryAfterSec: mapped.retryAfterSec ?? null,
-      modelId: mapped.modelId ?? null,
-      userMessage: mapped.userMessage,
-      rawMessage: mapped.rawMessage,
+      rawMessage: err instanceof Error ? err.message : String(err),
     });
+
+    // Deterministic fallback — run when intelligence is available
+    if (input.jobIntelligence) {
+      logEnhance("engine", "run.fallback.start", {
+        traceId,
+        step: ENHANCE_PIPELINE.ENGINE_ERROR,
+        reason: errorCode,
+      });
+
+      try {
+        const fallback = deterministicEnhance(input.form, input.jobIntelligence);
+        const changedSections = diffChangedSections(input.form, fallback.form, false);
+
+        logEnhance("engine", "run.fallback.success", {
+          traceId,
+          changedSections,
+          skillsAdded: fallback.changes.skillsAdded.length,
+          bulletsRewritten: fallback.changes.bulletsRewritten,
+        });
+
+        return {
+          ok: true,
+          form: fallback.form,
+          changedSections,
+          targetRole: originalTarget,
+          tokensUsed: 0,
+          modelId: "deterministic",
+          estimatedCost: 0,
+          apiCallCount: 0,
+          fallbackUsed: true,
+          fallbackSummary: fallback.summary,
+          fallbackChanges: fallback.changes,
+        };
+      } catch (fallbackErr) {
+        logEnhance("engine", "run.fallback.error", {
+          traceId,
+          message: fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr),
+        });
+      }
+    }
+
     return {
       ok: false,
-      error: mapped.userMessage,
-      code: mapped.code,
+      error: errorMessage,
+      code: errorCode as RunEnhanceFailure["code"],
     };
   }
 }

@@ -1,5 +1,7 @@
 | Date | Item |
 |------|------|
+| 2026-06-22 | ATS score calibration fixes: keyword-gap fallback to ≥1 threshold for short JDs (<5 repeat keywords), bullet quality reweighted 70/30 verb/metric, compliance penalty 3pts/warning (was 5); `review-documents.ts` variant fixed to `"dashboard"` |
+| 2026-06-22 | Smart Resume Engine: `job-intelligence.ts` (JobIntelligence layer), `onet-service.ts` (O*NET vocabulary), `deterministic-enhancer.ts` (zero-token fallback), `platform-rules.ts` (9 ATS platforms), two-pass AI prompts with intelligence block, `EnhanceFeedbackCard` before/after ATS delta UI |
 | 2026-06-22 | Review Screen ATS Analysis + ATS-quality exports: `resume-content-model` shared by HTML/PDF/Word/robot view; `resume-docx` + `resume-pdf`; readiness score panel; unit tests |
 | 2026-06-22 | Review Screen cover letter: AI enhance (`enhanceCoverLetterForUserId` + `runCoverLetterEnhance`), pipeline tailor seeds draft + LaTeX on `job_resume_tailors`, save syncs LaTeX, Word export without toolbar spacer; unit tests |
 | 2026-06-22 | Review Screen Resume + Cover document tabs: toolbar exports (PDF/Word), Enhance, LaTeX fullscreen editor, cover inline edit, `job_resume_tailors` document columns + unit tests |

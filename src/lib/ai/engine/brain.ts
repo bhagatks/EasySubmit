@@ -1,4 +1,5 @@
 import type { CandidateContext } from "@/src/lib/ai/engine/candidate-context";
+import type { JobIntelligence } from "@/lib/job-tracker/ats/job-intelligence";
 
 const ATS_RULES_EXCERPT = `
 ATS RULES (non-negotiable):
@@ -33,7 +34,11 @@ export function buildEnhanceSystemPrompt(ctx: CandidateContext): string {
   ].join("\n\n");
 }
 
-export function buildEnhanceUserPrompt(ctx: CandidateContext, pass: "generate" | "optimize"): string {
+export function buildEnhanceUserPrompt(
+  ctx: CandidateContext,
+  pass: "generate" | "optimize",
+  intelligence?: JobIntelligence,
+): string {
   const jdBlock = ctx.jobDescription
     ? `\nJOB DESCRIPTION TO TARGET:\n"""\n${ctx.jobDescription.slice(0, 12000)}\n"""\n`
     : "";
@@ -66,9 +71,13 @@ export function buildEnhanceUserPrompt(ctx: CandidateContext, pass: "generate" |
     ].join("\n");
   }
 
+  // Pass 2 — tactical optimization using pre-computed intelligence
+  const intelligenceBlock = buildIntelligenceBlock(intelligence);
+
   return [
     `Target role: ${ctx.targetRole}`,
     jdBlock,
+    intelligenceBlock,
     "Perform a strict second-pass edit on the draft below.",
     "Fix weak verbs, missing metrics, keyword gaps, and any ATS rule violations.",
     "Ensure every bullet is scannable and achievement-oriented.",
@@ -76,5 +85,40 @@ export function buildEnhanceUserPrompt(ctx: CandidateContext, pass: "generate" |
     "",
     "DRAFT JSON:",
     bodyJson,
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function buildIntelligenceBlock(intelligence?: JobIntelligence): string {
+  if (!intelligence) return "";
+
+  const parts: string[] = [];
+
+  if (intelligence.skillsToAdd.length > 0) {
+    parts.push(
+      `MISSING SKILLS — add these to the skills section (use exact casing from JD where possible):\n  ${intelligence.skillsToAdd.join(", ")}`,
+    );
+  }
+
+  if (intelligence.keywordsForContent.length > 0) {
+    parts.push(
+      `MISSING KEYWORDS — weave these into bullets and summary where truthfully supported:\n  ${intelligence.keywordsForContent.slice(0, 8).join(", ")}`,
+    );
+  }
+
+  if (intelligence.weakBullets.length > 0) {
+    const targets = intelligence.weakBullets
+      .slice(0, 6)
+      .map(
+        (wb) =>
+          `  - "${wb.bulletText.slice(0, 80)}${wb.bulletText.length > 80 ? "…" : ""}" [issues: ${wb.issues.join(", ")}]`,
+      )
+      .join("\n");
+    parts.push(`WEAK BULLETS — rewrite these specifically (keep others):\n${targets}`);
+  }
+
+  if (parts.length === 0) return "";
+
+  return `\nPRE-COMPUTED ATS ANALYSIS (act on these — do not re-derive):\n${parts.join("\n\n")}\n`;
 }
