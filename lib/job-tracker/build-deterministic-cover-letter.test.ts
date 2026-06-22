@@ -6,6 +6,7 @@ import {
   buildDeterministicCoverLetterMarkdown,
   hubRefineryFormToResumeMarkdown,
 } from "@/lib/job-tracker/build-deterministic-cover-letter";
+import { countTemplateWords, DETERMINISTIC_COVER_LETTER_WORD_TARGET } from "@/lib/job-tracker/cover-letter-template-matrix";
 
 const form = {
   ...emptyHubRefineryForm(),
@@ -13,6 +14,8 @@ const form = {
   lastName: "Lovelace",
   email: "ada@example.com",
   cityState: "London, UK",
+  professionalSummary:
+    "Platform engineer with ten years building reliable backend systems at scale.",
   skillsText: "TypeScript, PostgreSQL, AWS",
   experience: [
     {
@@ -24,7 +27,7 @@ const form = {
       startYear: "2021",
       endMonth: "",
       endYear: "",
-      bullets: "- Platform work with TypeScript",
+      bullets: "- Scaled platform services to 10M+ users with TypeScript",
       hidden: false,
     },
   ],
@@ -52,6 +55,11 @@ describe("buildDeterministicCoverLetterMarkdown", () => {
     expect(result.markdown).toContain("TypeScript");
     expect(result.markdown).toMatch(/Dear Acme Corp hiring team/i);
     expect(result.markdown).not.toMatch(/incredibly thrilled|fast-paced digital world/i);
+
+    const bodyWords = countTemplateWords(
+      result.markdown.split("Dear ")[1] ?? result.markdown,
+    );
+    expect(bodyWords).toBeGreaterThanOrEqual(DETERMINISTIC_COVER_LETTER_WORD_TARGET.min - 20);
   });
 
   it("is deterministic for the same company", () => {

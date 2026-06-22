@@ -139,7 +139,8 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 
 | Date | Summary |
 |------|---------|
-| 2026-06-22 | Review Screen cover letter AI: `enhanceCoverLetterForUserId`, pipeline tailor seeds cover draft + LaTeX on `job_resume_tailors`, save/enhance persist via `buildCoverLetterDocumentPatch` |
+| 2026-06-22 | Review Screen ATS Analysis tab: readiness score (4 pillars), keyword gap, bullet quality, robot parse view; shared `resume-content-model` for HTML/PDF/Word/ATS exports |
+| 2026-06-22 | ATS-quality resume exports: `resume-docx` + `resume-pdf` via `resume-content-model` + `resume-style`; Review export async wiring |
 | 2026-06-22 | Review Screen Studio Edit (`?from=review`): hides dashboard sidebar, Review Screen header/tabs chrome, no tailor banner; save returns to Review Resume tab; pipeline Studio link unchanged |
 | 2026-06-22 | Review Screen Resume + Cover document tabs: shared toolbar (Studio Edit / Enhance / PDF / Word / LaTeX), cover inline edit + `job_resume_tailors` document fields, LaTeX fullscreen editor (validate + HTML preview), server actions in `app/actions/review-documents.ts` |
 | 2026-06-22 | Review Screen Resume tab: inline merged `PrimeResume` preview, tailored-section pills, Edit in Studio; `getJobTrackerEntryById` loads `tailoredResumePreview` |

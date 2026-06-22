@@ -313,24 +313,28 @@ function AtsParseView({
 
 type Section = "score" | "keywords" | "bullets" | "parse";
 
-export function AtsPanel({ entry }: AtsPanelProps) {
-  const [activeSection, setActiveSection] = useState<Section>("score");
-  const preview = entry.tailoredResumePreview;
-
-  if (!preview) {
-    return (
-      <div className="flex flex-1 flex-col items-center justify-center px-6 py-12 text-center">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-          <Eye className="h-6 w-6 text-primary" />
-        </div>
-        <h3 className="mt-4 font-display text-base font-semibold">ATS analysis not available yet</h3>
-        <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-          Tailor a resume for this job first — the ATS analysis runs on your tailored resume data.
-        </p>
+function AtsPanelEmpty() {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center px-6 py-12 text-center">
+      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+        <Eye className="h-6 w-6 text-primary" />
       </div>
-    );
-  }
+      <h3 className="mt-4 font-display text-base font-semibold">ATS analysis not available yet</h3>
+      <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+        Tailor a resume for this job first — the ATS analysis runs on your tailored resume data.
+      </p>
+    </div>
+  );
+}
 
+type AtsPanelBodyProps = {
+  entry: JobTrackerDetail;
+  preview: NonNullable<JobTrackerDetail["tailoredResumePreview"]>;
+  activeSection: Section;
+  onSectionChange: (section: Section) => void;
+};
+
+function AtsPanelBody({ entry, preview, activeSection, onSectionChange }: AtsPanelBodyProps) {
   const data = preview.preview;
   const targetTitle = preview.targetTitle;
   const jobDescription = entry.description ?? "";
@@ -349,13 +353,12 @@ export function AtsPanel({ entry }: AtsPanelProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto px-5 py-4 space-y-4">
-      {/* Sub-nav */}
       <div className="flex shrink-0 gap-1 overflow-x-auto rounded-xl border border-border/60 bg-surface/40 p-1 self-start">
         {navItems.map((item) => (
           <button
             key={item.id}
             type="button"
-            onClick={() => setActiveSection(item.id)}
+            onClick={() => onSectionChange(item.id)}
             className={cn(
               "shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
               activeSection === item.id
@@ -368,7 +371,6 @@ export function AtsPanel({ entry }: AtsPanelProps) {
         ))}
       </div>
 
-      {/* Score */}
       {activeSection === "score" && (
         <div className="space-y-4">
           <div className="flex items-center gap-5 rounded-xl border border-border/60 bg-surface/40 px-4 py-4">
@@ -384,6 +386,11 @@ export function AtsPanel({ entry }: AtsPanelProps) {
                       ? "Fair — significant gaps to address before applying."
                       : "Needs work — follow the action items below."}
               </p>
+              {!jobDescription.trim() ? (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Save this job from a posting page to unlock keyword coverage scoring.
+                </p>
+              ) : null}
             </div>
           </div>
 
@@ -412,7 +419,6 @@ export function AtsPanel({ entry }: AtsPanelProps) {
         </div>
       )}
 
-      {/* Keywords */}
       {activeSection === "keywords" && (
         <div className="space-y-3">
           <div>
@@ -425,7 +431,6 @@ export function AtsPanel({ entry }: AtsPanelProps) {
         </div>
       )}
 
-      {/* Bullet quality */}
       {activeSection === "bullets" && (
         <div className="space-y-3">
           <div>
@@ -438,7 +443,6 @@ export function AtsPanel({ entry }: AtsPanelProps) {
         </div>
       )}
 
-      {/* ATS parse view */}
       {activeSection === "parse" && (
         <div className="space-y-3">
           <div>
@@ -451,5 +455,23 @@ export function AtsPanel({ entry }: AtsPanelProps) {
         </div>
       )}
     </div>
+  );
+}
+
+export function AtsPanel({ entry }: AtsPanelProps) {
+  const [activeSection, setActiveSection] = useState<Section>("score");
+  const preview = entry.tailoredResumePreview;
+
+  if (!preview) {
+    return <AtsPanelEmpty />;
+  }
+
+  return (
+    <AtsPanelBody
+      entry={entry}
+      preview={preview}
+      activeSection={activeSection}
+      onSectionChange={setActiveSection}
+    />
   );
 }

@@ -2,18 +2,18 @@
  * ATS Parse Simulator — reconstructs the text stream a parser would extract
  * from a resume in document (top-to-bottom) order.
  *
- * Why this matters: ATS systems don't render the resume visually.
- * They pull raw text and run regex / tokenizers over it. Showing users
- * this "robot view" exposes ordering issues, missing fields, and
- * garbled sections before they hit a real parser.
+ * Content is built via resume-content-model so robot view matches exports.
  */
 
 import type { PrimeResumeData } from "@/components/onboarding/PrimeResume";
+import {
+  buildResumeContentFromPrime,
+  type ResumeContentModel,
+} from "@/lib/job-tracker/export/resume-content-model";
 import { SECTION_TITLE } from "@/lib/job-tracker/export/resume-style";
 
 export type AtsTextLine = {
   text: string;
-  /** Hint for display — drives color/indent in the UI. */
   kind: "name" | "contact" | "section" | "entry-title" | "entry-sub" | "bullet" | "body";
 };
 
@@ -24,46 +24,41 @@ export type AtsParsedSection = {
 };
 
 export type AtsParseResult = {
-  /** Ordered sections exactly as ATS reads them top-to-bottom. */
   sections: AtsParsedSection[];
-  /** Total character count of extracted text. */
   totalChars: number;
-  /** Warnings about content that may confuse parsers. */
   warnings: string[];
 };
 
-function trimmed(v: string | null | undefined): string {
-  return v?.trim() ?? "";
-}
+function detectFieldWarnings(content: ResumeContentModel): string[] {
+  const warnings: string[] = [...content.warnings];
 
-function contactLine(data: PrimeResumeData): string {
-  return [data.location, data.phone, data.email, data.linkedIn]
-    .map(trimmed)
-    .filter(Boolean)
-    .join(" | ");
-}
-
-function detectWarnings(data: PrimeResumeData, targetTitle: string): string[] {
-  const warnings: string[] = [];
-
-  if (!trimmed(data.fullName)) warnings.push("Name is missing — ATS may reject with no candidate name.");
-  if (!trimmed(data.email)) warnings.push("Email missing — most ATS require it to create a candidate record.");
-  if (!trimmed(data.phone)) warnings.push("Phone missing — common required field in Workday and iCIMS.");
-  if (!trimmed(targetTitle) && !trimmed(data.summary)) {
+  if (!content.name || content.name === "Applicant") {
+    warnings.push("Name is missing — ATS may reject with no candidate name.");
+  }
+  if (!content.contact.includes("@")) {
+    warnings.push("Email missing — most ATS require it to create a candidate record.");
+  }
+  if (!content.contact.match(/\d/)) {
+    warnings.push("Phone missing — common required field in Workday and iCIMS.");
+  }
+  if (!content.targetTitle && !content.summary) {
     warnings.push("No target role or summary — ATS job-title matching will have nothing to score against.");
   }
-  if ((data.skills?.length ?? 0) === 0) {
-    warnings.push("Skills section empty — Greenhouse and Workday weight the Skills section heavily in scorecard matching.");
+  if (content.skills.length === 0 && !content.skillsText) {
+    warnings.push(
+      "Skills section empty — Greenhouse and Workday weight the Skills section heavily in scorecard matching.",
+    );
   }
-  if ((data.experience?.filter((e) => trimmed(e.title))?.length ?? 0) === 0) {
+  if (content.experience.length === 0) {
     warnings.push("No work experience — ATS will flag as unqualified for most roles.");
   }
 
-  // Check for overly long bullets (>200 chars) — some parsers truncate
-  for (const exp of data.experience ?? []) {
-    for (const bullet of exp.bullets ?? []) {
-      if (trimmed(bullet).length > 200) {
-        warnings.push(`Bullet in "${trimmed(exp.title)}" is over 200 characters — some parsers truncate long lines.`);
+  for (const entry of content.experience) {
+    for (const bullet of entry.bullets) {
+      if (bullet.length > 200) {
+        warnings.push(
+          `Bullet in "${entry.title}" is over 200 characters — some parsers truncate long lines.`,
+        );
         break;
       }
     }
@@ -72,125 +67,105 @@ function detectWarnings(data: PrimeResumeData, targetTitle: string): string[] {
   return warnings;
 }
 
-export function simulateAtsParse(
-  data: PrimeResumeData,
-  targetTitle: string,
-): AtsParseResult {
+function sectionsFromContent(content: ResumeContentModel): AtsParsedSection[] {
   const sections: AtsParsedSection[] = [];
-  const warnings = detectWarnings(data, targetTitle);
 
-  // ── Header ──────────────────────────────────────────────────────────────────
-  const headerLines: AtsTextLine[] = [];
-  const name = trimmed(data.fullName) || "APPLICANT NAME MISSING";
-  headerLines.push({ text: name, kind: "name" });
-
-  const contact = contactLine(data);
-  if (contact) headerLines.push({ text: contact, kind: "contact" });
-  if (targetTitle) headerLines.push({ text: targetTitle, kind: "body" });
-
+  const headerLines: AtsTextLine[] = [
+    { text: content.name, kind: "name" },
+  ];
+  if (content.contact) headerLines.push({ text: content.contact, kind: "contact" });
+  if (content.targetTitle) headerLines.push({ text: content.targetTitle, kind: "body" });
   sections.push({ id: "header", title: "Header", lines: headerLines });
 
-  // ── Professional Summary ───────────────────────────────────────────────────
-  const summary = trimmed(data.summary);
-  if (summary) {
+  if (content.summary) {
     sections.push({
       id: "summary",
       title: SECTION_TITLE.summary,
       lines: [
         { text: SECTION_TITLE.summary.toUpperCase(), kind: "section" },
-        { text: summary, kind: "body" },
+        { text: content.summary, kind: "body" },
       ],
     });
   }
 
-  // ── Skills ─────────────────────────────────────────────────────────────────
-  const skills = (data.skills ?? []).map(trimmed).filter(Boolean);
-  if (skills.length > 0) {
+  if (content.skillsText || content.skills.length > 0) {
+    const skillsLine = content.skillsText || content.skills.join(", ");
     sections.push({
       id: "skills",
       title: SECTION_TITLE.skills,
       lines: [
         { text: SECTION_TITLE.skills.toUpperCase(), kind: "section" },
-        { text: skills.join(", "), kind: "body" },
+        { text: skillsLine, kind: "body" },
       ],
     });
   }
 
-  // ── Professional Experience ────────────────────────────────────────────────
-  const experiences = (data.experience ?? []).filter(
-    (e) => trimmed(e.title) || trimmed(e.company),
-  );
-  if (experiences.length > 0) {
+  if (content.experience.length > 0) {
     const lines: AtsTextLine[] = [
       { text: SECTION_TITLE.experience.toUpperCase(), kind: "section" },
     ];
-    for (const exp of experiences) {
-      const title = trimmed(exp.title) || "Role";
-      const date = [trimmed(exp.startDate), trimmed(exp.endDate)].filter(Boolean).join(" – ");
-      lines.push({ text: date ? `${title}    ${date}` : title, kind: "entry-title" });
-
-      const sub = [trimmed(exp.company), trimmed(exp.location ?? "")].filter(Boolean).join(", ");
-      if (sub) lines.push({ text: sub, kind: "entry-sub" });
-
-      for (const bullet of exp.bullets ?? []) {
-        const text = trimmed(bullet).replace(/^[-•*]\s*/, "");
-        if (text) lines.push({ text: `• ${text}`, kind: "bullet" });
+    for (const entry of content.experience) {
+      const titleLine = entry.dateRange ? `${entry.title}    ${entry.dateRange}` : entry.title;
+      lines.push({ text: titleLine, kind: "entry-title" });
+      if (entry.subtitle) lines.push({ text: entry.subtitle, kind: "entry-sub" });
+      for (const bullet of entry.bullets) {
+        lines.push({ text: `• ${bullet}`, kind: "bullet" });
       }
     }
     sections.push({ id: "experience", title: SECTION_TITLE.experience, lines });
   }
 
-  // ── Education ─────────────────────────────────────────────────────────────
-  const educations = (data.education ?? []).filter((e) => trimmed(e.school) || trimmed(e.degree ?? ""));
-  if (educations.length > 0) {
+  if (content.education.length > 0) {
     const lines: AtsTextLine[] = [
       { text: SECTION_TITLE.education.toUpperCase(), kind: "section" },
     ];
-    for (const edu of educations) {
-      const title = trimmed(edu.degree ?? "") || trimmed(edu.school);
-      const date = [trimmed(edu.startDate ?? ""), trimmed(edu.endDate ?? "")].filter(Boolean).join(" – ");
-      lines.push({ text: date ? `${title}    ${date}` : title, kind: "entry-title" });
-      if (trimmed(edu.degree ?? "") && trimmed(edu.school)) {
-        lines.push({ text: trimmed(edu.school), kind: "entry-sub" });
-      }
+    for (const entry of content.education) {
+      const titleLine = entry.dateRange ? `${entry.title}    ${entry.dateRange}` : entry.title;
+      lines.push({ text: titleLine, kind: "entry-title" });
+      if (entry.subtitle) lines.push({ text: entry.subtitle, kind: "entry-sub" });
     }
     sections.push({ id: "education", title: SECTION_TITLE.education, lines });
   }
 
-  // ── Optional sections ──────────────────────────────────────────────────────
-  const optionalMap: Array<{ id: string; title: string; items: string[] | undefined }> = [
-    { id: "certs", title: SECTION_TITLE.certs, items: data.certifications },
-    { id: "projects", title: SECTION_TITLE.projects, items: data.projects },
-    { id: "languages", title: SECTION_TITLE.languages, items: data.languages },
+  const optionalLists: Array<{ id: string; title: string; items: string[] }> = [
+    { id: "certs", title: SECTION_TITLE.certs, items: content.certifications },
+    { id: "projects", title: SECTION_TITLE.projects, items: content.projects },
+    { id: "languages", title: SECTION_TITLE.languages, items: content.languages },
   ];
 
-  for (const { id, title, items } of optionalMap) {
-    const visible = (items ?? []).map(trimmed).filter(Boolean);
-    if (visible.length === 0) continue;
+  for (const { id, title, items } of optionalLists) {
+    if (items.length === 0) continue;
     sections.push({
       id,
       title,
       lines: [
         { text: title.toUpperCase(), kind: "section" },
-        ...visible.map((item) => ({ text: `• ${item}`, kind: "bullet" as const })),
+        ...items.map((item) => ({ text: `• ${item}`, kind: "bullet" as const })),
       ],
     });
   }
 
-  // ── Custom sections ────────────────────────────────────────────────────────
-  for (const section of data.customSections ?? []) {
-    if (!trimmed(section.title) || !trimmed(section.content)) continue;
-    const bodyLines = trimmed(section.content).split("\n").filter(Boolean);
+  for (const section of content.customSections) {
     sections.push({
-      id: `custom-${section.title}`,
+      id: `custom-${section.id}`,
       title: section.title,
       lines: [
-        { text: trimmed(section.title).toUpperCase(), kind: "section" },
-        ...bodyLines.map((l) => ({ text: l, kind: "body" as const })),
+        { text: section.title.toUpperCase(), kind: "section" },
+        ...section.lines.map((line) => ({ text: line, kind: "body" as const })),
       ],
     });
   }
 
+  return sections;
+}
+
+export function simulateAtsParse(
+  data: PrimeResumeData,
+  targetTitle: string,
+): AtsParseResult {
+  const content = buildResumeContentFromPrime(data, targetTitle);
+  const sections = sectionsFromContent(content);
+  const warnings = detectFieldWarnings(content);
   const totalChars = sections
     .flatMap((s) => s.lines)
     .reduce((sum, l) => sum + l.text.length, 0);

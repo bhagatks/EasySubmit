@@ -45,7 +45,7 @@ describe("cover-letter-generator", () => {
     const c = selectCoverLetterTemplateIndices("Other Co");
 
     expect(a).toEqual(b);
-    expect([a.opening, a.bodyAlignment, a.closing].every((n) => n >= 0 && n <= 2)).toBe(
+    expect([a.opening, a.experienceBlock, a.whyCompany, a.closing].every((n) => n >= 0 && n <= 2)).toBe(
       true,
     );
     expect(a).not.toEqual(c);

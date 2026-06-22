@@ -1,14 +1,29 @@
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
+import {
+  COVER_LETTER_GENERATION_RULES,
+  countCoverLetterWords,
+} from "@/src/lib/ai/engine/cover-letter-rules";
+
+function experienceHighlights(form: HubRefineryForm): string[] {
+  return form.experience
+    .filter((entry) => !entry.hidden && (entry.title?.trim() || entry.company?.trim()))
+    .slice(0, 3)
+    .map((entry) => {
+      const title = entry.title?.trim() || "Role";
+      const org = entry.company?.trim() || "";
+      const header = org ? `${title} at ${org}` : title;
+      const bullets = entry.bullets
+        ?.split("\n")
+        .map((line) => line.replace(/^[-•*]\s*/, "").trim())
+        .filter(Boolean)
+        .slice(0, 3);
+      if (!bullets?.length) return header;
+      return `${header}:\n  - ${bullets.join("\n  - ")}`;
+    });
+}
 
 export function buildCoverLetterSystemPrompt(): string {
-  return [
-    "You write concise, professional job cover letters.",
-    "Output plain text only — no markdown, no JSON, no code fences.",
-    "Use a warm professional tone. Keep the letter to 3–4 short paragraphs.",
-    "Include a greeting (Dear …), body paragraphs, and a closing (Sincerely, + name).",
-    "Do not invent employers, degrees, or metrics not supported by the candidate context.",
-    "Never include contact lines (email, phone, address) — the template adds those.",
-  ].join(" ");
+  return COVER_LETTER_GENERATION_RULES;
 }
 
 export function buildCoverLetterUserPrompt(input: {
@@ -24,38 +39,68 @@ export function buildCoverLetterUserPrompt(input: {
   const skills = input.form.skillsText?.trim() || "";
   const company = input.company?.trim() || "the hiring team";
   const role = input.jobTitle.trim() || input.targetTitle.trim() || "this role";
+  const highlights = experienceHighlights(input.form);
 
-  const experienceLines = input.form.experience
-    .filter((entry) => !entry.hidden && (entry.title?.trim() || entry.company?.trim()))
-    .slice(0, 3)
-    .map((entry) => {
-      const title = entry.title?.trim() || "Role";
-      const org = entry.company?.trim() || "";
-      return org ? `${title} at ${org}` : title;
-    });
+  const tasks = input.existing?.trim()
+    ? [
+        "Refine the existing draft below.",
+        "Improve personalization, structure, and JD alignment.",
+        "Keep every fact truthful; do not invent experience or metrics.",
+      ]
+    : [
+        "Write a new cover letter from scratch.",
+        "Follow all structure and quality rules in the system prompt.",
+        "Ground every claim in the candidate context below.",
+      ];
 
   const parts = [
-    `Write a cover letter for ${name || "the candidate"} applying to ${company} for the ${role} position.`,
+    `Candidate: ${name || "the applicant"}`,
+    `Target role: ${role}`,
+    `Company: ${company}`,
     "",
-    "Candidate context:",
-    `- Target role: ${input.targetTitle.trim() || role}`,
+    "Tasks:",
+    ...tasks.map((task) => `- ${task}`),
+    "",
+    "Candidate context (ground truth — do not invent beyond this):",
+    `- Headline target role: ${input.targetTitle.trim() || role}`,
     summary ? `- Summary: ${summary}` : null,
     skills ? `- Skills: ${skills}` : null,
-    experienceLines.length > 0 ? `- Recent roles: ${experienceLines.join("; ")}` : null,
+    highlights.length > 0
+      ? `- Relevant experience:\n${highlights.map((h) => `  ${h.replace(/\n/g, "\n  ")}`).join("\n")}`
+      : null,
     input.jobDescription?.trim()
-      ? `\nJob description excerpt:\n${input.jobDescription.trim().slice(0, 2400)}`
+      ? [
+          "",
+          "Job description (analyze for skills, leadership, technical needs, business goals):",
+          '"""',
+          input.jobDescription.trim().slice(0, 4000),
+          '"""',
+        ].join("\n")
       : null,
     input.existing?.trim()
-      ? `\nRefine this existing draft (improve clarity and job fit; keep truthful facts):\n${input.existing.trim()}`
+      ? ["", "Existing draft to refine:", '"""', input.existing.trim(), '"""'].join("\n")
       : null,
+    "",
+    "Return only the final cover letter text.",
   ].filter(Boolean);
 
   return parts.join("\n");
 }
 
+/** Strip fences, trim commentary wrappers, normalize whitespace. */
 export function normalizeCoverLetterBody(text: string): string {
-  return text
+  let body = text
     .replace(/^```[\w]*\n?/gm, "")
     .replace(/```$/gm, "")
     .trim();
+
+  // Strip any model preamble before the greeting line
+  const greetingIndex = body.search(/\bDear\b/i);
+  if (greetingIndex > 0) {
+    body = body.slice(greetingIndex);
+  }
+
+  return body.trim();
 }
+
+export { countCoverLetterWords };

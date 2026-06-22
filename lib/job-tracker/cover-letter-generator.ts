@@ -28,12 +28,16 @@ export type CoverLetterGeneratorJdData = JobContext;
 export type CoverLetterGeneratorInput = {
   resumeData: CoverLetterGeneratorResumeData;
   jdData: CoverLetterGeneratorJdData;
+  placeholders?: CoverLetterTemplatePlaceholders;
 };
 
 export type CoverLetterTemplateIndices = {
   opening: 0 | 1 | 2;
-  bodyAlignment: 0 | 1 | 2;
+  experienceBlock: 0 | 1 | 2;
+  whyCompany: 0 | 1 | 2;
   closing: 0 | 1 | 2;
+  /** @deprecated Use experienceBlock */
+  bodyAlignment?: 0 | 1 | 2;
 };
 
 export type CoverLetterGeneratorSuccess = {
@@ -82,15 +86,20 @@ export function selectCoverLetterTemplateIndices(company: string): CoverLetterTe
   const hash = hashCoverLetterSeed(company);
   return {
     opening: (hash % TIER_COUNT) as 0 | 1 | 2,
-    bodyAlignment: ((hash >>> 5) % TIER_COUNT) as 0 | 1 | 2,
-    closing: ((hash >>> 10) % TIER_COUNT) as 0 | 1 | 2,
+    experienceBlock: ((hash >>> 5) % TIER_COUNT) as 0 | 1 | 2,
+    whyCompany: ((hash >>> 10) % TIER_COUNT) as 0 | 1 | 2,
+    // Shifted from >>>10 (v1) to >>>15 (v2) to reduce correlation with whyCompany tier.
+    // Existing stored cover letters (rendered markdown) are unaffected; only new generations differ.
+    closing: ((hash >>> 15) % TIER_COUNT) as 0 | 1 | 2,
   };
 }
 
 export function indicesToComposition(indices: CoverLetterTemplateIndices): CoverLetterComposition {
   return {
     openingId: COVER_LETTER_TEMPLATE_MATRIX.openings[indices.opening].id,
-    bodyAlignmentId: COVER_LETTER_TEMPLATE_MATRIX.bodyAlignments[indices.bodyAlignment].id,
+    experienceBlockId:
+      COVER_LETTER_TEMPLATE_MATRIX.experienceBlocks[indices.experienceBlock].id,
+    whyCompanyId: COVER_LETTER_TEMPLATE_MATRIX.whyCompany[indices.whyCompany].id,
     closingId: COVER_LETTER_TEMPLATE_MATRIX.closings[indices.closing].id,
   };
 }
@@ -109,18 +118,34 @@ function pickTopSkill(resumeData: ResumeContext, jdData: JobContext): string {
   return "core technical work";
 }
 
-function buildPlaceholders(
+function buildDefaultPlaceholders(
   resumeData: ResumeContext,
   jdData: JobContext,
 ): CoverLetterTemplatePlaceholders {
+  const skills = resumeData.topSkills.value;
+  const keywords = jdData.topKeywords.value;
+  const topSkill = pickTopSkill(resumeData, jdData);
+
   return {
     company: jdData.companyName.value.trim() || JOB_CONTEXT_FALLBACKS.companyName,
     targetTitle:
       jdData.targetJobTitle.value.trim() || JOB_CONTEXT_FALLBACKS.targetJobTitle,
-    topSkill: pickTopSkill(resumeData, jdData),
+    topSkill,
+    secondSkill: skills[1]?.trim() || "cross-functional delivery",
+    thirdSkill: skills[2]?.trim() || "operational reliability",
     priorTitle:
       resumeData.mostRecentJobTitle.value.trim() ||
       RESUME_CONTEXT_FALLBACKS.mostRecentJobTitle,
+    priorCompany: "my recent employer",
+    jdKeyword: keywords[0]
+      ? keywords[0].charAt(0).toUpperCase() + keywords[0].slice(1)
+      : topSkill,
+    jdKeyword2: keywords[1]
+      ? keywords[1].charAt(0).toUpperCase() + keywords[1].slice(1)
+      : "team collaboration",
+    achievementLine:
+      "I have a consistent record of shipping dependable work with clear ownership and measurable results.",
+    summarySnippet: "I bring a steady, hands-on approach to complex technical work.",
   };
 }
 
@@ -258,7 +283,8 @@ export function generateCoverLetter(
     };
   }
 
-  const placeholders = buildPlaceholders(resumeData, jdData);
+  const placeholders =
+    input.placeholders ?? buildDefaultPlaceholders(resumeData, jdData);
   const indices = selectCoverLetterTemplateIndices(placeholders.company);
   const composition = indicesToComposition(indices);
 

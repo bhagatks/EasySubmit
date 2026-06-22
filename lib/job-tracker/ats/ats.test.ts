@@ -73,6 +73,19 @@ describe("simulateAtsParse", () => {
     const result = simulateAtsParse(FULL_RESUME, "Senior Software Engineer");
     expect(result.warnings).toHaveLength(0);
   });
+
+  it("warns when a role has more than six bullets", () => {
+    const manyBullets = Array.from({ length: 7 }, (_, i) => `Achievement ${i + 1}`);
+    const overloaded: PrimeResumeData = {
+      ...FULL_RESUME,
+      experience: [{
+        ...FULL_RESUME.experience![0]!,
+        bullets: manyBullets,
+      }],
+    };
+    const result = simulateAtsParse(overloaded, "Senior Software Engineer");
+    expect(result.warnings.some((w) => w.includes("7 bullets"))).toBe(true);
+  });
 });
 
 // ─── Keyword gap ──────────────────────────────────────────────────────────────

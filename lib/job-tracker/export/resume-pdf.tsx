@@ -1,8 +1,6 @@
 /**
  * ATS-safe PDF resume via @react-pdf/renderer.
- * Mirrors buildResumePreviewHtml visually (same font sizes, spacing, section
- * borders) while producing a real, text-searchable, single-column PDF.
- * Rules reference: docs/resume/RULES.md
+ * Content from resume-content-model; styling from resume-style.
  */
 
 import {
@@ -17,19 +15,18 @@ import {
 import React from "react";
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
 import {
+  buildResumeContentFromForm,
+  type ResumeContentModel,
+  validateResumeForm,
+} from "@/lib/job-tracker/export/resume-content-model";
+import {
   COLOR,
   FONT_SIZE,
   SECTION_TITLE,
   SPACING,
 } from "@/lib/job-tracker/export/resume-style";
 
-// ─── Fonts ────────────────────────────────────────────────────────────────────
-// Helvetica is built into @react-pdf — no registration needed, always embeds
-// cleanly, passes every ATS parser. Matches the preview's system-ui stack.
-
-Font.registerHyphenationCallback((word) => [word]); // disable hyphenation
-
-// ─── Styles ───────────────────────────────────────────────────────────────────
+Font.registerHyphenationCallback((word) => [word]);
 
 const s = StyleSheet.create({
   page: {
@@ -43,8 +40,6 @@ const s = StyleSheet.create({
     paddingRight: SPACING.pageMarginH,
     backgroundColor: COLOR.white,
   },
-
-  // Header
   name: {
     fontSize: FONT_SIZE.name,
     fontFamily: "Helvetica-Bold",
@@ -58,8 +53,6 @@ const s = StyleSheet.create({
     textAlign: "center",
     marginBottom: SPACING.afterContact,
   },
-
-  // Section heading + bottom border
   sectionWrapper: {
     marginTop: SPACING.betweenSections,
     marginBottom: SPACING.afterSectionRule,
@@ -75,8 +68,6 @@ const s = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.8,
   },
-
-  // Entry: title + date row
   entryRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -95,16 +86,12 @@ const s = StyleSheet.create({
     flexShrink: 0,
     marginLeft: 8,
   },
-
-  // Company / institution sub-line
   entrySub: {
     fontSize: FONT_SIZE.entrySub,
     fontFamily: "Helvetica-Oblique",
     color: COLOR.midGray,
     marginBottom: SPACING.afterEntrySub,
   },
-
-  // Bullet
   bulletRow: {
     flexDirection: "row",
     marginBottom: SPACING.bulletGap,
@@ -121,37 +108,15 @@ const s = StyleSheet.create({
     color: COLOR.darkGray,
     flex: 1,
   },
-
-  // Body (summary, skills, custom)
   body: {
     fontSize: FONT_SIZE.body,
     color: COLOR.darkGray,
     marginBottom: 4,
   },
-
-  // Entry group spacer
   entryGroup: {
     marginBottom: SPACING.betweenEntries,
   },
 });
-
-// ─── Component helpers ────────────────────────────────────────────────────────
-
-function line(v: string | null | undefined): string {
-  return v?.trim() ?? "";
-}
-
-function formatDateRange(
-  startMonth: string,
-  startYear: string,
-  endMonth: string,
-  endYear: string,
-): string {
-  const start = [startMonth, startYear].map(line).filter(Boolean).join(" ");
-  const end = [endMonth, endYear].map(line).filter(Boolean).join(" ");
-  if (start && end) return `${start} – ${end}`; // en-dash
-  return start || end;
-}
 
 function SectionHeading({ title }: { title: string }) {
   return (
@@ -170,144 +135,85 @@ function Bullet({ text }: { text: string }) {
   );
 }
 
-function ExperienceEntry({ entry }: { entry: HubRefineryForm["experience"][0] }) {
-  const title = line(entry.title) || "Role";
-  const date = formatDateRange(entry.startMonth, entry.startYear, entry.endMonth, entry.endYear);
-  const sub = [line(entry.company), line(entry.location)].filter(Boolean).join(" – ");
-  const bullets = entry.bullets
-    .split("\n")
-    .map((b) => b.trim().replace(/^[-•*]\s*/, ""))
-    .filter(Boolean)
-    .slice(0, 6);
-
+function ResumeDocument({ content }: { content: ResumeContentModel }) {
   return (
-    <View style={s.entryGroup}>
-      <View style={s.entryRow}>
-        <Text style={s.entryTitle}>{title}</Text>
-        {date ? <Text style={s.entryDate}>{date}</Text> : null}
-      </View>
-      {sub ? <Text style={s.entrySub}>{sub}</Text> : null}
-      {bullets.map((b, i) => <Bullet key={i} text={b} />)}
-    </View>
-  );
-}
-
-function EducationEntry({ entry }: { entry: HubRefineryForm["education"][0] }) {
-  const title = line(entry.degree) || line(entry.school);
-  const date = formatDateRange(entry.startMonth, entry.startYear, entry.endMonth, entry.endYear);
-  const sub =
-    line(entry.degree) && line(entry.school)
-      ? [line(entry.school), line(entry.location)].filter(Boolean).join(", ")
-      : line(entry.location);
-
-  return (
-    <View style={s.entryGroup}>
-      <View style={s.entryRow}>
-        <Text style={s.entryTitle}>{title}</Text>
-        {date ? <Text style={s.entryDate}>{date}</Text> : null}
-      </View>
-      {sub ? <Text style={s.entrySub}>{sub}</Text> : null}
-    </View>
-  );
-}
-
-function SimpleListSection({
-  title,
-  items,
-}: {
-  title: string;
-  items: Array<{ text: string; hidden?: boolean }>;
-}) {
-  const visible = items.filter((i) => !i.hidden && line(i.text));
-  if (visible.length === 0) return null;
-  return (
-    <>
-      <SectionHeading title={title} />
-      {visible.map((item, i) => <Bullet key={i} text={line(item.text)} />)}
-    </>
-  );
-}
-
-// ─── Resume document ──────────────────────────────────────────────────────────
-
-function ResumeDocument({
-  form,
-  targetTitle,
-}: {
-  form: HubRefineryForm;
-  targetTitle: string;
-}) {
-  const name = [form.firstName, form.lastName].filter(Boolean).join(" ").trim() || "Applicant";
-  const contact = [form.cityState, form.phone, form.email, form.linkedIn]
-    .map(line)
-    .filter(Boolean)
-    .join("  |  ");
-
-  const experiences = form.experience.filter(
-    (e) => !e.hidden && (line(e.title) || line(e.company)),
-  );
-  const educations = form.education.filter(
-    (e) => !e.hidden && (line(e.degree) || line(e.school)),
-  );
-  const summary = line(form.professionalSummary);
-  const skills = line(form.skillsText);
-
-  const customSections = (form.customSections ?? []).filter(
-    (s) => !s.hidden && line(s.title) && line(s.content),
-  );
-
-  return (
-    <Document title={targetTitle || name} creator="EasySubmit" producer="EasySubmit">
+    <Document title={content.targetTitle || content.name} creator="EasySubmit" producer="EasySubmit">
       <Page size="LETTER" style={s.page}>
-        {/* ── Header ── */}
-        <Text style={s.name}>{name}</Text>
-        {contact ? <Text style={s.contact}>{contact}</Text> : null}
+        <Text style={s.name}>{content.name}</Text>
+        {content.contact ? <Text style={s.contact}>{content.contact}</Text> : null}
 
-        {/* ── Professional Summary ── */}
-        {summary ? (
+        {content.summary ? (
           <>
             <SectionHeading title={SECTION_TITLE.summary} />
-            <Text style={s.body}>{summary}</Text>
+            <Text style={s.body}>{content.summary}</Text>
           </>
         ) : null}
 
-        {/* ── Skills ── */}
-        {skills ? (
+        {content.skillsText ? (
           <>
             <SectionHeading title={SECTION_TITLE.skills} />
-            <Text style={s.body}>{skills}</Text>
+            <Text style={s.body}>{content.skillsText}</Text>
           </>
         ) : null}
 
-        {/* ── Professional Experience ── */}
-        {experiences.length > 0 ? (
+        {content.experience.length > 0 ? (
           <>
             <SectionHeading title={SECTION_TITLE.experience} />
-            {experiences.map((e) => <ExperienceEntry key={e.id} entry={e} />)}
+            {content.experience.map((entry) => (
+              <View key={entry.id} style={s.entryGroup}>
+                <View style={s.entryRow}>
+                  <Text style={s.entryTitle}>{entry.title}</Text>
+                  {entry.dateRange ? <Text style={s.entryDate}>{entry.dateRange}</Text> : null}
+                </View>
+                {entry.subtitle ? <Text style={s.entrySub}>{entry.subtitle}</Text> : null}
+                {entry.bullets.map((bullet, i) => (
+                  <Bullet key={i} text={bullet} />
+                ))}
+              </View>
+            ))}
           </>
         ) : null}
 
-        {/* ── Education ── */}
-        {educations.length > 0 ? (
+        {content.education.length > 0 ? (
           <>
             <SectionHeading title={SECTION_TITLE.education} />
-            {educations.map((e) => <EducationEntry key={e.id} entry={e} />)}
+            {content.education.map((entry) => (
+              <View key={entry.id} style={s.entryGroup}>
+                <View style={s.entryRow}>
+                  <Text style={s.entryTitle}>{entry.title}</Text>
+                  {entry.dateRange ? <Text style={s.entryDate}>{entry.dateRange}</Text> : null}
+                </View>
+                {entry.subtitle ? <Text style={s.entrySub}>{entry.subtitle}</Text> : null}
+              </View>
+            ))}
           </>
         ) : null}
 
-        {/* ── Optional sections ── */}
-        <SimpleListSection title={SECTION_TITLE.certs} items={form.certifications} />
-        <SimpleListSection title={SECTION_TITLE.projects} items={form.projects} />
-        <SimpleListSection title={SECTION_TITLE.languages} items={form.languages} />
+        {(
+          [
+            { id: "certs", title: SECTION_TITLE.certs, items: content.certifications },
+            { id: "projects", title: SECTION_TITLE.projects, items: content.projects },
+            { id: "languages", title: SECTION_TITLE.languages, items: content.languages },
+          ] as const
+        ).map(({ id, title, items }) =>
+          items.length > 0 ? (
+            <React.Fragment key={id}>
+              <SectionHeading title={title} />
+              {items.map((item, i) => (
+                <Bullet key={i} text={item} />
+              ))}
+            </React.Fragment>
+          ) : null,
+        )}
 
-        {/* ── Custom sections ── */}
-        {customSections.map((section) => (
+        {content.customSections.map((section) => (
           <React.Fragment key={section.id}>
-            <SectionHeading title={line(section.title)} />
-            {line(section.content)
-              .split("\n")
-              .filter(Boolean)
-              .map((l, i) => <Text key={i} style={s.body}>{l}</Text>)}
+            <SectionHeading title={section.title} />
+            {section.lines.map((line, i) => (
+              <Text key={i} style={s.body}>
+                {line}
+              </Text>
+            ))}
           </React.Fragment>
         ))}
       </Page>
@@ -315,13 +221,13 @@ function ResumeDocument({
   );
 }
 
-// ─── Public API ───────────────────────────────────────────────────────────────
-
 export async function buildResumePdf(
   form: HubRefineryForm,
   targetTitle: string,
 ): Promise<Uint8Array> {
-  const doc = <ResumeDocument form={form} targetTitle={targetTitle} />;
+  validateResumeForm(form);
+  const content = buildResumeContentFromForm(form, targetTitle);
+  const doc = <ResumeDocument content={content} />;
   const blob = await pdf(doc).toBlob();
   const arrayBuffer = await blob.arrayBuffer();
   return new Uint8Array(arrayBuffer);

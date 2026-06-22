@@ -21,6 +21,7 @@ import {
   JOB_CONTEXT_FALLBACKS,
   RESUME_CONTEXT_FALLBACKS,
 } from "@/lib/job-tracker/extract-job-resume-context";
+import { buildTailorPlaceholders, firstVisibleExperienceEntry } from "@/lib/job-tracker/build-tailor-placeholders";
 import { buildCoverLetterDocumentPatch } from "@/lib/job-tracker/persist-cover-letter";
 
 export type TailorCoverLetterInput = {
@@ -135,9 +136,7 @@ function topSkillsFromForm(form: HubRefineryForm, limit = 3): string[] {
 }
 
 function mostRecentTitleFromForm(form: HubRefineryForm, targetTitle: string): string {
-  const entry = form.experience.find(
-    (row) => !row.hidden && row.title?.trim(),
-  );
+  const entry = firstVisibleExperienceEntry(form);
   return entry?.title?.trim() || targetTitle.trim() || RESUME_CONTEXT_FALLBACKS.mostRecentJobTitle;
 }
 
@@ -214,6 +213,11 @@ export function buildDeterministicCoverLetterMarkdown(
   const generated = generateCoverLetter({
     resumeData: merged.resume,
     jdData: merged.job,
+    placeholders: buildTailorPlaceholders({
+      form: input.form,
+      resumeData: merged.resume,
+      jdData: merged.job,
+    }),
   });
 
   if (!generated.ok) {
