@@ -1,5 +1,6 @@
 "use client";
 
+import { type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 type StudioPanelTab = "editor" | "layout";
@@ -9,6 +10,7 @@ type StudioPanelTabsProps = {
   onTabChange: (tab: StudioPanelTab) => void;
   variant?: "onboarding" | "dashboard";
   monoClass?: string;
+  actions?: ReactNode;
 };
 
 export function StudioPanelTabs({
@@ -16,18 +18,18 @@ export function StudioPanelTabs({
   onTabChange,
   variant = "dashboard",
   monoClass,
+  actions,
 }: StudioPanelTabsProps) {
   const isOnboarding = variant === "onboarding";
 
   return (
     <div
       className={cn(
-        "flex shrink-0 border-b",
+        "flex shrink-0 items-stretch border-b",
         isOnboarding ? "border-white/10 bg-[oklch(0.14_0.04_268)]" : "border-border bg-surface",
       )}
-      role="tablist"
-      aria-label="Studio panel"
     >
+      <div className="flex min-w-0 flex-1" role="tablist" aria-label="Studio panel">
       {(
         [
           { id: "editor" as const, label: "Editor" },
@@ -55,6 +57,12 @@ export function StudioPanelTabs({
           {tab.label}
         </button>
       ))}
+      </div>
+      {actions ? (
+        <div className="flex shrink-0 items-center gap-1 border-l border-border px-2">
+          {actions}
+        </div>
+      ) : null}
     </div>
   );
 }

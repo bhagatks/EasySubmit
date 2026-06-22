@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createResumeProfile } from "@/app/actions/resume-profiles";
+import { DashboardWorkspacePage } from "@/components/dashboard/DashboardWorkspacePage";
 import { Button } from "@/components/ui/button";
 
 export function NewResumeProfileChooser() {
@@ -28,16 +29,10 @@ export function NewResumeProfileChooser() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <h1 className="font-display text-3xl font-semibold tracking-tight">
-          New resume profile
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Pick a target role in Studio — it names this profile in your list, not on the resume.
-        </p>
-      </div>
-
+    <DashboardWorkspacePage
+      title="New resume profile"
+      description="Pick a target role in Studio — it names this profile in your list, not on the resume."
+    >
       {error ? (
         <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-700">
           {error}
@@ -78,6 +73,6 @@ export function NewResumeProfileChooser() {
       >
         Back to profiles
       </Button>
-    </div>
+    </DashboardWorkspacePage>
   );
 }

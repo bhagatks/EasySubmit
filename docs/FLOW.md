@@ -14,7 +14,8 @@
 | `/dashboard/resume-profiles` | Resume profile list (role label + person subtitle); Edit, Set default, Delete when >1; `+` → new (copy default or blank) → Studio editor | NextAuth required |
 | `/dashboard/resume-profiles/new` | Choose copy-from-default or blank starter | NextAuth required |
 | `/dashboard/resume-profiles/[id]/edit` | Resume Studio — same Refinery controls as onboarding Phase 3 + profile role field | NextAuth required |
-| `/dashboard/applications` | Application tracker (stub) | NextAuth required |
+| `/dashboard/job-tracker` | Job Tracker — pipeline rows, Review Screen, Archive toggle in header | NextAuth required |
+| `/dashboard/applications` | Redirect → `/dashboard/job-tracker` | NextAuth required |
 | `/dashboard/keys` | **Ignition Chamber** — post-onboarding BYOK vault (Power Cells, IGNITE handshake) | NextAuth required |
 | `/dashboard/settings` | Account settings — login identity (`users`), connected OAuth providers, engine status stub, sign out | NextAuth required |
 

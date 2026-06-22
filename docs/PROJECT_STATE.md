@@ -13,7 +13,7 @@
 - **NextAuth** — Google + LinkedIn OAuth at `/login`; middleware + layout protect `/onboarding` and `/dashboard`
 - **Typed env** — `lib/env.ts`, `types/env.d.ts` for OAuth credentials
 - **Login UI** — Google-only OAuth on deep navy glass card (`LogoIcon` w-12, `size="xl"` CTA); `SessionProvider` via `components/providers/auth-provider.tsx`
-- **Sign out** — `components/auth/SignOutButton.tsx` + `lib/auth/sign-out-client.ts`; available on all onboarding routes via `OnboardingFlowShell`; clears Zustand onboarding/ignition storage then NextAuth `signOut` → `/login`
+- **Sign out** — `components/auth/SignOutButton.tsx` + `lib/auth/sign-out-client.ts`; onboarding routes via `OnboardingFlowShell`; dashboard header sign out **Settings only**; other dashboard screens show **BYOK KEY** header CTA when engine is cold
 - **Onboarding hub** — `/onboarding`: 3-phase Unified Workbench with unified top chrome (`OnboardingWorkbenchChrome`: EasySubmit brand + phase label/description + phase actions + Sign Out, progress bar, Identity \| Import \| Studio tabs); finalize CTA **Finalize & continue**; ATS sample PDF/DOCX in Import header actions; Studio header: Raw text, Expand all, Import back, Enhance with AI (when flag + system AI on)
 - **Resume spec** — `docs/resume/RULES.md`; golden templates in `assets/resume/templates/`; `lib/resume/resumeSpec.ts`; Fuel panel sample download via `/api/resume/ats-template`
 - **Open-Resume parser** — PDF via browser Open-Resume engine; **DOCX → PDF** via `docx-to-pdf-wasm` on `/api/resume/convert-docx`, then same PDF parser; heuristic DOCX fallback if conversion parse fails; parsed text normalized via `lib/resume/normalizeResumeText.ts` (junk chars, list markers, smart quotes)
@@ -23,7 +23,9 @@
 - **Codebase cleanup** — removed legacy 11-step wizard, alternate refinery/workbench UIs, TanStack `start/` app, orphan layout/visual components; minimal `components/ui` set retained
 - Supabase Auth signup (`/auth/signup`) — legacy email/OAuth path
 - `finalizeProfile` — Zustand payload → Prisma Postgres
-- **Dashboard shell** — `/dashboard`: Lovable-derived sidebar layout (`DashboardShell`), overview with stats/recent applications/ATS Guarantee (`DashboardOverview`); **Resume profiles** at `/dashboard/resume-profiles` — multi-profile list (target role primary label, person name subtitle), Edit / Set default / Delete (when >1), `+` → copy default or blank → Studio editor at `/dashboard/resume-profiles/[id]/edit`; onboarding default profile marked `isDefault`; nav stubs for Applications; **Settings** at `/dashboard/settings` — account name (`users` only), read-only email, OAuth connect badges, engine status + link to AI Keys, sign out; header `BYOKStatusBadge` when vaulted; sidebar **AI Keys** shows `BYOK Inactive` when cold; one-time BYOK nudge on first dashboard load; cold-state Engine Cold canvas + Ignition Chamber hint; `KeyProtector` for auth-failure re-lock only
+- **Job Tracker (web v2)** — … **Review Screen** modal with **inline tailored resume preview** on Resume tab (merged base + job overrides), section change pills, Edit in Studio link; …
+- **Chrome extension v0.1** — MV3 job card, save API, `/extension/bridge`, `npm run build:extension`; card header **resume profile picker** (icon dropdown, default badge); Settings **Default profile** vs **Last selected**; `sourceProfileId` on save/pipeline metadata; **Open dashboard** reuses existing EasySubmit tab; **Apply with EasySubmit** runs capture → tailor pipeline on Workday (`pipelineBusyLabel` progress)
+- **Dashboard shell** — `/dashboard`: Lovable-derived sidebar layout (`DashboardShell`), overview with stats/recent Job Tracker entries/ATS Guarantee (`DashboardOverview`); **Resume profiles** at `/dashboard/resume-profiles` — multi-profile list (target role primary label, person name subtitle), Edit / Set default / Delete (when >1), `+` → copy default or blank → Studio editor at `/dashboard/resume-profiles/[id]/edit`; onboarding default profile marked `isDefault`; **Settings** at `/dashboard/settings` — two-column account + AI/extension cards (segmented controls, toggle rows), OAuth connect badges, sign out in header; header `BYOKStatusBadge` when vaulted or **BYOK KEY** CTA when cold (except Settings/AI Keys where BYOK UI is on-page); sidebar **AI Keys** shows `BYOK Inactive` when cold; one-time BYOK nudge on first dashboard load; compact engine-cold callout on overview when BYOK missing; `KeyProtector` for auth-failure re-lock only
 - **Multi resume profiles** — many `profiles` per login with `isDefault`; structured resume in `profiles.content` JSONB; engine/stats read default profile; `app/actions/resume-profiles.ts`
 - **Login identity** — `users.firstName` / `users.lastName` extracted at OAuth; session + onboarding Identity prefill; resume edits no longer write `users`
 - **Profile model** — `Profile` (many per `User`, one `isDefault`) with `content` JSONB for all resume sections + `calibrationScore`; multi-provider email linking via NextAuth
@@ -31,11 +33,11 @@
 
 ## Active work
 
-- Production deploy (Vercel) — env vars + OAuth redirect URIs
-- Dashboard data wiring (real stats, applications from Prisma)
-- Dashboard features (job queue, apply flow)
-- Real resume parsing (replace simulation)
-- Chrome extension content-script sidebar
+- **Workday one-click apply E2E** — Phase B tailor stores **per-job overrides** in `job_resume_tailors` (no profile clone); Phase C autofill **stub done**; real Workday field fill **pending** — see [`docs/WORKDAY_ONE_CLICK_APPLY.md`](./WORKDAY_ONE_CLICK_APPLY.md)
+- Extension v2 — Tier 1 ATS adapters (Lever, Ashby, iCIMS, SmartRecruiters)
+- Production deploy (Vercel) — deferred
+
+Full tracker: [`docs/JOB_TRACKER.md`](./JOB_TRACKER.md)
 
 ## Setup (local)
 

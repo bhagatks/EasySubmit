@@ -4,6 +4,10 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { APICallError } from "@ai-sdk/provider";
 import {
+  GEMINI_ACCOUNT_BLOCKED_MESSAGE,
+  isGeminiProjectDeniedMessage,
+} from "@/src/lib/ai/gemini-access-messages";
+import {
   PROVIDER_REGISTRY,
   type AiProvider,
 } from "@/src/lib/config/app.config";
@@ -19,10 +23,12 @@ const VERIFY_MODEL: Record<AiProvider, string> = {
   openrouter: "openai/gpt-4o-mini",
 };
 
-/** Models to try when verifying Gemini BYOK — 2.0-flash free tier is often limit: 0. */
+/** Models to try when verifying Gemini BYOK — newest first. */
 const GEMINI_VERIFY_MODELS = [
+  "gemini-2.5-flash-lite",
   "gemini-2.5-flash",
   "gemini-flash-latest",
+  "gemini-2.0-flash",
   "gemini-1.5-flash",
 ] as const;
 
@@ -76,6 +82,13 @@ function mapAiSdkFailure(error: unknown): AiSdkVerifyResult {
       return { ok: false, code: "invalid_key", message };
     }
     if (status === 403) {
+      if (/denied access|project has been denied/i.test(message)) {
+        return {
+          ok: false,
+          code: "forbidden",
+          message: GEMINI_ACCOUNT_BLOCKED_MESSAGE,
+        };
+      }
       return { ok: false, code: "forbidden", message };
     }
     if (status === 402 || isQuotaOrBillingFailure(message)) {
@@ -170,13 +183,25 @@ export async function verifyApiKeyWithAiSdk(
           return { ok: true };
         } catch (error) {
           lastFailure = mapAiSdkFailure(error);
-          if (
-            !lastFailure.ok &&
-            (lastFailure.code === "invalid_key" || lastFailure.code === "forbidden")
-          ) {
+          if (!lastFailure.ok && lastFailure.code === "invalid_key") {
             return lastFailure;
           }
+          if (
+            !lastFailure.ok &&
+            lastFailure.code === "forbidden" &&
+            isGeminiProjectDeniedMessage(lastFailure.message)
+          ) {
+            continue;
+          }
         }
+      }
+
+      if (
+        !lastFailure.ok &&
+        lastFailure.code === "forbidden" &&
+        isGeminiProjectDeniedMessage(lastFailure.message)
+      ) {
+        return { ok: false, code: "forbidden", message: GEMINI_ACCOUNT_BLOCKED_MESSAGE };
       }
 
       return lastFailure;

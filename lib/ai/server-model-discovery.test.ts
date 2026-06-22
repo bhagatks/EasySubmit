@@ -45,13 +45,7 @@ describe("handshakeProviderModels", () => {
     expect(String(fetchMock.mock.calls[1]?.[0])).toContain("/v1/chat/completions");
   });
 
-  it("uses Gemini SDK ping then enriches from REST model list", async () => {
-    vi.mocked(validateGeminiKey).mockResolvedValue({
-      ok: true,
-      pingModel: "gemini-1.5-flash",
-      models: ["gemini-2.5-flash", "gemini-1.5-flash"],
-    });
-
+  it("uses Gemini REST model list without generateContent ping when REST succeeds", async () => {
     const fetchMock = vi.mocked(fetch);
     fetchMock.mockResolvedValueOnce(
       new Response(
@@ -69,11 +63,32 @@ describe("handshakeProviderModels", () => {
 
     const result = await handshakeProviderModels("gemini", "AQ.test-key");
 
-    expect(validateGeminiKey).toHaveBeenCalledWith("AQ.test-key");
+    expect(validateGeminiKey).not.toHaveBeenCalled();
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.models).toContain("gemini-2.5-flash");
       expect(result.models).toContain("gemini-1.5-flash");
+    }
+  });
+
+  it("returns account-blocked guidance when Gemini REST denies the project", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          error: { message: "Your project has been denied access. Please contact support." },
+        }),
+        { status: 403 },
+      ),
+    );
+
+    const result = await handshakeProviderModels("gemini", "AQ.test-key");
+
+    expect(validateGeminiKey).not.toHaveBeenCalled();
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("forbidden");
+      expect(result.message).toContain("different Google account");
     }
   });
 });

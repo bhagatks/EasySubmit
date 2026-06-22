@@ -169,6 +169,9 @@ Auth identity and onboarding gate only. Career data lives on `Profile`.
 | `aiQuotaResetAt` | `datetime` | Last quota counter reset timestamp |
 | `termsAcceptedAt` | `datetime?` | Last OAuth sign-in with terms checkbox accepted |
 | `lastAuthProvider` | `string?` | Last OAuth provider |
+| `oneClickApply` | `boolean` default `true` | Workday one-click pipeline when `extension_auto_apply` flag is on |
+| `autoArchiveAppliedJobs` | `boolean` default `true` | When on, `APPLIED` rows move to `ARCHIVED` 24h after `appliedAt` |
+| `resumeProfilePickerMode` | `ResumeProfilePickerMode` default `DEFAULT` | Extension card pre-select: `DEFAULT` (default profile) or `LAST_SELECTED` (last pick on card) |
 | `createdAt` / `updatedAt` | `datetime` | |
 
 ## PostgreSQL — `user_api_keys` (Prisma `UserApiKey`)
@@ -278,6 +281,47 @@ WHERE "traceId" = '3e184715'
 ORDER BY "createdAt";
 ```
 
+## PostgreSQL — `job_tracker_entries` (Prisma `JobTrackerEntry`)
+
+Source of truth for **Job Tracker** — extension saves and dashboard list read this table.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | `cuid` | Primary key |
+| `userId` | `string` | FK → `users.id` |
+| `canonicalUrl` | `string` | Normalized job posting URL |
+| `urlHash` | `string` | SHA-256 of `canonicalUrl` — unique per user |
+| `title` | `string` | Job title |
+| `company` | `string?` | Employer |
+| `location` | `string?` | Location text |
+| `salaryText` | `string?` | Display salary when scraped |
+| `description` | `text?` | Job description excerpt / full text |
+| `platform` | `string?` | `linkedin`, `workday`, `generic`, … |
+| `status` | enum | `CAPTURED` (default), `RESUME_READY`, `READY_TO_APPLY`, `APPLIED`, `INTERVIEW`, `OFFER`, `REJECTED`, `ARCHIVED` |
+| `savedAt` | `datetime` | When user saved the role |
+| `appliedAt` | `datetime?` | When marked applied |
+| `archivedAt` | `datetime?` | When moved to `ARCHIVED` |
+| `notes` | `text?` | User notes (v1.1+) |
+| `metadata` | `jsonb?` | Scrape confidence, extension signals (`sourceProfileId`, pipeline errors, …) |
+| `createdAt` / `updatedAt` | `datetime` | |
+
+## PostgreSQL — `job_resume_tailors` (Prisma `JobResumeTailor`)
+
+Per-application resume deltas — merged with `sourceProfileId` at read/export time (no full profile clone per job).
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | `cuid` | Primary key |
+| `jobTrackerEntryId` | `string` unique | FK → `job_tracker_entries.id` (1:1) |
+| `userId` | `string` | FK → `users.id` |
+| `sourceProfileId` | `string` | FK → `profiles.id` (`ON DELETE RESTRICT`) |
+| `overrides` | `jsonb` | Section-level patches (`summary`, `skills`, `experience`, …) |
+| `changedSections` | `text[]` | Studio section ids touched by tailor or user edit |
+| `enhanceTraceId` | `string?` | Optional Enhance AI trace |
+| `createdAt` / `updatedAt` | `datetime` | |
+
+**Legacy:** `profiles.content.applications[]` JSON (`ArchitectureApplication`) — deprecated; do not write new job rows there. Optional one-time migration script later.
+
 ## PostgreSQL — legacy tables
 
 **Removed:** `engines`, `architectures`, `experiences`, `projects`, `educations`, `certifications` — consolidated into `profiles.content` (2026-06-20).
@@ -316,6 +360,8 @@ One row per flag key — scales to many toggles without schema changes.
 |-----|---------|-------------|
 | `enhance_with_ai_onboarding` | `true` | Show **Enhance with AI** in onboarding Studio top bar (phase 3) — also requires `app_config.aiEngine.quotas.system.enable` |
 | `enhance_with_ai_resume_profile` | `true` | Show **Enhance with AI** in dashboard resume profile studio header |
+| `extension_job_card` | `true` | Show in-page Job Tracker card on supported job sites (Chrome extension) |
+| `extension_auto_apply` | `true` | One-click Workday apply pipeline. **Off** → manual Save → Update resume → Apply only |
 
 Registry + defaults: `src/lib/services/feature-flags-service.ts` (`FEATURE_FLAG_REGISTRY`). Loader: `getFeatureFlags()` / `isFeatureEnabled(key)`. Client: `fetchFeatureFlags()`. New flags: add registry entry + seed row + migration `INSERT`.
 

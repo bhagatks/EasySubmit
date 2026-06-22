@@ -27,15 +27,29 @@ import {
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { Button } from "@/components/ui/button";
 import { LogoIcon } from "@/components/ui/logo";
-import { BYOKInactiveNavBadge, BYOKStatusBadge } from "@/components/dashboard/BYOKStatus";
+import {
+  BYOKInactiveNavBadge,
+  BYOKKeyButton,
+  BYOKStatusBadge,
+} from "@/components/dashboard/BYOKStatus";
 import { DashboardStudioSidebarEffect } from "@/components/dashboard/DashboardStudioSidebarEffect";
 import { StudioHeaderCenterProvider, StudioHeaderCenterSlot } from "@/components/resume/StudioHeaderCenter";
+import {
+  DashboardHeaderActionsSlot,
+  DashboardHeaderExpandSlot,
+  DashboardWorkspaceHeaderProvider,
+} from "@/components/dashboard/DashboardWorkspaceHeader";
+import {
+  isDashboardDetailScreen,
+  shouldShowDashboardByokKeyButton,
+  shouldShowDashboardSignOut,
+} from "@/lib/dashboard/dashboard-header-controls";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { title: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { title: "Resume profiles", href: "/dashboard/resume-profiles", icon: FileText },
-  { title: "Applications", href: "/dashboard/applications", icon: Briefcase },
+  { title: "Job Tracker", href: "/dashboard/job-tracker", icon: Briefcase },
   { title: "AI Keys", href: "/dashboard/keys", icon: Key },
   { title: "Settings", href: "/dashboard/settings", icon: Settings },
 ] as const;
@@ -110,13 +124,14 @@ function DashboardSidebar({ vaultKeyId }: { vaultKeyId?: string | null }) {
 
 export function DashboardShell({ children, vaultKeyId }: DashboardShellProps) {
   const pathname = usePathname();
-  const isStudioEdit =
-    pathname.startsWith("/dashboard/resume-profiles/") &&
-    pathname.endsWith("/edit");
+  const isStudioEdit = isDashboardDetailScreen(pathname);
+  const showSignOut = shouldShowDashboardSignOut(pathname);
+  const showByokKeyButton = shouldShowDashboardByokKeyButton(pathname, vaultKeyId);
 
   return (
     <SidebarProvider>
       <StudioHeaderCenterProvider>
+        <DashboardWorkspaceHeaderProvider>
         <DashboardStudioSidebarEffect />
         <div
         className={cn(
@@ -146,8 +161,11 @@ export function DashboardShell({ children, vaultKeyId }: DashboardShellProps) {
               <div />
             )}
             <div className="flex items-center gap-2 justify-self-end">
+              <DashboardHeaderActionsSlot />
+              <DashboardHeaderExpandSlot />
               <BYOKStatusBadge vaultKeyId={vaultKeyId} />
-              <SignOutButton variant="pill" />
+              {showByokKeyButton ? <BYOKKeyButton /> : null}
+              {showSignOut ? <SignOutButton variant="pill" /> : null}
             </div>
           </header>
           <main
@@ -160,6 +178,7 @@ export function DashboardShell({ children, vaultKeyId }: DashboardShellProps) {
           </main>
         </div>
         </div>
+        </DashboardWorkspaceHeaderProvider>
       </StudioHeaderCenterProvider>
     </SidebarProvider>
   );

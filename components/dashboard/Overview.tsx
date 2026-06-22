@@ -3,6 +3,7 @@ import { JetBrains_Mono } from "next/font/google";
 import {
   ArrowUpRight,
   Briefcase,
+  ChevronRight,
   FileText,
   Plus,
   Snowflake,
@@ -10,6 +11,8 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { getDashboardStats } from "@/app/actions/dashboard/stats";
+import { DashboardWorkspaceShell } from "@/components/dashboard/DashboardWorkspacePage";
+import { PipelineBar } from "@/components/dashboard/PipelineBar";
 import { Button } from "@/components/ui/button";
 import {
   formatDashboardDeltaSpend,
@@ -18,6 +21,10 @@ import {
   formatDashboardUsd,
 } from "@/lib/dashboard/format-stats";
 import { getDisplayName } from "@/lib/dashboard/user-display";
+import {
+  defaultReviewScreenPanel,
+  jobTrackerReviewScreenUrl,
+} from "@/lib/job-tracker/review-screen-ui";
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
@@ -29,12 +36,8 @@ const SYSTEM_MINT = "oklch(0.82 0.16 165)";
 const NAVY_SURFACE = "oklch(0.12 0.03 268)";
 const NAVY_CANVAS = "oklch(0.16 0.04 268)";
 const MUTED = "oklch(0.45 0.02 268)";
-
-const statusStyle: Record<string, string> = {
-  Applied: "bg-primary/15 text-primary",
-  Interview: "bg-mint/15 text-mint",
-  Draft: "bg-muted text-muted-foreground",
-};
+/** ~4 pipeline rows (title, subtitle, progress bar) plus list gaps */
+const RECENT_JOB_TRACKER_LIST_MAX_HEIGHT = "24.5rem";
 
 type DashboardOverviewProps = {
   userFirstName?: string | null;
@@ -57,9 +60,11 @@ export async function DashboardOverview({
 
   if (!result.success) {
     return (
-      <div className="mx-auto max-w-6xl rounded-2xl border border-border bg-surface/60 p-8 text-sm text-muted-foreground">
-        Could not load dashboard stats. Refresh to try again.
-      </div>
+      <DashboardWorkspaceShell>
+        <div className="rounded-2xl border border-border bg-surface/60 p-8 text-sm text-muted-foreground">
+          Could not load dashboard stats. Refresh to try again.
+        </div>
+      </DashboardWorkspaceShell>
     );
   }
 
@@ -73,9 +78,12 @@ export async function DashboardOverview({
       icon: FileText,
     },
     {
-      label: "Applications sent",
-      value: formatDashboardInteger(stats.applicationsSent),
-      delta: stats.recentApplications.length > 0 ? "From architecture ledger" : "No sends yet",
+      label: "Jobs tracked",
+      value: formatDashboardInteger(stats.jobsTracked),
+      delta:
+        stats.recentJobTrackerEntries.length > 0
+          ? "Saved and applied roles"
+          : "Save from the extension",
       icon: Briefcase,
     },
     {
@@ -100,10 +108,10 @@ export async function DashboardOverview({
   ];
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8">
+    <DashboardWorkspaceShell className="space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-display text-3xl font-semibold tracking-tight">
+          <h1 className="font-display text-2xl font-semibold tracking-tight">
             Welcome back, {firstName}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -134,81 +142,87 @@ export async function DashboardOverview({
         ))}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[3fr_2fr]">
         <div
-          className="min-h-[22rem] rounded-2xl border border-white/10 p-6"
+          className="min-h-[22rem] min-w-0 overflow-hidden rounded-2xl border border-white/10 p-6"
           style={{ backgroundColor: NAVY_CANVAS }}
         >
+          <div className="flex items-center justify-between">
+            <h2 className="font-display text-lg font-semibold">Recent in Job Tracker</h2>
+            <Link
+              href="/dashboard/job-tracker"
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              View all <ArrowUpRight className="inline h-3 w-3" />
+            </Link>
+          </div>
+          {stats.recentJobTrackerEntries.length === 0 ? (
+            <p className="mt-8 text-sm text-muted-foreground">
+              No jobs tracked yet. Install the extension and use Save to Job Tracker on a job
+              posting to populate this list.
+            </p>
+          ) : (
+            <div
+              className="mt-4 -mr-1 overflow-y-auto pr-1 [scrollbar-gutter:stable]"
+              style={{ maxHeight: RECENT_JOB_TRACKER_LIST_MAX_HEIGHT }}
+              aria-label="Recent job tracker entries"
+            >
+              <ul className="space-y-2">
+              {stats.recentJobTrackerEntries.map((entry) => {
+                const subtitle = [entry.company, entry.location].filter(Boolean).join(" · ");
+                const reviewHref = jobTrackerReviewScreenUrl(
+                  entry.id,
+                  defaultReviewScreenPanel(entry.status),
+                );
+
+                return (
+                  <li key={entry.id}>
+                    <Link
+                      href={reviewHref}
+                      className="group block cursor-pointer rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 transition-all hover:border-primary/35 hover:bg-white/[0.08] hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                      title="Open job review"
+                    >
+                      <div className="flex min-w-0 flex-col gap-2">
+                        <div className="flex min-w-0 items-center gap-1">
+                          <p
+                            className="min-w-0 flex-1 truncate text-sm font-medium leading-snug text-foreground transition-colors group-hover:text-primary"
+                            title={entry.title}
+                          >
+                            {entry.title}
+                          </p>
+                          <ChevronRight
+                            className="h-3.5 w-3.5 shrink-0 text-primary/0 transition-all group-hover:text-primary/70 group-focus-visible:text-primary/70"
+                            aria-hidden="true"
+                          />
+                        </div>
+                        {subtitle ? (
+                          <p className="truncate text-xs text-muted-foreground" title={subtitle}>
+                            {subtitle}
+                          </p>
+                        ) : null}
+                        <PipelineBar status={entry.status} className="w-full shrink-0" />
+                      </div>
+                    </Link>
+                  </li>
+                );
+              })}
+              </ul>
+            </div>
+          )}
           {!engineHot ? (
-            <div className="flex h-full min-h-[18rem] flex-col items-center justify-center text-center">
-              <div
-                className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10"
-                style={{ backgroundColor: NAVY_SURFACE }}
-              >
-                <Snowflake className="h-7 w-7" style={{ color: MUTED }} aria-hidden="true" />
-              </div>
-              <p className={mono + " text-[11px] uppercase tracking-[0.2em]"} style={{ color: MUTED }}>
-                Engine Cold
+            <div className="mt-8 rounded-xl border border-white/10 p-4 text-center" style={{ backgroundColor: NAVY_SURFACE }}>
+              <Snowflake className="mx-auto h-5 w-5" style={{ color: MUTED }} aria-hidden="true" />
+              <p className={mono + " mt-2 text-[10px] uppercase tracking-[0.18em]"} style={{ color: MUTED }}>
+                Engine cold
               </p>
-              <h2 className="mt-3 font-display text-xl font-semibold text-foreground">
-                Vault your BYOK key to ignite the engine
-              </h2>
-              <p className="mt-2 max-w-md text-sm text-muted-foreground">
-                The headless engine needs a vaulted provider key before refinement and apply
-                automation can run.
+              <p className="mt-1 text-xs text-muted-foreground">
+                Connect AI Keys to run resume refinement and apply automation.
               </p>
-              <Button variant="mint" className="mt-6" asChild>
+              <Button variant="mint" size="sm" className="mt-3" asChild>
                 <Link href="/dashboard/keys">Connect AI Keys</Link>
               </Button>
             </div>
-          ) : (
-            <>
-              <div className="flex items-center justify-between">
-                <h2 className="font-display text-lg font-semibold">Recent applications</h2>
-                <Link
-                  href="/dashboard/applications"
-                  className="text-xs text-muted-foreground hover:text-foreground"
-                >
-                  View all <ArrowUpRight className="inline h-3 w-3" />
-                </Link>
-              </div>
-              {stats.recentApplications.length === 0 ? (
-                <p className="mt-8 text-sm text-muted-foreground">
-                  No applications in your Career Architecture yet. Send your first apply from the
-                  extension to populate this canvas.
-                </p>
-              ) : (
-                <div className="mt-4 divide-y divide-border/60">
-                  {stats.recentApplications.map((application) => (
-                    <div
-                      key={`${application.role}-${application.company}`}
-                      className="flex items-center justify-between py-3"
-                    >
-                      <div>
-                        <div className="text-sm font-medium">{application.role}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {application.company}
-                          {application.when ? ` · ${application.when}` : ""}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        {application.score !== undefined ? (
-                          <span className={mono + " text-xs text-muted-foreground tabular-nums"}>
-                            ATS {application.score}
-                          </span>
-                        ) : null}
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${statusStyle[application.status] ?? statusStyle.Applied}`}
-                        >
-                          {application.status}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
+          ) : null}
         </div>
 
         <div className="rounded-2xl border border-primary/40 bg-surface p-6 shadow-glow">
@@ -257,6 +271,6 @@ export async function DashboardOverview({
           ) : null}
         </div>
       </div>
-    </div>
+    </DashboardWorkspaceShell>
   );
 }

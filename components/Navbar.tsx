@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useSession } from "next-auth/react";
+import { Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LogoIcon } from "@/components/ui/logo";
 import { cn } from "@/lib/utils";
@@ -50,17 +51,30 @@ export function Navbar() {
           </a>
         </nav>
 
-        <div className="flex items-center">
+        <div className="flex items-center gap-2">
           {isAuthenticated ? (
-            <Link href="/dashboard">
-              <Button
-                variant="outline"
-                size="sm"
-                className={cn("border-mint/30 text-mint hover:bg-mint/10")}
-              >
-                Dashboard
-              </Button>
-            </Link>
+            <>
+              <Link href="/dashboard">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={cn("border-mint/30 text-mint hover:bg-mint/10")}
+                >
+                  Dashboard
+                </Button>
+              </Link>
+              <Link href="/dashboard/settings" aria-label="Settings">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className={cn(
+                    "h-8 w-8 rounded-xl border-mint/30 text-mint hover:bg-mint/10",
+                  )}
+                >
+                  <Settings className="h-4 w-4" aria-hidden="true" />
+                </Button>
+              </Link>
+            </>
           ) : (
             <Link
               href="/login"

@@ -37,6 +37,7 @@ type ResumeStudioWorkbenchProps = {
   className?: string;
   previewLayoutKey?: string | number;
   focusPreviewOnLayoutKey?: string | number;
+  panelHeaderActions?: ReactNode;
 };
 
 function subscribeMediaQuery(query: string, callback: () => void) {
@@ -73,6 +74,7 @@ export function ResumeStudioWorkbench({
   panelScrolls = true,
   previewLayoutKey,
   focusPreviewOnLayoutKey,
+  panelHeaderActions,
 }: ResumeStudioWorkbenchProps) {
   const isDesktop = useDesktopLayout();
   const [mobileTab, setMobileTab] = useState<"preview" | "edit">("edit");
@@ -148,6 +150,7 @@ export function ResumeStudioWorkbench({
         onTabChange={setStudioPanelTab}
         variant={variant}
         monoClass={monoClass}
+        actions={panelHeaderActions}
       />
       <div
         className={cn(

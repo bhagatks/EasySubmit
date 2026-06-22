@@ -42,46 +42,81 @@ const DialogContent = React.forwardRef<
     /** Use flex column for scrollable panels (header / body / footer). */
     layout?: "grid" | "flex";
     /**
-     * `center` — viewport center (default).
+     * `center` — viewport center via flex shell (avoids transform vs animate-in conflicts).
      * `login-panel` — centered in the 450px login column on lg+; viewport center on mobile.
      */
     placement?: "center" | "login-panel";
   }
->(({ className, children, hideClose = false, appearance = "default", layout = "grid", placement = "center", ...props }, ref) => (
-  <DialogPortal>
-    <DialogOverlay appearance={appearance} className="z-[99]" />
-    <DialogPrimitive.Content
-      ref={ref}
-      className={cn(
-        "fixed z-[100] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 sm:rounded-lg",
-        layout === "flex" ? "flex flex-col" : "grid",
-        appearance === "glossy" && cn("relative overflow-hidden sm:rounded-2xl", GLOSSY_PANEL_CLASS),
-        placement === "center" &&
-          cn(
-            "top-1/2 left-1/2 w-[min(512px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2",
-            "max-h-[min(90dvh,720px)]",
-          ),
-        placement === "login-panel" &&
-          cn(
-            "top-[max(1rem,5dvh)] max-h-[min(90dvh,720px)]",
-            "left-1/2 w-[min(400px,calc(100vw-2rem))] -translate-x-1/2",
-            "lg:left-auto lg:right-[25px] lg:w-[min(400px,calc(450px-2rem))] lg:translate-x-0",
-          ),
-        className,
-      )}
-      {...props}
-    >
-      {appearance === "glossy" ? <GlossySheen /> : null}
-      {children}
-      {hideClose ? null : (
-        <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
-          <X className="h-4 w-4" />
-          <span className="sr-only">Close</span>
-        </DialogPrimitive.Close>
-      )}
-    </DialogPrimitive.Content>
-  </DialogPortal>
-));
+>(
+  (
+    {
+      className,
+      children,
+      hideClose = false,
+      appearance = "default",
+      layout = "grid",
+      placement = "center",
+      ...props
+    },
+    ref,
+  ) => {
+    const panelClassName = cn(
+      "relative gap-4 border bg-background p-6 shadow-lg sm:rounded-lg",
+      layout === "flex" ? "flex flex-col" : "grid",
+      appearance === "glossy" && cn("overflow-hidden sm:rounded-2xl", GLOSSY_PANEL_CLASS),
+      placement === "center" && "w-[min(512px,calc(100vw-2rem))] max-h-[min(90dvh,720px)]",
+      placement === "login-panel" &&
+        "w-[min(400px,calc(100vw-2rem))] max-h-[min(90dvh,720px)] lg:w-[min(400px,calc(450px-2rem))]",
+      className,
+    );
+
+    const closeButton = hideClose ? null : (
+      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
+        <X className="h-4 w-4" />
+        <span className="sr-only">Close</span>
+      </DialogPrimitive.Close>
+    );
+
+    if (placement === "center") {
+      return (
+        <DialogPortal>
+          <div className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center px-4 py-[max(1rem,5dvh)]">
+            <DialogOverlay appearance={appearance} className="pointer-events-auto absolute inset-0 z-0" />
+            <DialogPrimitive.Content
+              ref={ref}
+              className={cn("pointer-events-auto z-10", panelClassName)}
+              {...props}
+            >
+              {appearance === "glossy" ? <GlossySheen /> : null}
+              {children}
+              {closeButton}
+            </DialogPrimitive.Content>
+          </div>
+        </DialogPortal>
+      );
+    }
+
+    return (
+      <DialogPortal>
+        <div className="pointer-events-none fixed inset-0 z-[100] flex items-start justify-center px-4 pt-[max(1rem,5dvh)] lg:items-center lg:justify-end lg:pr-[25px]">
+          <DialogOverlay appearance={appearance} className="pointer-events-auto absolute inset-0 z-0" />
+          <DialogPrimitive.Content
+            ref={ref}
+            className={cn(
+              "pointer-events-auto z-10 lg:ml-auto",
+              panelClassName,
+            )}
+            {...props}
+          >
+            {appearance === "glossy" ? <GlossySheen /> : null}
+            {children}
+            {closeButton}
+          </DialogPrimitive.Content>
+        </div>
+      </DialogPortal>
+    );
+  },
+);
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
 const DialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (

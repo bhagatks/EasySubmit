@@ -12,7 +12,7 @@ const IGNITION_PREFS_STORAGE_KEY = "easysubmit-ignition-prefs";
  * Cleared: Zustand onboarding + ignition stores, session BYOK cipher/vault keys,
  * onboarding sessionStorage draft, ignition provider/model prefs in localStorage.
  *
- * Kept: server data (profiles, applications, vaulted BYOK refs), NextAuth until
+ * Kept: server data (profiles, job tracker entries, vaulted BYOK refs), NextAuth until
  * signOut completes, and non-sensitive UI prefs (studio zoom, page size, fonts).
  */
 export function clearClientSessionState(): void {

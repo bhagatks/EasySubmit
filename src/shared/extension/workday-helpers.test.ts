@@ -1,0 +1,40 @@
+import { describe, expect, it } from "vitest";
+import {
+  isWorkdayApplyStepUrl,
+  parseWorkdayCompanyFromUrl,
+  parseWorkdayTitleFromUrl,
+} from "./workday-helpers";
+
+describe("workday helpers", () => {
+  it("detects apply-step URLs", () => {
+    expect(
+      isWorkdayApplyStepUrl(
+        "https://cvshealth.wd1.myworkdayjobs.com/CVS_Health_Careers/job/TX/Lead-Director_R0942300/apply",
+      ),
+    ).toBe(true);
+  });
+
+  it("parses title slug from posting URL", () => {
+    expect(
+      parseWorkdayTitleFromUrl(
+        "https://walmart.wd504.myworkdayjobs.com/en-US/WalmartExternal/job/Bentonville-AR/Senior-Manager--Program-Management_R-2522742",
+      ),
+    ).toContain("Senior Manager");
+  });
+
+  it("parses title slug from Workday /details/ URLs", () => {
+    expect(
+      parseWorkdayTitleFromUrl(
+        "https://walmart.wd504.myworkdayjobs.com/en-US/WalmartExternal/details/Senior-Manager--Program-Management_R-2463788-1?q=manager",
+      ),
+    ).toContain("Senior Manager");
+  });
+
+  it("parses company segment from career site path", () => {
+    expect(
+      parseWorkdayCompanyFromUrl(
+        "https://walmart.wd504.myworkdayjobs.com/en-US/WalmartExternal/job/example",
+      ),
+    ).toBe("Walmart External");
+  });
+});

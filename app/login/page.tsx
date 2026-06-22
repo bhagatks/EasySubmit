@@ -9,6 +9,7 @@ import { TermsPrivacyConsent } from "@/components/legal/terms-privacy-consent";
 import { InlineAlert } from "@/components/ui/inline-alert";
 import { BrandWordmark } from "@/components/ui/brand-wordmark";
 import { EASYSUBMIT_TAGLINE } from "@/lib/brand";
+import { resolveSafeCallbackUrl } from "@/lib/auth/safe-callback-url";
 import { cn } from "@/lib/utils";
 
 const jetbrainsMono = JetBrains_Mono({
@@ -164,7 +165,9 @@ function LoginPanel() {
           }
         : { prompt: "select_account" };
 
-    void signIn(provider, { callbackUrl: "/onboarding" }, authParams);
+    const callbackUrl = resolveSafeCallbackUrl(searchParams.get("callbackUrl"));
+
+    void signIn(provider, { callbackUrl }, authParams);
   }
 
   return (

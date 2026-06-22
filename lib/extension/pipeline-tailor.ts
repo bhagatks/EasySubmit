@@ -1,0 +1,160 @@
+import { enhanceResumeForUserId } from "@/lib/ai/enhance-resume-for-user";
+import type { SaveJobTrackerInput } from "@/lib/extension/job-service";
+import { updateJobTrackerStatus } from "@/lib/extension/job-service";
+import {
+  mergeJobEntryMetadata,
+  recordPipelineTailorError,
+} from "@/lib/extension/pipeline-metadata";
+import type { ApplyPipelinePhase } from "@/lib/extension/pipeline-types";
+import { extractJobResumeOverrides } from "@/lib/profile/job-resume-overrides";
+import { upsertJobResumeTailor } from "@/lib/profile/job-resume-tailor";
+import { resolveSourceProfileForJob } from "@/lib/profile/copy-profile-for-job";
+import {
+  hubRefineryFormFromProfile,
+  targetTitleFromProfile,
+} from "@/lib/profile/studio-form-db";
+import { sanitizeString } from "@/lib/profile/sanitize";
+import { createEnhanceTraceId } from "@/src/lib/ai/engine/enhance-logger";
+
+const MIN_JD_CHARS = 120;
+
+export type PipelineTailorInput = {
+  entryId: string;
+  jobTitle: string;
+  jobDescription?: string | null;
+  sourceProfileId?: string | null;
+};
+
+export type PipelineTailorSuccess = {
+  success: true;
+  jobTrackerEntryId: string;
+  sourceProfileId: string;
+  phases: ApplyPipelinePhase[];
+};
+
+export type PipelineTailorFailure = {
+  success: false;
+  error: string;
+  code:
+    | "missing_description"
+    | "no_source_profile"
+    | "enhance_failed"
+    | "persist_failed"
+    | "invalid_title";
+};
+
+export type PipelineTailorResult = PipelineTailorSuccess | PipelineTailorFailure;
+
+function isDescriptionPresent(description: string | null | undefined): boolean {
+  return (description?.trim().length ?? 0) >= MIN_JD_CHARS;
+}
+
+/** Phase B — enhance source profile with JD, persist section overrides on the job row. */
+export async function runPipelineTailor(
+  userId: string,
+  input: PipelineTailorInput,
+): Promise<PipelineTailorResult> {
+  if (!isDescriptionPresent(input.jobDescription)) {
+    const message =
+      "Job description is too short to tailor your resume. Open the posting and try again.";
+    await recordPipelineTailorError(userId, input.entryId, message, "missing_description");
+    return { success: false, error: message, code: "missing_description" };
+  }
+
+  const jobTitle = sanitizeString(input.jobTitle, 160);
+  if (!jobTitle) {
+    const message = "Job title is required to tailor your resume.";
+    await recordPipelineTailorError(userId, input.entryId, message, "invalid_title");
+    return { success: false, error: message, code: "invalid_title" };
+  }
+
+  const source = await resolveSourceProfileForJob(userId, input.sourceProfileId);
+  if (!source) {
+    const message = "No resume profile to tailor from";
+    await recordPipelineTailorError(userId, input.entryId, message, "no_source_profile");
+    return { success: false, error: message, code: "no_source_profile" };
+  }
+
+  const baseForm = hubRefineryFormFromProfile(source);
+  const baseTargetTitle = targetTitleFromProfile(source);
+  const traceId = createEnhanceTraceId();
+
+  const enhanced = await enhanceResumeForUserId(userId, {
+    profileId: source.id,
+    form: baseForm,
+    targetRole: jobTitle,
+    jobDescription: input.jobDescription!.trim(),
+    rawResumeText: source.resumeRawText,
+    traceId,
+    variant: "pipeline",
+  });
+
+  if (!enhanced.success) {
+    await recordPipelineTailorError(
+      userId,
+      input.entryId,
+      enhanced.error,
+      enhanced.code ?? "enhance_failed",
+    );
+    return {
+      success: false,
+      error: enhanced.error,
+      code: "enhance_failed",
+    };
+  }
+
+  const mergedForm = {
+    ...enhanced.form,
+    skillsText: enhanced.form.skillsText,
+  };
+
+  const { overrides, changedSections } = extractJobResumeOverrides(
+    baseForm,
+    mergedForm,
+    baseTargetTitle,
+    enhanced.targetRole,
+  );
+
+  try {
+    await upsertJobResumeTailor({
+      jobTrackerEntryId: input.entryId,
+      userId,
+      sourceProfileId: source.id,
+      overrides,
+      changedSections,
+      enhanceTraceId: traceId,
+    });
+  } catch {
+    const message = "Failed to save tailored resume for this job";
+    await recordPipelineTailorError(userId, input.entryId, message, "persist_failed");
+    return { success: false, error: message, code: "persist_failed" };
+  }
+
+  await updateJobTrackerStatus(userId, input.entryId, "RESUME_READY");
+  await mergeJobEntryMetadata(userId, input.entryId, {
+    pipelineError: null,
+    pipelineErrorCode: null,
+    pipelinePhases: ["capture", "tailor"],
+    lastTailoredAt: new Date().toISOString(),
+    sourceProfileId: source.id,
+  });
+
+  return {
+    success: true,
+    jobTrackerEntryId: input.entryId,
+    sourceProfileId: source.id,
+    phases: ["capture", "tailor"],
+  };
+}
+
+export function buildTailorInputFromSave(
+  entryId: string,
+  input: SaveJobTrackerInput,
+): PipelineTailorInput {
+  return {
+    entryId,
+    jobTitle: input.title.trim(),
+    jobDescription: input.description,
+    sourceProfileId: input.sourceProfileId,
+  };
+}

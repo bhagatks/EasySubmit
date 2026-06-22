@@ -4,17 +4,19 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
-  createResumeProfile,
   deleteResumeProfile,
   setDefaultResumeProfile,
   type ResumeProfileListItem,
 } from "@/app/actions/resume-profiles";
+import { StudioCollapsibleSection } from "@/components/resume/StudioCollapsibleSection";
 import { Button } from "@/components/ui/button";
 import { joinProfileName } from "@/lib/profile/name";
 
 type ResumeProfilesListProps = {
   profiles: ResumeProfileListItem[];
   canDelete: boolean;
+  expanded: Record<string, boolean>;
+  onToggleSection: (sectionId: string) => void;
 };
 
 function personSubtitle(profile: ResumeProfileListItem): string {
@@ -25,6 +27,8 @@ function personSubtitle(profile: ResumeProfileListItem): string {
 export function ResumeProfilesList({
   profiles,
   canDelete,
+  expanded,
+  onToggleSection,
 }: ResumeProfilesListProps) {
   const router = useRouter();
   const [pendingId, setPendingId] = useState<string | null>(null);
@@ -55,7 +59,7 @@ export function ResumeProfilesList({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {error ? (
         <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-700">
           {error}
@@ -66,33 +70,30 @@ export function ResumeProfilesList({
         const isPending = pendingId === profile.id;
         const primaryLabel = profile.targetTitle?.trim() || "Untitled role";
         const subtitle = personSubtitle(profile);
+        const updatedLabel = new Date(profile.updatedAt).toLocaleDateString();
 
         return (
-          <div
+          <StudioCollapsibleSection
             key={profile.id}
-            className="rounded-2xl border border-border bg-surface/60 p-5"
+            title={
+              <span className="flex flex-wrap items-center gap-2">
+                {primaryLabel}
+                {profile.isDefault ? (
+                  <span className="rounded-full bg-mint/15 px-2 py-0.5 text-[10px] font-medium text-mint">
+                    Default
+                  </span>
+                ) : null}
+              </span>
+            }
+            description={`${subtitle} · Updated ${updatedLabel}`}
+            expanded={Boolean(expanded[profile.id])}
+            onToggle={() => onToggleSection(profile.id)}
+            variant="dashboard"
+            showDragHandle={false}
           >
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-foreground">{primaryLabel}</p>
-                <p className="text-xs text-muted-foreground">{subtitle}</p>
-              </div>
-              {profile.isDefault ? (
-                <span className="rounded-full bg-mint/15 px-2 py-0.5 text-[10px] font-medium text-mint">
-                  Default
-                </span>
-              ) : null}
-            </div>
-
-            <p className="mt-3 text-xs text-muted-foreground">
-              Last updated {new Date(profile.updatedAt).toLocaleDateString()}
-            </p>
-
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button variant="hero" size="sm" className="rounded-xl" asChild>
-                <Link href={`/dashboard/resume-profiles/${profile.id}/edit`}>
-                  Edit
-                </Link>
+                <Link href={`/dashboard/resume-profiles/${profile.id}/edit`}>Edit</Link>
               </Button>
 
               {!profile.isDefault ? (
@@ -119,7 +120,7 @@ export function ResumeProfilesList({
                 </Button>
               ) : null}
             </div>
-          </div>
+          </StudioCollapsibleSection>
         );
       })}
     </div>

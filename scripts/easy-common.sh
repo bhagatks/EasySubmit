@@ -76,6 +76,7 @@ easy_run_with_post_start() {
       node "$ROOT/scripts/post-start.mjs" --port "$port" || true
     else
       echo "→ Dev server ready at http://localhost:${port}/login (open manually)"
+      echo "→ Extension: load unpacked from dist/extension (rebuilt each run easy)"
       echo "→ Set EASY_OPEN_BROWSER=1 to auto-open incognito login"
     fi
   fi

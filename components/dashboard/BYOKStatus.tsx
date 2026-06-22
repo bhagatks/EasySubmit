@@ -52,6 +52,29 @@ export function BYOKStatusBadge({ vaultKeyId, className }: BYOKStatusProps) {
   );
 }
 
+/** Header CTA when BYOK is not configured — links to AI Keys. */
+export function BYOKKeyButton({ className }: { className?: string }) {
+  return (
+    <Link
+      href="/dashboard/keys"
+      className={cn(
+        jetbrainsMono.className,
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] transition-opacity hover:opacity-90",
+        className,
+      )}
+      style={{
+        color: WARNING_RED,
+        borderColor: "oklch(0.55 0.22 25 / 0.45)",
+        backgroundColor: "oklch(0.55 0.22 25 / 0.1)",
+      }}
+      aria-label="Add BYOK API key"
+    >
+      <KeyRound className="h-3 w-3 shrink-0" aria-hidden="true" />
+      BYOK KEY
+    </Link>
+  );
+}
+
 /** Compact inactive indicator for the AI Keys sidebar nav item. */
 export function BYOKInactiveNavBadge({ className }: { className?: string }) {
   const mono = jetbrainsMono.className;

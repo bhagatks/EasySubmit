@@ -6,6 +6,8 @@ export type ArchitectureApplication = {
   when?: string;
 };
 
+/** @deprecated Legacy JSON embedded in `profiles.content` — use `JobTrackerEntry` table instead. */
+
 export type ArchitectureMetadata = {
   parseIntegrity?: number;
   keywordMatch?: number;

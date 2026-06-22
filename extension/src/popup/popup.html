@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EasySubmit Job Tracker</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="header">
+      <img src="../icons/icon-48.png" alt="" width="28" height="28" class="logo" />
+      <div>
+        <p class="eyebrow">EasySubmit</p>
+        <h1 class="title">Job Tracker</h1>
+      </div>
+    </header>
+
+    <p id="status" class="status">Checking this tab…</p>
+
+    <button id="show-card" type="button" class="btn btn-primary">
+      Show job card on this page
+    </button>
+
+    <button id="open-tracker" type="button" class="btn btn-secondary">
+      Open Job Tracker
+    </button>
+
+    <label id="one-click-row" class="toggle-row hidden">
+      <span class="toggle-copy">
+        <span class="toggle-label">One-click apply</span>
+        <span class="toggle-hint">Workday — capture, tailor, prepare apply</span>
+      </span>
+      <input id="one-click-toggle" type="checkbox" class="toggle-input" />
+    </label>
+
+    <button id="connect" type="button" class="btn btn-ghost hidden">
+      Connect account
+    </button>
+
+    <button id="reconnect" type="button" class="btn btn-ghost hidden">
+      Reconnect account
+    </button>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

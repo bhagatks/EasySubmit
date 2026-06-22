@@ -55,6 +55,8 @@ describe("getFeatureFlags", () => {
     await expect(getFeatureFlags()).resolves.toEqual({
       enhanceWithAiOnboarding: false,
       enhanceWithAiResumeProfile: true,
+      extensionJobCard: true,
+      extensionAutoApply: true,
     });
   });
 });
@@ -147,21 +149,36 @@ describe("isEnhanceOnboardingVisible", () => {
   it("requires feature flag and system AI enabled", () => {
     expect(
       isEnhanceOnboardingVisible(
-        { enhanceWithAiOnboarding: true, enhanceWithAiResumeProfile: true },
+        {
+          enhanceWithAiOnboarding: true,
+          enhanceWithAiResumeProfile: true,
+          extensionJobCard: true,
+          extensionAutoApply: true,
+        },
         true,
       ),
     ).toBe(true);
 
     expect(
       isEnhanceOnboardingVisible(
-        { enhanceWithAiOnboarding: true, enhanceWithAiResumeProfile: true },
+        {
+          enhanceWithAiOnboarding: true,
+          enhanceWithAiResumeProfile: true,
+          extensionJobCard: true,
+          extensionAutoApply: true,
+        },
         false,
       ),
     ).toBe(false);
 
     expect(
       isEnhanceOnboardingVisible(
-        { enhanceWithAiOnboarding: false, enhanceWithAiResumeProfile: true },
+        {
+          enhanceWithAiOnboarding: false,
+          enhanceWithAiResumeProfile: true,
+          extensionJobCard: true,
+          extensionAutoApply: true,
+        },
         true,
       ),
     ).toBe(false);

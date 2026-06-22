@@ -3,26 +3,54 @@
 import Image from "next/image";
 import Link from "next/link";
 import { signIn, useSession } from "next-auth/react";
-import { useState } from "react";
-import { Check, Key, Link2, Snowflake, Sparkles } from "lucide-react";
+import { useMemo, useState } from "react";
+import {
+  Check,
+  FileText,
+  Key,
+  Link2,
+  Loader2,
+  Save,
+  Sparkles,
+  User,
+  Zap,
+  Archive,
+} from "lucide-react";
 import {
   type AccountSettingsSnapshot,
   type AuthProviderId,
   updateLoginProfile,
+  updateOneClickApply,
+  updateAutoArchiveAppliedJobs,
+  updateResumeProfilePickerMode,
 } from "@/app/actions/account";
+import type { ResumeProfilePickerMode } from "@/lib/generated/prisma/client";
 import { updateAiSourcePreference } from "@/app/actions/ai/enhance-resume";
 import {
   LegalDocumentLink,
   useLegalDocumentOverlay,
 } from "@/components/legal/legal-document-overlay";
 import {
+  useDashboardExpandAllControl,
+  useRegisterDashboardHeaderActions,
+} from "@/components/dashboard/DashboardWorkspaceHeader";
+import {
+  DashboardWorkspacePage,
+  DashboardWorkspaceStack,
+} from "@/components/dashboard/DashboardWorkspacePage";
+import { StudioCollapsibleSection } from "@/components/resume/StudioCollapsibleSection";
+import { StudioIconButton } from "@/components/resume/StudioIconButton";
+import {
   SYSTEM_AI_DAILY_CALL_LIMIT,
   SYSTEM_AI_DAILY_ENHANCEMENT_LIMIT,
 } from "@/src/lib/ai/engine/constants";
-import { SignOutButton } from "@/components/auth/SignOutButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+
+export const SETTINGS_ACCOUNT_FORM_ID = "settings-account-form";
+
+const SETTINGS_SECTION_IDS = ["account", "ai-extension"];
 
 type AccountSettingsProps = {
   initial: AccountSettingsSnapshot;
@@ -38,6 +66,23 @@ const AUTH_PROVIDERS: ProviderMeta[] = [
   { id: "linkedin", label: "LinkedIn" },
 ];
 
+const AI_SOURCE_OPTIONS = [
+  { value: "auto" as const, label: "Auto", hint: "Your key if set, else EasySubmit AI" },
+  { value: "customer" as const, label: "My key", hint: "BYOK only" },
+  { value: "system" as const, label: "EasySubmit AI", hint: "Daily limits apply" },
+];
+
+const PROFILE_PICKER_OPTIONS = [
+  { value: "DEFAULT" as const, label: "Default", hint: "Your default profile" },
+  { value: "LAST_SELECTED" as const, label: "Last used", hint: "From extension card" },
+];
+
+const AI_SOURCE_LABELS: Record<(typeof AI_SOURCE_OPTIONS)[number]["value"], string> = {
+  auto: "Auto",
+  customer: "My key",
+  system: "EasySubmit AI",
+};
+
 function accountInitials(firstName: string | null, lastName: string | null, email: string | null) {
   const first = firstName?.trim()?.[0] ?? "";
   const last = lastName?.trim()?.[0] ?? "";
@@ -45,25 +90,105 @@ function accountInitials(firstName: string | null, lastName: string | null, emai
   return (first + last).toUpperCase() || fromEmail.toUpperCase();
 }
 
-function SettingsSection({
-  title,
-  description,
-  children,
+function SegmentedControl<T extends string>({
+  value,
+  options,
+  onChange,
+  disabled = false,
+  name,
 }: {
-  title: string;
-  description?: string;
-  children: React.ReactNode;
+  value: T;
+  options: Array<{ value: T; label: string; hint?: string }>;
+  onChange: (value: T) => void;
+  disabled?: boolean;
+  name: string;
 }) {
   return (
-    <section className="rounded-2xl border border-border bg-surface/60 p-6 sm:p-8">
-      <div className="mb-6">
-        <h2 className="font-display text-lg font-semibold tracking-tight">{title}</h2>
+    <div
+      className="grid gap-1 rounded-xl border border-border/80 bg-muted/20 p-1"
+      style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
+      role="radiogroup"
+      aria-label={name}
+    >
+      {options.map((option) => {
+        const active = value === option.value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            disabled={disabled}
+            onClick={() => onChange(option.value)}
+            className={cn(
+              "rounded-lg px-2 py-2 text-center transition-all disabled:cursor-not-allowed disabled:opacity-50",
+              active
+                ? "bg-surface text-foreground shadow-sm ring-1 ring-border/70"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <span className="block text-xs font-medium sm:text-sm">{option.label}</span>
+            {option.hint ? (
+              <span className="mt-0.5 hidden text-[10px] leading-tight text-muted-foreground sm:block">
+                {option.hint}
+              </span>
+            ) : null}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function SettingToggleRow({
+  label,
+  description,
+  checked,
+  disabled,
+  onChange,
+  icon,
+}: {
+  label: string;
+  description?: string;
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (checked: boolean) => void;
+  icon?: React.ReactNode;
+}) {
+  return (
+    <label
+      className={cn(
+        "flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-border/70 bg-background/30 px-3 py-2.5",
+        disabled && "cursor-not-allowed opacity-60",
+      )}
+    >
+      <span className="min-w-0">
+        <span className="flex items-center gap-1.5 text-sm font-medium">
+          {icon}
+          {label}
+        </span>
         {description ? (
-          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+          <span className="mt-0.5 block text-xs text-muted-foreground">{description}</span>
         ) : null}
-      </div>
-      {children}
-    </section>
+      </span>
+      <span className="relative inline-flex h-6 w-11 shrink-0 items-center">
+        <input
+          type="checkbox"
+          checked={checked}
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.checked)}
+          className="peer sr-only"
+        />
+        <span
+          aria-hidden="true"
+          className="absolute inset-0 rounded-full bg-muted transition-colors peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-primary/40"
+        />
+        <span
+          aria-hidden="true"
+          className="absolute left-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5"
+        />
+      </span>
+    </label>
   );
 }
 
@@ -81,16 +206,15 @@ function ProviderRow({
   connecting: AuthProviderId | null;
 }) {
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-border/80 bg-background/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-background/30 px-3 py-2.5">
       <div className="min-w-0">
         <p className="text-sm font-medium">{provider.label}</p>
         <p className="text-xs text-muted-foreground">
-          {connected ? "Connected" : "Not connected"}
-          {connected && isLastUsed ? " · Last sign-in" : ""}
+          {connected ? (isLastUsed ? "Connected · last used" : "Connected") : "Not connected"}
         </p>
       </div>
       {connected ? (
-        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-mint">
+        <span className="inline-flex items-center gap-1 text-xs font-medium text-mint">
           <Check className="h-3.5 w-3.5" aria-hidden="true" />
           Linked
         </span>
@@ -101,10 +225,10 @@ function ProviderRow({
           size="sm"
           disabled={connecting === provider.id}
           onClick={() => onConnect(provider.id)}
-          className="rounded-xl"
+          className="h-8 rounded-xl px-2.5"
         >
           <Link2 className="h-3.5 w-3.5" aria-hidden="true" />
-          {connecting === provider.id ? "Connecting…" : "Connect"}
+          {connecting === provider.id ? "…" : "Connect"}
         </Button>
       )}
     </div>
@@ -121,11 +245,43 @@ export function AccountSettings({ initial }: AccountSettingsProps) {
   const [connecting, setConnecting] = useState<AuthProviderId | null>(null);
   const [aiSource, setAiSource] = useState(initial.aiSourcePreference || "auto");
   const [aiPrefBusy, setAiPrefBusy] = useState(false);
-  const { openDocument, overlay } = useLegalDocumentOverlay();
+  const [oneClickApply, setOneClickApply] = useState(initial.oneClickApply);
+  const [oneClickBusy, setOneClickBusy] = useState(false);
+  const [autoArchiveAppliedJobs, setAutoArchiveAppliedJobs] = useState(
+    initial.autoArchiveAppliedJobs,
+  );
+  const [autoArchiveBusy, setAutoArchiveBusy] = useState(false);
+  const [profilePickerMode, setProfilePickerMode] = useState(initial.resumeProfilePickerMode);
+  const [profilePickerBusy, setProfilePickerBusy] = useState(false);
+  const { openDocument, overlay, open } = useLegalDocumentOverlay();
+
+  const { expanded, toggleSection } = useDashboardExpandAllControl([...SETTINGS_SECTION_IDS]);
 
   const engineHot = Boolean(initial.vaultKeyId);
   const initials = accountInitials(initial.firstName, initial.lastName, initial.email);
   const connectedSet = new Set(initial.connectedProviders);
+
+  const saveButton = useMemo(
+    () => (
+      <StudioIconButton
+        type="submit"
+        form={SETTINGS_ACCOUNT_FORM_ID}
+        tone="bordered"
+        disabled={saving}
+        aria-label={saving ? "Saving profile" : "Save account"}
+        title={saving ? "Saving…" : "Save account"}
+      >
+        {saving ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+        ) : (
+          <Save className="h-3.5 w-3.5" aria-hidden="true" />
+        )}
+      </StudioIconButton>
+    ),
+    [saving],
+  );
+
+  useRegisterDashboardHeaderActions(saveButton);
 
   async function handleSave(event: React.FormEvent) {
     event.preventDefault();
@@ -168,235 +324,257 @@ export function AccountSettings({ initial }: AccountSettingsProps) {
     setAiSource(value);
   }
 
+  async function handleOneClickApplyChange(enabled: boolean) {
+    setOneClickBusy(true);
+    setError(null);
+    const result = await updateOneClickApply(enabled);
+    setOneClickBusy(false);
+    if (!result.success) {
+      setError(result.error);
+      return;
+    }
+    setOneClickApply(result.oneClickApply);
+  }
+
+  async function handleAutoArchiveChange(enabled: boolean) {
+    setAutoArchiveBusy(true);
+    setError(null);
+    const result = await updateAutoArchiveAppliedJobs(enabled);
+    setAutoArchiveBusy(false);
+    if (!result.success) {
+      setError(result.error);
+      return;
+    }
+    setAutoArchiveAppliedJobs(result.autoArchiveAppliedJobs);
+  }
+
+  async function handleProfilePickerModeChange(mode: ResumeProfilePickerMode) {
+    setProfilePickerBusy(true);
+    setError(null);
+    const result = await updateResumeProfilePickerMode(mode);
+    setProfilePickerBusy(false);
+    if (!result.success) {
+      setError(result.error);
+      return;
+    }
+    setProfilePickerMode(result.resumeProfilePickerMode);
+  }
+
+  const aiSummary = `${AI_SOURCE_LABELS[aiSource as keyof typeof AI_SOURCE_LABELS] ?? "Auto"} · ${
+    oneClickApply ? "One-click on" : "One-click off"
+  } · ${profilePickerMode === "DEFAULT" ? "Default resume" : "Last used resume"}`;
+
   return (
     <>
-      {overlay}
-      <div className="mx-auto max-w-3xl space-y-6">
-      <div>
-        <h1 className="font-display text-2xl font-semibold tracking-tight">Settings</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Manage your account, sign-in methods, and workspace preferences.
-        </p>
-      </div>
-
-      <SettingsSection
-        title="Account"
-        description="Your login identity. Resume contact details live under Resume profiles."
+      {open ? overlay : null}
+      <DashboardWorkspacePage
+        title="Settings"
+        description="Account, sign-in, AI, and extension preferences."
+        aside={
+          error ? (
+            <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              {error}
+            </p>
+          ) : saved ? (
+            <p className="rounded-xl border border-mint/30 bg-mint/10 px-3 py-2 text-xs font-medium text-mint">
+              Account saved.
+            </p>
+          ) : null
+        }
       >
-        <div className="mb-6 flex items-center gap-4">
-          <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-primary/10 text-base font-semibold text-primary">
-            {initial.image ? (
-              <Image
-                src={initial.image}
-                alt=""
-                fill
-                className="object-cover"
-                sizes="56px"
-                unoptimized
-              />
-            ) : (
-              initials
-            )}
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium">
-              {initial.name || initial.email || "Account"}
-            </p>
-            <p className="truncate text-xs text-muted-foreground">
-              Photo from your sign-in provider
-            </p>
-          </div>
-        </div>
+        <DashboardWorkspaceStack>
+          <StudioCollapsibleSection
+            title={
+              <span className="flex items-center gap-2">
+                <User className="h-4 w-4 text-primary" aria-hidden="true" />
+                Account
+              </span>
+            }
+            description={`${initial.name || initial.email || "Account"} · ${initial.email ?? ""}`}
+            expanded={Boolean(expanded.account)}
+            onToggle={() => toggleSection("account")}
+            variant="dashboard"
+            showDragHandle={false}
+          >
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 rounded-xl border border-border/70 bg-background/30 px-3 py-2.5">
+                <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-primary/10 text-sm font-semibold text-primary">
+                  {initial.image ? (
+                    <Image
+                      src={initial.image}
+                      alt=""
+                      fill
+                      className="object-cover"
+                      sizes="40px"
+                      unoptimized
+                    />
+                  ) : (
+                    initials
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">
+                    {initial.name || initial.email || "Account"}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">{initial.email}</p>
+                </div>
+              </div>
 
-        <form onSubmit={(event) => void handleSave(event)} className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <label htmlFor="account-first-name" className="text-sm font-medium">
-                First name
-              </label>
-              <Input
-                id="account-first-name"
-                value={firstName}
-                onChange={(event) => {
-                  setFirstName(event.target.value);
-                  setSaved(false);
-                }}
-                required
-                autoComplete="given-name"
-                className="rounded-xl"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label htmlFor="account-last-name" className="text-sm font-medium">
-                Last name
-              </label>
-              <Input
-                id="account-last-name"
-                value={lastName}
-                onChange={(event) => {
-                  setLastName(event.target.value);
-                  setSaved(false);
-                }}
-                autoComplete="family-name"
-                className="rounded-xl"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <label htmlFor="account-email" className="text-sm font-medium">
-              Email
-            </label>
-            <Input
-              id="account-email"
-              value={initial.email ?? ""}
-              readOnly
-              disabled
-              className="rounded-xl opacity-80"
-            />
-            <p className="text-xs text-muted-foreground">
-              Managed by your OAuth provider. To change it, update your Google or LinkedIn account.
-            </p>
-          </div>
-
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
-          {saved ? (
-            <p className="text-sm text-mint">Account updated.</p>
-          ) : null}
-
-          <Button type="submit" disabled={saving} className="rounded-xl">
-            {saving ? "Saving…" : "Save changes"}
-          </Button>
-        </form>
-      </SettingsSection>
-
-      <SettingsSection
-        title="Sign-in methods"
-        description="Connect providers that share the same email to sign in either way."
-      >
-        <div className="space-y-3">
-          {AUTH_PROVIDERS.map((provider) => (
-            <ProviderRow
-              key={provider.id}
-              provider={provider}
-              connected={connectedSet.has(provider.id)}
-              isLastUsed={initial.lastAuthProvider === provider.id}
-              onConnect={handleConnectProvider}
-              connecting={connecting}
-            />
-          ))}
-        </div>
-      </SettingsSection>
-
-      <SettingsSection
-        title="Plan & engine"
-        description="AI source, daily usage on EasySubmit AI, and BYOK key management."
-      >
-        <div className="space-y-6">
-          <div className="rounded-xl border border-border/80 bg-background/40 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
-            <p>
-              EasySubmit can enhance your resume using <strong className="text-foreground">your API key</strong>{" "}
-              or <strong className="text-foreground">EasySubmit AI</strong> (Google Gemini). Work history
-              and skills are processed to generate suggestions; contact details are not sent to AI.
-            </p>
-            <p className="mt-2">
-              With EasySubmit AI, data is handled under{" "}
-              <a
-                href="https://ai.google.dev/gemini-api/terms"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline"
+              <form
+                id={SETTINGS_ACCOUNT_FORM_ID}
+                onSubmit={(event) => void handleSave(event)}
+                className="grid gap-3 sm:grid-cols-2"
               >
-                Google Gemini API terms
-              </a>
-              . With BYOK, your provider&apos;s terms apply. See our{" "}
-              <LegalDocumentLink documentId="terms" onOpen={openDocument}>
-                Terms of Service
-              </LegalDocumentLink>{" "}
-              and{" "}
-              <LegalDocumentLink documentId="privacy" onOpen={openDocument}>
-                Privacy Policy
-              </LegalDocumentLink>
-              .
-            </p>
-          </div>
+                <div className="space-y-1">
+                  <label htmlFor="account-first-name" className="text-xs font-medium">
+                    First name
+                  </label>
+                  <Input
+                    id="account-first-name"
+                    value={firstName}
+                    onChange={(event) => {
+                      setFirstName(event.target.value);
+                      setSaved(false);
+                    }}
+                    required
+                    autoComplete="given-name"
+                    className="h-9 rounded-xl"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label htmlFor="account-last-name" className="text-xs font-medium">
+                    Last name
+                  </label>
+                  <Input
+                    id="account-last-name"
+                    value={lastName}
+                    onChange={(event) => {
+                      setLastName(event.target.value);
+                      setSaved(false);
+                    }}
+                    autoComplete="family-name"
+                    className="h-9 rounded-xl"
+                  />
+                </div>
+              </form>
 
-          <fieldset className="space-y-2">
-            <legend className="text-sm font-medium">AI source</legend>
-            {(
-              [
-                ["auto", "Automatic (my key if added, otherwise EasySubmit AI)"],
-                ["customer", "My API key only"],
-                ["system", "EasySubmit AI only"],
-              ] as const
-            ).map(([value, label]) => (
-              <label
-                key={value}
-                className="flex cursor-pointer items-center gap-2 rounded-xl border border-border/80 px-3 py-2.5 text-sm"
-              >
-                <input
-                  type="radio"
-                  name="aiSource"
-                  value={value}
-                  checked={aiSource === value}
+              <div className="grid gap-2 sm:grid-cols-2">
+                {AUTH_PROVIDERS.map((provider) => (
+                  <ProviderRow
+                    key={provider.id}
+                    provider={provider}
+                    connected={connectedSet.has(provider.id)}
+                    isLastUsed={initial.lastAuthProvider === provider.id}
+                    onConnect={handleConnectProvider}
+                    connecting={connecting}
+                  />
+                ))}
+              </div>
+            </div>
+          </StudioCollapsibleSection>
+
+          <StudioCollapsibleSection
+            title={
+              <span className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" />
+                AI & extension
+              </span>
+            }
+            description={aiSummary}
+            expanded={Boolean(expanded["ai-extension"])}
+            onToggle={() => toggleSection("ai-extension")}
+            variant="dashboard"
+            showDragHandle={false}
+          >
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">AI source</p>
+                <SegmentedControl
+                  name="AI source"
+                  value={aiSource}
+                  options={AI_SOURCE_OPTIONS}
                   disabled={aiPrefBusy}
-                  onChange={() => void handleAiSourceChange(value)}
-                  className="accent-primary"
+                  onChange={(value) =>
+                    void handleAiSourceChange(value as "auto" | "customer" | "system")
+                  }
                 />
-                {label}
-              </label>
-            ))}
-          </fieldset>
-
-          <p className="text-xs text-muted-foreground">
-            EasySubmit AI today: {initial.aiEnhancementsToday}/{SYSTEM_AI_DAILY_ENHANCEMENT_LIMIT}{" "}
-            enhancements · {initial.aiCallsToday}/{SYSTEM_AI_DAILY_CALL_LIMIT} AI calls (resets UTC
-            midnight). BYOK is unlimited.
-          </p>
-
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-3">
-              <div
-                className={cn(
-                  "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
-                  engineHot ? "bg-mint/15 text-mint" : "bg-muted text-muted-foreground",
-                )}
-              >
-                {engineHot ? (
-                  <Sparkles className="h-4 w-4" aria-hidden="true" />
-                ) : (
-                  <Snowflake className="h-4 w-4" aria-hidden="true" />
-                )}
               </div>
-              <div>
-                <p className="text-sm font-medium">
-                  {engineHot ? "BYOK vaulted" : "No BYOK key yet"}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {engineHot
-                    ? `Active provider${initial.activeProvider ? `: ${initial.activeProvider}` : ""}`
-                    : "Add a key for unlimited AI, or use EasySubmit AI within daily limits."}
-                </p>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/70 bg-background/30 px-3 py-2.5">
+                <div className="min-w-0 text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">Today&apos;s usage</span>
+                  <span className="mt-0.5 block">
+                    {initial.aiEnhancementsToday}/{SYSTEM_AI_DAILY_ENHANCEMENT_LIMIT} enhancements ·{" "}
+                    {initial.aiCallsToday}/{SYSTEM_AI_DAILY_CALL_LIMIT} calls
+                  </span>
+                </div>
+                <Button asChild variant="outline" size="sm" className="h-8 shrink-0 rounded-xl">
+                  <Link href="/dashboard/keys">
+                    <Key className="h-3.5 w-3.5" aria-hidden="true" />
+                    {engineHot ? "Manage keys" : "Add key"}
+                  </Link>
+                </Button>
               </div>
+
+              <SettingToggleRow
+                label="One-click apply"
+                description={
+                  initial.autoApplyFeatureEnabled
+                    ? "Workday capture, tailor, and fill — you submit."
+                    : "Disabled platform-wide."
+                }
+                checked={oneClickApply}
+                disabled={oneClickBusy || !initial.autoApplyFeatureEnabled}
+                onChange={(enabled) => void handleOneClickApplyChange(enabled)}
+                icon={<Zap className="h-3.5 w-3.5 text-primary" aria-hidden="true" />}
+              />
+
+              <SettingToggleRow
+                label="Auto-archive applied jobs"
+                description="When on, applied jobs move to Archive 24 hours after you mark them applied. When off, use Archive on each row."
+                checked={autoArchiveAppliedJobs}
+                disabled={autoArchiveBusy}
+                onChange={(enabled) => void handleAutoArchiveChange(enabled)}
+                icon={<Archive className="h-3.5 w-3.5 text-primary" aria-hidden="true" />}
+              />
+
+              <div className="space-y-2">
+                <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                  <FileText className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                  Extension resume
+                </p>
+                <SegmentedControl
+                  name="Extension resume profile"
+                  value={profilePickerMode}
+                  options={PROFILE_PICKER_OPTIONS}
+                  disabled={profilePickerBusy}
+                  onChange={(value) => void handleProfilePickerModeChange(value)}
+                />
+              </div>
+
+              <p className="text-[11px] leading-snug text-muted-foreground">
+                AI uses work history only — contact info stays local.{" "}
+                <LegalDocumentLink documentId="terms" onOpen={openDocument}>
+                  Terms
+                </LegalDocumentLink>
+                {" · "}
+                <LegalDocumentLink documentId="privacy" onOpen={openDocument}>
+                  Privacy
+                </LegalDocumentLink>
+                {" · "}
+                <a
+                  href="https://ai.google.dev/gemini-api/terms"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  Gemini terms
+                </a>
+              </p>
             </div>
-            <Button asChild variant="outline" className="rounded-xl">
-              <Link href="/dashboard/keys">
-                <Key className="h-4 w-4" aria-hidden="true" />
-                Manage AI keys
-              </Link>
-            </Button>
-          </div>
-        </div>
-      </SettingsSection>
-
-      <SettingsSection title="Session">
-        <p className="mb-4 text-sm text-muted-foreground">
-          Signing out clears this browser&apos;s session, BYOK unlock state, and onboarding
-          drafts. Your resumes and applications stay saved in your account.
-        </p>
-        <SignOutButton variant="ghost" label="Sign out" className="rounded-xl" />
-      </SettingsSection>
-    </div>
+          </StudioCollapsibleSection>
+        </DashboardWorkspaceStack>
+      </DashboardWorkspacePage>
     </>
   );
 }

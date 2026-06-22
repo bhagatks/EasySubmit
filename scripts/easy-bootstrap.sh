@@ -23,5 +23,8 @@ echo "→ Applying Prisma migrations"
 npx prisma generate
 npx prisma migrate deploy
 
+echo "→ Building Chrome extension (dist/extension)"
+npm run build:extension
+
 echo "→ Dev server (http://localhost:$PORT)"
 easy_run_with_post_start local npx next dev -p "$PORT"

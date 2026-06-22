@@ -1,0 +1,40 @@
+import type { ExtensionPlatform, ExtensionRuntimeConfig } from "./types";
+
+export const EXTENSION_RUNTIME_DEFAULTS: ExtensionRuntimeConfig = {
+  jobCardEnabled: true,
+  enabledPlatforms: ["linkedin", "indeed", "greenhouse", "workday", "generic"],
+  genericFallbackEnabled: true,
+  minConfidence: 55,
+  apiBaseUrl: "http://localhost:3000",
+  oneClickApply: true,
+  oneClickApplyPlatforms: ["workday"],
+  autoApplyEnabled: true,
+};
+
+/** Merge API config with safe defaults so Workday/generic detection keeps working. */
+export function mergeExtensionRuntimeConfig(
+  partial?: Partial<ExtensionRuntimeConfig> | null,
+): ExtensionRuntimeConfig {
+  if (!partial) return { ...EXTENSION_RUNTIME_DEFAULTS };
+
+  const enabledPlatforms: ExtensionPlatform[] =
+    Array.isArray(partial.enabledPlatforms) && partial.enabledPlatforms.length > 0
+      ? (Array.from(
+          new Set<ExtensionPlatform>([...partial.enabledPlatforms, "workday", "generic"]),
+        ) as ExtensionPlatform[])
+      : EXTENSION_RUNTIME_DEFAULTS.enabledPlatforms;
+
+  return {
+    jobCardEnabled: partial.jobCardEnabled ?? EXTENSION_RUNTIME_DEFAULTS.jobCardEnabled,
+    enabledPlatforms,
+    genericFallbackEnabled:
+      partial.genericFallbackEnabled ?? EXTENSION_RUNTIME_DEFAULTS.genericFallbackEnabled,
+    minConfidence: partial.minConfidence ?? EXTENSION_RUNTIME_DEFAULTS.minConfidence,
+    apiBaseUrl: partial.apiBaseUrl ?? EXTENSION_RUNTIME_DEFAULTS.apiBaseUrl,
+    oneClickApply: partial.oneClickApply ?? EXTENSION_RUNTIME_DEFAULTS.oneClickApply,
+    oneClickApplyPlatforms:
+      partial.oneClickApplyPlatforms ?? EXTENSION_RUNTIME_DEFAULTS.oneClickApplyPlatforms,
+    autoApplyEnabled: partial.autoApplyEnabled ?? EXTENSION_RUNTIME_DEFAULTS.autoApplyEnabled,
+    connectedUser: partial.connectedUser ?? null,
+  };
+}

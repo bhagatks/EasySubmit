@@ -5,7 +5,8 @@ import { type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 type StudioCollapsibleSectionProps = {
-  title: string;
+  title: ReactNode;
+  description?: ReactNode;
   expanded: boolean;
   onToggle: () => void;
   children: ReactNode;
@@ -16,6 +17,7 @@ type StudioCollapsibleSectionProps = {
 
 export function StudioCollapsibleSection({
   title,
+  description,
   expanded,
   onToggle,
   children,
@@ -52,14 +54,26 @@ export function StudioCollapsibleSection({
             aria-hidden="true"
           />
         ) : null}
-        <span
-          className={cn(
-            monoClass,
-            "min-w-0 flex-1 text-sm font-semibold",
-            isOnboarding ? "text-[oklch(0.98_0.01_268)]" : "text-foreground",
-          )}
-        >
-          {title}
+        <span className="min-w-0 flex-1">
+          <span
+            className={cn(
+              monoClass,
+              "block text-sm font-semibold",
+              isOnboarding ? "text-[oklch(0.98_0.01_268)]" : "text-foreground",
+            )}
+          >
+            {title}
+          </span>
+          {description ? (
+            <span
+              className={cn(
+                "mt-0.5 block text-xs",
+                isOnboarding ? "text-[oklch(0.65_0.02_268)]" : "text-muted-foreground",
+              )}
+            >
+              {description}
+            </span>
+          ) : null}
         </span>
         <ChevronDown
           className={cn(

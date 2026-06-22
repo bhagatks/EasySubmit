@@ -7,6 +7,11 @@ datasource db {
   provider = "postgresql"
 }
 
+enum ResumeProfilePickerMode {
+  DEFAULT
+  LAST_SELECTED
+}
+
 model User {
   id               String         @id @default(cuid())
   firstName        String?
@@ -28,6 +33,12 @@ model User {
   aiQuotaResetAt      DateTime    @default(now())
   /// Deprecated — use `app_config.aiEngine.quotas.customer.aiDailyUnlimited`.
   aiDailyUnlimited    Boolean     @default(false)
+  /// When true, Workday job pages run capture → tailor → autofill pipeline from the extension.
+  oneClickApply       Boolean     @default(true)
+  /// Which resume profile the extension pre-selects: account default vs last picked on card.
+  resumeProfilePickerMode ResumeProfilePickerMode @default(DEFAULT)
+  /// When true, applied jobs move to archive 24 hours after `appliedAt`.
+  autoArchiveAppliedJobs Boolean @default(true)
   termsAcceptedAt     DateTime?
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
@@ -37,9 +48,71 @@ model User {
   apiKeys          UserApiKey[]
   usageLogs        UsageLog[]
   apiCallLogs      ApiCallLog[]
+  jobTrackerEntries JobTrackerEntry[]
+  jobResumeTailors  JobResumeTailor[]
 
   @@index([vaultKeyId])
   @@map("users")
+}
+
+enum JobTrackerStatus {
+  CAPTURED
+  RESUME_READY
+  READY_TO_APPLY
+  APPLIED
+  INTERVIEW
+  OFFER
+  REJECTED
+  ARCHIVED
+}
+
+/// Saved and applied roles — source of truth for the Job Tracker (extension + dashboard).
+model JobTrackerEntry {
+  id            String           @id @default(cuid())
+  userId        String
+  canonicalUrl  String
+  urlHash       String
+  title         String
+  company       String?
+  location      String?
+  salaryText    String?
+  description   String?          @db.Text
+  platform      String?
+  status        JobTrackerStatus @default(CAPTURED)
+  savedAt       DateTime         @default(now())
+  appliedAt     DateTime?
+  archivedAt    DateTime?
+  notes             String?          @db.Text
+  metadata          Json?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resumeTailor      JobResumeTailor?
+
+  @@unique([userId, urlHash])
+  @@index([userId, status])
+  @@index([userId, savedAt])
+  @@map("job_tracker_entries")
+}
+
+/// Per-job resume deltas — merge with `sourceProfileId` at read time (no full profile clone).
+model JobResumeTailor {
+  id                String          @id @default(cuid())
+  jobTrackerEntryId String          @unique
+  userId            String
+  sourceProfileId   String
+  overrides         Json            @default("{}")
+  changedSections   String[]        @default([])
+  enhanceTraceId    String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  jobTrackerEntry   JobTrackerEntry @relation(fields: [jobTrackerEntryId], references: [id], onDelete: Cascade)
+  sourceProfile     Profile         @relation(fields: [sourceProfileId], references: [id], onDelete: Restrict)
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([sourceProfileId])
+  @@map("job_resume_tailors")
 }
 
 /// Server-side BYOK reference — raw keys live in Supabase Vault (`vault.secrets`).
@@ -138,6 +211,7 @@ model Profile {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobResumeTailors JobResumeTailor[]
 
   @@index([email])
   @@index([userId])

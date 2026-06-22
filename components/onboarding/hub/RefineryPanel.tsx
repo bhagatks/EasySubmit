@@ -48,6 +48,12 @@ import { MIN_STUDIO_SKILLS, selectCanProceedToCalibration } from "@/lib/onboardi
 import { useOnboardingStore } from "@/src/stores/onboarding-store";
 import { cn } from "@/lib/utils";
 
+export const STUDIO_PROFILE_FORM_ID = "resume-studio-form";
+
+export type StudioProfileSaveState = {
+  disabled: boolean;
+};
+
 const PRIMARY = "oklch(0.62 0.21 265)";
 const MINT = "oklch(0.82 0.16 165)";
 const MUTED = "oklch(0.45 0.02 268)";
@@ -78,6 +84,8 @@ type RefineryPanelProps = {
   /** Hide in-panel phase intro — actions live in OnboardingWorkbenchHeader. */
   hidePhaseIntro?: boolean;
   onStudioToolbarChange?: (payload: RefineryStudioToolbarPayload | null) => void;
+  /** Dashboard profile studio — sync save button disabled state for header icon. */
+  onSaveStateChange?: (state: StudioProfileSaveState | null) => void;
 };
 
 export type RefineryStudioToolbarUi = {
@@ -218,6 +226,7 @@ export function RefineryPanel({
   sectionExpansion,
   hidePhaseIntro = false,
   onStudioToolbarChange,
+  onSaveStateChange,
 }: RefineryPanelProps) {
   const [showRawText, setShowRawText] = useState(false);
   const onboardingCanProceed = useOnboardingStore(selectCanProceedToCalibration);
@@ -302,7 +311,22 @@ export function RefineryPanel({
   }, [allSectionKeys]);
 
   useEffect(() => {
-    if (isProfileMode || !hidePhaseIntro) {
+    if (isProfileMode) {
+      onStudioToolbarChange?.({
+        ui: {
+          showRawText: false,
+          allSectionsExpanded,
+          hasRawText: false,
+        },
+        actions: {
+          toggleRawText: () => {},
+          toggleAllSections,
+        },
+      });
+      return;
+    }
+
+    if (!hidePhaseIntro) {
       onStudioToolbarChange?.(null);
       return;
     }
@@ -366,6 +390,21 @@ export function RefineryPanel({
     finalizeLabel ??
     (isProfileMode ? "Save profile" : WORKBENCH_FINALIZE_LABEL);
   const studioSubtitle = headerDescription?.trim() || getWorkbenchPhase(3)?.description || "";
+
+  useEffect(() => {
+    if (!isProfileMode) {
+      onSaveStateChange?.(null);
+      return;
+    }
+
+    onSaveStateChange?.({ disabled: isProceedDisabled });
+  }, [isProfileMode, isProceedDisabled, onSaveStateChange]);
+
+  useEffect(() => {
+    return () => {
+      onSaveStateChange?.(null);
+    };
+  }, [onSaveStateChange]);
 
   return (
     <div className={cn(isProfileMode ? "flex flex-col" : "flex flex-1 flex-col")}>
@@ -439,6 +478,7 @@ export function RefineryPanel({
       ) : null}
 
       <form
+        id={isProfileMode ? STUDIO_PROFILE_FORM_ID : undefined}
         className={cn(
           "flex flex-col space-y-3",
           isProfileMode ? "mt-0" : hidePhaseIntro ? "mt-0 flex-1" : "mt-4 flex-1",
@@ -983,34 +1023,35 @@ export function RefineryPanel({
           + Custom section
         </button>
 
-        <button
-          type="submit"
-          disabled={isProceedDisabled}
-          className={cn(
-            "inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-all",
-            isProfileMode ? "mt-4" : "mt-auto",
-            isProceedDisabled
-              ? "cursor-not-allowed opacity-50"
-              : "hover:brightness-110",
-          )}
-          style={{
-            backgroundColor: PRIMARY,
-            color: "oklch(0.98 0.01 268)",
-            boxShadow: isProceedDisabled
-              ? undefined
-              : "0 0 40px -12px oklch(0.62 0.21 265 / 0.55)",
-          }}
-          aria-disabled={isProceedDisabled}
-        >
-          {isProceedLocked ? (
-            <>
-              <Lock className="h-4 w-4 shrink-0" aria-hidden="true" />
-              {resolvedFinalizeLabel}
-            </>
-          ) : (
-            resolvedFinalizeLabel
-          )}
-        </button>
+        {!isProfileMode ? (
+          <button
+            type="submit"
+            disabled={isProceedDisabled}
+            className={cn(
+              "mt-auto inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-all",
+              isProceedDisabled
+                ? "cursor-not-allowed opacity-50"
+                : "hover:brightness-110",
+            )}
+            style={{
+              backgroundColor: PRIMARY,
+              color: "oklch(0.98 0.01 268)",
+              boxShadow: isProceedDisabled
+                ? undefined
+                : "0 0 40px -12px oklch(0.62 0.21 265 / 0.55)",
+            }}
+            aria-disabled={isProceedDisabled}
+          >
+            {isProceedLocked ? (
+              <>
+                <Lock className="h-4 w-4 shrink-0" aria-hidden="true" />
+                {resolvedFinalizeLabel}
+              </>
+            ) : (
+              resolvedFinalizeLabel
+            )}
+          </button>
+        ) : null}
       </form>
     </div>
   );

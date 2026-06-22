@@ -19,6 +19,7 @@ import {
   studioSkillsFromForm,
   targetTitleFromProfile,
 } from "@/lib/profile/studio-form-db";
+import { countJobsDependingOnProfile } from "@/lib/profile/job-resume-tailor";
 import { sanitizeString } from "@/lib/profile/sanitize";
 
 export type ResumeProfileListItem = {
@@ -287,6 +288,14 @@ export async function deleteResumeProfile(
     return {
       success: false,
       error: "Set another profile as default before deleting this one",
+    };
+  }
+
+  const dependentCount = await countJobsDependingOnProfile(userId, profileId);
+  if (dependentCount > 0) {
+    return {
+      success: false,
+      error: `This profile is the base resume for ${dependentCount} job application${dependentCount === 1 ? "" : "s"}. Open those jobs in Job Tracker before deleting.`,
     };
   }
 

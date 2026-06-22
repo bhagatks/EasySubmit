@@ -1,5 +1,7 @@
 | Date | Item |
 |------|------|
+| 2026-06-22 | Workday pipeline Phase C stub + D polish: autofill-complete API, extension autofill runner, card polling, popup one-click toggle, kanban Studio link |
+| 2026-06-22 | Workday one-click pipeline Phase B: `runApplyPipeline` + `runPipelineTailor` (copy profile, Enhance AI, persist) → `RESUME_READY`; partial failure handling + tests |
 | 2026-06-20 | Root layout: resume fixtures → `assets/resume/`, rules → `docs/resume/RULES.md`, tooling config → `config/`, client stores/hooks/types → `src/` |
 | 2026-06-20 | Vercel deploy pipeline (`run easy prod`); removed local prod env duplication |
 | 2026-06-20 | Schema consolidation: `profiles.content` JSONB + `calibrationScore`; dropped `architectures` and child resume tables; removed unused profile columns |

@@ -7,7 +7,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium cursor-pointer transition-all duration-300 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -22,7 +22,9 @@ const buttonVariants = cva(
         hero:
           "bg-primary text-primary-foreground shadow-glow hover:brightness-110 transition-all duration-300 font-semibold",
         mint:
-          "bg-mint text-mint-foreground shadow-mint-glow hover:brightness-110 transition-all duration-300 font-semibold",
+          "bg-mint text-mint-foreground shadow-mint-glow hover:brightness-110 hover:-translate-y-0.5 hover:shadow-[0_6px_18px_rgba(18,179,209,0.42)] active:translate-y-0 transition-all duration-300 font-semibold",
+        mintOutline:
+          "border border-mint/50 bg-transparent text-mint hover:bg-mint/10 hover:border-mint hover:-translate-y-0.5 hover:shadow-[0_4px_14px_rgba(18,179,209,0.28)] active:translate-y-0 transition-all duration-300 font-semibold",
       },
       size: {
         default: "h-9 px-4 py-2",

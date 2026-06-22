@@ -1,11 +1,17 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getDefaultModelsForProvider } from "@/src/lib/config/app.config";
+import {
+  GEMINI_ACCOUNT_BLOCKED_MESSAGE,
+  isGeminiProjectDeniedMessage,
+} from "@/src/lib/ai/gemini-access-messages";
 
-/** Models to ping — flash tiers first (1.5-flash, then newer flash). */
+/** Newer models first — legacy 1.5 often 404s on fresh AI Studio projects. */
 const GEMINI_PING_MODELS = [
-  "gemini-1.5-flash",
+  "gemini-2.5-flash-lite",
   "gemini-2.5-flash",
   "gemini-2.0-flash",
+  "gemini-flash-latest",
+  "gemini-1.5-flash",
 ] as const;
 
 type GeminiValidationErrorCode =
@@ -26,6 +32,13 @@ function mapGeminiSdkError(error: unknown): {
   const message =
     error instanceof Error ? error.message : "Gemini rejected this API key.";
 
+  if (isGeminiProjectDeniedMessage(message)) {
+    return {
+      code: "forbidden",
+      message: GEMINI_ACCOUNT_BLOCKED_MESSAGE,
+    };
+  }
+
   if (/api.?key|invalid|401|unauthorized|permission denied/i.test(message)) {
     return { code: "invalid_key", message };
   }
@@ -36,15 +49,19 @@ function mapGeminiSdkError(error: unknown): {
     return { code: "rate_limited", message };
   }
   if (/403|forbidden/i.test(message)) {
-    return { code: "forbidden", message };
+    return {
+      code: "forbidden",
+      message:
+        "This Gemini key cannot call the model (403). Try another model in AI Studio or switch provider.",
+    };
   }
 
   return { code: "provider_error", message };
 }
 
 /**
- * Gemini BYOK validation — minimal `generateContent` ping (1 output token),
- * then bundled career catalog when the ping succeeds.
+ * Gemini BYOK validation — minimal `generateContent` ping (1 output token).
+ * Used as a fallback when the REST models list is unavailable.
  */
 export async function validateGeminiKey(apiKey: string): Promise<ValidateGeminiKeyResult> {
   const trimmed = apiKey.trim();
@@ -54,6 +71,7 @@ export async function validateGeminiKey(apiKey: string): Promise<ValidateGeminiK
 
   const genAI = new GoogleGenerativeAI(trimmed);
   let lastError: unknown = null;
+  let projectDeniedAttempts = 0;
 
   for (const modelId of GEMINI_PING_MODELS) {
     try {
@@ -71,10 +89,22 @@ export async function validateGeminiKey(apiKey: string): Promise<ValidateGeminiK
     } catch (error) {
       lastError = error;
       const mapped = mapGeminiSdkError(error);
-      if (mapped.code === "invalid_key" || mapped.code === "forbidden") {
+      if (mapped.code === "invalid_key") {
         return { ok: false, ...mapped };
       }
+      if (isGeminiProjectDeniedMessage(mapped.message)) {
+        projectDeniedAttempts += 1;
+        continue;
+      }
     }
+  }
+
+  if (projectDeniedAttempts === GEMINI_PING_MODELS.length) {
+    return {
+      ok: false,
+      code: "forbidden",
+      message: GEMINI_ACCOUNT_BLOCKED_MESSAGE,
+    };
   }
 
   const failure = mapGeminiSdkError(lastError);

@@ -6,6 +6,8 @@ import { authOptions } from "@/lib/auth";
 import { extractLoginIdentity } from "@/lib/auth/extract-login-identity";
 import { joinProfileName } from "@/lib/profile/name";
 import { prisma } from "@/lib/prisma";
+import { getFeatureFlags } from "@/src/lib/services/feature-flags-service";
+import type { ResumeProfilePickerMode } from "@/lib/generated/prisma/client";
 
 const SUPPORTED_PROVIDERS = ["google", "linkedin"] as const;
 export type AuthProviderId = (typeof SUPPORTED_PROVIDERS)[number];
@@ -23,6 +25,10 @@ export type AccountSettingsSnapshot = {
   aiSourcePreference: string;
   aiEnhancementsToday: number;
   aiCallsToday: number;
+  oneClickApply: boolean;
+  autoArchiveAppliedJobs: boolean;
+  autoApplyFeatureEnabled: boolean;
+  resumeProfilePickerMode: ResumeProfilePickerMode;
 };
 
 export type UpdateLoginProfileInput = {
@@ -53,26 +59,32 @@ export async function getAccountSettings(): Promise<AccountSettingsSnapshot | nu
     return null;
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: {
-      firstName: true,
-      lastName: true,
-      name: true,
-      email: true,
-      image: true,
-      lastAuthProvider: true,
-      vaultKeyId: true,
-      activeProvider: true,
-      aiSourcePreference: true,
-      aiEnhancementsToday: true,
-      aiCallsToday: true,
-      aiQuotaResetAt: true,
-      accounts: {
-        select: { provider: true },
+  const [user, featureFlags] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: {
+        firstName: true,
+        lastName: true,
+        name: true,
+        email: true,
+        image: true,
+        lastAuthProvider: true,
+        vaultKeyId: true,
+        activeProvider: true,
+        aiSourcePreference: true,
+        aiEnhancementsToday: true,
+        aiCallsToday: true,
+        aiQuotaResetAt: true,
+        oneClickApply: true,
+        autoArchiveAppliedJobs: true,
+        resumeProfilePickerMode: true,
+        accounts: {
+          select: { provider: true },
+        },
       },
-    },
-  });
+    }),
+    getFeatureFlags(),
+  ]);
 
   if (!user) {
     return null;
@@ -105,7 +117,83 @@ export async function getAccountSettings(): Promise<AccountSettingsSnapshot | nu
     aiSourcePreference: user.aiSourcePreference,
     aiEnhancementsToday: user.aiEnhancementsToday,
     aiCallsToday: user.aiCallsToday,
+    oneClickApply: user.oneClickApply,
+    autoArchiveAppliedJobs: user.autoArchiveAppliedJobs,
+    autoApplyFeatureEnabled: featureFlags.extensionAutoApply,
+    resumeProfilePickerMode: user.resumeProfilePickerMode,
   };
+}
+
+export async function updateResumeProfilePickerMode(
+  mode: ResumeProfilePickerMode,
+): Promise<
+  { success: true; resumeProfilePickerMode: ResumeProfilePickerMode } | { success: false; error: string }
+> {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return { success: false, error: "Sign in required." };
+  }
+
+  if (mode !== "DEFAULT" && mode !== "LAST_SELECTED") {
+    return { success: false, error: "Invalid profile picker mode." };
+  }
+
+  const user = await prisma.user.update({
+    where: { id: session.user.id },
+    data: { resumeProfilePickerMode: mode },
+    select: { resumeProfilePickerMode: true },
+  });
+
+  revalidatePath("/dashboard/settings");
+
+  return { success: true, resumeProfilePickerMode: user.resumeProfilePickerMode };
+}
+
+export async function updateOneClickApply(
+  enabled: boolean,
+): Promise<{ success: true; oneClickApply: boolean } | { success: false; error: string }> {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return { success: false, error: "Sign in required." };
+  }
+
+  const flags = await getFeatureFlags();
+  if (!flags.extensionAutoApply) {
+    return {
+      success: false,
+      error: "One-click apply is disabled platform-wide.",
+    };
+  }
+
+  const user = await prisma.user.update({
+    where: { id: session.user.id },
+    data: { oneClickApply: enabled },
+    select: { oneClickApply: true },
+  });
+
+  revalidatePath("/dashboard/settings");
+
+  return { success: true, oneClickApply: user.oneClickApply };
+}
+
+export async function updateAutoArchiveAppliedJobs(
+  enabled: boolean,
+): Promise<{ success: true; autoArchiveAppliedJobs: boolean } | { success: false; error: string }> {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return { success: false, error: "Sign in required." };
+  }
+
+  const user = await prisma.user.update({
+    where: { id: session.user.id },
+    data: { autoArchiveAppliedJobs: enabled },
+    select: { autoArchiveAppliedJobs: true },
+  });
+
+  revalidatePath("/dashboard/settings");
+  revalidatePath("/dashboard/job-tracker");
+
+  return { success: true, autoArchiveAppliedJobs: user.autoArchiveAppliedJobs };
 }
 
 /** Update login profile (`users` only — never touches resume `profiles`). */

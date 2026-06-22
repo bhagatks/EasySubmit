@@ -1,10 +1,6 @@
-import { DashboardPlaceholder } from "@/components/dashboard/DashboardPlaceholder";
+import { redirect } from "next/navigation";
 
-export default function ApplicationsPage() {
-  return (
-    <DashboardPlaceholder
-      title="Applications"
-      description="Track every role you apply to, ATS scores, and interview status in one place."
-    />
-  );
+/** Legacy route — use /dashboard/job-tracker */
+export default function ApplicationsRedirectPage() {
+  redirect("/dashboard/job-tracker");
 }

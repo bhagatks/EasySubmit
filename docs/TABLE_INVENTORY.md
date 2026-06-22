@@ -2,13 +2,13 @@
 
 Living audit of every table in Supabase / Postgres. **Update this file in the same change** whenever you add, remove, or change how a Prisma model is read or written.
 
-Last audited: **2026-06-20** (schema consolidation migration `20260620120000_consolidate_profile_schema`).
+Last audited: **2026-06-21** (Job Tracker `job_tracker_entries` migration `20260621180000_job_tracker_entries`).
 
 ## Quick summary
 
 | Status | Count | Tables |
 |--------|------:|--------|
-| **Active** | 8 | `users`, `accounts`, `profiles`, `user_api_keys`, `usage_logs`, `app_config`, `feature_flags`, `_prisma_migrations` |
+| **Active** | 9 | `users`, `accounts`, `profiles`, `user_api_keys`, `usage_logs`, `api_call_logs`, `job_tracker_entries`, `app_config`, `feature_flags`, `_prisma_migrations` |
 | **Adapter (NextAuth)** | 2 | `sessions`, `verification_tokens` |
 | **Removed** | 5 | `architectures`, `experiences`, `projects`, `educations`, `certifications` |
 
@@ -58,6 +58,20 @@ NextAuth Prisma adapter. JWT sessions use cookies at runtime; `sessions` / `veri
 ### `user_api_keys`
 
 BYOK metadata — vault UUID pointers only.
+
+### `job_tracker_entries`
+
+Saved and applied roles for **Job Tracker** (extension + dashboard). One row per user + canonical job URL.
+
+| Column group | Fields |
+|--------------|--------|
+| Identity | `canonicalUrl`, `urlHash` (dedupe), `title`, `company`, `location`, `salaryText` |
+| Content | `description`, `platform`, `metadata` JSONB |
+| Status | `status` (`CAPTURED`, `RESUME_READY`, `READY_TO_APPLY`, `APPLIED`, …), `savedAt`, `appliedAt`, `notes` |
+
+**Write paths (planned):** extension `POST /api/extension/jobs`; dashboard status edits (v1.1).
+
+**Read paths:** `/dashboard/job-tracker`, overview recent list, `getDashboardStats`.
 
 ### `usage_logs`
 

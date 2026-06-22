@@ -1,6 +1,7 @@
 import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { resolveSafeCallbackUrl } from "@/lib/auth/safe-callback-url";
 
 const PUBLIC_PATHS = ["/", "/login", "/terms", "/privacy"] as const;
 const PUBLIC_PREFIXES = ["/auth/"] as const;
@@ -13,6 +14,10 @@ function matchesPath(pathname: string, basePath: string): boolean {
 }
 
 function isPublicPath(pathname: string): boolean {
+  if (pathname === "/extension") {
+    return true;
+  }
+
   if (PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
     return true;
   }
@@ -34,10 +39,14 @@ function isResumeApiPath(pathname: string): boolean {
   return pathname.startsWith("/api/resume");
 }
 
+function isExtensionApiPath(pathname: string): boolean {
+  return pathname.startsWith("/api/extension");
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (isAuthApiPath(pathname) || isResumeApiPath(pathname)) {
+  if (isAuthApiPath(pathname) || isResumeApiPath(pathname) || isExtensionApiPath(pathname)) {
     return NextResponse.next();
   }
 
@@ -61,7 +70,8 @@ export async function middleware(request: NextRequest) {
     }
 
     const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("callbackUrl", pathname);
+    const returnPath = `${pathname}${request.nextUrl.search}`;
+    loginUrl.searchParams.set("callbackUrl", returnPath);
     return NextResponse.redirect(loginUrl);
   }
 
@@ -82,9 +92,17 @@ export async function middleware(request: NextRequest) {
     }
 
     if (pathname === "/login") {
-      return NextResponse.redirect(new URL(DASHBOARD_PATH, request.url));
+      const callbackUrl = resolveSafeCallbackUrl(
+        request.nextUrl.searchParams.get("callbackUrl"),
+        DASHBOARD_PATH,
+      );
+      return NextResponse.redirect(new URL(callbackUrl, request.url));
     }
 
+    return NextResponse.next();
+  }
+
+  if (pathname.startsWith("/extension/bridge")) {
     return NextResponse.next();
   }
 

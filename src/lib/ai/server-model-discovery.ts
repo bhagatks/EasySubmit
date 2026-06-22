@@ -5,6 +5,10 @@ import {
   type AiProvider,
 } from "@/src/lib/config/app.config";
 import { geminiApiHeaders, geminiModelsListUrl } from "@/src/lib/ai/gemini-api";
+import {
+  GEMINI_ACCOUNT_BLOCKED_MESSAGE,
+  isGeminiProjectDeniedMessage,
+} from "@/src/lib/ai/gemini-access-messages";
 import { validateGeminiKey } from "@/src/lib/ai/validate-gemini-key";
 
 const OPENAI_COMPATIBLE_PROVIDERS: AiProvider[] = [
@@ -45,12 +49,13 @@ function geminiLegacyQueryUrl(apiKey: string): string {
 
 function mapHttpFailure(status: number, body?: ProviderErrorBody | null): ProviderHandshakeResult {
   const providerCode = body?.error?.code ?? body?.error?.type;
+  const rawMessage = body?.error?.message ?? "";
 
   if (providerCode === "insufficient_quota" || status === 402) {
     return {
       ok: false,
       code: "insufficient_quota",
-      message: body?.error?.message ?? "Insufficient quota for this API key.",
+      message: rawMessage || "Insufficient quota for this API key.",
     };
   }
 
@@ -58,14 +63,21 @@ function mapHttpFailure(status: number, body?: ProviderErrorBody | null): Provid
     return {
       ok: false,
       code: "invalid_key",
-      message: body?.error?.message ?? "Invalid API key for this provider.",
+      message: rawMessage || "Invalid API key for this provider.",
     };
   }
   if (status === 403) {
+    if (isGeminiProjectDeniedMessage(rawMessage)) {
+      return {
+        ok: false,
+        code: "forbidden",
+        message: GEMINI_ACCOUNT_BLOCKED_MESSAGE,
+      };
+    }
     return {
       ok: false,
       code: "forbidden",
-      message: body?.error?.message ?? "This key cannot list models. Check provider permissions.",
+      message: rawMessage || "This key cannot list models. Check provider permissions.",
     };
   }
   if (status === 429) {
@@ -235,28 +247,27 @@ async function fetchAnthropicModels(apiKey: string): Promise<ProviderHandshakeRe
   return { ok: true, models };
 }
 
-async function fetchGeminiModelsViaRest(apiKey: string): Promise<string[] | null> {
+async function fetchGeminiModelsViaRest(apiKey: string): Promise<ProviderHandshakeResult> {
   const trimmedKey = apiKey.trim();
-  const headerRes = await fetch(geminiModelsListUrl(), {
+  let res = await fetch(geminiModelsListUrl(), {
     headers: geminiApiHeaders(trimmedKey),
     cache: "no-store",
   });
 
-  let res = headerRes;
-
-  if (!headerRes.ok && headerRes.status === 401 && !trimmedKey.startsWith("AQ.")) {
+  if (!res.ok && res.status === 401 && !trimmedKey.startsWith("AQ.")) {
     res = await fetch(geminiLegacyQueryUrl(trimmedKey), { cache: "no-store" });
   }
 
   if (!res.ok) {
-    return null;
+    const body = await parseProviderErrorBody(res);
+    return mapHttpFailure(res.status, body);
   }
 
   const json = (await res.json()) as {
     models?: Array<{ name?: string; supportedGenerationMethods?: string[] }>;
   };
 
-  const models = (json.models ?? [])
+  const fromApi = (json.models ?? [])
     .filter(
       (model) =>
         model.supportedGenerationMethods?.includes("generateContent") &&
@@ -266,10 +277,30 @@ async function fetchGeminiModelsViaRest(apiKey: string): Promise<string[] | null
     )
     .map((model) => model.name!.replace("models/", ""));
 
-  return models.length > 0 ? models : null;
+  const bundled = getDefaultModelsForProvider("gemini");
+  const models = [...new Set([...fromApi, ...bundled])].sort();
+
+  if (models.length === 0) {
+    return {
+      ok: false,
+      code: "provider_error",
+      message: "Gemini handshake succeeded but returned no usable models.",
+    };
+  }
+
+  return { ok: true, models };
 }
 
 async function fetchGeminiModels(apiKey: string): Promise<ProviderHandshakeResult> {
+  const fromRest = await fetchGeminiModelsViaRest(apiKey);
+  if (fromRest.ok) {
+    return fromRest;
+  }
+
+  if (fromRest.code === "invalid_key" || fromRest.code === "forbidden") {
+    return fromRest;
+  }
+
   const validated = await validateGeminiKey(apiKey);
   if (!validated.ok) {
     return {
@@ -279,13 +310,7 @@ async function fetchGeminiModels(apiKey: string): Promise<ProviderHandshakeResul
     };
   }
 
-  const fromRest = await fetchGeminiModelsViaRest(apiKey);
-  const models =
-    fromRest && fromRest.length > 0
-      ? [...new Set([...fromRest, ...validated.models])].sort()
-      : validated.models;
-
-  return { ok: true, models };
+  return { ok: true, models: validated.models };
 }
 
 /**

@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 export const FEATURE_FLAG_KEYS = {
   enhanceWithAiOnboarding: "enhance_with_ai_onboarding",
   enhanceWithAiResumeProfile: "enhance_with_ai_resume_profile",
+  extensionJobCard: "extension_job_card",
+  extensionAutoApply: "extension_auto_apply",
 } as const;
 
 export type FeatureFlagKey = (typeof FEATURE_FLAG_KEYS)[keyof typeof FEATURE_FLAG_KEYS];
@@ -38,16 +40,31 @@ export const FEATURE_FLAG_REGISTRY: Record<
     description: "Show Enhance with AI in dashboard resume profile studio",
     defaultEnabled: true,
   },
+  extensionJobCard: {
+    key: FEATURE_FLAG_KEYS.extensionJobCard,
+    description: "Show in-page Job Tracker card on supported job sites (Chrome extension)",
+    defaultEnabled: true,
+  },
+  extensionAutoApply: {
+    key: FEATURE_FLAG_KEYS.extensionAutoApply,
+    description:
+      "Extension one-click apply pipeline (Workday). Off = manual Save → Update resume → Apply",
+    defaultEnabled: true,
+  },
 };
 
 export type FeatureFlagsSnapshot = {
   enhanceWithAiOnboarding: boolean;
   enhanceWithAiResumeProfile: boolean;
+  extensionJobCard: boolean;
+  extensionAutoApply: boolean;
 };
 
 export const FEATURE_FLAGS_DEFAULTS: FeatureFlagsSnapshot = {
   enhanceWithAiOnboarding: FEATURE_FLAG_REGISTRY.enhanceWithAiOnboarding.defaultEnabled,
   enhanceWithAiResumeProfile: FEATURE_FLAG_REGISTRY.enhanceWithAiResumeProfile.defaultEnabled,
+  extensionJobCard: FEATURE_FLAG_REGISTRY.extensionJobCard.defaultEnabled,
+  extensionAutoApply: FEATURE_FLAG_REGISTRY.extensionAutoApply.defaultEnabled,
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -118,6 +135,16 @@ export async function getFeatureFlags(): Promise<FeatureFlagsSnapshot> {
     enhanceWithAiResumeProfile: resolveEnabled(
       FEATURE_FLAG_REGISTRY.enhanceWithAiResumeProfile.key,
       FEATURE_FLAG_REGISTRY.enhanceWithAiResumeProfile.defaultEnabled,
+      byKey,
+    ),
+    extensionJobCard: resolveEnabled(
+      FEATURE_FLAG_REGISTRY.extensionJobCard.key,
+      FEATURE_FLAG_REGISTRY.extensionJobCard.defaultEnabled,
+      byKey,
+    ),
+    extensionAutoApply: resolveEnabled(
+      FEATURE_FLAG_REGISTRY.extensionAutoApply.key,
+      FEATURE_FLAG_REGISTRY.extensionAutoApply.defaultEnabled,
       byKey,
     ),
   };

@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { requireDashboardSession } from "@/lib/auth/require-dashboard-session";
 import { getResumeProfileStudio } from "@/app/actions/resume-profiles";
+import { getProfileDependentJobs } from "@/app/actions/job-resume-tailor";
 import { getFeatureFlags } from "@/src/lib/services/feature-flags-service";
 import { ResumeStudioEditor } from "@/components/dashboard/ResumeStudioEditor";
 
@@ -22,9 +23,10 @@ export default async function EditResumeProfilePage({
   await requireDashboardSession(session.user.id);
 
   const { id } = await params;
-  const [result, featureFlags] = await Promise.all([
+  const [result, featureFlags, dependents] = await Promise.all([
     getResumeProfileStudio(id),
     getFeatureFlags(),
+    getProfileDependentJobs(id),
   ]);
 
   if (!result.success) {
@@ -39,6 +41,7 @@ export default async function EditResumeProfilePage({
         initialForm={result.form}
         rawResumeText={result.rawResumeText}
         enhanceWithAiEnabled={featureFlags.enhanceWithAiResumeProfile}
+        dependentJobs={dependents.success ? dependents.jobs : []}
       />
     </div>
   );

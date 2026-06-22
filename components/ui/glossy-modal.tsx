@@ -16,10 +16,14 @@ type GlossyModalProps = {
   onOpenChange: (open: boolean) => void;
   title: string;
   description?: ReactNode;
+  /** Custom header replaces the default title block (e.g. tabs). */
+  header?: ReactNode;
   children?: ReactNode;
   footer?: ReactNode;
   placement?: GlossyModalPlacement;
   className?: string;
+  /** Scrollable body region — e.g. extra padding or min-height for empty states. */
+  bodyClassName?: string;
   /** Hide the top-right close control (e.g. confirm dialogs). */
   hideClose?: boolean;
   /** Block backdrop / Escape / X while an action is running. */
@@ -37,10 +41,12 @@ export function GlossyModal({
   onOpenChange,
   title,
   description,
+  header,
   children,
   footer,
   placement = "center",
   className,
+  bodyClassName,
   hideClose = false,
   busy = false,
   zIndex = 150,
@@ -109,7 +115,7 @@ export function GlossyModal({
             exit={{ opacity: 0, y: 12, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 420, damping: 34 }}
             className={cn(
-              "pointer-events-auto relative z-10 flex max-h-[min(90dvh,720px)] w-[min(512px,calc(100vw-2rem))] flex-col overflow-hidden",
+              "pointer-events-auto relative z-10 flex w-[min(512px,calc(100vw-2rem))] max-h-[min(90dvh,720px)] flex-col overflow-hidden",
               GLOSSY_PANEL_CLASS,
               className,
             )}
@@ -128,22 +134,29 @@ export function GlossyModal({
               </button>
             )}
 
-            <header
-              className={cn(
-                "relative z-10 shrink-0 space-y-1.5 border-b border-white/10 px-5 py-4 text-left",
-                !hideClose && "pr-12",
-              )}
-            >
-              <h2 id={titleId} className="font-display text-lg font-semibold text-foreground">
-                {title}
-              </h2>
-              {description ? (
-                <p className="text-sm text-muted-foreground">{description}</p>
-              ) : null}
-            </header>
+            {header ?? (
+              <header
+                className={cn(
+                  "relative z-10 shrink-0 space-y-1.5 border-b border-white/10 px-5 py-4 text-left",
+                  !hideClose && "pr-12",
+                )}
+              >
+                <h2 id={titleId} className="font-display text-lg font-semibold text-foreground">
+                  {title}
+                </h2>
+                {description ? (
+                  <p className="text-sm text-muted-foreground">{description}</p>
+                ) : null}
+              </header>
+            )}
 
             {children ? (
-              <div className="relative z-10 min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4">
+              <div
+                className={cn(
+                  "relative z-10 min-h-0 flex-1 basis-0 overflow-y-auto overscroll-contain px-5 py-4",
+                  bodyClassName,
+                )}
+              >
                 {children}
               </div>
             ) : null}

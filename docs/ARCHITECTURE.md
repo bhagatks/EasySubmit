@@ -6,7 +6,7 @@ Next.js 14 (App Router) web app + future Chrome extension (MV3). Primary entry a
 
 ## Data model
 
-Postgres (Prisma) + Supabase Vault BYOK + client Zustand stores. Login identity (`users`) is separate from career data (`profiles` + `content` JSONB). Per-table audit: [`docs/TABLE_INVENTORY.md`](./TABLE_INVENTORY.md).
+Postgres (Prisma) + Supabase Vault BYOK + client Zustand stores. Login identity (`users`) is separate from career data (`profiles` + `content` JSONB). Job search tracking: `job_tracker_entries` (`JobTrackerEntry`) — see [`docs/JOB_TRACKER.md`](./JOB_TRACKER.md). Per-table audit: [`docs/TABLE_INVENTORY.md`](./TABLE_INVENTORY.md).
 
 ## Runtime
 
@@ -16,9 +16,9 @@ Postgres (Prisma) + Supabase Vault BYOK + client Zustand stores. Login identity 
 | Web onboarding | Next.js, Framer Motion, Zustand | `/onboarding` (3-phase workbench); legacy aliases redirect here |
 | Auth login | NextAuth (Google + LinkedIn OAuth) | `/login` → `/api/auth/[...nextauth]` |
 | Auth signup | Supabase Auth (legacy path) | `/auth/signup` |
-| Dashboard | NextAuth-protected shell + sidebar nav | `/dashboard` (+ `/dashboard/resume-profiles`, `/applications`, `/keys`, `/settings`) |
+| Dashboard | NextAuth-protected shell + sidebar nav | `/dashboard` (+ `/dashboard/resume-profiles`, `/dashboard/job-tracker`, `/keys`, `/settings`) |
 | Extension landing | Static marketing | `/extension` |
-| Chrome extension | MV3 + content-script sidebar (planned) | TBD |
+| Chrome extension | MV3 in-page job card v0.1 | `dist/extension/` (load unpacked) |
 
 ## Auth & route protection
 
@@ -44,7 +44,8 @@ app/
     layout.tsx              KeyProtector + sidebar shell
     page.tsx                Overview (stats, recent apps, ATS guarantee)
     resumes/                Placeholder
-    applications/           Placeholder
+    job-tracker/            Job Tracker list (v1 chronological)
+    applications/           Redirect → `/dashboard/job-tracker`
     keys/                   Placeholder
     settings/               Account settings (`AccountSettings`)
 components/
@@ -90,7 +91,30 @@ docs/                       System of record (+ docs/resume/RULES.md)
 assets/resume/              ATS golden templates + sample PDFs (not web-served)
 config/                     vitest.config.ts, tailwind.config.ts
 public/                     Web-static assets only
+extension/                  MV3 source (content script, popup, background)
+lib/extension/              Pipeline orchestrator, job service, auth token, scraper tests
+lib/profile/                Profile copy + persist helpers for pipeline tailor
 ```
+
+## Extension one-click pipeline (Workday)
+
+Gated by `feature_flags.extension_auto_apply` + `users.oneClickApply`. Entry: extension card **Apply with EasySubmit** → `POST /api/extension/jobs/pipeline`.
+
+```
+Extension RUN_PIPELINE
+  → runApplyPipeline (lib/extension/apply-pipeline.ts)
+      → saveJobTrackerEntry → CAPTURED
+      → runPipelineTailor (lib/extension/pipeline-tailor.ts)
+          → copySourceProfileForJob
+          → enhanceResumeForUserId (variant: pipeline)
+          → persistProfileFromForm
+      → RESUME_READY + tailoredProfileId
+      → pendingPhase: "autofill" (Phase C not implemented)
+```
+
+Status flow: `CAPTURED` → `RESUME_READY` → `READY_TO_APPLY` → `APPLIED`. Tailor failure: job stays `CAPTURED`, cloned profile deleted, error in `metadata.pipelineError`; API returns HTTP 200 with `saved: true`. Autofill stub: extension `runAutofillPhase` → `POST /api/extension/jobs/:id/autofill-complete` → `READY_TO_APPLY` (real Workday field fill pending Phase C1–C5).
+
+Spec: [`docs/WORKDAY_ONE_CLICK_APPLY.md`](./WORKDAY_ONE_CLICK_APPLY.md).
 
 ## Onboarding flow
 
@@ -115,7 +139,28 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 
 | Date | Summary |
 |------|---------|
-| 2026-06-21 | Onboarding chrome: unified `OnboardingWorkbenchChrome` (logo + phase label + actions + Sign Out → progress bar → Identity \| Import \| Studio tabs); phase actions in header; Enhance with AI on Studio when enabled |
+| 2026-06-22 | Review Screen Resume tab: inline merged `PrimeResume` preview, tailored-section pills, Edit in Studio; `getJobTrackerEntryById` loads `tailoredResumePreview` |
+| 2026-06-22 | Job tailor storage Option B: `job_resume_tailors` overrides + merge at read; Job Tracker Studio `/dashboard/job-tracker/[id]/resume`; base profile dependency warning |
+| 2026-06-22 | Workday pipeline Phase C stub + Phase D polish: autofill-complete API, content `runAutofillPhase`, card status polling, kanban Studio link, popup one-click toggle |
+| 2026-06-22 | Workday pipeline Phase B3–B7: `runApplyPipeline` → `runPipelineTailor` (copy + `enhanceResumeForUserId` + persist) → `RESUME_READY` + `pendingPhase: autofill`; partial failure keeps `CAPTURED` with `metadata.pipelineError`; pipeline variant gates on `extension_auto_apply` |
+| 2026-06-22 | Workday pipeline Phase B1–B2: `enhanceResumeForUserId` (bearer-safe Enhance) + `copySourceProfileForJob` (job profile clone with `targetTitle`) |
+| 2026-06-21 | Extension dashboard navigation: `OPEN_DASHBOARD` reuses/focuses existing EasySubmit tab (`pickAppTabToReuse`); Job Tracker Review opens in-modal via client state (URL only when extension deep-links `?job=`) |
+| 2026-06-21 | Extension save sync: API base URL pinned to request origin + bridge host; job tracker page force-dynamic; save errors surfaced on card |
+| 2026-06-21 | Extension scraper: Workday `/details/` URLs, Phenom/iCIMS/Slalom careers URL+DOM selectors, pre-hydration title parsing; fixture tests in `lib/extension/` |
+| 2026-06-21 | Dashboard layout: unified `max-w-3xl` (768px) via `lib/dashboard/dashboard-layout.ts` + `DashboardWorkspacePage` for all sidebar tabs |
+| 2026-06-21 | Dashboard workspace toolbar: header action icons (save/add) + expand/collapse-all on Settings, Resume profiles, Resume Studio, AI Keys; collapsible section stacks |
+| 2026-06-21 | Dashboard Settings: two-column layout, horizontal segmented controls (AI source, extension resume), toggle rows — fits viewport without scroll on desktop |
+| 2026-06-21 | Job Tracker UI polish: left-aligned compact rows (role · company single line + truncate), animated pipeline/Apply CTA, Review Screen header (close + status row), tracker-only refresh on tab focus |
+| 2026-06-21 | Job Tracker review overlay: universal modal on `/dashboard/job-tracker` with Job/Resume/Cover/Apply tabs, capture completeness, Review CTAs, extension deep-link `?job=` |
+| 2026-06-21 | Extension resume profile picker: card header icon dropdown, `GET /api/extension/resume-profiles`, Settings default vs last-selected mode, `sourceProfileId` on save/pipeline |
+| 2026-06-21 | Feature flag `extension_auto_apply`: when off, extension uses manual 3-step flow (Save to Tracker → Update resume → Apply); gates one-click pipeline + Settings toggle |
+| 2026-06-21 | Workday one-click apply: `users.oneClickApply` (default on), Settings toggle, `POST /api/extension/jobs/pipeline`, extension **Apply with EasySubmit** CTA on Workday; spec in `docs/WORKDAY_ONE_CLICK_APPLY.md` |
+| 2026-06-21 | Job Tracker v2: pipeline row UI (pizza bar), Review Screen rename, Archive header + auto-archive setting, delete with confirm, Apply → extension `START_APPLY` |
+| 2026-06-21 | Job Tracker v1.1: Kanban board at `/dashboard/job-tracker` — superseded by v2 pipeline rows |
+| 2026-06-21 | Chrome extension v0.2.0: Stage 1 animated capture nudge below job card (tailor-resume pipeline teaser); default card anchor upper-left |
+| 2026-06-21 | Chrome extension v0.1.7: job card header dashboard icon + fixed minimize (×) click; session-only position reset on refresh |
+| 2026-06-21 | Chrome extension v0.1: MV3 job card + save API + auth bridge; `npm run build:extension` → `dist/extension/`; `app_config.extensionSites` + `extension_job_card` flag |
+| 2026-06-21 | Job Tracker: `job_tracker_entries` (`JobTrackerEntry`) + `/dashboard/job-tracker` (v1 chronological list); overview stat **Jobs tracked**; `/dashboard/applications` redirects; extension save API planned |
 | 2026-06-21 | Sign-out fix: `signOutUser` uses NextAuth `callbackUrl` redirect (no race with manual `/login` assign) |
 | 2026-06-21 | Enhance with AI preflight: button click checks feature flag + `aiEngine.quotas.system.enable` + route/quota before job-description dialog |
 | 2026-06-21 | Feature flags: `feature_flags.extra` JSON column for per-flag optional config |
