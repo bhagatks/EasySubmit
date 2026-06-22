@@ -26,5 +26,6 @@ describe("buildTailoredResumePreview", () => {
     expect(result.preview.fullName).toBe("Ada Lovelace");
     expect(result.preview.summary).toBe("Tailored summary");
     expect(result.preview.skills).toContain("TypeScript");
+    expect(result.previewHtml).toContain("Tailored summary");
   });
 });

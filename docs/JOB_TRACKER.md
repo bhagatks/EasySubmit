@@ -9,7 +9,7 @@ Last updated: **2026-06-22**
 ### Web app (Job Tracker)
 - `JobTrackerEntry` table + pipeline statuses (`CAPTURED` → `APPLIED`, …)
 - `/dashboard/job-tracker` **pipeline tracker** — clickable rows open Review Screen; left-aligned **role · company** single line (truncate) + 4-segment animated progress bar; top-right **Archive · Delete · Issue** then **Review** + pulsing **Apply** when ready; refreshes from DB on tab focus
-- **Review Screen** — large job title (matches dashboard page titles), **Close** top-right, **Status** row below subtitle; tabs **Job | Resume | Cover | Apply**; Resume tab shows merged **PrimeResume** preview, tailored-section pills, and **Edit in Studio**; `?job={id}&panel={tab}`
+- **Review Screen** — large job title (matches dashboard page titles), **Close** top-right, **Status** row below subtitle; tabs **Job | Resume | Cover | Apply**; Resume tab: merged **PrimeResume** preview, tailored-section pills, toolbar **Studio Edit | Enhance with AI | PDF | Word | LaTeX** (Studio opens `/dashboard/job-tracker/[id]/resume`); Cover tab: full-bleed letter preview, inline **Edit**, **Enhance with AI** (quota + BYOK), PDF/Word/LaTeX export; pipeline tailor seeds template cover draft on `job_resume_tailors`; LaTeX v1 validates `\begin{document}` and shows HTML model preview (no TeX engine); `?job={id}&panel={tab}`
 - **Archive** — header button toggles active/archive; auto-archive applied jobs after 24h (Settings toggle); **Archive** icon on every active row
 - **Delete** — permanent delete with confirmation on every row
 - Job-centric model: tailor/cover/export fields live on the job row (`metadata`, `job_resume_tailors` overrides); base profiles stay at `/dashboard/resume-profiles`
@@ -54,7 +54,7 @@ Last updated: **2026-06-22**
 | **Kanban dashboard UI** | Removed — pipeline row UI |
 | **Status automation** | Tailor → `RESUME_READY` and autofill stub → `READY_TO_APPLY` **done**; real Workday field fill pending |
 | **Autofill pipeline** | Stub in `runWorkdayAutofillStub` + `completePipelineAutofill`; port full engine from AutoApplyAI `src/apply/` |
-| **Tailor + cover + Job Fit** | Resume tab **done** (inline preview + Studio link); cover letter tab stubbed |
+| **Tailor + cover + Job Fit** | Resume tab **done**; Cover tab **done** (preview, edit, AI enhance, export, LaTeX); Job Fit tab pending |
 | **Export (temp + cleanup)** | Phase F — on-demand from overlay only |
 | **More adapters** | Lever, Ashby, iCIMS, … |
 | **Production `externally_connectable`** | Add your Vercel domain to manifest |

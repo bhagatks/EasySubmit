@@ -30,17 +30,19 @@ import {
   jobTrackerStatusStyle,
 } from "@/lib/job-tracker/status-labels";
 import { ReviewResumePanel } from "@/components/dashboard/ReviewResumePanel";
+import { ReviewCoverPanel } from "@/components/dashboard/review/ReviewCoverPanel";
+import { AtsPanel } from "@/components/dashboard/review/AtsPanel";
 import { cn } from "@/lib/utils";
 
 /** Matches `DashboardWorkspacePage` h1 — use for primary screen titles. */
 export const WORKSPACE_TITLE_CLASS =
   "font-display text-2xl font-semibold tracking-tight text-foreground";
 
-/** Fixed shell height — tab bodies scroll inside without resizing the Review Screen. */
+/** Fixed shell height — fills viewport with minimal outer margin. */
 export const REVIEW_SCREEN_SHELL_CLASS =
-  "h-[min(85dvh,840px)] min-h-[min(85dvh,840px)] max-h-[min(85dvh,840px)] w-[min(960px,calc(100vw-1.5rem))]";
+  "h-[calc(100dvh-0.375rem)] min-h-0 max-h-[calc(100dvh-0.375rem)] w-[min(1060px,calc(100vw-0.375rem))]";
 
-const TAB_PANEL_CLASS = "flex min-h-[min(calc(85dvh-11.5rem),660px)] flex-col";
+const TAB_PANEL_CLASS = "flex min-h-0 flex-1 flex-col";
 
 type ReviewScreenProps = {
   jobId: string | null;
@@ -198,32 +200,8 @@ function JobPanel({ entry }: { entry: JobTrackerDetail }) {
   );
 }
 
-function CoverPanel({ entry }: { entry: JobTrackerDetail }) {
-  const coverLetter =
-    typeof entry.metadata?.coverLetter === "string" ? entry.metadata.coverLetter : null;
-
-  if (coverLetter?.trim()) {
-    return (
-      <div className="space-y-3">
-        <p className="text-sm text-muted-foreground">
-          Cover letter for this job (stored on the job record).
-        </p>
-        <div className="max-h-[min(50vh,400px)] overflow-y-auto rounded-xl border border-border/70 bg-background/80 p-4">
-          <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-foreground">
-            {coverLetter.trim()}
-          </pre>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <PanelPlaceholder
-      icon={Mail}
-      title="Cover letter coming soon"
-      description="Cover letters will be generated during tailoring and stored on this job."
-    />
-  );
+function CoverPanel({ entry, onRefresh }: { entry: JobTrackerDetail; onRefresh: () => void }) {
+  return <ReviewCoverPanel entry={entry} onRefresh={onRefresh} />;
 }
 
 function ApplyPanel({ entry }: { entry: JobTrackerDetail }) {
@@ -287,32 +265,42 @@ export function ReviewScreen({
       onOpenChange={onOpenChange}
       title="Review Screen"
       className={REVIEW_SCREEN_SHELL_CLASS}
-      bodyClassName="flex min-h-0 flex-1 basis-0 flex-col px-6 py-5"
+      shellClassName="items-stretch justify-center px-0.5 py-0"
+      bodyClassName={cn(
+        "flex min-h-0 flex-1 basis-0 flex-col overflow-hidden",
+        panel === "resume" || panel === "cover" ? "p-0" : "p-0",
+      )}
       hideClose
       header={
-        <header className="relative z-10 shrink-0 border-b border-white/10 px-6 pb-3 pt-4 text-left">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <h2 id="glossy-modal-title" className={WORKSPACE_TITLE_CLASS}>
-                Review Screen
-              </h2>
-              {jobMeta ? (
-                <p
-                  className="mt-1.5 min-w-0 truncate text-sm leading-snug"
-                  title={jobMeta.full}
-                >
-                  <span className="font-medium text-foreground">{jobMeta.company}</span>
-                  <span className="text-muted-foreground/70"> · </span>
-                  <span className="text-foreground">{jobMeta.title}</span>
-                  {jobMeta.location ? (
-                    <>
-                      <span className="text-muted-foreground/70"> · </span>
-                      <span className="text-muted-foreground">{jobMeta.location}</span>
-                    </>
-                  ) : null}
-                </p>
-              ) : null}
-            </div>
+        <header className="relative z-10 shrink-0 border-b border-white/10 px-3 pb-1.5 pt-2 text-left sm:px-4">
+          <div className="grid grid-cols-[auto_minmax(0,1fr)_minmax(0,20%)_minmax(0,1fr)_auto] items-center gap-x-3 sm:gap-x-5">
+            <h2 id="glossy-modal-title" className={cn(WORKSPACE_TITLE_CLASS, "shrink-0 text-xl sm:text-2xl")}>
+              Review Screen
+            </h2>
+
+            <div aria-hidden="true" />
+
+            {jobMeta ? (
+              <p
+                className="min-w-0 truncate text-center text-[10px] leading-snug text-muted-foreground sm:text-[11px]"
+                title={jobMeta.full}
+              >
+                <span className="font-medium text-foreground/90">{jobMeta.company}</span>
+                <span className="text-muted-foreground/60"> · </span>
+                <span className="text-foreground/80">{jobMeta.title}</span>
+                {jobMeta.location ? (
+                  <>
+                    <span className="text-muted-foreground/60"> · </span>
+                    <span>{jobMeta.location}</span>
+                  </>
+                ) : null}
+              </p>
+            ) : (
+              <div aria-hidden="true" />
+            )}
+
+            <div aria-hidden="true" />
+
             <button
               type="button"
               onClick={() => onOpenChange(false)}
@@ -324,9 +312,9 @@ export function ReviewScreen({
             </button>
           </div>
 
-          <div className="mt-2.5 flex items-center gap-2">
+          <div className="mt-1.5 flex items-center gap-2">
             <div
-              className="flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-xl border border-border/70 bg-surface/40 p-1"
+              className="flex shrink-0 gap-1 overflow-x-auto rounded-xl border border-border/70 bg-surface/40 p-1"
               role="tablist"
               aria-label="Review Screen sections"
             >
@@ -351,21 +339,18 @@ export function ReviewScreen({
               ))}
             </div>
 
+            <div className="min-w-0 flex-1" aria-hidden="true" />
+
             {entry ? (
-              <div className="flex shrink-0 items-center gap-1.5 pl-1">
-                <span className="hidden text-[10px] font-semibold uppercase tracking-wider text-muted-foreground sm:inline">
-                  Status
-                </span>
-                <span
-                  className={cn(
-                    "whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-medium",
-                    jobTrackerStatusStyle(entry.status),
-                  )}
-                  title={`Status: ${jobTrackerStatusLabel(entry.status)}`}
-                >
-                  {jobTrackerStatusLabel(entry.status)}
-                </span>
-              </div>
+              <span
+                className={cn(
+                  "shrink-0 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-medium",
+                  jobTrackerStatusStyle(entry.status),
+                )}
+                title={jobTrackerStatusLabel(entry.status)}
+              >
+                {jobTrackerStatusLabel(entry.status)}
+              </span>
             ) : null}
           </div>
         </header>
@@ -389,11 +374,21 @@ export function ReviewScreen({
           id={`review-screen-panel-${panel}`}
           role="tabpanel"
           aria-labelledby={`review-screen-tab-${panel}`}
-          className={TAB_PANEL_CLASS}
+          className={cn(
+            TAB_PANEL_CLASS,
+            panel === "resume" || panel === "cover"
+              ? "h-full min-h-0 overflow-hidden"
+              : "overflow-y-auto",
+          )}
         >
           {panel === "job" ? <JobPanel entry={entry} /> : null}
-          {panel === "resume" ? <ReviewResumePanel entry={entry} /> : null}
-          {panel === "cover" ? <CoverPanel entry={entry} /> : null}
+          {panel === "resume" ? (
+            <ReviewResumePanel entry={entry} onRefresh={() => jobId && void loadEntry(jobId)} />
+          ) : null}
+          {panel === "cover" ? (
+            <CoverPanel entry={entry} onRefresh={() => jobId && void loadEntry(jobId)} />
+          ) : null}
+          {panel === "ats" ? <AtsPanel entry={entry} /> : null}
           {panel === "apply" ? <ApplyPanel entry={entry} /> : null}
         </div>
       ) : null}

@@ -139,6 +139,9 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 
 | Date | Summary |
 |------|---------|
+| 2026-06-22 | Review Screen cover letter AI: `enhanceCoverLetterForUserId`, pipeline tailor seeds cover draft + LaTeX on `job_resume_tailors`, save/enhance persist via `buildCoverLetterDocumentPatch` |
+| 2026-06-22 | Review Screen Studio Edit (`?from=review`): hides dashboard sidebar, Review Screen header/tabs chrome, no tailor banner; save returns to Review Resume tab; pipeline Studio link unchanged |
+| 2026-06-22 | Review Screen Resume + Cover document tabs: shared toolbar (Studio Edit / Enhance / PDF / Word / LaTeX), cover inline edit + `job_resume_tailors` document fields, LaTeX fullscreen editor (validate + HTML preview), server actions in `app/actions/review-documents.ts` |
 | 2026-06-22 | Review Screen Resume tab: inline merged `PrimeResume` preview, tailored-section pills, Edit in Studio; `getJobTrackerEntryById` loads `tailoredResumePreview` |
 | 2026-06-22 | Job tailor storage Option B: `job_resume_tailors` overrides + merge at read; Job Tracker Studio `/dashboard/job-tracker/[id]/resume`; base profile dependency warning |
 | 2026-06-22 | Workday pipeline Phase C stub + Phase D polish: autofill-complete API, content `runAutofillPhase`, card status polling, kanban Studio link, popup one-click toggle |

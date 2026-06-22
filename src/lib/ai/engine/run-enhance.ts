@@ -116,7 +116,7 @@ function recordEnhanceModelCall(input: {
   });
 }
 
-async function callEnhanceModel(
+export async function callEnhanceModel(
   route: ResolvedAiRoute,
   system: string,
   prompt: string,

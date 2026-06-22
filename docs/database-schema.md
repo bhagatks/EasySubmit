@@ -317,6 +317,9 @@ Per-application resume deltas — merged with `sourceProfileId` at read/export t
 | `sourceProfileId` | `string` | FK → `profiles.id` (`ON DELETE RESTRICT`) |
 | `overrides` | `jsonb` | Section-level patches (`summary`, `skills`, `experience`, …) |
 | `changedSections` | `text[]` | Studio section ids touched by tailor or user edit |
+| `coverLetter` | `text?` | Job-specific cover letter body (Review Screen Cover tab) |
+| `resumeLatex` | `text?` | Saved LaTeX source for resume export editor |
+| `coverLetterLatex` | `text?` | Saved LaTeX source for cover letter export editor |
 | `enhanceTraceId` | `string?` | Optional Enhance AI trace |
 | `createdAt` / `updatedAt` | `datetime` | |
 

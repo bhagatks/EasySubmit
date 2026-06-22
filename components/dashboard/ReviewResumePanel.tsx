@@ -1,29 +1,30 @@
+"use client";
+
 import Link from "next/link";
-import type { ReactNode } from "react";
-import { FileText, Pencil } from "lucide-react";
-import { PrimeResume } from "@/components/onboarding/PrimeResume";
+import { useCallback, useState, type ReactNode } from "react";
+import {
+  enhanceJobResumeFromReview,
+  exportReviewDocument,
+  loadReviewLatexWorkspace,
+} from "@/app/actions/review-documents";
+import { DocumentToolbar, type DocumentToolbarAction } from "@/components/dashboard/review/DocumentToolbar";
+import { ReviewPreviewZoomControls } from "@/components/dashboard/review/ReviewPreviewZoomControls";
+import { ReviewResumePreview } from "@/components/dashboard/review/ReviewResumePreview";
+import { LatexFullscreenEditor } from "@/components/dashboard/review/LatexFullscreenEditor";
 import { Button } from "@/components/ui/button";
+import { base64ToUint8Array, downloadBytes } from "@/lib/job-tracker/export/download-client";
+import {
+  canExportReviewDocument,
+  canOpenLatexEditor,
+} from "@/lib/job-tracker/review-readiness";
+import { jobTrackerReviewStudioUrl } from "@/lib/job-tracker/review-screen-ui";
 import type { JobTrackerDetail } from "@/lib/job-tracker/types";
-import { STUDIO_EDITOR_SECTION_LABELS } from "@/lib/resume/studio-editor-sections";
-import type { StudioEditorSectionId } from "@/lib/resume/studio-editor-sections";
-import { cn } from "@/lib/utils";
+import { DEFAULT_STUDIO_ZOOM } from "@/lib/resume/studio-preview-zoom";
 
-function readPipelineError(metadata: Record<string, unknown> | null): string | null {
-  const err = metadata?.pipelineError;
-  return typeof err === "string" && err.trim() ? err.trim() : null;
-}
-
-function formatDateTime(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
+type ReviewResumePanelProps = {
+  entry: JobTrackerDetail;
+  onRefresh: () => void;
+};
 
 function PanelPlaceholder({
   title,
@@ -35,35 +36,68 @@ function PanelPlaceholder({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-border/80 bg-surface/40 px-6 py-12 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-        <FileText className="h-6 w-6 text-primary" aria-hidden="true" />
-      </div>
-      <h3 className="mt-4 font-display text-base font-semibold">{title}</h3>
+    <div className="flex flex-1 flex-col items-center justify-center px-6 py-12 text-center">
+      <h3 className="font-display text-base font-semibold">{title}</h3>
       <p className="mt-2 max-w-md text-sm text-muted-foreground">{description}</p>
       {action ? <div className="mt-6">{action}</div> : null}
     </div>
   );
 }
 
-export function ReviewResumePanel({ entry }: { entry: JobTrackerDetail }) {
+export function ReviewResumePanel({ entry, onRefresh }: ReviewResumePanelProps) {
   const preview = entry.tailoredResumePreview;
-  const pipelineError = readPipelineError(entry.metadata);
-  const ready =
-    entry.status === "RESUME_READY" ||
-    entry.status === "READY_TO_APPLY" ||
-    entry.status === "APPLIED";
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [latexOpen, setLatexOpen] = useState(false);
+  const [latexPayload, setLatexPayload] = useState<{
+    latex: string;
+    previewHtml: string;
+  } | null>(null);
+  const [zoom, setZoom] = useState(DEFAULT_STUDIO_ZOOM);
 
-  if (!preview || !entry.hasTailoredResume || !ready) {
+  const runExport = useCallback(
+    async (format: "pdf" | "word") => {
+      setBusy(format);
+      setError(null);
+      const result = await exportReviewDocument({ jobId: entry.id, kind: "resume", format });
+      setBusy(null);
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
+      downloadBytes({
+        bytes: base64ToUint8Array(result.base64),
+        filename: result.filename,
+        mimeType: result.mimeType,
+      });
+    },
+    [entry.id],
+  );
+
+  const openLatex = useCallback(async () => {
+    setBusy("latex");
+    setError(null);
+    const result = await loadReviewLatexWorkspace({ jobId: entry.id, kind: "resume" });
+    setBusy(null);
+    if (!result.success) {
+      setError(result.error);
+      return;
+    }
+    setLatexPayload({ latex: result.latex, previewHtml: result.previewHtml });
+    setLatexOpen(true);
+  }, [entry.id]);
+
+  if (!preview?.previewHtml) {
     return (
       <PanelPlaceholder
         title="Resume not ready yet"
         description={
-          pipelineError
-            ? pipelineError
-            : entry.sourceProfileName
-              ? `Tailoring has not completed for this role. Base profile: “${entry.sourceProfileName}”. Re-open the posting and run Apply with EasySubmit, or tailor from the extension card.`
-              : "When tailoring runs for this role, your merged resume preview will appear here."
+          entry.previewError ??
+          (entry.sourceProfileName
+            ? `Tailoring has not completed for this role. Base profile: “${entry.sourceProfileName}”.`
+            : entry.sourceProfileId
+              ? "Link a resume profile to this job to see a preview here."
+              : "When tailoring runs for this role, your merged resume preview will appear here.")
         }
         action={
           <div className="flex flex-wrap items-center justify-center gap-2">
@@ -73,11 +107,7 @@ export function ReviewResumePanel({ entry }: { entry: JobTrackerDetail }) {
                   View base profile
                 </Link>
               </Button>
-            ) : (
-              <Button variant="outline" className="rounded-xl" asChild>
-                <Link href="/dashboard/resume-profiles">Resume profiles</Link>
-              </Button>
-            )}
+            ) : null}
             <Button variant="mint" className="rounded-xl" asChild>
               <Link href={entry.canonicalUrl} target="_blank" rel="noopener noreferrer">
                 Open job posting
@@ -89,73 +119,122 @@ export function ReviewResumePanel({ entry }: { entry: JobTrackerDetail }) {
     );
   }
 
-  const changedLabels = preview.changedSections
-    .filter((id): id is StudioEditorSectionId => id in STUDIO_EDITOR_SECTION_LABELS)
-    .map((id) => STUDIO_EDITOR_SECTION_LABELS[id]);
+  const canExport = canExportReviewDocument({
+    kind: "resume",
+    hasTailoredResume: entry.hasTailoredResume,
+    status: entry.status,
+    resumeHasContent: Boolean(preview.targetTitle?.trim() || preview.preview.summary?.trim()),
+    coverLetter: null,
+  });
+
+  const actions: DocumentToolbarAction[] = [
+    {
+      id: "studio",
+      label: "Studio Edit",
+      icon: "studio",
+      variant: "mintOutline",
+      href: entry.hasTailoredResume ? jobTrackerReviewStudioUrl(entry.id) : undefined,
+      disabled: !entry.hasTailoredResume,
+      title: entry.hasTailoredResume
+        ? "Open full-screen resume Studio"
+        : "Tailor a resume for this job first",
+    },
+    {
+      id: "enhance",
+      label: "Enhance with AI",
+      icon: "enhance",
+      variant: "outline",
+      disabled: !entry.hasTailoredResume,
+      busy: busy === "enhance",
+      title: entry.hasTailoredResume ? undefined : "Tailor a resume for this job first",
+      onClick: () => {
+        void (async () => {
+          setBusy("enhance");
+          setError(null);
+          const result = await enhanceJobResumeFromReview(entry.id);
+          setBusy(null);
+          if (!result.success) {
+            setError(result.error);
+            return;
+          }
+          onRefresh();
+        })();
+      },
+    },
+    {
+      id: "pdf",
+      label: "PDF",
+      icon: "pdf",
+      variant: "mint",
+      disabled: !canExport,
+      busy: busy === "pdf",
+      onClick: () => void runExport("pdf"),
+    },
+    {
+      id: "word",
+      label: "Word",
+      icon: "word",
+      variant: "outline",
+      disabled: !canExport,
+      busy: busy === "word",
+      onClick: () => void runExport("word"),
+    },
+    {
+      id: "latex",
+      label: "LaTeX",
+      icon: "latex",
+      variant: "outline",
+      disabled: !canOpenLatexEditor({
+        kind: "resume",
+        hasTailoredResume: entry.hasTailoredResume,
+        status: entry.status,
+      }),
+      busy: busy === "latex",
+      onClick: () => void openLatex(),
+    },
+  ];
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4">
-      <div className="shrink-0 space-y-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0 space-y-1">
-            <p className="text-sm font-medium text-foreground">{preview.targetTitle}</p>
-            <p className="text-xs text-muted-foreground">
-              Merged from{" "}
-              {entry.sourceProfileId ? (
-                <Link
-                  href={`/dashboard/resume-profiles/${entry.sourceProfileId}/edit`}
-                  className="font-medium text-primary hover:underline"
-                >
-                  {entry.sourceProfileName ?? "base profile"}
-                </Link>
-              ) : (
-                "your base profile"
-              )}
-              {preview.updatedAt ? (
-                <> · Updated {formatDateTime(preview.updatedAt)}</>
-              ) : null}
-            </p>
-          </div>
-          <Button variant="mint" size="sm" className="shrink-0 rounded-xl" asChild>
-            <Link href={`/dashboard/job-tracker/${entry.id}/resume`}>
-              <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-              Edit in Studio
-            </Link>
-          </Button>
+    <div className="relative flex h-full min-h-0 flex-1 flex-col">
+      <div className="relative min-h-0 flex-1 bg-white">
+        <div className="pointer-events-none absolute inset-x-2 top-1.5 z-10 flex items-start justify-between gap-2">
+          <DocumentToolbar
+            actions={actions}
+            appearance="overlay"
+            className="pointer-events-auto min-w-0 flex-1"
+          />
+          <ReviewPreviewZoomControls
+            zoom={zoom}
+            onChange={setZoom}
+            className="pointer-events-auto"
+          />
         </div>
 
-        {changedLabels.length > 0 ? (
-          <div className="flex flex-wrap gap-1.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Tailored sections:
-            </span>
-            {changedLabels.map((label) => (
-              <span
-                key={label}
-                className={cn(
-                  "rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5",
-                  "text-[11px] font-medium text-foreground",
-                )}
-              >
-                {label}
-              </span>
-            ))}
-          </div>
-        ) : (
-          <p className="text-xs text-muted-foreground">
-            No section overrides recorded — preview matches your base profile for this target role.
+        {error ? (
+          <p className="absolute left-2 right-2 top-11 z-10 rounded-lg border border-red-500/30 bg-[oklch(0.16_0.04_268/0.92)] px-3 py-1.5 text-xs text-red-300">
+            {error}
           </p>
-        )}
-      </div>
+        ) : null}
 
-      <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-border/70 bg-background/90 p-4 shadow-inner">
-        <PrimeResume
-          resume={preview.preview}
-          showTargetRole
-          variant="default"
-          className="mx-auto w-full max-w-[640px]"
+        <ReviewResumePreview
+          previewHtml={preview.previewHtml}
+          zoom={zoom}
+          className="absolute inset-0 h-full w-full"
         />
       </div>
+
+      {latexOpen && latexPayload ? (
+        <LatexFullscreenEditor
+          open={latexOpen}
+          onClose={() => setLatexOpen(false)}
+          jobId={entry.id}
+          kind="resume"
+          title={`Resume · ${entry.company ?? "Job"}`}
+          initialLatex={latexPayload.latex}
+          initialPreviewHtml={latexPayload.previewHtml}
+          onSaved={onRefresh}
+        />
+      ) : null}
     </div>
   );
 }

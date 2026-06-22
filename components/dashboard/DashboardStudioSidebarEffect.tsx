@@ -3,27 +3,31 @@
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { useSidebar } from "@/components/ui/sidebar";
+import { isJobReviewStudioScreen } from "@/lib/dashboard/dashboard-header-controls";
 
-/** A1 — collapse dashboard sidebar to icon rail when entering resume profile edit. */
+/** Collapse dashboard sidebar when entering full-screen resume editors. */
 export function DashboardStudioSidebarEffect() {
   const pathname = usePathname();
   const { setOpen, isMobile } = useSidebar();
   const lastStudioEdit = useRef<boolean | null>(null);
 
-  const isStudioEdit =
-    pathname.startsWith("/dashboard/resume-profiles/") &&
-    pathname.endsWith("/edit");
-
   useEffect(() => {
     if (isMobile) return;
 
-    // Only react to route transitions — not manual SidebarTrigger toggles.
+    const fromParam =
+      typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search).get("from")
+        : null;
+    const isProfileStudioEdit =
+      pathname.startsWith("/dashboard/resume-profiles/") && pathname.endsWith("/edit");
+    const isReviewStudio = isJobReviewStudioScreen(pathname, fromParam);
+    const isStudioEdit = isProfileStudioEdit || isReviewStudio;
+
     if (lastStudioEdit.current === isStudioEdit) return;
     lastStudioEdit.current = isStudioEdit;
 
     setOpen(!isStudioEdit);
-    // setOpen intentionally omitted: its identity changes when the user toggles.
-  }, [isStudioEdit, isMobile]);
+  }, [isMobile, pathname, setOpen]);
 
   return null;
 }

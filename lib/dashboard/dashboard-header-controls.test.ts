@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   dashboardScreenHasByokUi,
   isDashboardDetailScreen,
+  isJobReviewStudioScreen,
   shouldShowDashboardByokKeyButton,
   shouldShowDashboardSignOut,
 } from "@/lib/dashboard/dashboard-header-controls";
@@ -10,6 +11,17 @@ describe("dashboard-header-controls", () => {
   it("treats resume studio edit as detail screen", () => {
     expect(isDashboardDetailScreen("/dashboard/resume-profiles/abc/edit")).toBe(true);
     expect(isDashboardDetailScreen("/dashboard/resume-profiles")).toBe(false);
+    expect(
+      isDashboardDetailScreen("/dashboard/job-tracker/job-1/resume", "review"),
+    ).toBe(true);
+    expect(isDashboardDetailScreen("/dashboard/job-tracker/job-1/resume")).toBe(false);
+  });
+
+  it("detects review-context job studio route", () => {
+    expect(isJobReviewStudioScreen("/dashboard/job-tracker/job-1/resume", "review")).toBe(
+      true,
+    );
+    expect(isJobReviewStudioScreen("/dashboard/job-tracker/job-1/resume", null)).toBe(false);
   });
 
   it("shows sign out only on settings", () => {

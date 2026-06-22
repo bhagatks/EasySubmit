@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { Suspense, useRef } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   Briefcase,
   FileText,
@@ -33,6 +34,7 @@ import {
   BYOKStatusBadge,
 } from "@/components/dashboard/BYOKStatus";
 import { DashboardStudioSidebarEffect } from "@/components/dashboard/DashboardStudioSidebarEffect";
+import { ReviewStudioPageHeader } from "@/components/dashboard/review/ReviewStudioPageHeader";
 import { StudioHeaderCenterProvider, StudioHeaderCenterSlot } from "@/components/resume/StudioHeaderCenter";
 import {
   DashboardHeaderActionsSlot,
@@ -41,9 +43,11 @@ import {
 } from "@/components/dashboard/DashboardWorkspaceHeader";
 import {
   isDashboardDetailScreen,
+  isJobReviewStudioScreen,
   shouldShowDashboardByokKeyButton,
   shouldShowDashboardSignOut,
 } from "@/lib/dashboard/dashboard-header-controls";
+import { parseJobReviewStudioJobId } from "@/lib/job-tracker/review-screen-ui";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -122,62 +126,107 @@ function DashboardSidebar({ vaultKeyId }: { vaultKeyId?: string | null }) {
   );
 }
 
-export function DashboardShell({ children, vaultKeyId }: DashboardShellProps) {
+type DashboardShellFrameProps = DashboardShellProps & {
+  fromParam: string | null;
+};
+
+function DashboardShellFrame({ children, vaultKeyId, fromParam }: DashboardShellFrameProps) {
   const pathname = usePathname();
-  const isStudioEdit = isDashboardDetailScreen(pathname);
+  const isReviewStudio = isJobReviewStudioScreen(pathname, fromParam);
+  const reviewStudioJobId = isReviewStudio ? parseJobReviewStudioJobId(pathname) : null;
+  const isStudioEdit = isDashboardDetailScreen(pathname, fromParam);
   const showSignOut = shouldShowDashboardSignOut(pathname);
   const showByokKeyButton = shouldShowDashboardByokKeyButton(pathname, vaultKeyId);
 
+  if (isReviewStudio && reviewStudioJobId) {
+    return (
+      <div className="flex h-svh max-h-svh w-full flex-col overflow-hidden bg-[oklch(0.16_0.04_268)] text-foreground">
+        <ReviewStudioPageHeader jobId={reviewStudioJobId} />
+        <main className="flex min-h-0 flex-1 flex-col overflow-hidden px-0.5 pb-0.5">
+          {children}
+        </main>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        "flex w-full bg-background text-foreground",
+        isStudioEdit ? "h-svh max-h-svh overflow-hidden" : "min-h-screen",
+      )}
+    >
+      <DashboardSidebar vaultKeyId={vaultKeyId} />
+      <div className={cn("flex min-h-0 flex-1 flex-col", isStudioEdit && "overflow-hidden")}>
+        <header className="relative grid h-14 shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b border-border/60 px-4">
+          <div className="flex items-center gap-3 justify-self-start">
+            <SidebarTrigger />
+            <div className="text-sm text-muted-foreground">
+              {isStudioEdit ? "Resume Studio" : "Dashboard"}
+            </div>
+          </div>
+          {isStudioEdit ? (
+            <div className="flex justify-center justify-self-center">
+              <StudioHeaderCenterSlot />
+            </div>
+          ) : (
+            <div />
+          )}
+          <div className="flex items-center gap-2 justify-self-end">
+            <DashboardHeaderActionsSlot />
+            <DashboardHeaderExpandSlot />
+            <BYOKStatusBadge vaultKeyId={vaultKeyId} />
+            {showByokKeyButton ? <BYOKKeyButton /> : null}
+            {showSignOut ? <SignOutButton variant="pill" /> : null}
+          </div>
+        </header>
+        <main
+          className={cn(
+            "flex min-h-0 flex-1 flex-col",
+            isStudioEdit ? "overflow-hidden p-4 md:p-5" : "p-6",
+          )}
+        >
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+}
+
+function DashboardShellInner(props: DashboardShellProps) {
+  const searchParams = useSearchParams();
+  const fromParam = searchParams.get("from");
+
+  return (
+    <>
+      <DashboardStudioSidebarEffect />
+      <DashboardShellFrame {...props} fromParam={fromParam} />
+    </>
+  );
+}
+
+function DashboardShellFallback(props: DashboardShellProps) {
+  const fromReviewRef = useRef<string | null>(null);
+  if (typeof window !== "undefined") {
+    fromReviewRef.current = new URLSearchParams(window.location.search).get("from");
+  }
+
+  return (
+    <>
+      <DashboardStudioSidebarEffect />
+      <DashboardShellFrame {...props} fromParam={fromReviewRef.current} />
+    </>
+  );
+}
+
+export function DashboardShell(props: DashboardShellProps) {
   return (
     <SidebarProvider>
       <StudioHeaderCenterProvider>
         <DashboardWorkspaceHeaderProvider>
-        <DashboardStudioSidebarEffect />
-        <div
-        className={cn(
-          "flex w-full bg-background text-foreground",
-          isStudioEdit ? "h-svh max-h-svh overflow-hidden" : "min-h-screen",
-        )}
-      >
-        <DashboardSidebar vaultKeyId={vaultKeyId} />
-        <div
-          className={cn(
-            "flex min-h-0 flex-1 flex-col",
-            isStudioEdit && "overflow-hidden",
-          )}
-        >
-          <header className="relative grid h-14 shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b border-border/60 px-4">
-            <div className="flex items-center gap-3 justify-self-start">
-              <SidebarTrigger />
-              <div className="text-sm text-muted-foreground">
-                {isStudioEdit ? "Resume Studio" : "Dashboard"}
-              </div>
-            </div>
-            {isStudioEdit ? (
-              <div className="flex justify-center justify-self-center">
-                <StudioHeaderCenterSlot />
-              </div>
-            ) : (
-              <div />
-            )}
-            <div className="flex items-center gap-2 justify-self-end">
-              <DashboardHeaderActionsSlot />
-              <DashboardHeaderExpandSlot />
-              <BYOKStatusBadge vaultKeyId={vaultKeyId} />
-              {showByokKeyButton ? <BYOKKeyButton /> : null}
-              {showSignOut ? <SignOutButton variant="pill" /> : null}
-            </div>
-          </header>
-          <main
-            className={cn(
-              "flex min-h-0 flex-1 flex-col",
-              isStudioEdit ? "overflow-hidden p-4 md:p-5" : "p-6",
-            )}
-          >
-            {children}
-          </main>
-        </div>
-        </div>
+          <Suspense fallback={<DashboardShellFallback {...props} />}>
+            <DashboardShellInner {...props} />
+          </Suspense>
         </DashboardWorkspaceHeaderProvider>
       </StudioHeaderCenterProvider>
     </SidebarProvider>

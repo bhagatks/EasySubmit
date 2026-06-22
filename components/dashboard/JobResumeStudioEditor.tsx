@@ -3,7 +3,7 @@
 import { JetBrains_Mono } from "next/font/google";
 import Link from "next/link";
 import { Loader2, Save } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import { saveJobResumeStudio } from "@/app/actions/job-resume-tailor";
 import { RefineryPanel, STUDIO_PROFILE_FORM_ID } from "@/components/onboarding/hub/RefineryPanel";
@@ -22,8 +22,13 @@ import { useResumeEnhanceFlow } from "@/components/resume/useResumeEnhanceFlow";
 import type { RefineryStudioToolbarPayload } from "@/components/onboarding/hub/RefineryPanel";
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
 import { refineryFormToPrimeResume } from "@/lib/onboarding/hubResume";
+import {
+  isJobReviewStudioContext,
+  jobTrackerReviewScreenUrl,
+} from "@/lib/job-tracker/review-screen-ui";
 import { studioSkillsFromForm } from "@/lib/profile/studio-form-db";
 import { InlineAlert } from "@/components/ui/inline-alert";
+import { cn } from "@/lib/utils";
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
@@ -53,6 +58,9 @@ export function JobResumeStudioEditor({
   enhanceWithAiEnabled = false,
 }: JobResumeStudioEditorProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const isReviewContext = isJobReviewStudioContext(pathname, searchParams.get("from"));
   const [targetRole, setTargetRole] = useState(initialTargetTitle);
   const [formValues, setFormValues] = useState<HubRefineryForm>(initialForm);
   const [studioSkills, setStudioSkills] = useState(() => studioSkillsFromForm(initialForm));
@@ -159,34 +167,50 @@ export function JobResumeStudioEditor({
         return;
       }
 
-      router.push("/dashboard/job-tracker");
+      router.push(
+        isReviewContext
+          ? jobTrackerReviewScreenUrl(jobId, "resume")
+          : "/dashboard/job-tracker",
+      );
       router.refresh();
     },
-    [jobId, router, studioSkills, targetRole],
+    [isReviewContext, jobId, router, studioSkills, targetRole],
   );
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
       {flowUi}
-      <InlineAlert variant="info" className="mb-3 shrink-0">
-        Tailored for <strong>{jobTitle}</strong>. Unchanged sections come from your{" "}
-        <Link
-          href={`/dashboard/resume-profiles/${sourceProfileId}/edit`}
-          className="font-medium text-primary underline-offset-2 hover:underline"
-        >
-          {sourceProfileName}
-        </Link>{" "}
-        profile — edits here save only for this job.
-      </InlineAlert>
+      {!isReviewContext ? (
+        <InlineAlert variant="info" className="mb-3 shrink-0">
+          Tailored for <strong>{jobTitle}</strong>. Unchanged sections come from your{" "}
+          <Link
+            href={`/dashboard/resume-profiles/${sourceProfileId}/edit`}
+            className="font-medium text-primary underline-offset-2 hover:underline"
+          >
+            {sourceProfileName}
+          </Link>{" "}
+          profile — edits here save only for this job.
+        </InlineAlert>
+      ) : null}
       {error ? (
-        <p className="mb-3 shrink-0 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-700">
+        <p
+          className={cn(
+            "shrink-0 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-700",
+            isReviewContext ? "mx-0.5 mb-0.5" : "mb-3",
+          )}
+        >
           {error}
         </p>
       ) : null}
       <ResumeStudioWorkbench
         variant="dashboard"
         monoClass={jetbrainsMono.className}
-        className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-border"
+        className={cn(
+          "min-h-0 flex-1 overflow-hidden",
+          isReviewContext
+            ? "rounded-xl border border-[oklch(0.62_0.21_265_/_0.28)]"
+            : "rounded-2xl border border-border",
+        )}
         studioTabs
         preview={
           <PrimeResume resume={resumePreview} variant="workbench" className="w-full" />

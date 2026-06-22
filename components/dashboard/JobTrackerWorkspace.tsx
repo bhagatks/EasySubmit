@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Archive } from "lucide-react";
 import { listArchivedJobTrackerEntries, listJobTrackerEntries } from "@/app/actions/job-tracker";
@@ -37,6 +37,18 @@ export function JobTrackerWorkspace({ entries, autoArchiveAppliedJobs }: JobTrac
   const [archiveLoading, setArchiveLoading] = useState(false);
   const [showArchiveToast, setShowArchiveToast] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const lastOpenedJobIdRef = useRef<string | null>(null);
+
+  const buildReviewUrl = useCallback(
+    (jobId: string, panel: ReviewScreenPanel) => {
+      const params = new URLSearchParams();
+      params.set("job", jobId);
+      params.set("panel", panel);
+      if (archivedView) params.set("view", "archive");
+      return `/dashboard/job-tracker?${params.toString()}`;
+    },
+    [archivedView],
+  );
 
   useEffect(() => {
     setActiveEntries(entries);
@@ -61,17 +73,24 @@ export function JobTrackerWorkspace({ entries, autoArchiveAppliedJobs }: JobTrac
   }, [hasAppliedJob, autoArchiveAppliedJobs]);
 
   useEffect(() => {
-    if (!jobIdFromUrl) return;
+    if (!jobIdFromUrl) {
+      lastOpenedJobIdRef.current = null;
+      return;
+    }
 
-    const entry = [...activeEntries, ...archivedEntries].find((item) => item.id === jobIdFromUrl);
     setReviewJobId(jobIdFromUrl);
-    setReviewPanel(
-      isReviewScreenPanel(panelParam)
-        ? panelParam
-        : entry
-          ? defaultReviewScreenPanel(entry.status)
-          : "job",
-    );
+
+    if (isReviewScreenPanel(panelParam)) {
+      setReviewPanel(panelParam);
+      lastOpenedJobIdRef.current = jobIdFromUrl;
+      return;
+    }
+
+    if (lastOpenedJobIdRef.current !== jobIdFromUrl) {
+      const entry = [...activeEntries, ...archivedEntries].find((item) => item.id === jobIdFromUrl);
+      setReviewPanel(entry ? defaultReviewScreenPanel(entry.status) : "job");
+      lastOpenedJobIdRef.current = jobIdFromUrl;
+    }
   }, [jobIdFromUrl, panelParam, activeEntries, archivedEntries]);
 
   const loadArchived = useCallback(async () => {
@@ -130,18 +149,26 @@ export function JobTrackerWorkspace({ entries, autoArchiveAppliedJobs }: JobTrac
         preferredPanel ?? (entry ? defaultReviewScreenPanel(entry.status) : "job");
       setReviewJobId(id);
       setReviewPanel(nextPanel);
+      lastOpenedJobIdRef.current = id;
+      router.replace(buildReviewUrl(id, nextPanel), { scroll: false });
     },
-    [activeEntries, archivedEntries],
+    [activeEntries, archivedEntries, buildReviewUrl, router],
   );
 
   const closeReview = useCallback(() => {
     setReviewJobId(null);
+    lastOpenedJobIdRef.current = null;
     clearReviewUrlParams();
   }, [clearReviewUrlParams]);
 
-  const handlePanelChange = useCallback((nextPanel: ReviewScreenPanel) => {
-    setReviewPanel(nextPanel);
-  }, []);
+  const handlePanelChange = useCallback(
+    (nextPanel: ReviewScreenPanel) => {
+      setReviewPanel(nextPanel);
+      if (!reviewJobId) return;
+      router.replace(buildReviewUrl(reviewJobId, nextPanel), { scroll: false });
+    },
+    [buildReviewUrl, reviewJobId, router],
+  );
 
   const toggleArchiveView = useCallback(() => {
     if (archivedView) {

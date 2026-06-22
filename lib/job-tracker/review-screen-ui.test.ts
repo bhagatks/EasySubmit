@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   defaultReviewScreenPanel,
   jobTrackerReviewScreenUrl,
+  jobTrackerReviewStudioUrl,
 } from "@/lib/job-tracker/review-screen-ui";
 import { canStartApply, pipelineProgressForStatus } from "@/lib/job-tracker/pipeline-progress";
 
@@ -15,6 +16,9 @@ describe("review-screen-ui", () => {
   it("builds Review Screen deep links", () => {
     expect(jobTrackerReviewScreenUrl("abc", "cover")).toBe(
       "/dashboard/job-tracker?job=abc&panel=cover",
+    );
+    expect(jobTrackerReviewStudioUrl("abc")).toBe(
+      "/dashboard/job-tracker/abc/resume?from=review",
     );
   });
 });

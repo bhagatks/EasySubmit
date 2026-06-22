@@ -30,6 +30,8 @@ type GlossyModalProps = {
   busy?: boolean;
   /** Stack above fullscreen flows (SynthesisTransition uses z-120). */
   zIndex?: number;
+  /** Override outer viewport shell (e.g. tighter vertical padding). */
+  shellClassName?: string;
 };
 
 /**
@@ -50,6 +52,7 @@ export function GlossyModal({
   hideClose = false,
   busy = false,
   zIndex = 150,
+  shellClassName,
 }: GlossyModalProps) {
   const [mounted, setMounted] = useState(false);
 
@@ -76,11 +79,12 @@ export function GlossyModal({
     return null;
   }
 
-  const shellClassName = cn(
+  const viewportShellClassName = cn(
     "pointer-events-none fixed inset-0 flex px-4 py-[max(1rem,5dvh)]",
     placement === "login-panel"
       ? "items-center justify-center lg:justify-end lg:pr-[25px]"
       : "items-center justify-center",
+    shellClassName,
   );
 
   return createPortal(
@@ -91,7 +95,7 @@ export function GlossyModal({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className={shellClassName}
+          className={viewportShellClassName}
           style={{ zIndex }}
           role="presentation"
         >

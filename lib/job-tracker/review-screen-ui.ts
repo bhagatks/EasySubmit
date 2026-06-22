@@ -1,13 +1,14 @@
 import type { JobTrackerStatus } from "@/lib/generated/prisma/client";
 
-export type ReviewScreenPanel = "job" | "resume" | "cover" | "apply";
+export type ReviewScreenPanel = "job" | "resume" | "cover" | "ats" | "apply";
 
-export const REVIEW_SCREEN_PANELS: ReviewScreenPanel[] = ["job", "resume", "cover", "apply"];
+export const REVIEW_SCREEN_PANELS: ReviewScreenPanel[] = ["job", "resume", "cover", "ats", "apply"];
 
 export const REVIEW_SCREEN_PANEL_LABELS: Record<ReviewScreenPanel, string> = {
   job: "Job",
   resume: "Resume",
   cover: "Cover letter",
+  ats: "ATS Analysis",
   apply: "Apply",
 };
 
@@ -28,6 +29,30 @@ export function jobTrackerReviewScreenUrl(
 ): string {
   const params = new URLSearchParams({ job: jobId, panel });
   return `/dashboard/job-tracker?${params.toString()}`;
+}
+
+/** Query value for job resume Studio opened from Review Screen (hides dashboard chrome). */
+export const REVIEW_STUDIO_FROM_PARAM = "review";
+
+export function jobTrackerReviewStudioUrl(jobId: string): string {
+  const params = new URLSearchParams({ from: REVIEW_STUDIO_FROM_PARAM });
+  return `/dashboard/job-tracker/${jobId}/resume?${params.toString()}`;
+}
+
+export function isJobReviewStudioRoute(pathname: string): boolean {
+  return /^\/dashboard\/job-tracker\/[^/]+\/resume\/?$/.test(pathname);
+}
+
+export function parseJobReviewStudioJobId(pathname: string): string | null {
+  const match = pathname.match(/^\/dashboard\/job-tracker\/([^/]+)\/resume\/?$/);
+  return match?.[1] ?? null;
+}
+
+export function isJobReviewStudioContext(
+  pathname: string,
+  fromParam: string | null | undefined,
+): boolean {
+  return isJobReviewStudioRoute(pathname) && fromParam === REVIEW_STUDIO_FROM_PARAM;
 }
 
 /** @deprecated Use review-screen-ui exports */

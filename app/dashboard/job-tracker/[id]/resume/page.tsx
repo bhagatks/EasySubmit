@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { getServerSession } from "next-auth";
 import { notFound, redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
@@ -31,16 +32,18 @@ export default async function JobResumeStudioPage({ params }: JobResumePageProps
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
-      <JobResumeStudioEditor
-        jobId={result.jobId}
-        jobTitle={result.jobTitle}
-        sourceProfileId={result.sourceProfileId}
-        sourceProfileName={result.sourceProfileName}
-        initialTargetTitle={result.targetTitle}
-        initialForm={result.form}
-        rawResumeText={result.rawResumeText}
-        enhanceWithAiEnabled={featureFlags.enhanceWithAiResumeProfile}
-      />
+      <Suspense fallback={null}>
+        <JobResumeStudioEditor
+          jobId={result.jobId}
+          jobTitle={result.jobTitle}
+          sourceProfileId={result.sourceProfileId}
+          sourceProfileName={result.sourceProfileName}
+          initialTargetTitle={result.targetTitle}
+          initialForm={result.form}
+          rawResumeText={result.rawResumeText}
+          enhanceWithAiEnabled={featureFlags.enhanceWithAiResumeProfile}
+        />
+      </Suspense>
     </div>
   );
 }

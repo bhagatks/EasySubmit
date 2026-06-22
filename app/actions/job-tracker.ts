@@ -6,12 +6,19 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import type { JobTrackerStatus } from "@/lib/generated/prisma/client";
 import { entryIssueMessage } from "@/lib/job-tracker/entry-issue";
+import { attachReviewDocumentsToDetail } from "@/lib/job-tracker/review-documents-map";
+import { buildCoverLetterSeedPatch } from "@/lib/job-tracker/build-deterministic-cover-letter";
 import { buildTailoredResumePreview } from "@/lib/job-tracker/build-tailored-resume-preview";
 import { JOB_TRACKER_EDITABLE_STATUSES } from "@/lib/job-tracker/pipeline";
 import type { JobTrackerSummary, JobTrackerDetail } from "@/lib/job-tracker/types";
 import { updateJobTrackerStatus } from "@/lib/extension/job-service";
 import { resumeProfileDisplayLabel } from "@/lib/extension/resume-profiles";
-import { getMergedResumeForJob } from "@/lib/profile/job-resume-tailor";
+import { getMergedResumeForJob, updateJobReviewDocuments } from "@/lib/profile/job-resume-tailor";
+import { findProfileForUser } from "@/lib/profile/resume-profile-core";
+import {
+  hubRefineryFormFromProfile,
+  targetTitleFromProfile,
+} from "@/lib/profile/studio-form-db";
 
 const AUTO_ARCHIVE_MS = 24 * 60 * 60 * 1000;
 
@@ -147,7 +154,15 @@ const listSelect = {
   appliedAt: true,
   description: true,
   metadata: true,
-  resumeTailor: { select: { id: true } },
+  resumeTailor: {
+    select: {
+      id: true,
+      coverLetter: true,
+      resumeLatex: true,
+      coverLetterLatex: true,
+      updatedAt: true,
+    },
+  },
 } as const;
 
 export async function getJobTrackerEntryById(entryId: string): Promise<JobTrackerEntryResult> {
@@ -176,16 +191,47 @@ export async function getJobTrackerEntryById(entryId: string): Promise<JobTracke
   }
 
   const entry = toDetail(row);
+  let previewError: string | null = null;
+  let mergedResume:
+    | Awaited<ReturnType<typeof getMergedResumeForJob>>
+    | null = null;
 
   if (entry.hasTailoredResume) {
     const merged = await getMergedResumeForJob(userId, entryId.trim());
+    mergedResume = merged;
     if (merged.success) {
       entry.sourceProfileId = merged.sourceProfileId;
+      entry.reviewContact = {
+        firstName: merged.form.firstName,
+        lastName: merged.form.lastName,
+        email: merged.form.email,
+        phone: merged.form.phone,
+      };
       entry.tailoredResumePreview = buildTailoredResumePreview(
         merged.form,
         merged.targetTitle,
         merged.tailor.changedSections,
         merged.tailor.updatedAt,
+      );
+    } else {
+      previewError = merged.error;
+    }
+  } else if (entry.sourceProfileId) {
+    const source = await findProfileForUser(userId, entry.sourceProfileId);
+    if (source) {
+      const form = hubRefineryFormFromProfile(source);
+      const targetTitle = targetTitleFromProfile(source);
+      entry.reviewContact = {
+        firstName: form.firstName,
+        lastName: form.lastName,
+        email: form.email,
+        phone: form.phone,
+      };
+      entry.tailoredResumePreview = buildTailoredResumePreview(
+        form,
+        targetTitle,
+        [],
+        entry.updatedAt,
       );
     }
   }
@@ -201,7 +247,39 @@ export async function getJobTrackerEntryById(entryId: string): Promise<JobTracke
     }
   }
 
-  return { success: true, entry };
+  let tailorRow = row.resumeTailor;
+
+  if (tailorRow && !tailorRow.coverLetter?.trim() && mergedResume?.success) {
+    const coverPatch = buildCoverLetterSeedPatch({
+      form: mergedResume.form,
+      targetTitle: mergedResume.targetTitle,
+      company: row.company,
+      jobTitle: row.title,
+      jobDescription: row.description,
+      existingCoverLetter: tailorRow.coverLetter,
+    });
+    if (coverPatch) {
+      const seeded = await updateJobReviewDocuments(userId, entryId.trim(), coverPatch);
+      if (seeded.success) {
+        tailorRow = { ...tailorRow, ...coverPatch };
+      }
+    }
+  }
+
+  const enriched = attachReviewDocumentsToDetail(
+    entry,
+    tailorRow
+      ? {
+          coverLetter: tailorRow.coverLetter,
+          resumeLatex: tailorRow.resumeLatex,
+          coverLetterLatex: tailorRow.coverLetterLatex,
+          updatedAt: tailorRow.updatedAt,
+        }
+      : null,
+    previewError,
+  );
+
+  return { success: true, entry: enriched };
 }
 
 export async function listJobTrackerEntries(): Promise<JobTrackerListResult> {

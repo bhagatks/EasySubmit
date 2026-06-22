@@ -7,7 +7,11 @@ import {
 } from "@/lib/extension/pipeline-metadata";
 import type { ApplyPipelinePhase } from "@/lib/extension/pipeline-types";
 import { extractJobResumeOverrides } from "@/lib/profile/job-resume-overrides";
-import { upsertJobResumeTailor } from "@/lib/profile/job-resume-tailor";
+import {
+  updateJobReviewDocuments,
+  upsertJobResumeTailor,
+} from "@/lib/profile/job-resume-tailor";
+import { buildCoverLetterSeedPatch } from "@/lib/job-tracker/build-deterministic-cover-letter";
 import { resolveSourceProfileForJob } from "@/lib/profile/copy-profile-for-job";
 import {
   hubRefineryFormFromProfile,
@@ -21,6 +25,7 @@ const MIN_JD_CHARS = 120;
 export type PipelineTailorInput = {
   entryId: string;
   jobTitle: string;
+  company?: string | null;
   jobDescription?: string | null;
   sourceProfileId?: string | null;
 };
@@ -124,6 +129,17 @@ export async function runPipelineTailor(
       changedSections,
       enhanceTraceId: traceId,
     });
+
+    const coverPatch = buildCoverLetterSeedPatch({
+      form: mergedForm,
+      targetTitle: enhanced.targetRole,
+      company: input.company ?? null,
+      jobTitle,
+      jobDescription: input.jobDescription,
+    });
+    if (coverPatch) {
+      await updateJobReviewDocuments(userId, input.entryId, coverPatch);
+    }
   } catch {
     const message = "Failed to save tailored resume for this job";
     await recordPipelineTailorError(userId, input.entryId, message, "persist_failed");
@@ -154,6 +170,7 @@ export function buildTailorInputFromSave(
   return {
     entryId,
     jobTitle: input.title.trim(),
+    company: input.company,
     jobDescription: input.description,
     sourceProfileId: input.sourceProfileId,
   };

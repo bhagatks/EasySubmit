@@ -20,6 +20,9 @@ export type JobResumeTailorRecord = {
   overrides: JobResumeOverrides;
   changedSections: StudioEditorSectionId[];
   enhanceTraceId: string | null;
+  coverLetter: string | null;
+  resumeLatex: string | null;
+  coverLetterLatex: string | null;
   updatedAt: string;
 };
 
@@ -167,6 +170,9 @@ function toRecord(row: {
   overrides: unknown;
   changedSections: string[];
   enhanceTraceId: string | null;
+  coverLetter?: string | null;
+  resumeLatex?: string | null;
+  coverLetterLatex?: string | null;
   updatedAt: Date;
 }): JobResumeTailorRecord {
   return {
@@ -176,6 +182,40 @@ function toRecord(row: {
     overrides: parseJobResumeOverrides(row.overrides),
     changedSections: row.changedSections as StudioEditorSectionId[],
     enhanceTraceId: row.enhanceTraceId,
+    coverLetter: row.coverLetter ?? null,
+    resumeLatex: row.resumeLatex ?? null,
+    coverLetterLatex: row.coverLetterLatex ?? null,
     updatedAt: row.updatedAt.toISOString(),
   };
+}
+
+export async function updateJobReviewDocuments(
+  userId: string,
+  jobTrackerEntryId: string,
+  patch: {
+    coverLetter?: string | null;
+    resumeLatex?: string | null;
+    coverLetterLatex?: string | null;
+  },
+): Promise<{ success: true } | { success: false; error: string }> {
+  const result = await prisma.jobResumeTailor.updateMany({
+    where: { jobTrackerEntryId, userId },
+    data: {
+      ...(patch.coverLetter !== undefined ? { coverLetter: patch.coverLetter } : {}),
+      ...(patch.resumeLatex !== undefined ? { resumeLatex: patch.resumeLatex } : {}),
+      ...(patch.coverLetterLatex !== undefined ? { coverLetterLatex: patch.coverLetterLatex } : {}),
+    },
+  });
+
+  if (result.count === 0) {
+    return { success: false, error: "No tailored resume for this job yet" };
+  }
+  return { success: true };
+}
+
+export async function ensureJobResumeTailorRow(
+  userId: string,
+  jobTrackerEntryId: string,
+): Promise<JobResumeTailorRecord | null> {
+  return getJobResumeTailorForEntry(userId, jobTrackerEntryId);
 }

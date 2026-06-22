@@ -12,6 +12,7 @@ vi.mock("@/lib/profile/copy-profile-for-job", () => ({
 
 vi.mock("@/lib/profile/job-resume-tailor", () => ({
   upsertJobResumeTailor: vi.fn(),
+  updateJobReviewDocuments: vi.fn(),
 }));
 
 vi.mock("@/lib/profile/studio-form-db", () => ({
@@ -34,7 +35,7 @@ vi.mock("@/src/lib/ai/engine/enhance-logger", () => ({
 
 import { enhanceResumeForUserId } from "@/lib/ai/enhance-resume-for-user";
 import { resolveSourceProfileForJob } from "@/lib/profile/copy-profile-for-job";
-import { upsertJobResumeTailor } from "@/lib/profile/job-resume-tailor";
+import { upsertJobResumeTailor, updateJobReviewDocuments } from "@/lib/profile/job-resume-tailor";
 import {
   hubRefineryFormFromProfile,
   targetTitleFromProfile,
@@ -100,6 +101,7 @@ describe("runPipelineTailor", () => {
       changedSections: ["professionalSummary"],
       enhanceTraceId: "trace-pipeline",
     });
+    vi.mocked(updateJobReviewDocuments).mockResolvedValue({ success: true });
   });
 
   it("enhances source profile and saves overrides on the job", async () => {
@@ -125,6 +127,14 @@ describe("runPipelineTailor", () => {
       }),
     );
     expect(upsertJobResumeTailor).toHaveBeenCalled();
+    expect(updateJobReviewDocuments).toHaveBeenCalledWith(
+      "user-1",
+      "entry-1",
+      expect.objectContaining({
+        coverLetter: expect.stringMatching(/Dear/i),
+        coverLetterLatex: expect.stringContaining("\\begin{document}"),
+      }),
+    );
     expect(updateJobTrackerStatus).toHaveBeenCalledWith("user-1", "entry-1", "RESUME_READY");
   });
 

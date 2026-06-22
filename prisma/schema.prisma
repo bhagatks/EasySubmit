@@ -104,6 +104,9 @@ model JobResumeTailor {
   overrides         Json            @default("{}")
   changedSections   String[]        @default([])
   enhanceTraceId    String?
+  coverLetter       String?         @db.Text
+  resumeLatex       String?         @db.Text
+  coverLetterLatex  String?         @db.Text
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
   jobTrackerEntry   JobTrackerEntry @relation(fields: [jobTrackerEntryId], references: [id], onDelete: Cascade)

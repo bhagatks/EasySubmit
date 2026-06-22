@@ -33,8 +33,27 @@ export type JobTrackerDetail = JobTrackerSummary & {
   /** Resolved from `sourceProfileId` when the profile still exists. */
   sourceProfileName?: string | null;
   updatedAt: string;
-  /** Merged base profile + job overrides — populated when `hasTailoredResume`. */
+  /** Merged base profile + job overrides — populated when preview data is available. */
   tailoredResumePreview?: JobTrackerTailoredResumePreview | null;
+  /** Cover + LaTeX fields from `job_resume_tailors`. */
+  reviewDocuments?: JobReviewDocuments | null;
+  reviewContact?: JobReviewContact | null;
+  /** When merge/preview fails but tailor row exists. */
+  previewError?: string | null;
+};
+
+export type JobReviewDocuments = {
+  coverLetter: string | null;
+  resumeLatex: string | null;
+  coverLetterLatex: string | null;
+  documentsUpdatedAt: string | null;
+};
+
+export type JobReviewContact = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
 };
 
 export type JobTrackerTailoredResumePreview = {
@@ -42,4 +61,6 @@ export type JobTrackerTailoredResumePreview = {
   changedSections: StudioEditorSectionId[];
   updatedAt: string;
   preview: PrimeResumeData;
+  /** Self-contained HTML for iframe preview in Review Screen. */
+  previewHtml: string;
 };
