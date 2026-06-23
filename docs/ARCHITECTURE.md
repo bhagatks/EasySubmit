@@ -139,6 +139,7 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 
 | Date | Summary |
 |------|---------|
+| 2026-06-23 | Journey lifecycle: active row lookup by most recent non-archived urlHash; re-apply archives APPLIED row + fresh CAPTURED; `customizeResume` pipeline short-circuit; Realtime sync hook + token APIs; `resolveJourneyDisplay` Re-apply state |
 | 2026-06-23 | Application profile schema: `users.customizeResume`, `users.applicationProfile` JSONB; `JobTrackerEntry` drops `@@unique([userId, urlHash])` for re-apply — migration `allow_multiple_journeys_per_url` |
 | 2026-06-23 | Full journey sync: State 0 manual capture, Stage 2 two-card assist, extension Realtime, `?es_open=assist`, `MARK_APPLIED`, Layer B apply gate — `docs/SYNC_ARCHITECTURE.md` |
 | 2026-06-23 | Journey sync v1: Apply always runs pipeline+tailor (all platforms); server auto-advance to `READY_TO_APPLY`; `resolveJourneyDisplay`, Realtime token APIs, `useJobTrackerSync` |

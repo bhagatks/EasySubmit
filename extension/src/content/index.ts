@@ -29,6 +29,30 @@ import { setupFieldCaptureBridge } from "@shared/extension/field-capture-bridge"
 import type { FieldCapturePayload } from "@shared/extension/field-descriptor";
 import type { ServerLookupMap } from "@shared/extension/field-resolution";
 import { injectApiInterceptScript, onApiIntercept, type InterceptedJobData } from "@shared/extension/api-intercept";
+import { isExtensionGlobalSwitchOn } from "@shared/extension/extension-global-switch";
+import { resolveJourneyDisplay } from "@shared/journey-display";
+import {
+  buildManualCaptureMetadata,
+  buildNoJobDetectedMetadata,
+  NO_JOB_DETECTED_MESSAGE,
+  type CardPresentation,
+} from "@shared/extension/card-presentation";
+import { canApplyCapture, applyCaptureBlockReason } from "@shared/extension/apply-gate";
+import { resolveJobIdentity } from "@shared/extension/job-identity";
+import { hasStrongJobUrlSignal } from "@shared/extension/job-url-parse";
+import { detectApplicationConfirmation } from "@shared/extension/confirmation-detect";
+import { buildAssistFieldSuggestions } from "@shared/extension/assist-suggestions";
+import { hasAssistOpenParam, stripAssistOpenParam } from "@shared/extension/assist-open-url";
+import { resolveCardContent as resolveCardContentShared } from "./resolve-card-content";
+import {
+  manualCaptureStyles,
+  renderAssistCardMarkup,
+  renderLoadingBody,
+  renderManualCaptureBody,
+  renderResumeReadyCardMarkup,
+  type ManualCaptureDraft,
+} from "./card-ui";
+import { startExtensionJobRealtime, stopExtensionJobRealtime } from "./job-realtime";
 
 const CONTENT_INIT_KEY = "__easysubmitContentInit__";
 const contentWindow = window as Window & { [CONTENT_INIT_KEY]?: boolean };
@@ -56,10 +80,16 @@ let cardHost: CardHost | null = null;
 let currentMetadata: ScrapedJobMetadata | null = null;
 let interceptedMetadata: ScrapedJobMetadata | null = null;
 let lastScrapeContext: { path: string; enrichments: string[] } | null = null;
-let savedStatus: { saved: boolean; status?: string; id?: string } = { saved: false };
+let savedStatus: {
+  saved: boolean;
+  status?: string;
+  id?: string;
+  canReapply?: boolean;
+} = { saved: false };
 let runtimeConfig: ExtensionRuntimeConfig | null = null;
 let connectedAccountEmail: string | null = null;
 let pinnedUrl: string | null = null;
+let cardPresentation: CardPresentation = "job";
 let cardCollapsed = false;
 let pipelineBusy = false;
 let pipelineBusyLabel: string | null = null;
@@ -67,6 +97,11 @@ let pendingPipelinePhase: string | null = null;
 let saveError: string | null = null;
 let statusPollTimer: ReturnType<typeof setInterval> | null = null;
 let autofillRunForEntryId: string | null = null;
+let manualCaptureDraft: ManualCaptureDraft | null = null;
+let cardLaunchMode: "auto" | "manual" = "auto";
+let realtimeStop: (() => Promise<void>) | null = null;
+let confirmationWatchTimer: ReturnType<typeof setInterval> | null = null;
+let loadingHydrationTimer: ReturnType<typeof setInterval> | null = null;
 
 type ResumeProfileOption = { id: string; label: string; isDefault: boolean };
 let resumeProfiles: ResumeProfileOption[] = [];
@@ -128,7 +163,7 @@ function shouldUseOneClickApply(
   config: ExtensionRuntimeConfig | null,
 ): boolean {
   if (config?.autoApplyEnabled === false) return false;
-  if (!config?.oneClickApply) return false;
+  if (!config?.autoApplyUserSwitch) return false;
   const platforms = config.oneClickApplyPlatforms ?? ["workday"];
   return platforms.includes(meta.platform);
 }
@@ -151,26 +186,28 @@ function getManualPipelineStep(): ManualPipelineStep {
 }
 
 function getPrimaryCtaLabel(): string {
-  if (pipelineBusy) {
-    return pipelineBusyLabel ?? "Preparing apply…";
-  }
-  if (savedStatus.saved) return "Review in dashboard";
-  if (getPipelineUiMode(runtimeConfig) === "manual") {
-    return "Save to Tracker";
-  }
-  const meta = currentMetadata;
-  if (meta && shouldUseOneClickApply(meta, runtimeConfig)) {
-    return "Apply with EasySubmit";
-  }
-  return "Save to Tracker";
+  const display = resolveJourneyDisplay({
+    saved: savedStatus.saved,
+    status: savedStatus.status,
+    canReapply: savedStatus.canReapply,
+    pipelineBusy,
+    pipelineBusyLabel,
+  });
+  return display.extensionPrimaryLabel;
 }
 
-function statusLabel(saved: boolean, status?: string): string {
-  if (!saved) return "Not saved";
-  if (status === "APPLIED") return "Applied";
-  if (status === "RESUME_READY") return "Resume prepared";
-  if (status === "READY_TO_APPLY") return "Ready to apply";
-  return "Job captured";
+function statusLabel(saved: boolean, status?: string, presentation: CardPresentation = "job"): string {
+  if (presentation === "no_job") return "Not detected";
+  if (presentation === "loading") return "Reading…";
+  if (presentation === "manual_capture") return "Add details";
+  const display = resolveJourneyDisplay({
+    saved,
+    status,
+    canReapply: savedStatus.canReapply,
+    pipelineBusy,
+    pipelineBusyLabel,
+  });
+  return display.extensionBadge;
 }
 
 function getHostWidth(): number {
@@ -342,6 +379,12 @@ function cardStyles(): string {
       font-size: 11px;
       line-height: 1.4;
     }
+    .card-notice {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.45;
+      color: #6B7280;
+    }
     .cta {
       display: flex; align-items: center; justify-content: center; gap: 8px;
       width: 100%; box-sizing: border-box;
@@ -401,24 +444,271 @@ function renderCollapsedLauncher(root: ShadowRoot): void {
   launcher?.addEventListener("pointerdown", onLauncherPointerDown);
 }
 
+function resolveCardContent(
+  config: ExtensionRuntimeConfig,
+  launch: "auto" | "manual",
+): { presentation: CardPresentation; metadata: ScrapedJobMetadata } {
+  cardLaunchMode = launch;
+  return resolveCardContentShared({
+    doc: document,
+    url: location.href,
+    config,
+    launch,
+    interceptedMetadata,
+  });
+}
+
+function defaultManualCaptureDraft(): ManualCaptureDraft {
+  return {
+    jobUrl: location.href,
+    description: currentMetadata?.description ?? "",
+    title: currentMetadata?.title ?? "",
+    company: currentMetadata?.company ?? "",
+  };
+}
+
+function readManualCaptureDraftFromDom(root: ParentNode): ManualCaptureDraft {
+  const urlInput = root.querySelector("[data-capture-url]") as HTMLInputElement | null;
+  const descriptionInput = root.querySelector("[data-capture-description]") as HTMLTextAreaElement | null;
+  const titleInput = root.querySelector("[data-capture-title]") as HTMLInputElement | null;
+  const companyInput = root.querySelector("[data-capture-company]") as HTMLInputElement | null;
+  return {
+    jobUrl: urlInput?.value.trim() || manualCaptureDraft?.jobUrl || location.href,
+    description: descriptionInput?.value ?? manualCaptureDraft?.description ?? "",
+    title: titleInput?.value ?? manualCaptureDraft?.title ?? "",
+    company: companyInput?.value ?? manualCaptureDraft?.company ?? "",
+  };
+}
+
+function getCaptureContext(): {
+  url: string;
+  title: string;
+  company: string | null;
+  location: string | null;
+  salaryText: string | null;
+  description: string | null;
+  platform: string | null;
+  confidence: number;
+} {
+  if (cardPresentation === "manual_capture" && manualCaptureDraft) {
+    const identity = resolveJobIdentity({
+      url: manualCaptureDraft.jobUrl,
+      title: manualCaptureDraft.title,
+      company: manualCaptureDraft.company,
+      description: manualCaptureDraft.description,
+    });
+    return {
+      url: manualCaptureDraft.jobUrl,
+      title: identity.title,
+      company: identity.company,
+      location: currentMetadata?.location ?? null,
+      salaryText: currentMetadata?.salaryText ?? null,
+      description: manualCaptureDraft.description,
+      platform: currentMetadata?.platform ?? "generic",
+      confidence: currentMetadata?.confidence ?? 0,
+    };
+  }
+
+  const meta = currentMetadata;
+  const url = location.href;
+  const identity = resolveJobIdentity({
+    url,
+    title: meta?.title,
+    company: meta?.company,
+    description: meta?.description,
+  });
+
+  return {
+    url,
+    title: identity.title,
+    company: identity.company,
+    location: meta?.location ?? null,
+    salaryText: meta?.salaryText ?? null,
+    description: meta?.description ?? null,
+    platform: meta?.platform ?? "generic",
+    confidence: meta?.confidence ?? 0,
+  };
+}
+
+function isApplyEnabled(): boolean {
+  if (savedStatus.canReapply) {
+    const capture = getCaptureContext();
+    return canApplyCapture({ url: capture.url, description: capture.description });
+  }
+  if (savedStatus.saved) return false;
+  if (pipelineBusy) return false;
+  if (cardPresentation === "loading") return false;
+  const capture = getCaptureContext();
+  return canApplyCapture({ url: capture.url, description: capture.description });
+}
+
+async function syncRealtimeSubscription(): Promise<void> {
+  if (!savedStatus.saved || !savedStatus.id) {
+    if (realtimeStop) {
+      await realtimeStop();
+      realtimeStop = null;
+    }
+    return;
+  }
+
+  const config = runtimeConfig ?? (await ensureRuntimeConfig());
+  const stop = await startExtensionJobRealtime({
+    apiBaseUrl: config.apiBaseUrl,
+    getAuthToken: async () => {
+      const res = await sendMessage<{ token: string | null }>({ action: EXTENSION_MESSAGE.GET_AUTH });
+      return res.token;
+    },
+    onSync: () => {
+      void refreshSavedStatus()
+        .then(() => {
+          if (cardHost) renderCard(cardHost.shadow);
+        })
+        .catch(() => undefined);
+    },
+  });
+  realtimeStop = stop;
+}
+
+function stopLoadingHydrationWatch(): void {
+  if (loadingHydrationTimer) {
+    clearInterval(loadingHydrationTimer);
+    loadingHydrationTimer = null;
+  }
+}
+
+function startLoadingHydrationWatch(): void {
+  stopLoadingHydrationWatch();
+  if (cardPresentation !== "loading") return;
+
+  const started = Date.now();
+  loadingHydrationTimer = setInterval(() => {
+    if (cardPresentation !== "loading") {
+      stopLoadingHydrationWatch();
+      return;
+    }
+    if (Date.now() - started > 12_000) {
+      stopLoadingHydrationWatch();
+      if (hasStrongJobUrlSignal(location.href)) {
+        cardPresentation = "manual_capture";
+        currentMetadata = buildManualCaptureMetadata();
+        manualCaptureDraft = defaultManualCaptureDraft();
+        if (cardHost) renderCard(cardHost.shadow);
+      }
+      return;
+    }
+    void updateCard();
+  }, 800);
+}
+
+function stopConfirmationWatch(): void {
+  if (confirmationWatchTimer) {
+    clearInterval(confirmationWatchTimer);
+    confirmationWatchTimer = null;
+  }
+}
+
+function startConfirmationWatch(): void {
+  stopConfirmationWatch();
+  if (!savedStatus.id || savedStatus.status === "APPLIED") return;
+
+  confirmationWatchTimer = setInterval(() => {
+    if (!savedStatus.id || savedStatus.status === "APPLIED") {
+      stopConfirmationWatch();
+      return;
+    }
+    const detected = detectApplicationConfirmation(location.href, document);
+    if (!detected.isConfirmation) return;
+    void markCurrentJobApplied("extension_auto");
+  }, 3000);
+}
+
+async function markCurrentJobApplied(
+  source: "extension_auto" | "extension_manual",
+): Promise<void> {
+  if (!savedStatus.id) return;
+  const res = await sendMessage<{ success: boolean; status?: string; error?: string }>({
+    action: EXTENSION_MESSAGE.MARK_APPLIED,
+    entryId: savedStatus.id,
+    source,
+  });
+  if (res?.success) {
+    savedStatus = { ...savedStatus, status: res.status ?? "APPLIED" };
+    pendingPipelinePhase = null;
+    stopConfirmationWatch();
+    if (cardHost) renderCard(cardHost.shadow);
+  } else if (res?.error) {
+    saveError = res.error;
+    if (cardHost) renderCard(cardHost.shadow);
+  }
+}
+
+function handleAssistOpenOnLoad(): void {
+  if (!hasAssistOpenParam(location.href)) return;
+  const cleaned = stripAssistOpenParam(location.href);
+  if (cleaned !== location.href) {
+    history.replaceState(history.state, "", cleaned);
+  }
+  cardCollapsed = false;
+  pinnedUrl = cleaned;
+}
+
 function renderExpandedCard(root: ShadowRoot): void {
   const meta = currentMetadata;
   if (!meta) return;
 
+  if (cardPresentation === "manual_capture" && !manualCaptureDraft) {
+    manualCaptureDraft = defaultManualCaptureDraft();
+  }
+
+  const showAssistLayout = savedStatus.saved && savedStatus.status === "READY_TO_APPLY";
+  const showAppliedLayout = savedStatus.saved && savedStatus.status === "APPLIED";
+  const capture = getCaptureContext();
+  const applyEnabled = isApplyEnabled();
+  const applyHint = applyCaptureBlockReason({ url: capture.url, description: capture.description });
+  const profileLabel = selectedProfileLabel();
+  const assistSuggestions = showAssistLayout
+    ? buildAssistFieldSuggestions(document, location.href)
+    : [];
+
+  let bodyMarkup = "";
+  if (cardPresentation === "no_job") {
+    bodyMarkup = `
+      <h2 class="title">${escapeHtml(meta.title)}</h2>
+      <p class="card-notice">${escapeHtml(NO_JOB_DETECTED_MESSAGE)}</p>
+    `;
+  } else if (cardPresentation === "loading") {
+    bodyMarkup = renderLoadingBody(escapeHtml);
+  } else if (cardPresentation === "manual_capture" && manualCaptureDraft) {
+    bodyMarkup = renderManualCaptureBody(manualCaptureDraft, escapeHtml);
+  } else if (showAppliedLayout) {
+    bodyMarkup = `
+      <p class="applied-badge">Application completed</p>
+      <p class="card-subtitle">This role is in your tracker as applied.</p>
+    `;
+  } else if (!showAssistLayout) {
+    bodyMarkup = `
+      <h2 class="title">${escapeHtml(capture.title)}</h2>
+      ${capture.company ? `<p class="meta">${escapeHtml(capture.company)}</p>` : ""}
+      ${capture.location ? `<p class="meta">${escapeHtml(capture.location)}</p>` : ""}
+      ${capture.salaryText ? `<p class="salary">${escapeHtml(capture.salaryText)}</p>` : ""}
+    `;
+  }
+
   const badgeClass = savedStatus.saved ? "badge saved" : "badge";
   const ctaClass = savedStatus.saved ? "cta cta-saved" : "cta cta-primary";
   const ctaLabel = getPrimaryCtaLabel();
-  const ctaDisabled = pipelineBusy ? " disabled" : "";
+  const ctaDisabled = applyEnabled && !pipelineBusy ? "" : " disabled";
   const uiMode = getPipelineUiMode(runtimeConfig);
   const manualStep = getManualPipelineStep();
   const showUpdateResume = uiMode === "manual" && savedStatus.saved && manualStep === 2;
   const nudgeVariant = savedStatus.saved ? "captured" : "capture";
+  const showPrimaryCta = !showAssistLayout && !showAppliedLayout && cardPresentation !== "no_job";
   const ctaIcon = savedStatus.saved
     ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" x2="3" y1="12" y2="12"/></svg>`
     : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>`;
 
   root.innerHTML = `
-    <style>${cardStyles()}${glossyShellStyles()}${stageNudgeStyles()}</style>
+    <style>${cardStyles()}${glossyShellStyles()}${stageNudgeStyles()}${manualCaptureStyles()}</style>
     <div class="glossy-stack">
       <div class="glossy-shell${savedStatus.saved ? "" : " is-live"}">
         <div class="glossy-shell-sheen" aria-hidden="true"></div>
@@ -431,29 +721,40 @@ function renderExpandedCard(root: ShadowRoot): void {
                 <span class="brand"><span class="brand-name">EasySubmit</span><span class="brand-suffix">.ai</span></span>
               </div>
               <div class="grip-actions">
-                <span class="${badgeClass}">${statusLabel(savedStatus.saved, savedStatus.status)}</span>
+                <span class="${badgeClass}">${statusLabel(savedStatus.saved, savedStatus.status, cardPresentation)}</span>
                 ${renderProfilePickerMarkup()}
                 ${renderSettingsMenuMarkup()}
                 <button type="button" class="header-btn" data-minimize="1" aria-label="Minimize">×</button>
               </div>
             </div>
-            <div class="body">
-              <h2 class="title">${escapeHtml(meta.title)}</h2>
-              ${meta.company ? `<p class="meta">${escapeHtml(meta.company)}</p>` : ""}
-              ${meta.location ? `<p class="meta">${escapeHtml(meta.location)}</p>` : ""}
-              ${meta.salaryText ? `<p class="salary">${escapeHtml(meta.salaryText)}</p>` : ""}
-              <div class="actions">
+            ${
+              showAssistLayout
+                ? `<div class="body"><p class="card-subtitle" style="font-weight:700;color:#0E7490;">${escapeHtml(capture.title)}</p>${capture.company ? `<p class="meta">${escapeHtml(capture.company)}</p>` : ""}</div>`
+                : `<div class="body">${bodyMarkup}
+              ${
+                showPrimaryCta
+                  ? `<div class="actions">
                 <button type="button" class="${ctaClass}" data-save="1"${ctaDisabled}>${ctaIcon}<span>${ctaLabel}</span></button>
                 ${
                   showUpdateResume
                     ? `<button type="button" class="cta cta-primary" data-update-resume="1"><span>Update resume</span></button>`
                     : ""
                 }
+                ${!applyEnabled && applyHint ? `<p class="save-error">${escapeHtml(applyHint)}</p>` : ""}
                 ${saveError ? `<p class="save-error" role="alert">${escapeHtml(saveError)}</p>` : ""}
-              </div>
-            </div>
+              </div>`
+                  : showAppliedLayout
+                    ? `<div class="actions"><button type="button" class="cta cta-saved" data-save="1">${ctaIcon}<span>${ctaLabel}</span></button></div>${saveError ? `<p class="save-error" role="alert">${escapeHtml(saveError)}</p>` : ""}`
+                    : saveError
+                      ? `<p class="save-error" role="alert">${escapeHtml(saveError)}</p>`
+                      : ""
+              }
+            </div>`
+            }
           </div>
-          ${renderStageNudgeMarkup(nudgeVariant, { mode: uiMode, manualStep })}
+          ${showAssistLayout ? renderResumeReadyCardMarkup(profileLabel, escapeHtml) : ""}
+          ${showAssistLayout ? renderAssistCardMarkup(assistSuggestions, escapeHtml) : ""}
+          ${!showAssistLayout && !showAppliedLayout ? renderStageNudgeMarkup(nudgeVariant, { mode: uiMode, manualStep }) : ""}
         </div>
       </div>
     </div>
@@ -466,6 +767,28 @@ function renderExpandedCard(root: ShadowRoot): void {
   root.querySelector("[data-update-resume]")?.addEventListener("click", () => {
     void openUpdateResumeDashboard();
   });
+
+  root.querySelector("[data-review-resume]")?.addEventListener("click", () => {
+    void openJobTrackerDashboard({ review: true });
+  });
+
+  root.querySelector("[data-mark-applied]")?.addEventListener("click", () => {
+    void markCurrentJobApplied("extension_manual");
+  });
+
+  if (cardPresentation === "manual_capture") {
+    for (const selector of [
+      "[data-capture-url]",
+      "[data-capture-description]",
+      "[data-capture-title]",
+      "[data-capture-company]",
+    ]) {
+      root.querySelector(selector)?.addEventListener("input", () => {
+        manualCaptureDraft = readManualCaptureDraftFromDom(root);
+        if (cardHost) renderCard(cardHost.shadow);
+      });
+    }
+  }
 
   bindStageNudge(root, {
     saved: savedStatus.saved,
@@ -960,7 +1283,12 @@ function bindDragTarget(
 }
 
 async function refreshSavedStatus(): Promise<void> {
-  const res = await sendMessage<{ saved: boolean; status?: string; id?: string }>({
+  const res = await sendMessage<{
+    saved: boolean;
+    status?: string;
+    id?: string;
+    canReapply?: boolean;
+  }>({
     action: EXTENSION_MESSAGE.JOB_STATUS,
     url: location.href,
   });
@@ -968,6 +1296,7 @@ async function refreshSavedStatus(): Promise<void> {
     saved: Boolean(res.saved),
     status: res.status,
     id: typeof res.id === "string" ? res.id : undefined,
+    canReapply: Boolean(res.canReapply),
   };
 }
 
@@ -1117,19 +1446,18 @@ async function maybeContinuePendingAutofill(): Promise<void> {
 
   const shouldAutofill =
     Boolean(entryId) &&
-    (pendingPipelinePhase === "autofill" ||
-      savedStatus.status === "RESUME_READY" ||
-      Boolean(pendingId));
+    pendingPipelinePhase === "autofill" &&
+    savedStatus.status === "READY_TO_APPLY" &&
+    currentMetadata &&
+    shouldUseOneClickApply(currentMetadata, runtimeConfig);
 
   if (!shouldAutofill || !entryId) return;
-  if (savedStatus.status === "READY_TO_APPLY" || savedStatus.status === "APPLIED") {
+  if (savedStatus.status === "APPLIED") {
     await chrome.storage.local.remove(STORAGE_KEYS.pendingApplyJobId);
     return;
   }
 
-  if (savedStatus.status === "RESUME_READY" || pendingPipelinePhase === "autofill") {
-    void runAutofillPhase(entryId);
-  }
+  void runAutofillPhase(entryId);
 }
 
 async function pollUntilResumeReady(entryId: string): Promise<void> {
@@ -1141,14 +1469,13 @@ async function pollUntilResumeReady(entryId: string): Promise<void> {
       return savedStatus;
     },
     isDone: (snapshot) =>
-      snapshot.status === "RESUME_READY" ||
       snapshot.status === "READY_TO_APPLY" ||
       snapshot.status === "APPLIED",
   });
 
   if (
-    result.snapshot.status === "RESUME_READY" &&
-    (pendingPipelinePhase === "autofill" || result.ok)
+    result.snapshot.status === "READY_TO_APPLY" &&
+    pendingPipelinePhase === "autofill"
   ) {
     void runAutofillPhase(entryId);
   }
@@ -1210,11 +1537,20 @@ async function refreshMetadataBeforeSave(config: ExtensionRuntimeConfig): Promis
 
 async function onPrimaryClick(): Promise<void> {
   if (!currentMetadata || pipelineBusy) return;
+  if (cardPresentation === "no_job") return;
 
   if (savedStatus.saved) {
     await openJobTrackerDashboard({ review: true });
     return;
   }
+
+  if (!isApplyEnabled()) return;
+
+  if (cardPresentation === "manual_capture" && cardHost) {
+    manualCaptureDraft = readManualCaptureDraftFromDom(cardHost.shadow);
+  }
+
+  const capture = getCaptureContext();
 
   const tokenRes = await sendMessage<{ token: string | null }>({ action: EXTENSION_MESSAGE.GET_AUTH });
   if (!tokenRes.token) {
@@ -1223,48 +1559,48 @@ async function onPrimaryClick(): Promise<void> {
   }
 
   const config = runtimeConfig ?? (await ensureRuntimeConfig());
-  await refreshMetadataBeforeSave(config);
+  if (cardPresentation !== "manual_capture") {
+    await refreshMetadataBeforeSave(config);
+  }
 
-  const usePipeline = shouldUseOneClickApply(currentMetadata, config);
   const captureDiagnostics = buildCaptureDiagnostics({
-    url: location.href,
-    title: currentMetadata.title,
-    company: currentMetadata.company,
-    location: currentMetadata.location,
-    salaryText: currentMetadata.salaryText,
-    description: currentMetadata.description,
-    platform: currentMetadata.platform,
-    metadata: { confidence: currentMetadata.confidence },
-    adapter: currentMetadata.platform,
+    url: capture.url,
+    title: capture.title,
+    company: capture.company,
+    location: capture.location,
+    salaryText: capture.salaryText,
+    description: capture.description,
+    platform: capture.platform,
+    metadata: { confidence: capture.confidence },
+    adapter: capture.platform,
     scrapePath: lastScrapeContext?.path ?? null,
     enrichmentsApplied: lastScrapeContext?.enrichments ?? [],
   });
   logCaptureDiagnostics(captureDiagnostics, { phase: "extension-save" });
 
   const payload = {
-    url: location.href,
-    title: currentMetadata.title,
-    company: currentMetadata.company,
-    location: currentMetadata.location,
-    salaryText: currentMetadata.salaryText,
-    description: currentMetadata.description?.slice(0, 48_000) ?? null,
-    platform: currentMetadata.platform,
+    url: capture.url,
+    title: capture.title,
+    company: capture.company,
+    location: capture.location,
+    salaryText: capture.salaryText,
+    description: capture.description?.slice(0, 48_000) ?? null,
+    platform: capture.platform,
     sourceProfileId: selectedProfileId,
     metadata: {
-      confidence: currentMetadata.confidence,
+      confidence: capture.confidence,
       scrapePath: lastScrapeContext?.path ?? null,
       enrichmentsApplied: lastScrapeContext?.enrichments ?? [],
     },
   };
 
   pipelineBusy = true;
-  pipelineBusyLabel = usePipeline ? "Tailoring resume…" : "Saving job…";
+  pipelineBusyLabel = "Optimizing resume…";
   saveError = null;
   startStatusPolling();
   if (cardHost) renderCard(cardHost.shadow);
 
   try {
-    const action = usePipeline ? EXTENSION_MESSAGE.RUN_PIPELINE : EXTENSION_MESSAGE.SAVE_JOB;
     const res = await sendMessage<{
       success: boolean;
       saved?: boolean;
@@ -1276,7 +1612,7 @@ async function onPrimaryClick(): Promise<void> {
       error?: string;
       code?: string;
     }>({
-      action,
+      action: EXTENSION_MESSAGE.RUN_PIPELINE,
       payload,
     });
 
@@ -1290,13 +1626,12 @@ async function onPrimaryClick(): Promise<void> {
       };
       pendingPipelinePhase = res?.pendingPhase ?? null;
       saveError = res?.success ? null : (res?.error ?? null);
-      void refreshSavedStatus().catch(() => undefined);
+      await refreshSavedStatus().catch(() => undefined);
+      await syncRealtimeSubscription();
+      startConfirmationWatch();
       if (cardHost) renderCard(cardHost.shadow);
 
       if (res?.success && res?.pendingPhase === "autofill" && savedStatus.id) {
-        void runAutofillPhase(savedStatus.id);
-      } else if (res?.success && res?.status === "RESUME_READY" && savedStatus.id) {
-        pendingPipelinePhase = "autofill";
         void runAutofillPhase(savedStatus.id);
       }
       return;
@@ -1340,7 +1675,12 @@ async function ensureRuntimeConfig(): Promise<ExtensionRuntimeConfig> {
   return refreshRuntimeConfig();
 }
 
-async function forceShowCard(): Promise<{ success: boolean; error?: string; title?: string }> {
+async function forceShowCard(): Promise<{
+  success: boolean;
+  error?: string;
+  title?: string;
+  jobDetected?: boolean;
+}> {
   if (!isContextValid() || window.top !== window.self) {
     return { success: false, error: "Cannot show the card in this frame." };
   }
@@ -1352,15 +1692,24 @@ async function forceShowCard(): Promise<{ success: boolean; error?: string; titl
     };
   }
 
+  const config = await ensureRuntimeConfig();
+  if (!isExtensionGlobalSwitchOn(config)) {
+    return { success: false, error: "Extension is disabled platform-wide." };
+  }
+
   try {
     stopDrag();
     cardCollapsed = false;
-    const config = await ensureRuntimeConfig();
     pinnedUrl = location.href;
-    const metadata = buildFallbackJobMetadata(document, location.href, config);
+    const { presentation, metadata } = resolveCardContent(config, "manual");
+    cardPresentation = presentation;
 
     await mountCard("body", metadata, { useDefaultPosition: true });
-    return { success: true, title: metadata.title };
+    return {
+      success: true,
+      title: presentation === "job" ? metadata.title : undefined,
+      jobDetected: presentation === "job" || presentation === "manual_capture" || presentation === "loading",
+    };
   } catch (error) {
     return {
       success: false,
@@ -1379,6 +1728,10 @@ async function mountCard(
   const sameTitle = currentMetadata?.title === metadata.title;
   currentMetadata = metadata;
   await refreshSavedStatus().catch(() => undefined);
+  await syncRealtimeSubscription().catch(() => undefined);
+  if (savedStatus.status === "READY_TO_APPLY") {
+    startConfirmationWatch();
+  }
   await refreshResumeProfiles().catch(() => undefined);
   await maybeContinuePendingAutofill().catch(() => undefined);
   if (cardHost && !isDragging()) {
@@ -1423,6 +1776,11 @@ async function mountCard(
   }
 
   setCardVisible(true);
+  if (cardPresentation === "loading") {
+    startLoadingHydrationWatch();
+  } else {
+    stopLoadingHydrationWatch();
+  }
 }
 
 function removeCard(): void {
@@ -1431,9 +1789,15 @@ function removeCard(): void {
   closeSettingsMenu();
   profilePickerDelegationReady = false;
   settingsMenuDelegationReady = false;
+  stopConfirmationWatch();
+  stopLoadingHydrationWatch();
+  void stopExtensionJobRealtime();
+  realtimeStop = null;
   cardHost?.host.remove();
   cardHost = null;
   currentMetadata = null;
+  cardPresentation = "job";
+  manualCaptureDraft = null;
   cardCollapsed = false;
 }
 
@@ -1469,13 +1833,20 @@ async function updateCard(): Promise<void> {
 
   try {
     const config = await ensureRuntimeConfig();
+    if (!isExtensionGlobalSwitchOn(config)) {
+      removeCard();
+      return;
+    }
+
     const onJobPage = isJobPage(document, location.href);
 
     if (pinnedUrl === location.href) {
-      const metadata = buildFallbackJobMetadata(document, location.href, config);
-      if (cardHost && currentMetadata?.title === metadata.title) {
+      const { presentation, metadata } = resolveCardContent(config, "manual");
+      cardPresentation = presentation;
+      if (cardHost && currentMetadata?.title === metadata.title && cardPresentation === presentation) {
         currentMetadata = metadata;
         setCardVisible(true);
+        if (cardHost) renderCard(cardHost.shadow);
         return;
       }
       await mountCard("body", metadata, { useDefaultPosition: true });
@@ -1485,20 +1856,17 @@ async function updateCard(): Promise<void> {
     pinnedUrl = null;
 
     if (!onJobPage) {
-      setCardVisible(false);
+      removeCard();
       return;
     }
 
-    const detected =
-      detectJobPage(document, location.href, config) ??
-      ({
-        metadata: buildFallbackJobMetadata(document, location.href, config),
-        mountSelector: "body",
-      } as const);
-
-    // Prefer API-intercepted data — it's structured JSON vs. DOM scraping
-    const metadata = interceptedMetadata ?? detected.metadata;
-    await mountCard(detected.mountSelector, metadata);
+    const { presentation, metadata } = resolveCardContent(config, "auto");
+    if (presentation === "no_job") {
+      removeCard();
+      return;
+    }
+    cardPresentation = presentation;
+    await mountCard("body", metadata);
   } catch (error) {
     console.warn("EasySubmit: job card update failed", error);
     if (!runtimeConfig) {
@@ -1547,6 +1915,7 @@ function interceptedToMetadata(data: InterceptedJobData): ScrapedJobMetadata {
 }
 
 function bootJobPageObservers(): void {
+  handleAssistOpenOnLoad();
   injectApiInterceptScript();
 
   setupFieldCaptureBridge({
@@ -1602,14 +1971,19 @@ if (window.top === window.self) {
     setupBridgeRelay();
     console.log("EasySubmit: bridge relay ready");
   } else {
-    const boot = (): void => {
-      bootJobPageObservers();
+    const bootWhenGloballyEnabled = (): void => {
+      void refreshRuntimeConfig()
+        .then((config) => {
+          if (!isExtensionGlobalSwitchOn(config)) return;
+          bootJobPageObservers();
+        })
+        .catch(() => undefined);
     };
 
     if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", boot);
+      document.addEventListener("DOMContentLoaded", bootWhenGloballyEnabled);
     } else {
-      boot();
+      bootWhenGloballyEnabled();
     }
 
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
