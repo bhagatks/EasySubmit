@@ -72,6 +72,7 @@
     "@types/react-dom": "^18.3.7",
     "dotenv": "^17.4.2",
     "esbuild": "^0.25.0",
+    "jsdom": "^29.1.1",
     "linkedom": "^0.18.12",
     "postcss": "^8.5.3",
     "prisma": "^7.8.0",

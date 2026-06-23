@@ -24,7 +24,7 @@ import {
   logCaptureDiagnostics,
 } from "@shared/extension/capture-diagnostics";
 import { pollJobStatusUntil } from "@shared/extension/pipeline-status-poll";
-import { runWorkdayAutofillStub } from "@shared/extension/workday-autofill-stub";
+import { runWorkdayAutofill, type WorkdayFillData } from "@shared/extension/workday-autofill";
 import { injectApiInterceptScript, onApiIntercept, type InterceptedJobData } from "@shared/extension/api-intercept";
 
 const CONTENT_INIT_KEY = "__easysubmitContentInit__";
@@ -1009,10 +1009,23 @@ async function runAutofillPhase(entryId: string): Promise<void> {
   if (cardHost) renderCard(cardHost.shadow);
 
   try {
-    const stub = await runWorkdayAutofillStub(document, location.href);
-    if (!stub.ok) {
-      saveError = stub.error;
-      return;
+    // Fetch tailored resume fields for this job
+    const fillRes = await sendMessage<{ success: boolean; fillData?: WorkdayFillData; error?: string }>({
+      action: EXTENSION_MESSAGE.GET_FILL_DATA,
+      entryId,
+    });
+    const fillData: WorkdayFillData = fillRes?.fillData ?? {
+      firstName: "", lastName: "", email: "", phone: "",
+    };
+
+    pipelineBusyLabel = "Filling application…";
+    if (cardHost) renderCard(cardHost.shadow);
+
+    const result = await runWorkdayAutofill(document, location.href, fillData, currentMetadata);
+    if (!result.ok) {
+      saveError = result.error;
+      if (!result.manualFinish) return;
+      // manualFinish: still mark READY_TO_APPLY so user can submit
     }
 
     pipelineBusyLabel = "Finalizing apply…";
@@ -1025,8 +1038,8 @@ async function runAutofillPhase(entryId: string): Promise<void> {
     }>({
       action: EXTENSION_MESSAGE.COMPLETE_AUTOFILL,
       entryId,
-      stub: true,
-      note: stub.note,
+      stub: false,
+      note: result.ok ? result.note : "Manual finish required.",
     });
 
     if (!res?.success) {

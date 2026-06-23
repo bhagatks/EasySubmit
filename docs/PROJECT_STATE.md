@@ -36,6 +36,7 @@
 - **Workday one-click apply E2E** — Phase B tailor stores **per-job overrides** in `job_resume_tailors` (no profile clone); Phase C autofill **stub done**; real Workday field fill **pending** — see [`docs/WORKDAY_ONE_CLICK_APPLY.md`](./WORKDAY_ONE_CLICK_APPLY.md)
 - Extension v2 — Tier 1 ATS adapters (Lever, Ashby, iCIMS, SmartRecruiters, Taleo, Jobvite); detection architecture in [`docs/EXTENSION_DETECTION.md`](./EXTENSION_DETECTION.md)
 - **Production deploy (Vercel)** — **deferred** (OAuth prod callbacks done; Vercel/env/migrate when ready)
+- **Application Field Memory** — spec in [`docs/APPLICATION_FIELD_MEMORY.md`](./APPLICATION_FIELD_MEMORY.md); agent lanes in [`docs/ACTIVE_WORK.md`](./ACTIVE_WORK.md)
 
 Full tracker: [`docs/JOB_TRACKER.md`](./JOB_TRACKER.md)
 
