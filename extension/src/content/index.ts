@@ -25,9 +25,9 @@ import {
 } from "@shared/extension/capture-diagnostics";
 import { pollJobStatusUntil } from "@shared/extension/pipeline-status-poll";
 import { runWorkdayAutofill, type WorkdayFillData } from "@shared/extension/workday-autofill";
-import { fieldCapturePayloadToEvents } from "@shared/extension/field-capture-api";
 import { setupFieldCaptureBridge } from "@shared/extension/field-capture-bridge";
 import type { FieldCapturePayload } from "@shared/extension/field-descriptor";
+import type { ServerLookupMap } from "@shared/extension/field-resolution";
 import { injectApiInterceptScript, onApiIntercept, type InterceptedJobData } from "@shared/extension/api-intercept";
 
 const CONTENT_INIT_KEY = "__easysubmitContentInit__";
@@ -996,6 +996,33 @@ function startStatusPolling(intervalMs = 2000): void {
   }, intervalMs);
 }
 
+async function fetchServerLookupMap(): Promise<ServerLookupMap> {
+  try {
+    const res = await sendMessage<{ success: boolean; answers?: ServerLookupMap; error?: string }>({
+      action: EXTENSION_MESSAGE.GET_APPLICATION_ANSWERS,
+      platform: "workday",
+      tenantHost: location.hostname,
+    });
+    if (res?.success && res.answers && typeof res.answers === "object") {
+      return res.answers;
+    }
+  } catch {
+    // Auth missing or API unreachable — resume/vault fill still works.
+  }
+  return {};
+}
+
+async function postFieldCapture(payload: FieldCapturePayload, jobEntryId?: string): Promise<void> {
+  const res = await sendMessage<{ success: boolean; upserted?: number; error?: string }>({
+    action: EXTENSION_MESSAGE.CAPTURE_APPLICATION_ANSWERS,
+    payload,
+    ...(jobEntryId ? { jobEntryId } : {}),
+  });
+  if (!res?.success) {
+    console.warn("EasySubmit: field capture failed", res?.error ?? "unknown error");
+  }
+}
+
 async function runAutofillPhase(entryId: string): Promise<void> {
   if (pipelineBusy || autofillRunForEntryId === entryId) return;
   if (savedStatus.status === "READY_TO_APPLY" || savedStatus.status === "APPLIED") {
@@ -1024,7 +1051,14 @@ async function runAutofillPhase(entryId: string): Promise<void> {
     pipelineBusyLabel = "Filling application…";
     if (cardHost) renderCard(cardHost.shadow);
 
-    const result = await runWorkdayAutofill(document, location.href, fillData, currentMetadata);
+    const serverMap = await fetchServerLookupMap();
+    const result = await runWorkdayAutofill(
+      document,
+      location.href,
+      fillData,
+      serverMap,
+      currentMetadata,
+    );
     if (!result.ok) {
       saveError = result.error;
       if (!result.manualFinish) return;
@@ -1518,11 +1552,7 @@ function bootJobPageObservers(): void {
   setupFieldCaptureBridge({
     getJobEntryId: () => savedStatus.id,
     onCapture: (payload: FieldCapturePayload, jobEntryId?: string) => {
-      void sendMessage<{ success: boolean; upserted?: number; error?: string }>({
-        action: EXTENSION_MESSAGE.CAPTURE_APPLICATION_ANSWERS,
-        payload,
-        jobEntryId,
-      }).catch(() => undefined);
+      void postFieldCapture(payload, jobEntryId ?? savedStatus.id).catch(() => undefined);
     },
   });
 
