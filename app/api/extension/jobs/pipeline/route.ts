@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { revalidatePath } from "next/cache";
 import {
   extensionUnauthorizedResponse,
   getExtensionUserId,
@@ -37,6 +38,9 @@ export async function POST(request: NextRequest) {
         { status: result.saved ? 200 : 400 },
       );
     }
+
+    revalidatePath("/dashboard/job-tracker");
+    revalidatePath("/dashboard");
 
     return Response.json({
       success: true,

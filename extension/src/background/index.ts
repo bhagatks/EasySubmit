@@ -121,6 +121,9 @@ async function openDashboardPath(path: string): Promise<{ success: boolean }> {
     const nextUrl = targetUrl.split("#")[0];
     if (currentUrl !== nextUrl) {
       await chrome.tabs.update(existing.id, { url: targetUrl });
+    } else if (nextUrl.includes("/dashboard/job-tracker")) {
+      // Same tracker URL — reload so new extension saves appear without a manual refresh.
+      await chrome.tabs.reload(existing.id);
     }
     await chrome.tabs.update(existing.id, { active: true });
     if (existing.windowId != null) {

@@ -84,6 +84,9 @@ model JobTrackerEntry {
   archivedAt    DateTime?
   notes             String?          @db.Text
   metadata          Json?
+  jdIntelligence    Json?
+  jdIntelUpdatedAt  DateTime?
+  jdDescriptionHash String?
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
   user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Archive } from "lucide-react";
+import Link from "next/link";
+import { Archive, ArrowUpRight, Briefcase } from "lucide-react";
 import { listArchivedJobTrackerEntries, listJobTrackerEntries } from "@/app/actions/job-tracker";
 import type { JobTrackerSummary } from "@/lib/job-tracker/types";
 import {
@@ -112,6 +113,11 @@ export function JobTrackerWorkspace({ entries, autoArchiveAppliedJobs }: JobTrac
     }
   }, [archivedView, loadArchived]);
 
+  // Fetch latest rows on mount (extension saves while this tab was open).
+  useEffect(() => {
+    void refreshTrackerEntries();
+  }, [refreshTrackerEntries]);
+
   useEffect(() => {
     function handleResume() {
       if (document.visibilityState !== "visible") return;
@@ -213,6 +219,26 @@ export function JobTrackerWorkspace({ entries, autoArchiveAppliedJobs }: JobTrac
 
       {archiveLoading && archivedView && archivedEntries.length === 0 ? (
         <p className="text-sm text-muted-foreground">Loading archive…</p>
+      ) : displayEntries.length === 0 ? (
+        archivedView ? (
+          <p className="text-sm text-muted-foreground">No archived jobs yet.</p>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-border bg-surface/40 p-10 text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+              <Briefcase className="h-6 w-6 text-primary" aria-hidden="true" />
+            </div>
+            <h2 className="mt-4 font-display text-lg font-semibold">No jobs tracked yet</h2>
+            <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+              Install the EasySubmit extension and use <strong>Save to Job Tracker</strong> on any
+              supported job posting. Use <strong>Review</strong> to open the Review Screen.
+            </p>
+            <Button variant="mint" className="mt-6" asChild>
+              <Link href="/extension">
+                Add extension <ArrowUpRight className="h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
+        )
       ) : (
         <JobTrackerPipeline
           entries={displayEntries}

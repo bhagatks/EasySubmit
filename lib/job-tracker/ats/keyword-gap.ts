@@ -100,6 +100,8 @@ export type KeywordMatch = {
   keyword: string;
   /** Where in the resume this keyword appears. */
   foundIn: ("skills" | "experience" | "summary" | "education" | "other")[];
+  /** Tier from JD intelligence: 1 = requirements, 2 = responsibilities, 3 = preferred. */
+  tier?: 1 | 2 | 3;
 };
 
 export type KeywordGapResult = {
@@ -109,7 +111,7 @@ export type KeywordGapResult = {
   missing: string[];
   /** 0–100 — what % of JD keywords the resume covers. */
   coveragePercent: number;
-  /** Top missing keywords sorted by frequency in the JD (most important first). */
+  /** Top missing keywords sorted by tier then frequency (most important first). */
   topMissing: string[];
 };
 
@@ -154,6 +156,59 @@ function locateKeyword(
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
+
+// ─── Tiered API (preferred when JDIntelligence is available) ──────────────────
+// Uses tier-weighted coverage: tier1 ×3, tier2 ×2, tier3 ×1.
+// Tier-1 misses (requirements keywords) have 3× the scoring impact of tier-3.
+
+export function analyzeKeywordGapFromIntelligence(
+  data: PrimeResumeData,
+  intel: {
+    tier1Keywords: string[];
+    tier2Keywords: string[];
+    tier3Keywords: string[];
+  },
+  targetTitle: string,
+): KeywordGapResult {
+  const resumeText = resumeToText(data, targetTitle);
+  const resumeTokenSet = extractTokenSet(resumeText);
+
+  const matched: KeywordMatch[] = [];
+  const missing: string[] = [];
+
+  // Weights: tier1=3, tier2=2, tier3=1
+  const tiers: Array<{ keywords: string[]; tier: 1 | 2 | 3; weight: number }> = [
+    { keywords: intel.tier1Keywords, tier: 1, weight: 3 },
+    { keywords: intel.tier2Keywords, tier: 2, weight: 2 },
+    { keywords: intel.tier3Keywords, tier: 3, weight: 1 },
+  ];
+
+  let weightedMatched = 0;
+  let weightedTotal = 0;
+
+  for (const { keywords, tier, weight } of tiers) {
+    for (const keyword of keywords) {
+      weightedTotal += weight;
+      const inResume = resumeTokenSet.has(keyword);
+      if (inResume) {
+        weightedMatched += weight;
+        matched.push({ keyword, foundIn: locateKeyword(keyword, data, targetTitle), tier });
+      } else {
+        missing.push(keyword);
+      }
+    }
+  }
+
+  const coveragePercent =
+    weightedTotal === 0 ? 0 : Math.round((weightedMatched / weightedTotal) * 100);
+
+  // topMissing: tier1 first (most impactful), then tier2, then tier3
+  const tier1Missing = intel.tier1Keywords.filter((k) => !resumeTokenSet.has(k));
+  const tier2Missing = intel.tier2Keywords.filter((k) => !resumeTokenSet.has(k));
+  const topMissing = [...tier1Missing, ...tier2Missing].slice(0, 10);
+
+  return { matched, missing, coveragePercent, topMissing };
+}
 
 export function analyzeKeywordGap(
   data: PrimeResumeData,

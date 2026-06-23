@@ -9,6 +9,7 @@ import {
   scrapeSalary,
   scrapeTitle,
 } from "./scrape-helpers";
+import { pierceTextContent } from "./shadow-dom";
 import {
   hasStrongJobUrlSignal,
   parseCompanyFromJobHost,
@@ -152,7 +153,11 @@ export const workdayAdapter: SiteAdapter = {
   detectConfidence: detectWorkdayConfidence,
   scrape: (doc) => {
     const url = doc.defaultView?.location?.href ?? "";
-    const title = scrapeWorkdayTitle(doc, url);
+    // Try shadow DOM first (Workday Web Components pierce), fall back to standard scrape
+    const shadowTitle =
+      pierceTextContent(doc, "[data-automation-id='jobPostingHeader']") ||
+      pierceTextContent(doc, "[data-automation-id='job-posting-header-jobPostingTitle']");
+    const title = shadowTitle || scrapeWorkdayTitle(doc, url);
     if (!title) return null;
     const description = scrapeDescription(doc) || null;
     const jsonLdFields = parseJsonLdJobFields(doc);
@@ -254,6 +259,101 @@ export const jobviteAdapter = baseAdapter(
   ["h1", ".jv-job-title", "[class*='job-title']"],
 );
 
+// ── Phase 2 Adapters ────────────────────────────────────────────────────────
+// JSON-LD is the primary signal for all Phase 2 platforms; DOM selectors are
+// secondary fallback. These are less-common ATSes where full adapter work is
+// deferred — genericAdapter serves as final fallback.
+
+export const successfactorsAdapter = baseAdapter(
+  "successfactors",
+  [/successfactors\.com\/career\?/i, /\.successfactors\.eu\//i, /\.sapsf\.com\//i],
+  ["#career-job-req", ".jobDetails", "main", "body"],
+  [".companyLogo img[alt]", "[id*='company']"],
+  [".jobReq-detail li", "[class*='location']"],
+  ["h2.jobTitle", "h1", "[class*='job-title']"],
+);
+
+export const workableAdapter = baseAdapter(
+  "workable",
+  [/apply\.workable\.com\//i, /jobs\.workable\.com\//i],
+  ["[class*='job-description']", "main", "body"],
+  ["[class*='company-name']", "[data-ui='company-name']"],
+  ["[class*='location']", "[data-ui='location']"],
+  ["h1", "[class*='job-title']", "[data-ui='job-title']"],
+);
+
+export const bamboohrAdapter = baseAdapter(
+  "bamboohr",
+  [/bamboohr\.com\/careers\//i, /bamboohr\.com\/jobs\//i],
+  ["#BambooHR-ATS", ".BambooHR-ATS", "main", "body"],
+  [".BambooHR-ATS-companyName", "[class*='company']"],
+  [".BambooHR-ATS-Location", "[class*='location']"],
+  ["h2.BambooHR-ATS-jobTitle", "h1", "[class*='job-title']"],
+);
+
+export const adpAdapter = baseAdapter(
+  "adp",
+  [/adp\.com\/.*\/jobs\//i, /workforcenow\.adp\.com\//i, /\.adp\.com\/candidate\//i],
+  ["[class*='job-detail']", "main", "body"],
+  ["[class*='company']", "[id*='company']"],
+  ["[class*='location']", "[id*='location']"],
+  ["h1", "[class*='jobTitle']", "[class*='job-title']"],
+);
+
+export const ripplingAdapter = baseAdapter(
+  "rippling",
+  [/app\.rippling\.com\/ats\//i, /jobs\.rippling\.com\//i],
+  ["[class*='JobPosting']", "main", "body"],
+  ["[class*='CompanyName']", "[class*='company-name']"],
+  ["[class*='Location']", "[class*='location']"],
+  ["h1", "[class*='JobTitle']", "[class*='job-title']"],
+);
+
+export const jazzhrAdapter = baseAdapter(
+  "jazzhr",
+  [/applytojob\.com\//i, /\.resumatorapi\.com\//i],
+  ["#app-page", ".jobs-content", "main", "body"],
+  [".company-name", "[class*='company']"],
+  [".job-info-item", "[class*='location']"],
+  ["h1", ".job-title", "[class*='job-title']"],
+);
+
+export const paylocityAdapter = baseAdapter(
+  "paylocity",
+  [/recruiting\.paylocity\.com\//i],
+  ["[class*='JobDetail']", "main", "body"],
+  ["[class*='CompanyName']", "[class*='company']"],
+  ["[class*='Location']", "[class*='location']"],
+  ["h1", "[class*='JobTitle']", "[class*='job-title']"],
+);
+
+export const paycomAdapter = baseAdapter(
+  "paycom",
+  [/careers\.paycom\.com\//i, /\.paycom\.com\/applicant-tracking\//i],
+  ["[class*='job-detail']", "main", "body"],
+  ["[class*='company']", "[id*='company']"],
+  ["[class*='location']", "[id*='location']"],
+  ["h1", "[class*='job-title']"],
+);
+
+export const clearcompanyAdapter = baseAdapter(
+  "clearcompany",
+  [/app\.clearcompany\.com\/careers\//i],
+  ["[class*='job-post']", "main", "body"],
+  ["[class*='company']", "[class*='employer']"],
+  ["[class*='location']"],
+  ["h1", "[class*='title']"],
+);
+
+export const teamtailorAdapter = baseAdapter(
+  "teamtailor",
+  [/teamtailor\.com\//i, /\.teamtailor\.com\//i],
+  ["[class*='job-post']", "[class*='JobPost']", "main", "body"],
+  ["[class*='company-name']", "[class*='CompanyName']"],
+  ["[class*='location']", "[class*='Location']"],
+  ["h1", "[class*='job-title']", "[class*='JobTitle']"],
+);
+
 export const ALL_ADAPTERS = [
   linkedinAdapter,
   indeedAdapter,
@@ -265,5 +365,17 @@ export const ALL_ADAPTERS = [
   smartrecruitersAdapter,
   taleoAdapter,
   jobviteAdapter,
+  // Phase 2
+  successfactorsAdapter,
+  workableAdapter,
+  bamboohrAdapter,
+  adpAdapter,
+  ripplingAdapter,
+  jazzhrAdapter,
+  paylocityAdapter,
+  paycomAdapter,
+  clearcompanyAdapter,
+  teamtailorAdapter,
+  // Always last
   genericAdapter,
 ];

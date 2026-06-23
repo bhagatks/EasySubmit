@@ -12,8 +12,9 @@
 
 import type { PrimeResumeData } from "@/components/onboarding/PrimeResume";
 import { simulateAtsParse } from "@/lib/job-tracker/ats/ats-parse-simulator";
-import { analyzeKeywordGap } from "@/lib/job-tracker/ats/keyword-gap";
+import { analyzeKeywordGap, analyzeKeywordGapFromIntelligence } from "@/lib/job-tracker/ats/keyword-gap";
 import { analyzeBulletQuality } from "@/lib/job-tracker/ats/bullet-quality";
+import type { JDIntelligence } from "@/lib/job-tracker/jd/jd-intelligence";
 
 export type ReadinessPillar = {
   label: string;
@@ -79,6 +80,7 @@ function scoreKeywords(
   data: PrimeResumeData,
   targetTitle: string,
   jobDescription: string,
+  jdIntelligence?: JDIntelligence | null,
 ): ReadinessPillar {
   if (!jobDescription.trim()) {
     return {
@@ -89,7 +91,9 @@ function scoreKeywords(
     };
   }
 
-  const gap = analyzeKeywordGap(data, targetTitle, jobDescription);
+  const gap = jdIntelligence
+    ? analyzeKeywordGapFromIntelligence(data, jdIntelligence, targetTitle)
+    : analyzeKeywordGap(data, targetTitle, jobDescription);
   const pts = Math.round((gap.coveragePercent / 100) * 25);
   const details: string[] = [];
 
@@ -202,10 +206,11 @@ export function computeResumeReadiness(
   data: PrimeResumeData,
   targetTitle: string,
   jobDescription: string,
+  jdIntelligence?: JDIntelligence | null,
 ): ResumeReadinessResult {
   const pillars = {
     completeness: scoreCompleteness(data, targetTitle),
-    keywords: scoreKeywords(data, targetTitle, jobDescription),
+    keywords: scoreKeywords(data, targetTitle, jobDescription, jdIntelligence),
     bulletQuality: scoreBulletQuality(data),
     atsCompliance: scoreAtsCompliance(data, targetTitle),
   };

@@ -1,14 +1,27 @@
 export type ExtensionPlatform =
+  // Core
   | "linkedin"
   | "indeed"
   | "greenhouse"
+  | "workday"
+  // Phase 1
   | "lever"
   | "ashby"
-  | "workday"
   | "smartrecruiters"
   | "icims"
   | "taleo"
   | "jobvite"
+  // Phase 2
+  | "successfactors"
+  | "workable"
+  | "bamboohr"
+  | "adp"
+  | "rippling"
+  | "jazzhr"
+  | "paylocity"
+  | "paycom"
+  | "clearcompany"
+  | "teamtailor"
   | "generic";
 
 export type ScrapedJobMetadata = {
@@ -19,6 +32,12 @@ export type ScrapedJobMetadata = {
   description: string | null;
   platform: ExtensionPlatform;
   confidence: number;
+  /** Structured fields from JSON-LD JobPosting schema — higher signal than raw description blob. */
+  jsonLdFields?: {
+    qualifications?: string;
+    responsibilities?: string;
+    incentives?: string;
+  };
 };
 
 export type SiteAdapter = {

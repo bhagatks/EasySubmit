@@ -54,6 +54,47 @@ function collectJobPostingNodes(data: unknown): Array<Record<string, unknown>> {
   return results;
 }
 
+/** Extract structured JobPosting fields from JSON-LD (qualifications, responsibilities, incentives). */
+export function parseJsonLdJobFields(doc: Document): {
+  qualifications?: string;
+  responsibilities?: string;
+  incentives?: string;
+} | undefined {
+  const scripts = doc.querySelectorAll('script[type="application/ld+json"]');
+  for (const script of scripts) {
+    const raw = script.textContent?.trim();
+    if (!raw) continue;
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      for (const node of collectJobPostingNodes(parsed)) {
+        const qual =
+          typeof node["qualifications"] === "string"
+            ? stripHtml(node["qualifications"]).trim()
+            : undefined;
+        const resp =
+          typeof node["responsibilities"] === "string"
+            ? stripHtml(node["responsibilities"]).trim()
+            : undefined;
+        const inc =
+          typeof node["incentives"] === "string"
+            ? stripHtml(node["incentives"]).trim()
+            : undefined;
+
+        if (qual || resp) {
+          return {
+            ...(qual ? { qualifications: qual } : {}),
+            ...(resp ? { responsibilities: resp } : {}),
+            ...(inc ? { incentives: inc } : {}),
+          };
+        }
+      }
+    } catch {
+      // ignore malformed JSON-LD blocks
+    }
+  }
+  return undefined;
+}
+
 /** Parse JobPosting.description from JSON-LD when DOM selectors miss (common on LinkedIn). */
 export function parseJobDescriptionFromJsonLd(doc: Document, minLen = 80): string {
   const scripts = doc.querySelectorAll('script[type="application/ld+json"]');

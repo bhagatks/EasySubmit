@@ -49,6 +49,8 @@ export type RunEnhanceInput = {
   userId?: string | null;
   /** Pre-computed ATS intelligence — used for tactical prompts and fallback. */
   jobIntelligence?: JobIntelligence;
+  /** Pre-computed JD directive — structured instructions replacing raw intelligence block when present. */
+  enhanceDirective?: import("@/lib/job-tracker/jd/jd-intelligence").ResumeEnhanceDirective;
 };
 
 export type RunEnhanceSuccess = {
@@ -299,6 +301,7 @@ async function runPass(
   pricingMap?: AiPricingMap | null,
   preferredSlot?: number,
   jobIntelligence?: JobIntelligence,
+  enhanceDirective?: import("@/lib/job-tracker/jd/jd-intelligence").ResumeEnhanceDirective,
 ): Promise<{
   text: string;
   tokensUsed: number;
@@ -324,7 +327,12 @@ async function runPass(
   });
 
   const system = buildEnhanceSystemPrompt(ctx);
-  const prompt = buildEnhanceUserPrompt(ctx, pass, pass === "optimize" ? jobIntelligence : undefined);
+  const prompt = buildEnhanceUserPrompt(
+    ctx,
+    pass,
+    pass === "optimize" ? jobIntelligence : undefined,
+    pass === "optimize" ? enhanceDirective : undefined,
+  );
   const result = await callEnhanceModel(
     route,
     system,
@@ -433,6 +441,7 @@ export async function runResumeEnhance(
           pricingMap,
           pass1.slot,
           input.jobIntelligence,
+          input.enhanceDirective,
         );
         totalTokens += pass2.tokensUsed;
         totalCost += pass2.estimatedCost;

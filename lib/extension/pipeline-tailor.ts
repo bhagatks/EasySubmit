@@ -86,6 +86,7 @@ export async function runPipelineTailor(
 
   const enhanced = await enhanceResumeForUserId(userId, {
     profileId: source.id,
+    jobEntryId: input.entryId,
     form: baseForm,
     targetRole: jobTitle,
     jobDescription: input.jobDescription!.trim(),

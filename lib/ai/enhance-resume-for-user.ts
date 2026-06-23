@@ -2,6 +2,10 @@ import { recordUsageLogForUser } from "@/app/actions/ai/usage-log";
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
 import { analyzeJobIntelligenceWithOnet } from "@/lib/job-tracker/ats/job-intelligence";
 import { prisma } from "@/lib/prisma";
+import { analyzeJobDescription, hashJobDescription } from "@/lib/job-tracker/jd/jd-brain";
+import { buildResumeEnhanceDirective } from "@/lib/job-tracker/jd/jd-directive";
+import { refineryFormToPrimeResume } from "@/lib/onboarding/hubResume";
+import type { JDIntelligence } from "@/lib/job-tracker/jd/jd-intelligence";
 import type { StudioEditorSectionId } from "@/lib/resume/studio-editor-sections";
 import type { AiSourcePreference } from "@/src/lib/ai/engine/constants";
 import {
@@ -28,6 +32,8 @@ import { getFeatureFlags } from "@/src/lib/services/feature-flags-service";
 
 export type EnhanceResumeProfileInput = {
   profileId?: string;
+  /** Job tracker entry ID — used to load/persist JD intelligence cache. */
+  jobEntryId?: string;
   form: HubRefineryForm;
   targetRole: string;
   jobDescription?: string;
@@ -241,6 +247,49 @@ export async function enhanceResumeForUserId(
     ? await analyzeJobIntelligenceWithOnet(input.form, input.targetRole, input.jobDescription)
     : undefined;
 
+  // JD Brain — load cached intelligence or run full analysis, then build directive.
+  let enhanceDirective: import("@/lib/job-tracker/jd/jd-intelligence").ResumeEnhanceDirective | undefined;
+  if (input.jobDescription?.trim()) {
+    let cachedIntel: JDIntelligence | null = null;
+    let cachedHash: string | null = null;
+
+    if (input.jobEntryId) {
+      const entry = await prisma.jobTrackerEntry.findUnique({
+        where: { id: input.jobEntryId },
+        select: { jdIntelligence: true, jdDescriptionHash: true },
+      });
+      cachedIntel = entry?.jdIntelligence as JDIntelligence | null ?? null;
+      cachedHash = entry?.jdDescriptionHash ?? null;
+    }
+
+    const jdResult = await analyzeJobDescription({
+      rawDescription: input.jobDescription,
+      targetRole: input.targetRole,
+      cachedIntelligence: cachedIntel,
+      cachedHash,
+    });
+
+    // Persist updated intelligence back to DB (non-blocking)
+    if (input.jobEntryId && !jdResult.cacheHit) {
+      prisma.jobTrackerEntry
+        .update({
+          where: { id: input.jobEntryId },
+          data: {
+            jdIntelligence: jdResult.intelligence as object,
+            jdDescriptionHash: jdResult.descriptionHash,
+            jdIntelUpdatedAt: new Date(),
+          },
+        })
+        .catch(() => undefined);
+    }
+
+    const primeData = refineryFormToPrimeResume(input.form);
+    enhanceDirective = buildResumeEnhanceDirective(
+      jdResult.intelligence,
+      primeData.skills ?? [],
+    );
+  }
+
   const pricingMap = await getAppConfig("ai_pricing_map");
   const engineStartedAt = Date.now();
   const result = await runResumeEnhance(
@@ -253,6 +302,7 @@ export async function enhanceResumeForUserId(
       traceId,
       userId,
       jobIntelligence,
+      enhanceDirective,
     },
     pricingMap,
   );

@@ -171,6 +171,7 @@ export async function enhanceJobResumeFromReview(jobId: string): Promise<Enhance
   const traceId = createEnhanceTraceId();
   const enhanced = await enhanceResumeForUserId(userId, {
     profileId: merged.sourceProfileId,
+    jobEntryId: jobId,
     form: merged.form,
     targetRole: merged.targetTitle,
     jobDescription: description,

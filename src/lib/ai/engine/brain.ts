@@ -1,5 +1,6 @@
 import type { CandidateContext } from "@/src/lib/ai/engine/candidate-context";
 import type { JobIntelligence } from "@/lib/job-tracker/ats/job-intelligence";
+import type { ResumeEnhanceDirective } from "@/lib/job-tracker/jd/jd-intelligence";
 
 const ATS_RULES_EXCERPT = `
 ATS RULES (non-negotiable):
@@ -38,6 +39,7 @@ export function buildEnhanceUserPrompt(
   ctx: CandidateContext,
   pass: "generate" | "optimize",
   intelligence?: JobIntelligence,
+  directive?: ResumeEnhanceDirective,
 ): string {
   const jdBlock = ctx.jobDescription
     ? `\nJOB DESCRIPTION TO TARGET:\n"""\n${ctx.jobDescription.slice(0, 12000)}\n"""\n`
@@ -72,7 +74,9 @@ export function buildEnhanceUserPrompt(
   }
 
   // Pass 2 — tactical optimization using pre-computed intelligence
-  const intelligenceBlock = buildIntelligenceBlock(intelligence);
+  const intelligenceBlock = directive
+    ? buildDirectiveBlock(directive)
+    : buildIntelligenceBlock(intelligence);
 
   return [
     `Target role: ${ctx.targetRole}`,
@@ -88,6 +92,53 @@ export function buildEnhanceUserPrompt(
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+export function buildDirectiveBlock(directive: ResumeEnhanceDirective): string {
+  const parts: string[] = [];
+
+  parts.push(
+    `ROLE CONTEXT: ${directive.roleLevel} · ${directive.scope}` +
+      (directive.emphasisAreas.length
+        ? ` · emphasis: ${directive.emphasisAreas.join(", ")}`
+        : ""),
+  );
+
+  if (directive.mustAddSkills.length > 0) {
+    parts.push(
+      `SKILLS — add ALL of these to the Skills section (truthful only):\n  ${directive.mustAddSkills.join(", ")}`,
+    );
+  }
+
+  if (directive.mustWeaveKeywords.length > 0) {
+    parts.push(
+      `KEYWORDS — weave into bullets and summary where supported:\n  ${directive.mustWeaveKeywords.slice(0, 15).join(", ")}`,
+    );
+  }
+
+  if (directive.summaryTheme) {
+    parts.push(`SUMMARY — must lead with this theme:\n  "${directive.summaryTheme}"`);
+  }
+
+  if (directive.targetVerbs.length > 0) {
+    parts.push(`BULLET REWRITES — use these verbs: ${directive.targetVerbs.join(", ")}`);
+  }
+
+  if (directive.impactDimensions.length > 0) {
+    parts.push(`QUANTIFY AGAINST: ${directive.impactDimensions.join(", ")}`);
+  }
+
+  if (directive.quantHints.length > 0) {
+    parts.push(`  Metric hints: ${directive.quantHints.join(" | ")}`);
+  }
+
+  if (directive.deprioritize.length > 0) {
+    parts.push(`SUPPRESS / DOWNPLAY: ${directive.deprioritize.join(", ")}`);
+  }
+
+  if (parts.length === 0) return "";
+
+  return `\nPRE-COMPUTED JD ANALYSIS (act on these exactly — do not re-derive):\n${parts.join("\n\n")}\n`;
 }
 
 function buildIntelligenceBlock(intelligence?: JobIntelligence): string {
