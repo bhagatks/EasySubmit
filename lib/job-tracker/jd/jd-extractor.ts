@@ -185,6 +185,20 @@ const KNOWN_SKILLS = new Set([
   "agile","scrum","kanban","devops","sre","tdd","bdd","ci/cd",
   // Certs
   "aws-certified","gcp-certified","cka","ckad","pmp","cissp",
+  // Professional / business / operations skills (non-tech roles)
+  "program-management","project-management","change-management","stakeholder-management",
+  "organizational-design","workforce-planning","people-analytics","talent-management",
+  "performance-management","succession-planning","employee-engagement",
+  "hris","workday-hcm","sap-successfactors","servicenow","salesforce","powerbi",
+  "excel","tableau","looker","google-analytics","mixpanel",
+  "okrs","kpis","balanced-scorecard",
+  "six-sigma","lean","kaizen","process-improvement",
+  "budget-management","p&l","financial-modeling","cost-analysis",
+  "product-management","go-to-market","roadmapping",
+  "content-strategy","seo","sem","paid-media","crm",
+  "supply-chain","logistics","operations-management",
+  "risk-management","audit","sox","gdpr","hipaa",
+  "mergers-acquisitions","due-diligence",
 ]);
 
 function tokenizeSection(text: string): string[] {
@@ -308,6 +322,35 @@ function extractCerts(text: string): string[] {
   return Array.from(found);
 }
 
+// ─── Job title extraction ─────────────────────────────────────────────────────
+
+// Looks for a title in the first 400 chars of the context/intro section.
+// Matches "Position Summary\n<Title>" or just the first line that looks like a role name.
+const JOB_TITLE_PATTERNS = [
+  /(?:position|job|role)\s+(?:title|summary)[:\-\s]+([A-Z][^\n\r,.]{5,80})/i,
+  /^([A-Z][a-zA-Z &,\-|/]{8,70})[\r\n]/m,
+];
+
+export function extractJobTitle(contextText: string, targetRoleFallback: string): string | null {
+  const trimmed = contextText.slice(0, 600).trim();
+  for (const pattern of JOB_TITLE_PATTERNS) {
+    const match = trimmed.match(pattern);
+    if (match?.[1]) {
+      const candidate = match[1].trim().replace(/\s+/g, " ");
+      // Reject if too generic or matches the user's own target role
+      if (
+        candidate.length > 6 &&
+        candidate.length < 80 &&
+        !/^(the|this|our|a |an |job|role|position|we |you )/i.test(candidate) &&
+        candidate.toLowerCase() !== targetRoleFallback.toLowerCase()
+      ) {
+        return candidate;
+      }
+    }
+  }
+  return null;
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 export function extractJDIntelligenceSync(
@@ -354,8 +397,11 @@ export function extractJDIntelligenceSync(
     ].filter(Boolean).length;
     const confidence = Math.min(signals / 5, 0.7); // max 0.7 for deterministic
 
+    const extractedJobTitle = extractJobTitle(segments.context, targetRole);
+
     return {
       ...makeEmptyIntelligence(),
+      extractedJobTitle,
       mustHaveSkills,
       mustHaveYearsExp,
       mustHaveDegree,

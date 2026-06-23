@@ -52,9 +52,12 @@ export function buildEnhanceUserPrompt(
 
   const bodyJson = JSON.stringify(ctx.resumeBody, null, 2);
 
+  // Use JD-extracted title if available — this is the actual role being applied for
+  const effectiveRole = directive?.effectiveTargetRole ?? ctx.targetRole;
+
   if (pass === "generate") {
     return [
-      `Target role: ${ctx.targetRole}`,
+      `Target role: ${effectiveRole}`,
       jdBlock || "Mode: general ATS enhancement (no job description).",
       rawSnippet,
       "Current resume body JSON (no contact fields):",
@@ -81,7 +84,7 @@ export function buildEnhanceUserPrompt(
     : buildIntelligenceBlock(intelligence);
 
   return [
-    `Target role: ${ctx.targetRole}`,
+    `Target role: ${effectiveRole}`,
     jdBlock,
     intelligenceBlock,
     "Perform a strict second-pass edit on the draft below.",
@@ -107,6 +110,12 @@ export function buildDirectiveBlock(directive: ResumeEnhanceDirective): string {
         ? ` · emphasis: ${directive.emphasisAreas.join(", ")}`
         : ""),
   );
+
+  if (directive.mustRemoveSkills && directive.mustRemoveSkills.length > 0) {
+    parts.push(
+      `SKILLS — REMOVE these from the Skills section (not relevant to this role):\n  ${directive.mustRemoveSkills.join(", ")}`,
+    );
+  }
 
   if (directive.mustAddSkills.length > 0) {
     parts.push(
