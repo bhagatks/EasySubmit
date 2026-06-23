@@ -1,8 +1,5 @@
 import type { NextRequest } from "next/server";
-import {
-  extensionUnauthorizedResponse,
-  getExtensionUserId,
-} from "@/lib/extension/auth-request";
+import { resolveExtensionUserId } from "@/lib/extension/auth-request";
 import { captureApplicationAnswers } from "@/lib/extension/application-field-memory";
 import type { ApplicationAnswerCaptureEvent } from "@/src/shared/extension/field-capture-api";
 import type { FieldDescriptor, StoredAnswer } from "@/src/shared/extension/field-descriptor";
@@ -54,8 +51,9 @@ function parseCaptureEvents(body: unknown): ApplicationAnswerCaptureEvent[] | nu
 }
 
 export async function POST(request: NextRequest) {
-  const userId = getExtensionUserId(request);
-  if (!userId) return extensionUnauthorizedResponse();
+  const auth = await resolveExtensionUserId(request);
+  if ("response" in auth) return auth.response;
+  const { userId } = auth;
 
   let body: unknown;
   try {

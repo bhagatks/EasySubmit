@@ -60,6 +60,8 @@ export type JSONLDJobFields = {
 };
 
 export type JDIntelligence = {
+  /** Job title extracted from the JD (e.g. "Senior Manager, People Enablement"). Use as effective targetRole in prompts when present. */
+  extractedJobTitle: string | null;
   mustHaveSkills: string[];
   mustHaveYearsExp: number | null;
   mustHaveDegree: string | null;
@@ -97,7 +99,10 @@ export type JDIntelligence = {
 
 export type ResumeEnhanceDirective = {
   mustAddSkills: string[];
+  mustRemoveSkills: string[];
   mustWeaveKeywords: string[];
+  /** Effective job title from the JD — should replace the user's profileRole in prompts. */
+  effectiveTargetRole: string | null;
 
   roleLevel: JDSeniority;
   scope: JDScope;
@@ -119,6 +124,7 @@ export type ResumeEnhanceDirective = {
 
 export function makeEmptyIntelligence(): JDIntelligence {
   return {
+    extractedJobTitle: null,
     mustHaveSkills: [],
     mustHaveYearsExp: null,
     mustHaveDegree: null,

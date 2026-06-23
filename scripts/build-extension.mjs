@@ -50,6 +50,16 @@ async function main() {
   });
 
   await build({
+    entryPoints: [resolve(root, "src/shared/extension/api-intercept-page.ts")],
+    outfile: resolve(outDir, "api-intercept-page.js"),
+    bundle: true,
+    format: "iife",
+    platform: "browser",
+    target: "chrome109",
+    logLevel: "info",
+  });
+
+  await build({
     entryPoints: [resolve(extRoot, "src/popup/popup.ts")],
     outfile: resolve(outDir, "popup/popup.js"),
     bundle: true,

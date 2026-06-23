@@ -1,15 +1,11 @@
 import type { NextRequest } from "next/server";
-import {
-  extensionUnauthorizedResponse,
-  getExtensionUserId,
-} from "@/lib/extension/auth-request";
+import { resolveExtensionUserId } from "@/lib/extension/auth-request";
 import { prisma } from "@/lib/prisma";
 
 export async function PATCH(request: NextRequest) {
-  const userId = getExtensionUserId(request);
-  if (!userId) {
-    return extensionUnauthorizedResponse();
-  }
+  const auth = await resolveExtensionUserId(request);
+  if ("response" in auth) return auth.response;
+  const { userId } = auth;
 
   let body: unknown;
   try {

@@ -13,6 +13,7 @@ dist/
 .env*.local
 .env.vercel.deploy.tmp
 .easysubmit-mode
+public/avatars/*.webp
 
 # debug
 npm-debug.log*

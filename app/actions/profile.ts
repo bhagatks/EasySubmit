@@ -16,6 +16,7 @@ export type LoginIdentitySnapshot = {
   lastName: string | null;
   email: string | null;
   name: string | null;
+  image: string | null;
 };
 
 export async function getLoginIdentity(): Promise<LoginIdentitySnapshot | null> {
@@ -32,6 +33,7 @@ export async function getLoginIdentity(): Promise<LoginIdentitySnapshot | null> 
       lastName: true,
       email: true,
       name: true,
+      image: true,
     },
   });
 
@@ -50,6 +52,7 @@ export async function getLoginIdentity(): Promise<LoginIdentitySnapshot | null> 
     lastName: identity.lastName || null,
     email: user.email,
     name: identity.displayName || user.name,
+    image: user.image,
   };
 }
 

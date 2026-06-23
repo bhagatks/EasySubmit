@@ -139,6 +139,7 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 
 | Date | Summary |
 |------|---------|
+| 2026-06-22 | Extension API intercept loads `api-intercept-page.js` via `script.src` (CSP-safe on Workday and other strict `script-src` sites) |
 | 2026-06-22 | Field Memory v1: `user_application_answers` table, extension capture bridge (`__easysubmit_field_capture__` → `POST /api/extension/application-answers/capture`), lookup GET API |
 | 2026-06-22 | `app_config.legalDocuments` — Terms of Service and Privacy Policy copy (structured blocks) for `/terms`, `/privacy`, and login overlay; seeded from `legal-documents-defaults.ts` |
 | 2026-06-22 | Application Field Memory spec + agent coordination (`docs/APPLICATION_FIELD_MEMORY.md`, `docs/ACTIVE_WORK.md`) — learn Workday answers in DB, reuse on similar fields |
