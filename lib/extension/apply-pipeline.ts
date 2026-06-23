@@ -7,6 +7,7 @@ import {
   buildTailorInputFromSave,
   runPipelineTailor,
 } from "@/lib/extension/pipeline-tailor";
+import { mergeJobEntryMetadata } from "@/lib/extension/pipeline-metadata";
 import type { ApplyPipelinePhase } from "@/lib/extension/pipeline-types";
 import { isOneClickPlatform } from "@/lib/extension/pipeline-types";
 import { getExtensionUserPrefs } from "@/lib/extension/user-prefs";
@@ -67,7 +68,47 @@ async function findExistingTailoredState(
   return { status: row.status, hasTailoredResume: true };
 }
 
-/** Workday one-click pipeline: capture → tailor → autofill stub → READY_TO_APPLY. */
+/** Server-side Stage 1b → 2: resume ready jobs enter apply assist without extension stub. */
+export async function advancePipelineAfterAutofill(
+  userId: string,
+  entryId: string,
+): Promise<void> {
+  const { updateJobTrackerStatus } = await import("@/lib/extension/job-service");
+  await updateJobTrackerStatus(userId, entryId, "READY_TO_APPLY");
+}
+
+async function ensureApplyAssistStatus(
+  userId: string,
+  entryId: string,
+  currentStatus: JobTrackerStatus,
+): Promise<JobTrackerStatus> {
+  if (currentStatus === "READY_TO_APPLY" || currentStatus === "APPLIED") {
+    return currentStatus;
+  }
+
+  if (currentStatus === "RESUME_READY") {
+    await advancePipelineAfterAutofill(userId, entryId);
+    await mergeJobEntryMetadata(userId, entryId, {
+      pipelinePhases: ["capture", "tailor", "autofill"],
+    });
+    return "READY_TO_APPLY";
+  }
+
+  return currentStatus;
+}
+
+function shouldOfferAutofillPhase(
+  autoApplyEnabled: boolean,
+  autoApplyUserSwitch: boolean,
+  platform: string | null,
+): boolean {
+  return autoApplyEnabled && autoApplyUserSwitch && isOneClickPlatform(platform);
+}
+
+/**
+ * Apply journey: capture → tailor (all platforms) → server auto-advance to READY_TO_APPLY.
+ * Workday one-click may still run client autofill assist (`pendingPhase: autofill`) — adapters later.
+ */
 export async function runApplyPipeline(
   userId: string,
   input: RunApplyPipelineInput,
@@ -77,40 +118,42 @@ export async function runApplyPipeline(
     isFeatureEnabled(FEATURE_FLAG_KEYS.extensionAutoApply),
   ]);
   const platform = input.platform?.trim() || null;
-  const oneClick = autoApplyEnabled && prefs.oneClickApply && isOneClickPlatform(platform);
-
-  if (prefs.oneClickApply && autoApplyEnabled && platform && !isOneClickPlatform(platform)) {
-    const saved = await saveJobTrackerEntry(userId, input);
-    return {
-      success: true,
-      id: saved.id,
-      status: saved.status,
-      phases: ["capture"],
-      pendingPhase: null,
-    };
-  }
+  const offerAutofill = shouldOfferAutofillPhase(
+    autoApplyEnabled,
+    prefs.autoApplyUserSwitch,
+    platform,
+  );
 
   const saved = await saveJobTrackerEntry(userId, input);
   const phases: ApplyPipelinePhase[] = ["capture"];
 
-  if (!oneClick) {
+  if (!prefs.customizeResume) {
+    await advancePipelineAfterAutofill(userId, saved.id);
+    await mergeJobEntryMetadata(userId, saved.id, {
+      pipelinePhases: ["capture"],
+      pipelineError: null,
+      pipelineErrorCode: null,
+    });
+
     return {
       success: true,
       id: saved.id,
-      status: saved.status,
+      status: "READY_TO_APPLY",
       phases,
-      pendingPhase: null,
+      pendingPhase: offerAutofill ? "autofill" : null,
+      sourceProfileId: input.sourceProfileId ?? null,
     };
   }
 
   const existingTailored = await findExistingTailoredState(userId, saved.id);
   if (existingTailored) {
+    const status = await ensureApplyAssistStatus(userId, saved.id, existingTailored.status);
     return {
       success: true,
       id: saved.id,
-      status: existingTailored.status,
+      status,
       phases: ["capture", "tailor"],
-      pendingPhase: existingTailored.status === "RESUME_READY" ? "autofill" : null,
+      pendingPhase: offerAutofill && status === "READY_TO_APPLY" ? "autofill" : null,
       hasTailoredResume: true,
     };
   }
@@ -128,21 +171,22 @@ export async function runApplyPipeline(
     };
   }
 
+  phases.push("tailor");
+
+  await advancePipelineAfterAutofill(userId, saved.id);
+  await mergeJobEntryMetadata(userId, saved.id, {
+    pipelinePhases: ["capture", "tailor", "autofill"],
+    pipelineError: null,
+    pipelineErrorCode: null,
+  });
+
   return {
     success: true,
     id: saved.id,
-    status: "RESUME_READY",
-    phases: tailor.phases,
-    pendingPhase: "autofill",
+    status: "READY_TO_APPLY",
+    phases,
+    pendingPhase: offerAutofill ? "autofill" : null,
     hasTailoredResume: true,
     sourceProfileId: tailor.sourceProfileId,
   };
-}
-
-export async function advancePipelineAfterAutofill(
-  userId: string,
-  entryId: string,
-): Promise<void> {
-  const { updateJobTrackerStatus } = await import("@/lib/extension/job-service");
-  await updateJobTrackerStatus(userId, entryId, "READY_TO_APPLY");
 }

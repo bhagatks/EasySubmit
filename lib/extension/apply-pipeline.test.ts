@@ -11,6 +11,7 @@ vi.mock("@/lib/prisma", () => ({
 
 vi.mock("@/lib/extension/job-service", () => ({
   saveJobTrackerEntry: vi.fn(),
+  updateJobTrackerStatus: vi.fn(),
 }));
 
 vi.mock("@/lib/extension/pipeline-tailor", () => ({
@@ -19,6 +20,10 @@ vi.mock("@/lib/extension/pipeline-tailor", () => ({
     jobTitle: input.title,
   })),
   runPipelineTailor: vi.fn(),
+}));
+
+vi.mock("@/lib/extension/pipeline-metadata", () => ({
+  mergeJobEntryMetadata: vi.fn(),
 }));
 
 vi.mock("@/lib/profile/job-resume-tailor", () => ({
@@ -35,8 +40,9 @@ vi.mock("@/src/lib/services/feature-flags-service", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
-import { saveJobTrackerEntry } from "@/lib/extension/job-service";
+import { saveJobTrackerEntry, updateJobTrackerStatus } from "@/lib/extension/job-service";
 import { runPipelineTailor } from "@/lib/extension/pipeline-tailor";
+import { mergeJobEntryMetadata } from "@/lib/extension/pipeline-metadata";
 import { hasJobResumeTailor } from "@/lib/profile/job-resume-tailor";
 import { getExtensionUserPrefs } from "@/lib/extension/user-prefs";
 import { isFeatureEnabled } from "@/src/lib/services/feature-flags-service";
@@ -47,12 +53,18 @@ describe("runApplyPipeline", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(isFeatureEnabled).mockResolvedValue(true);
-    vi.mocked(getExtensionUserPrefs).mockResolvedValue({ oneClickApply: true });
+    vi.mocked(getExtensionUserPrefs).mockResolvedValue({
+      autoApplyUserSwitch: true,
+      resumeProfilePickerMode: "DEFAULT",
+      customizeResume: true,
+      applicationProfile: null,
+    });
     vi.mocked(prisma.jobTrackerEntry.findFirst).mockResolvedValue(null);
     vi.mocked(hasJobResumeTailor).mockResolvedValue(false);
+    vi.mocked(updateJobTrackerStatus).mockResolvedValue({ count: 1 });
   });
 
-  it("runs tailor after capture for Workday one-click", async () => {
+  it("runs tailor for Workday and auto-advances to READY_TO_APPLY", async () => {
     vi.mocked(saveJobTrackerEntry).mockResolvedValue({
       id: "entry-1",
       status: "CAPTURED",
@@ -75,14 +87,45 @@ describe("runApplyPipeline", () => {
     });
 
     expect(runPipelineTailor).toHaveBeenCalled();
+    expect(updateJobTrackerStatus).toHaveBeenCalledWith("user-1", "entry-1", "READY_TO_APPLY");
     expect(result).toMatchObject({
       success: true,
       id: "entry-1",
-      status: "RESUME_READY",
+      status: "READY_TO_APPLY",
       phases: ["capture", "tailor"],
       pendingPhase: "autofill",
       hasTailoredResume: true,
       sourceProfileId: "source-1",
+    });
+  });
+
+  it("runs tailor for non-one-click platforms and returns READY_TO_APPLY without autofill phase", async () => {
+    vi.mocked(saveJobTrackerEntry).mockResolvedValue({
+      id: "entry-linkedin",
+      status: "CAPTURED",
+      title: "Engineer",
+      company: "Acme",
+      canonicalUrl: "https://www.linkedin.com/jobs/view/123",
+    } as never);
+    vi.mocked(runPipelineTailor).mockResolvedValue({
+      success: true,
+      jobTrackerEntryId: "entry-linkedin",
+      sourceProfileId: "source-1",
+      phases: ["capture", "tailor"],
+    });
+
+    const result = await runApplyPipeline("user-1", {
+      url: "https://www.linkedin.com/jobs/view/123",
+      title: "Engineer",
+      platform: "linkedin",
+      description: LONG_JD,
+    });
+
+    expect(runPipelineTailor).toHaveBeenCalled();
+    expect(result).toMatchObject({
+      success: true,
+      status: "READY_TO_APPLY",
+      pendingPhase: null,
     });
   });
 
@@ -114,9 +157,10 @@ describe("runApplyPipeline", () => {
       status: "CAPTURED",
       code: "enhance_failed",
     });
+    expect(updateJobTrackerStatus).not.toHaveBeenCalled();
   });
 
-  it("skips tailor when entry is already RESUME_READY with overrides", async () => {
+  it("skips tailor when entry is already tailored and ensures READY_TO_APPLY", async () => {
     vi.mocked(saveJobTrackerEntry).mockResolvedValue({
       id: "entry-3",
       status: "CAPTURED",
@@ -136,18 +180,24 @@ describe("runApplyPipeline", () => {
     });
 
     expect(runPipelineTailor).not.toHaveBeenCalled();
+    expect(updateJobTrackerStatus).toHaveBeenCalledWith("user-1", "entry-3", "READY_TO_APPLY");
     expect(result).toMatchObject({
       success: true,
-      status: "RESUME_READY",
+      status: "READY_TO_APPLY",
       pendingPhase: "autofill",
       hasTailoredResume: true,
     });
   });
 
-  it("save-only when one-click is disabled", async () => {
-    vi.mocked(getExtensionUserPrefs).mockResolvedValue({ oneClickApply: false });
+  it("skips tailor when customizeResume is off and advances to READY_TO_APPLY", async () => {
+    vi.mocked(getExtensionUserPrefs).mockResolvedValue({
+      autoApplyUserSwitch: true,
+      resumeProfilePickerMode: "DEFAULT",
+      customizeResume: false,
+      applicationProfile: null,
+    });
     vi.mocked(saveJobTrackerEntry).mockResolvedValue({
-      id: "entry-4",
+      id: "entry-no-customize",
       status: "CAPTURED",
       title: "Engineer",
       company: null,
@@ -158,9 +208,56 @@ describe("runApplyPipeline", () => {
       url: "https://acme.myworkdayjobs.com/job/eng",
       title: "Engineer",
       platform: "workday",
+      description: LONG_JD,
     });
 
     expect(runPipelineTailor).not.toHaveBeenCalled();
-    expect(result).toMatchObject({ success: true, pendingPhase: null });
+    expect(updateJobTrackerStatus).toHaveBeenCalledWith(
+      "user-1",
+      "entry-no-customize",
+      "READY_TO_APPLY",
+    );
+    expect(result).toMatchObject({
+      success: true,
+      status: "READY_TO_APPLY",
+      phases: ["capture"],
+      pendingPhase: "autofill",
+    });
+  });
+
+  it("still runs tailor when autoApplyUserSwitch is off", async () => {
+    vi.mocked(getExtensionUserPrefs).mockResolvedValue({
+      autoApplyUserSwitch: false,
+      resumeProfilePickerMode: "DEFAULT",
+      customizeResume: true,
+      applicationProfile: null,
+    });
+    vi.mocked(saveJobTrackerEntry).mockResolvedValue({
+      id: "entry-4",
+      status: "CAPTURED",
+      title: "Engineer",
+      company: null,
+      canonicalUrl: "https://acme.myworkdayjobs.com/job/eng",
+    } as never);
+    vi.mocked(runPipelineTailor).mockResolvedValue({
+      success: true,
+      jobTrackerEntryId: "entry-4",
+      sourceProfileId: "source-1",
+      phases: ["capture", "tailor"],
+    });
+
+    const result = await runApplyPipeline("user-1", {
+      url: "https://acme.myworkdayjobs.com/job/eng",
+      title: "Engineer",
+      platform: "workday",
+      description: LONG_JD,
+    });
+
+    expect(runPipelineTailor).toHaveBeenCalled();
+    expect(result).toMatchObject({
+      success: true,
+      status: "READY_TO_APPLY",
+      pendingPhase: null,
+    });
   });
 });
