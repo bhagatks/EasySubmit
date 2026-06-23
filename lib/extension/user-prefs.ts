@@ -1,19 +1,32 @@
 import { prisma } from "@/lib/prisma";
 import type { ResumeProfilePickerMode } from "@/lib/generated/prisma/client";
+import {
+  parseApplicationProfile,
+  type ApplicationProfile,
+} from "@/lib/profile/application-profile";
 
 export type ExtensionUserPrefs = {
-  oneClickApply: boolean;
+  autoApplyUserSwitch: boolean;
   resumeProfilePickerMode: ResumeProfilePickerMode;
+  customizeResume: boolean;
+  applicationProfile: ApplicationProfile | null;
 };
 
 export async function getExtensionUserPrefs(userId: string): Promise<ExtensionUserPrefs> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { oneClickApply: true, resumeProfilePickerMode: true },
+    select: {
+      autoApplyUserSwitch: true,
+      resumeProfilePickerMode: true,
+      customizeResume: true,
+      applicationProfile: true,
+    },
   });
 
   return {
-    oneClickApply: user?.oneClickApply ?? true,
+    autoApplyUserSwitch: user?.autoApplyUserSwitch ?? true,
     resumeProfilePickerMode: user?.resumeProfilePickerMode ?? "DEFAULT",
+    customizeResume: user?.customizeResume ?? true,
+    applicationProfile: parseApplicationProfile(user?.applicationProfile ?? null),
   };
 }

@@ -98,7 +98,7 @@ lib/profile/                Profile copy + persist helpers for pipeline tailor
 
 ## Extension one-click pipeline (Workday)
 
-Gated by `feature_flags.extension_auto_apply` + `users.oneClickApply`. Entry: extension card **Apply with EasySubmit** → `POST /api/extension/jobs/pipeline`.
+Gated by `feature_flags.extension_auto_apply` + `users.autoApplyUserSwitch`. Entry: extension card **Apply with EasySubmit** → `POST /api/extension/jobs/pipeline`.
 
 ```
 Extension RUN_PIPELINE
@@ -139,6 +139,13 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 
 | Date | Summary |
 |------|---------|
+| 2026-06-23 | Application profile schema: `users.customizeResume`, `users.applicationProfile` JSONB; `JobTrackerEntry` drops `@@unique([userId, urlHash])` for re-apply — migration `allow_multiple_journeys_per_url` |
+| 2026-06-23 | Full journey sync: State 0 manual capture, Stage 2 two-card assist, extension Realtime, `?es_open=assist`, `MARK_APPLIED`, Layer B apply gate — `docs/SYNC_ARCHITECTURE.md` |
+| 2026-06-23 | Journey sync v1: Apply always runs pipeline+tailor (all platforms); server auto-advance to `READY_TO_APPLY`; `resolveJourneyDisplay`, Realtime token APIs, `useJobTrackerSync` |
+| 2026-06-23 | `docs/SYNC_ARCHITECTURE.md` audited vs codebase: State 0 locked (Apply-only, 0a/0b/0c), current-vs-target gaps, extension Realtime auth, build order |
+| 2026-06-23 | Extension card: auto-detect calls `removeCard()` when `isJobPage` false; manual open from popup shows “Job not detected” state |
+| 2026-06-23 | `extension_global_switch` is first gate: content script skips boot when off; extension APIs return 503; replaces `extension_job_card` |
+| 2026-06-23 | Renamed `users.oneClickApply` → `autoApplyUserSwitch` (per-user auto-apply toggle; pairs with `extension_auto_apply` flag) |
 | 2026-06-22 | Extension API intercept loads `api-intercept-page.js` via `script.src` (CSP-safe on Workday and other strict `script-src` sites) |
 | 2026-06-22 | Field Memory v1: `user_application_answers` table, extension capture bridge (`__easysubmit_field_capture__` → `POST /api/extension/application-answers/capture`), lookup GET API |
 | 2026-06-22 | `app_config.legalDocuments` — Terms of Service and Privacy Policy copy (structured blocks) for `/terms`, `/privacy`, and login overlay; seeded from `legal-documents-defaults.ts` |

@@ -36,11 +36,15 @@ model User {
   /// Deprecated — use `app_config.aiEngine.quotas.customer.aiDailyUnlimited`.
   aiDailyUnlimited    Boolean     @default(false)
   /// When true, Workday job pages run capture → tailor → autofill pipeline from the extension.
-  oneClickApply       Boolean     @default(true)
+  autoApplyUserSwitch Boolean     @default(true)
   /// Which resume profile the extension pre-selects: account default vs last picked on card.
   resumeProfilePickerMode ResumeProfilePickerMode @default(DEFAULT)
   /// When true, applied jobs move to archive 24 hours after `appliedAt`.
   autoArchiveAppliedJobs Boolean @default(true)
+  /// When true, Apply runs tailor + job-specific resume overrides; when false, uses default profile only.
+  customizeResume     Boolean        @default(true)
+  /// Work auth, preferences, address, EEO — see `docs/APPLICATION_PROFILE.md`.
+  applicationProfile  Json?
   termsAcceptedAt     DateTime?
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
@@ -95,7 +99,7 @@ model JobTrackerEntry {
   user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   resumeTailor      JobResumeTailor?
 
-  @@unique([userId, urlHash])
+  @@index([userId, urlHash])
   @@index([userId, status])
   @@index([userId, savedAt])
   @@map("job_tracker_entries")

@@ -169,8 +169,10 @@ Auth identity and onboarding gate only. Career data lives on `Profile`.
 | `aiQuotaResetAt` | `datetime` | Last quota counter reset timestamp |
 | `termsAcceptedAt` | `datetime?` | Last OAuth sign-in with terms checkbox accepted |
 | `lastAuthProvider` | `string?` | Last OAuth provider |
-| `oneClickApply` | `boolean` default `true` | Workday one-click pipeline when `extension_auto_apply` flag is on |
+| `autoApplyUserSwitch` | `boolean` default `true` | Workday one-click pipeline when `extension_auto_apply` flag is on |
 | `autoArchiveAppliedJobs` | `boolean` default `true` | When on, `APPLIED` rows move to `ARCHIVED` 24h after `appliedAt` |
+| `customizeResume` | `boolean` default `true` | When on, Apply runs tailor + job overrides; when off, default profile only — see `docs/APPLICATION_PROFILE.md` |
+| `applicationProfile` | `jsonb?` | Work auth, preferences, address, EEO — typed in `lib/profile/application-profile.ts` |
 | `resumeProfilePickerMode` | `ResumeProfilePickerMode` default `DEFAULT` | Extension card pre-select: `DEFAULT` (default profile) or `LAST_SELECTED` (last pick on card) |
 | `createdAt` / `updatedAt` | `datetime` | |
 
@@ -290,7 +292,7 @@ Source of truth for **Job Tracker** — extension saves and dashboard list read 
 | `id` | `cuid` | Primary key |
 | `userId` | `string` | FK → `users.id` |
 | `canonicalUrl` | `string` | Normalized job posting URL |
-| `urlHash` | `string` | SHA-256 of `canonicalUrl` — unique per user |
+| `urlHash` | `string` | SHA-256 of `canonicalUrl` — indexed per user; multiple rows per URL allowed (re-apply) |
 | `title` | `string` | Job title |
 | `company` | `string?` | Employer |
 | `location` | `string?` | Location text |
@@ -376,7 +378,7 @@ One row per flag key — scales to many toggles without schema changes.
 |-----|---------|-------------|
 | `enhance_with_ai_onboarding` | `true` | Show **Enhance with AI** in onboarding Studio top bar (phase 3) — also requires `app_config.aiEngine.quotas.system.enable` |
 | `enhance_with_ai_resume_profile` | `true` | Show **Enhance with AI** in dashboard resume profile studio header |
-| `extension_job_card` | `true` | Show in-page Job Tracker card on supported job sites (Chrome extension) |
+| `extension_global_switch` | `true` | Global extension kill switch — when off, extension does nothing for all users (no card, no save APIs) |
 | `extension_auto_apply` | `true` | One-click Workday apply pipeline. **Off** → manual Save → Update resume → Apply only |
 
 Registry + defaults: `src/lib/services/feature-flags-service.ts` (`FEATURE_FLAG_REGISTRY`). Loader: `getFeatureFlags()` / `isFeatureEnabled(key)`. Client: `fetchFeatureFlags()`. New flags: add registry entry + seed row + migration `INSERT`.
