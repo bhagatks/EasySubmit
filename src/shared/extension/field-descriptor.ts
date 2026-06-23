@@ -42,11 +42,15 @@ export type FieldCapturePayload = {
   }>;
 };
 
+/** Options-set fingerprint used inside {@link fieldSignature}. */
+export function optionsFingerprint(options: string[] | undefined): string | null {
+  if (!options?.length) return null;
+  return simpleHash(options.join("|"));
+}
+
 /** Compute a stable fieldSignature matching APPLICATION_FIELD_MEMORY.md. */
 export function fieldSignature(d: FieldDescriptor): string {
-  const optionsHash = d.options?.length
-    ? simpleHash(d.options.join("|"))
-    : "";
+  const optionsHash = d.options?.length ? simpleHash(d.options.join("|")) : "";
   return simpleHash(
     [d.platform, d.tenantHost, d.automationId ?? "", normalizeLabel(d.label), d.fieldType, optionsHash].join("::"),
   );

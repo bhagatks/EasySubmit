@@ -139,6 +139,8 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 
 | Date | Summary |
 |------|---------|
+| 2026-06-22 | Field Memory v1: `user_application_answers` table, extension capture bridge (`__easysubmit_field_capture__` → `POST /api/extension/application-answers/capture`), lookup GET API |
+| 2026-06-22 | `app_config.legalDocuments` — Terms of Service and Privacy Policy copy (structured blocks) for `/terms`, `/privacy`, and login overlay; seeded from `legal-documents-defaults.ts` |
 | 2026-06-22 | Application Field Memory spec + agent coordination (`docs/APPLICATION_FIELD_MEMORY.md`, `docs/ACTIVE_WORK.md`) — learn Workday answers in DB, reuse on similar fields |
 | 2026-06-22 | Extension detection v2: `page-classifier` hub taxonomy (CVS Phenom fix), Phase 1 adapters (Lever/Ashby/iCIMS/SR/Taleo/Jobvite), `extension:detect-eval` CLI + negative URL matrix — see `docs/EXTENSION_DETECTION.md` |
 | 2026-06-22 | `app_config.resumeProfiles.maxProfilesPerCustomer` (default 20) — per-user resume profile cap enforced on create + job-tailor clone; dashboard shows count/limit |

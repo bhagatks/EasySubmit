@@ -11,6 +11,10 @@ import {
   EXTENSION_SITES_DEFAULTS,
 } from "../src/lib/services/extension-sites-config";
 import {
+  LEGAL_DOCUMENTS_CONFIG_KEY,
+  LEGAL_DOCUMENTS_DEFAULTS,
+} from "../src/lib/services/legal-documents-config";
+import {
   RESUME_PROFILES_CONFIG_KEY,
   RESUME_PROFILES_DEFAULTS,
 } from "../src/lib/services/resume-profiles-config";
@@ -154,6 +158,15 @@ async function main() {
       update: {},
     });
 
+    await prisma.appConfig.upsert({
+      where: { key: LEGAL_DOCUMENTS_CONFIG_KEY },
+      create: {
+        key: LEGAL_DOCUMENTS_CONFIG_KEY,
+        value: LEGAL_DOCUMENTS_DEFAULTS as Prisma.InputJsonValue,
+      },
+      update: {},
+    });
+
     for (const flag of getFeatureFlagSeedRows()) {
       await prisma.featureFlag.upsert({
         where: { key: flag.key },
@@ -172,7 +185,7 @@ async function main() {
     }
 
     console.log(
-      `Seeded AppConfig keys: ${DATA_REFRESH_KEY}, ${AI_CONFIG_KEY}, ${AI_PRICING_MAP_KEY}, ${ENHANCE_WITH_AI_CONFIG_KEY}, ${AI_ENGINE_CONFIG_KEY}, ${EXTENSION_SITES_CONFIG_KEY}, ${RESUME_PROFILES_CONFIG_KEY}; feature_flags registry`,
+      `Seeded AppConfig keys: ${DATA_REFRESH_KEY}, ${AI_CONFIG_KEY}, ${AI_PRICING_MAP_KEY}, ${ENHANCE_WITH_AI_CONFIG_KEY}, ${AI_ENGINE_CONFIG_KEY}, ${EXTENSION_SITES_CONFIG_KEY}, ${RESUME_PROFILES_CONFIG_KEY}, ${LEGAL_DOCUMENTS_CONFIG_KEY}; feature_flags registry`,
     );
   } finally {
     await prisma.$disconnect();
