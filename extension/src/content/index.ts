@@ -25,6 +25,7 @@ import {
 } from "@shared/extension/capture-diagnostics";
 import { pollJobStatusUntil } from "@shared/extension/pipeline-status-poll";
 import { runWorkdayAutofillStub } from "@shared/extension/workday-autofill-stub";
+import { injectApiInterceptScript, onApiIntercept, type InterceptedJobData } from "@shared/extension/api-intercept";
 
 const CONTENT_INIT_KEY = "__easysubmitContentInit__";
 const contentWindow = window as Window & { [CONTENT_INIT_KEY]?: boolean };
@@ -50,6 +51,7 @@ type CardHost = {
 
 let cardHost: CardHost | null = null;
 let currentMetadata: ScrapedJobMetadata | null = null;
+let interceptedMetadata: ScrapedJobMetadata | null = null;
 let lastScrapeContext: { path: string; enrichments: string[] } | null = null;
 let savedStatus: { saved: boolean; status?: string; id?: string } = { saved: false };
 let runtimeConfig: ExtensionRuntimeConfig | null = null;
@@ -1149,10 +1151,11 @@ async function refreshMetadataBeforeSave(config: ExtensionRuntimeConfig): Promis
   };
 
   lastScrapeContext = {
-    path: detectedDirect ? "detectJobPage" : "buildFallbackJobMetadata",
+    path: interceptedMetadata ? "api-intercept" : detectedDirect ? "detectJobPage" : "buildFallbackJobMetadata",
     enrichments: metaWithEnrichments.enrichmentsApplied ?? [],
   };
-  currentMetadata = detected.metadata;
+  // Prefer API-intercepted data — richer and more reliable than DOM scrape
+  currentMetadata = interceptedMetadata ?? detected.metadata;
 }
 
 async function onPrimaryClick(): Promise<void> {
@@ -1443,7 +1446,9 @@ async function updateCard(): Promise<void> {
         mountSelector: "body",
       } as const);
 
-    await mountCard(detected.mountSelector, detected.metadata);
+    // Prefer API-intercepted data — it's structured JSON vs. DOM scraping
+    const metadata = interceptedMetadata ?? detected.metadata;
+    await mountCard(detected.mountSelector, metadata);
   } catch (error) {
     console.warn("EasySubmit: job card update failed", error);
     if (!runtimeConfig) {
@@ -1471,7 +1476,39 @@ function mutationTouchesCardHost(mutations: MutationRecord[]): boolean {
   });
 }
 
+function interceptedToMetadata(data: InterceptedJobData): ScrapedJobMetadata {
+  const jsonLdFields =
+    data.qualifications || data.responsibilities
+      ? {
+          qualifications: data.qualifications ?? undefined,
+          responsibilities: data.responsibilities ?? undefined,
+        }
+      : undefined;
+  return {
+    title: data.title ?? "",
+    company: data.company ?? null,
+    location: data.location ?? null,
+    salaryText: null,
+    description: data.description ?? null,
+    platform: data.platform,
+    confidence: 95,
+    ...(jsonLdFields ? { jsonLdFields } : {}),
+  };
+}
+
 function bootJobPageObservers(): void {
+  injectApiInterceptScript();
+
+  onApiIntercept((data) => {
+    if (!data.title) return;
+    interceptedMetadata = interceptedToMetadata(data);
+    // If card is already showing, upgrade it with the richer API data immediately
+    if (currentMetadata && cardHost) {
+      currentMetadata = interceptedMetadata;
+      renderCard(cardHost.shadow);
+    }
+  });
+
   scheduleUpdate();
 
   const domObserver = new MutationObserver((mutations) => {
@@ -1494,6 +1531,7 @@ function bootJobPageObservers(): void {
       lastUrl = location.href;
       pinnedUrl = null;
       runtimeConfig = null;
+      interceptedMetadata = null;
       removeCard();
       scheduleUpdate();
     }
