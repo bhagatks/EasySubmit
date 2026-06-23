@@ -23,6 +23,12 @@ import {
   type EnhanceWithAiConfig,
 } from "@/src/lib/services/enhance-with-ai-config";
 import {
+  LEGAL_DOCUMENTS_CONFIG_KEY,
+  LEGAL_DOCUMENTS_DEFAULTS,
+  parseLegalDocumentsConfig,
+  type LegalDocumentsConfig,
+} from "@/src/lib/services/legal-documents-config";
+import {
   RESUME_PROFILES_CONFIG_KEY,
   RESUME_PROFILES_DEFAULTS,
   parseResumeProfilesConfig,
@@ -33,6 +39,7 @@ export type { AiPricingMap } from "@/src/lib/services/ai-pricing-map";
 export type { DataRefreshConfig, RefreshIntervalMinutes };
 export type { EnhanceWithAiConfig } from "@/src/lib/services/enhance-with-ai-config";
 export type { AiEngineConfig } from "@/src/lib/services/ai-engine-config";
+export type { LegalDocumentsConfig } from "@/src/lib/services/legal-documents-config";
 export type { ResumeProfilesConfig } from "@/src/lib/services/resume-profiles-config";
 export {
   AI_ENGINE_CONFIG_KEY,
@@ -44,6 +51,10 @@ export {
   DEFAULT_ENHANCE_WITH_AI_TIMEOUT_MS,
 } from "@/src/lib/services/enhance-with-ai-config";
 export { DATA_REFRESH_SAFETY_DEFAULT, AI_PRICING_MAP_DEFAULT, AI_PRICING_MAP_KEY };
+export {
+  LEGAL_DOCUMENTS_CONFIG_KEY,
+  LEGAL_DOCUMENTS_DEFAULTS,
+} from "@/src/lib/services/legal-documents-config";
 export {
   RESUME_PROFILES_CONFIG_KEY,
   RESUME_PROFILES_DEFAULTS,
@@ -63,6 +74,7 @@ export interface AppConfigSnapshot {
   enhanceWithAi: EnhanceWithAiConfig;
   aiEngine: AiEngineConfig;
   resumeProfiles: ResumeProfilesConfig;
+  legalDocuments: LegalDocumentsConfig;
 }
 
 const DATA_REFRESH_KEY = "dataRefresh";
@@ -139,8 +151,16 @@ export async function getAppConfig(key: "ai_pricing_map"): Promise<AiPricingMap>
 export async function getAppConfig(key: "enhanceWithAi"): Promise<EnhanceWithAiConfig>;
 export async function getAppConfig(key: "aiEngine"): Promise<AiEngineConfig>;
 export async function getAppConfig(key: "resumeProfiles"): Promise<ResumeProfilesConfig>;
+export async function getAppConfig(key: "legalDocuments"): Promise<LegalDocumentsConfig>;
 export async function getAppConfig(
-  key?: "dataRefresh" | "aiConfig" | "ai_pricing_map" | "enhanceWithAi" | "aiEngine" | "resumeProfiles",
+  key?:
+    | "dataRefresh"
+    | "aiConfig"
+    | "ai_pricing_map"
+    | "enhanceWithAi"
+    | "aiEngine"
+    | "resumeProfiles"
+    | "legalDocuments",
 ): Promise<
   | AppConfigSnapshot
   | DataRefreshConfig
@@ -150,6 +170,7 @@ export async function getAppConfig(
   | EnhanceWithAiConfig
   | AiEngineConfig
   | ResumeProfilesConfig
+  | LegalDocumentsConfig
 > {
   const snapshot = await loadAppConfigSnapshot();
 
@@ -177,6 +198,10 @@ export async function getAppConfig(
     return snapshot.resumeProfiles;
   }
 
+  if (key === "legalDocuments") {
+    return snapshot.legalDocuments;
+  }
+
   return snapshot;
 }
 
@@ -191,6 +216,7 @@ async function loadAppConfigSnapshot(): Promise<AppConfigSnapshot> {
           ENHANCE_WITH_AI_CONFIG_KEY,
           AI_ENGINE_CONFIG_KEY,
           RESUME_PROFILES_CONFIG_KEY,
+          LEGAL_DOCUMENTS_CONFIG_KEY,
         ],
       },
     },
@@ -220,6 +246,10 @@ async function loadAppConfigSnapshot(): Promise<AppConfigSnapshot> {
     parseResumeProfilesConfig(byKey.get(RESUME_PROFILES_CONFIG_KEY)) ??
     RESUME_PROFILES_DEFAULTS;
 
+  const legalDocuments =
+    parseLegalDocumentsConfig(byKey.get(LEGAL_DOCUMENTS_CONFIG_KEY)) ??
+    LEGAL_DOCUMENTS_DEFAULTS;
+
   return {
     dataRefresh,
     aiConfig,
@@ -227,5 +257,6 @@ async function loadAppConfigSnapshot(): Promise<AppConfigSnapshot> {
     enhanceWithAi,
     aiEngine,
     resumeProfiles,
+    legalDocuments,
   };
 }

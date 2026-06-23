@@ -4,22 +4,22 @@ import type { ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
+import { getLegalDocuments } from "@/app/actions/legal-documents";
 import { Button } from "@/components/ui/button";
 import { GlossySheen } from "@/components/ui/glossy-sheen";
 import { GLOSSY_OVERLAY_CLASS, GLOSSY_PANEL_CLASS } from "@/components/ui/glossy-tokens";
 import { PrivacyContent } from "@/components/legal/privacy-content";
 import { TermsContent } from "@/components/legal/terms-content";
-import { LEGAL_PROSE_CLASS, LEGAL_UPDATED_LABEL } from "@/components/legal/legal-prose";
+import { LEGAL_PROSE_CLASS } from "@/components/legal/legal-prose";
+import {
+  LEGAL_DOCUMENTS_DEFAULTS,
+  type LegalDocumentsConfig,
+} from "@/src/lib/services/legal-documents-config";
 import { cn } from "@/lib/utils";
 
 export type LegalDocumentId = "terms" | "privacy";
 
 export type LegalOverlayPlacement = "center" | "login-panel";
-
-const TITLES: Record<LegalDocumentId, string> = {
-  terms: "Terms of Service",
-  privacy: "Privacy Policy",
-};
 
 type LegalDocumentOverlayProps = {
   open: boolean;
@@ -28,6 +28,8 @@ type LegalDocumentOverlayProps = {
   onDocumentChange?: (documentId: LegalDocumentId) => void;
   placement?: LegalOverlayPlacement;
   className?: string;
+  /** Optional preloaded config (e.g. from a server component). Falls back to defaults then DB fetch. */
+  documents?: LegalDocumentsConfig;
 };
 
 /**
@@ -40,7 +42,33 @@ export function LegalDocumentOverlay({
   onDocumentChange,
   placement = "center",
   className,
+  documents: documentsProp,
 }: LegalDocumentOverlayProps) {
+  const [documents, setDocuments] = useState<LegalDocumentsConfig>(
+    documentsProp ?? LEGAL_DOCUMENTS_DEFAULTS,
+  );
+
+  useEffect(() => {
+    if (documentsProp) {
+      setDocuments(documentsProp);
+    }
+  }, [documentsProp]);
+
+  useEffect(() => {
+    if (documentsProp) {
+      return;
+    }
+    let cancelled = false;
+    void getLegalDocuments().then((loaded) => {
+      if (!cancelled) {
+        setDocuments(loaded);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [documentsProp]);
+
   const switchDocument = useCallback(
     (next: LegalDocumentId) => {
       onDocumentChange?.(next);
@@ -59,9 +87,11 @@ export function LegalDocumentOverlay({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [close, open]);
 
+  const activeDocument = documentId ? documents[documentId] : null;
+
   return (
     <AnimatePresence>
-      {open && documentId ? (
+      {open && documentId && activeDocument ? (
         <motion.div
           key="legal-document-overlay"
           initial={{ opacity: 0 }}
@@ -112,22 +142,28 @@ export function LegalDocumentOverlay({
 
             <header className="relative z-10 shrink-0 space-y-1 border-b border-white/10 px-5 py-4 pr-12 text-left">
               <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                {LEGAL_UPDATED_LABEL}
+                {activeDocument.updatedLabel}
               </p>
               <h2
                 id="legal-document-title"
                 className="font-display text-lg font-semibold text-foreground"
               >
-                {TITLES[documentId]}
+                {activeDocument.title}
               </h2>
             </header>
 
             <div className="relative z-10 min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 text-left">
               <article className={LEGAL_PROSE_CLASS}>
                 {documentId === "terms" ? (
-                  <TermsContent onOpenPrivacy={() => switchDocument("privacy")} />
+                  <TermsContent
+                    blocks={activeDocument.blocks}
+                    onOpenPrivacy={() => switchDocument("privacy")}
+                  />
                 ) : (
-                  <PrivacyContent onOpenTerms={() => switchDocument("terms")} />
+                  <PrivacyContent
+                    blocks={activeDocument.blocks}
+                    onOpenTerms={() => switchDocument("terms")}
+                  />
                 )}
               </article>
             </div>
@@ -150,7 +186,10 @@ export function LegalDocumentOverlay({
 }
 
 /** Hook + overlay bundle for opening Terms or Privacy from any client component. */
-export function useLegalDocumentOverlay(placement: LegalOverlayPlacement = "center") {
+export function useLegalDocumentOverlay(
+  placement: LegalOverlayPlacement = "center",
+  documents?: LegalDocumentsConfig,
+) {
   const [open, setOpen] = useState(false);
   const [documentId, setDocumentId] = useState<LegalDocumentId | null>(null);
 
@@ -166,6 +205,7 @@ export function useLegalDocumentOverlay(placement: LegalOverlayPlacement = "cent
       onOpenChange={setOpen}
       onDocumentChange={setDocumentId}
       placement={placement}
+      documents={documents}
     />
   );
 

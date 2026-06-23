@@ -1,9 +1,7 @@
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getAppConfig } from "@/src/lib/services/config-service";
-import {
-  RESUME_PROFILES_DEFAULTS,
-} from "@/src/lib/services/resume-profiles-config";
+import type { ResumeProfilesConfig } from "@/src/lib/services/resume-profiles-config";
 
 type ProfileCountClient = Pick<Prisma.TransactionClient, "profile">;
 
