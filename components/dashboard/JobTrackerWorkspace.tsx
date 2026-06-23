@@ -13,6 +13,7 @@ import {
 } from "@/lib/job-tracker/review-screen-ui";
 import { JobTrackerPipeline } from "@/components/dashboard/JobTrackerPipeline";
 import { ReviewScreen } from "@/components/dashboard/ReviewScreen";
+import { useJobTrackerSync } from "@/lib/hooks/useJobTrackerSync";
 import { ToastBanner } from "@/components/ui/toast-banner";
 import { Button } from "@/components/ui/button";
 import { useRegisterDashboardHeaderActions } from "@/components/dashboard/DashboardWorkspaceHeader";
@@ -113,10 +114,15 @@ export function JobTrackerWorkspace({ entries, autoArchiveAppliedJobs }: JobTrac
     }
   }, [archivedView, loadArchived]);
 
-  // Fetch latest rows on mount (extension saves while this tab was open).
+  // Initial server render — Realtime + adaptive poll keep rows fresh.
   useEffect(() => {
     void refreshTrackerEntries();
   }, [refreshTrackerEntries]);
+
+  useJobTrackerSync({
+    enabled: !archivedView,
+    onUpdate: setActiveEntries,
+  });
 
   useEffect(() => {
     function handleResume() {
@@ -229,8 +235,8 @@ export function JobTrackerWorkspace({ entries, autoArchiveAppliedJobs }: JobTrac
             </div>
             <h2 className="mt-4 font-display text-lg font-semibold">No jobs tracked yet</h2>
             <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-              Install the EasySubmit extension and use <strong>Save to Job Tracker</strong> on any
-              supported job posting. Use <strong>Review</strong> to open the Review Screen.
+              Install the EasySubmit extension and click <strong>Apply</strong> on any supported job
+              posting. Use <strong>Review</strong> to open the Review Screen.
             </p>
             <Button variant="mint" className="mt-6" asChild>
               <Link href="/extension">
