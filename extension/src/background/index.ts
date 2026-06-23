@@ -353,6 +353,15 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (action === EXTENSION_MESSAGE.GET_FILL_DATA && typeof message.entryId === "string") {
+    void apiFetch<{ success: boolean; fillData?: unknown; error?: string }>(
+      `/api/extension/jobs/${encodeURIComponent(message.entryId)}/fill-data`,
+    )
+      .then((data) => sendResponse(data))
+      .catch(() => sendResponse({ success: false, error: "Network error" }));
+    return true;
+  }
+
   if (action === EXTENSION_MESSAGE.COMPLETE_AUTOFILL && typeof message.entryId === "string") {
     void apiFetch<{ success: boolean; id?: string; status?: string; error?: string }>(
       `/api/extension/jobs/${encodeURIComponent(message.entryId)}/autofill-complete`,

@@ -139,6 +139,7 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 
 | Date | Summary |
 |------|---------|
+| 2026-06-22 | Application Field Memory spec + agent coordination (`docs/APPLICATION_FIELD_MEMORY.md`, `docs/ACTIVE_WORK.md`) — learn Workday answers in DB, reuse on similar fields |
 | 2026-06-22 | Extension detection v2: `page-classifier` hub taxonomy (CVS Phenom fix), Phase 1 adapters (Lever/Ashby/iCIMS/SR/Taleo/Jobvite), `extension:detect-eval` CLI + negative URL matrix — see `docs/EXTENSION_DETECTION.md` |
 | 2026-06-22 | `app_config.resumeProfiles.maxProfilesPerCustomer` (default 20) — per-user resume profile cap enforced on create + job-tailor clone; dashboard shows count/limit |
 | 2026-06-22 | Review Screen ATS Analysis tab: readiness score (4 pillars), keyword gap, bullet quality, robot parse view; shared `resume-content-model` for HTML/PDF/Word/ATS exports |
