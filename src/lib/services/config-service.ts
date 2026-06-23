@@ -22,11 +22,18 @@ import {
   parseEnhanceWithAiConfig,
   type EnhanceWithAiConfig,
 } from "@/src/lib/services/enhance-with-ai-config";
+import {
+  RESUME_PROFILES_CONFIG_KEY,
+  RESUME_PROFILES_DEFAULTS,
+  parseResumeProfilesConfig,
+  type ResumeProfilesConfig,
+} from "@/src/lib/services/resume-profiles-config";
 
 export type { AiPricingMap } from "@/src/lib/services/ai-pricing-map";
 export type { DataRefreshConfig, RefreshIntervalMinutes };
 export type { EnhanceWithAiConfig } from "@/src/lib/services/enhance-with-ai-config";
 export type { AiEngineConfig } from "@/src/lib/services/ai-engine-config";
+export type { ResumeProfilesConfig } from "@/src/lib/services/resume-profiles-config";
 export {
   AI_ENGINE_CONFIG_KEY,
   AI_ENGINE_DEFAULTS,
@@ -37,6 +44,10 @@ export {
   DEFAULT_ENHANCE_WITH_AI_TIMEOUT_MS,
 } from "@/src/lib/services/enhance-with-ai-config";
 export { DATA_REFRESH_SAFETY_DEFAULT, AI_PRICING_MAP_DEFAULT, AI_PRICING_MAP_KEY };
+export {
+  RESUME_PROFILES_CONFIG_KEY,
+  RESUME_PROFILES_DEFAULTS,
+} from "@/src/lib/services/resume-profiles-config";
 
 export interface AiConfigRecord {
   defaultProvider: string;
@@ -51,6 +62,7 @@ export interface AppConfigSnapshot {
   aiPricingMap: AiPricingMap;
   enhanceWithAi: EnhanceWithAiConfig;
   aiEngine: AiEngineConfig;
+  resumeProfiles: ResumeProfilesConfig;
 }
 
 const DATA_REFRESH_KEY = "dataRefresh";
@@ -126,8 +138,9 @@ export async function getAppConfig(key: "aiConfig"): Promise<AiConfigRecord | nu
 export async function getAppConfig(key: "ai_pricing_map"): Promise<AiPricingMap>;
 export async function getAppConfig(key: "enhanceWithAi"): Promise<EnhanceWithAiConfig>;
 export async function getAppConfig(key: "aiEngine"): Promise<AiEngineConfig>;
+export async function getAppConfig(key: "resumeProfiles"): Promise<ResumeProfilesConfig>;
 export async function getAppConfig(
-  key?: "dataRefresh" | "aiConfig" | "ai_pricing_map" | "enhanceWithAi" | "aiEngine",
+  key?: "dataRefresh" | "aiConfig" | "ai_pricing_map" | "enhanceWithAi" | "aiEngine" | "resumeProfiles",
 ): Promise<
   | AppConfigSnapshot
   | DataRefreshConfig
@@ -136,6 +149,7 @@ export async function getAppConfig(
   | AiPricingMap
   | EnhanceWithAiConfig
   | AiEngineConfig
+  | ResumeProfilesConfig
 > {
   const snapshot = await loadAppConfigSnapshot();
 
@@ -159,6 +173,10 @@ export async function getAppConfig(
     return snapshot.aiEngine;
   }
 
+  if (key === "resumeProfiles") {
+    return snapshot.resumeProfiles;
+  }
+
   return snapshot;
 }
 
@@ -172,6 +190,7 @@ async function loadAppConfigSnapshot(): Promise<AppConfigSnapshot> {
           AI_PRICING_MAP_KEY,
           ENHANCE_WITH_AI_CONFIG_KEY,
           AI_ENGINE_CONFIG_KEY,
+          RESUME_PROFILES_CONFIG_KEY,
         ],
       },
     },
@@ -197,11 +216,16 @@ async function loadAppConfigSnapshot(): Promise<AppConfigSnapshot> {
   const aiEngine =
     parseAiEngineConfig(byKey.get(AI_ENGINE_CONFIG_KEY)) ?? AI_ENGINE_DEFAULTS;
 
+  const resumeProfiles =
+    parseResumeProfilesConfig(byKey.get(RESUME_PROFILES_CONFIG_KEY)) ??
+    RESUME_PROFILES_DEFAULTS;
+
   return {
     dataRefresh,
     aiConfig,
     aiPricingMap,
     enhanceWithAi,
     aiEngine,
+    resumeProfiles,
   };
 }

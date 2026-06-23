@@ -56,4 +56,8 @@ describe("isJobPage", () => {
       ),
     ).toBe(true);
   });
+
+  it("rejects CVS career area hub pages (not a single posting)", () => {
+    expect(isJobPage(emptyDoc, "https://jobs.cvshealth.com/us/en/careerareas")).toBe(false);
+  });
 });

@@ -29,6 +29,9 @@ export default async function ResumeProfilesPage() {
       <ResumeProfilesWorkspace
         profiles={result.profiles}
         canDelete={result.canDelete}
+        profileCount={result.profileCount}
+        maxProfiles={result.maxProfiles}
+        canCreate={result.canCreate}
       />
     </DashboardWorkspacePage>
   );

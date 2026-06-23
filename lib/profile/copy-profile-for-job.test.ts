@@ -21,8 +21,13 @@ vi.mock("@/lib/profile/studio-form-db", () => ({
   hubRefineryFormFromProfile: vi.fn(() => ({ firstName: "Ada" })),
 }));
 
+vi.mock("@/lib/profile/resume-profile-limit", () => ({
+  checkUserCanCreateResumeProfile: vi.fn(),
+}));
+
 import { prisma } from "@/lib/prisma";
 import { findDefaultProfile, findProfileForUser } from "@/lib/profile/resume-profile-core";
+import { checkUserCanCreateResumeProfile } from "@/lib/profile/resume-profile-limit";
 
 const sourceProfile = {
   id: "source-1",
@@ -47,6 +52,11 @@ const sourceProfile = {
 describe("copySourceProfileForJob", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(checkUserCanCreateResumeProfile).mockResolvedValue({
+      ok: true,
+      maxProfiles: 20,
+      currentCount: 1,
+    });
   });
 
   it("uses explicit sourceProfileId when provided", async () => {
@@ -125,5 +135,26 @@ describe("copySourceProfileForJob", () => {
       error: "Job title is required to create a tailored profile",
       code: "invalid_title",
     });
+  });
+
+  it("fails when profile limit is reached", async () => {
+    vi.mocked(findDefaultProfile).mockResolvedValue(sourceProfile as never);
+    vi.mocked(checkUserCanCreateResumeProfile).mockResolvedValue({
+      ok: false,
+      maxProfiles: 20,
+      currentCount: 20,
+      error: "You can have up to 20 resume profiles. Delete one to add another.",
+    });
+
+    const result = await copySourceProfileForJob("user-1", {
+      jobTitle: "Engineer",
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: "You can have up to 20 resume profiles. Delete one to add another.",
+      code: "profile_limit_reached",
+    });
+    expect(prisma.profile.create).not.toHaveBeenCalled();
   });
 });

@@ -16,11 +16,17 @@ import { Button } from "@/components/ui/button";
 type ResumeProfilesWorkspaceProps = {
   profiles: ResumeProfileListItem[];
   canDelete: boolean;
+  profileCount: number;
+  maxProfiles: number;
+  canCreate: boolean;
 };
 
 export function ResumeProfilesWorkspace({
   profiles,
   canDelete,
+  profileCount,
+  maxProfiles,
+  canCreate,
 }: ResumeProfilesWorkspaceProps) {
   const router = useRouter();
   const sectionIds = useMemo(() => profiles.map((profile) => profile.id), [profiles]);
@@ -34,13 +40,22 @@ export function ResumeProfilesWorkspace({
         type="button"
         tone="bordered"
         aria-label="Add resume profile"
-        title="Add profile"
-        onClick={() => router.push("/dashboard/resume-profiles/new")}
+        title={
+          canCreate
+            ? "Add profile"
+            : `Profile limit reached (${maxProfiles})`
+        }
+        disabled={!canCreate}
+        onClick={() => {
+          if (canCreate) {
+            router.push("/dashboard/resume-profiles/new");
+          }
+        }}
       >
         <Plus className="h-3.5 w-3.5" aria-hidden="true" />
       </StudioIconButton>
     ),
-    [router],
+    [canCreate, maxProfiles, router],
   );
 
   useRegisterDashboardHeaderActions(addProfileAction);
@@ -59,11 +74,17 @@ export function ResumeProfilesWorkspace({
   }
 
   return (
-    <ResumeProfilesList
-      profiles={profiles}
-      canDelete={canDelete}
-      expanded={expanded}
-      onToggleSection={toggleSection}
-    />
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">
+        {profileCount} of {maxProfiles} profiles
+        {!canCreate ? " — delete a profile to add another." : ""}
+      </p>
+      <ResumeProfilesList
+        profiles={profiles}
+        canDelete={canDelete}
+        expanded={expanded}
+        onToggleSection={toggleSection}
+      />
+    </div>
   );
 }

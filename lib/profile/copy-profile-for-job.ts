@@ -6,6 +6,7 @@ import {
   type ResumeProfile,
 } from "@/lib/profile/resume-profile-core";
 import { sanitizeString } from "@/lib/profile/sanitize";
+import { checkUserCanCreateResumeProfile } from "@/lib/profile/resume-profile-limit";
 import { hubRefineryFormFromProfile } from "@/lib/profile/studio-form-db";
 import { prisma } from "@/lib/prisma";
 
@@ -27,7 +28,7 @@ export type CopyProfileForJobSuccess = {
 export type CopyProfileForJobFailure = {
   success: false;
   error: string;
-  code: "no_source_profile" | "invalid_title";
+  code: "no_source_profile" | "invalid_title" | "profile_limit_reached";
 };
 
 export type CopyProfileForJobResult = CopyProfileForJobSuccess | CopyProfileForJobFailure;
@@ -67,6 +68,15 @@ export async function copySourceProfileForJob(
       success: false,
       error: "No resume profile to copy from",
       code: "no_source_profile",
+    };
+  }
+
+  const limit = await checkUserCanCreateResumeProfile(userId);
+  if (!limit.ok) {
+    return {
+      success: false,
+      error: limit.error,
+      code: "profile_limit_reached",
     };
   }
 

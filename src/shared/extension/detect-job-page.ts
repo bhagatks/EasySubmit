@@ -3,6 +3,7 @@ import type { ExtensionPlatform, ExtensionRuntimeConfig, ScrapedJobMetadata } fr
 import { buildFallbackJobMetadata } from "./force-metadata";
 import { isJobPage } from "./is-job-page";
 import { enrichScrapedJobMetadata } from "./scrape-enrichment";
+import { classifyJobPage } from "./page-classifier";
 
 export function pickAdapter(platform: ExtensionPlatform) {
   return ALL_ADAPTERS.find((a) => a.platform === platform) ?? ALL_ADAPTERS.at(-1)!;
@@ -15,6 +16,9 @@ export function detectJobPage(
   options?: { ignoreJobCardFlag?: boolean },
 ): { metadata: ScrapedJobMetadata; mountSelector: string } | null {
   if (!options?.ignoreJobCardFlag && !config.jobCardEnabled) return null;
+
+  const pageKind = classifyJobPage(url, doc).kind;
+  if (pageKind === "careers_hub" || pageKind === "search_results") return null;
 
   const candidates = ALL_ADAPTERS.filter((adapter) => {
     if (adapter.platform === "generic") {

@@ -109,6 +109,10 @@ export function parseCompanyFromJobHost(url: string): string | null {
   return null;
 }
 
+/** Careers portal hubs/listings — not a single job posting (e.g. CVS /careerareas). */
+export { isCareersListingOrHubUrl, classifyJobPage, isJobPostingPage } from "./page-classifier";
+export type { PageKind, PageClassification } from "./page-classifier";
+
 /** High-trust job posting URL — enough to show the card before SPA hydration. */
 export function hasStrongJobUrlSignal(url: string): boolean {
   const lower = url.toLowerCase();

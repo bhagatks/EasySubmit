@@ -20,6 +20,7 @@ import {
   targetTitleFromProfile,
 } from "@/lib/profile/studio-form-db";
 import { countJobsDependingOnProfile } from "@/lib/profile/job-resume-tailor";
+import { checkUserCanCreateResumeProfile, getResumeProfilesConfig } from "@/lib/profile/resume-profile-limit";
 import { sanitizeString } from "@/lib/profile/sanitize";
 
 export type ResumeProfileListItem = {
@@ -32,7 +33,14 @@ export type ResumeProfileListItem = {
 };
 
 export type ListResumeProfilesResult =
-  | { success: true; profiles: ResumeProfileListItem[]; canDelete: boolean }
+  | {
+      success: true;
+      profiles: ResumeProfileListItem[];
+      canDelete: boolean;
+      profileCount: number;
+      maxProfiles: number;
+      canCreate: boolean;
+    }
   | { success: false; error: string };
 
 export async function listResumeProfiles(): Promise<ListResumeProfilesResult> {
@@ -56,6 +64,9 @@ export async function listResumeProfiles(): Promise<ListResumeProfilesResult> {
     },
   });
 
+  const { maxProfilesPerCustomer: maxProfiles } = await getResumeProfilesConfig();
+  const profileCount = rows.length;
+
   return {
     success: true,
     profiles: rows.map((row) => ({
@@ -66,7 +77,10 @@ export async function listResumeProfiles(): Promise<ListResumeProfilesResult> {
       isDefault: row.isDefault,
       updatedAt: row.updatedAt.toISOString(),
     })),
-    canDelete: rows.length > 1,
+    canDelete: profileCount > 1,
+    profileCount,
+    maxProfiles,
+    canCreate: profileCount < maxProfiles,
   };
 }
 
@@ -138,6 +152,11 @@ export async function createResumeProfile(
 
   try {
     const profileId = await prisma.$transaction(async (tx) => {
+      const limit = await checkUserCanCreateResumeProfile(userId, tx);
+      if (!limit.ok) {
+        throw new Error(limit.error);
+      }
+
       if (copyFromDefault && defaultProfile) {
         const cloned = await tx.profile.create({
           data: {
@@ -181,8 +200,10 @@ export async function createResumeProfile(
     revalidatePath("/dashboard/resume-profiles");
 
     return { success: true, profileId };
-  } catch {
-    return { success: false, error: "Failed to create profile" };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Failed to create profile";
+    return { success: false, error: message };
   }
 }
 

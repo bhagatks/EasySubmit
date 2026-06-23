@@ -6,7 +6,15 @@ import { createResumeProfile } from "@/app/actions/resume-profiles";
 import { DashboardWorkspacePage } from "@/components/dashboard/DashboardWorkspacePage";
 import { Button } from "@/components/ui/button";
 
-export function NewResumeProfileChooser() {
+type NewResumeProfileChooserProps = {
+  profileCount: number;
+  maxProfiles: number;
+};
+
+export function NewResumeProfileChooser({
+  profileCount,
+  maxProfiles,
+}: NewResumeProfileChooserProps) {
   const router = useRouter();
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +39,7 @@ export function NewResumeProfileChooser() {
   return (
     <DashboardWorkspacePage
       title="New resume profile"
-      description="Pick a target role in Studio — it names this profile in your list, not on the resume."
+      description={`Pick a target role in Studio — profile ${profileCount + 1} of ${maxProfiles} max.`}
     >
       {error ? (
         <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-700">

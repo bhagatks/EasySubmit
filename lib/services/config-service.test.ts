@@ -155,6 +155,7 @@ describe("getAppConfig", () => {
     expect(snapshot.aiEngine.quotas.system.dailyEnhancements).toBe(5);
     expect(snapshot.aiEngine.quotas.customer.aiDailyUnlimited).toBe(true);
     expect(snapshot.aiEngine.customerDailyEnhancementCap).toBe(50);
+    expect(snapshot.resumeProfiles.maxProfilesPerCustomer).toBe(20);
   });
 
   it("parses aiEngine from database", async () => {
@@ -177,5 +178,13 @@ describe("getAppConfig", () => {
     expect(engine.system.modelId).toBe("gemini-2.5-flash");
     expect(engine.quotas.system.dailyEnhancements).toBe(8);
     expect(engine.customerDailyEnhancementCap).toBe(40);
+  });
+
+  it("loads resumeProfiles defaults when row is missing", async () => {
+    vi.mocked(prisma.appConfig.findMany).mockResolvedValue([]);
+
+    const config = await getAppConfig("resumeProfiles");
+
+    expect(config.maxProfilesPerCustomer).toBe(20);
   });
 });

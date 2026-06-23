@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   hasStrongJobUrlSignal,
+  isCareersListingOrHubUrl,
   parseCompanyFromJobHost,
   parseJobTitleFromUrl,
   parseLocationFromJobUrl,
@@ -46,5 +47,10 @@ describe("job-url-parse", () => {
     expect(parseCompanyFromJobHost(FIXTURE_URLS.slalom)).toBe("Slalom");
     expect(parseCompanyFromJobHost(FIXTURE_URLS.cvs)).toBe("CVS Health");
     expect(parseCompanyFromJobHost(FIXTURE_URLS.optimum)).toBe("Optimum");
+  });
+
+  it("flags careers hub URLs that are not single postings", () => {
+    expect(isCareersListingOrHubUrl("https://jobs.cvshealth.com/us/en/careerareas")).toBe(true);
+    expect(isCareersListingOrHubUrl(FIXTURE_URLS.cvs)).toBe(false);
   });
 });

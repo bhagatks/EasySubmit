@@ -2,6 +2,7 @@ import type { ExtensionPlatform, SiteAdapter } from "./types";
 import {
   hasApplyAction,
   hasJobSectionKeywords,
+  parseJsonLdJobFields,
   scrapeCompany,
   scrapeDescription,
   scrapeLocation,
@@ -52,6 +53,7 @@ function baseAdapter(
       const url = doc.defaultView?.location?.href ?? "";
       const title = scrapeTitle(doc, titleFallbacks) || parseJobTitleFromUrl(url) || "";
       if (!title) return null;
+      const jsonLdFields = parseJsonLdJobFields(doc);
       return {
         title,
         company: scrapeCompany(doc, companySelectors) ?? parseCompanyFromJobHost(url),
@@ -60,6 +62,7 @@ function baseAdapter(
         description: scrapeDescription(doc) || null,
         platform,
         confidence: 0,
+        ...(jsonLdFields ? { jsonLdFields } : {}),
       };
     },
   };
@@ -99,6 +102,7 @@ export const linkedinAdapter: SiteAdapter = {
       parseJobTitleFromUrl(url) ||
       "";
     if (!title) return null;
+    const jsonLdFields = parseJsonLdJobFields(doc);
     return {
       title,
       company:
@@ -117,6 +121,7 @@ export const linkedinAdapter: SiteAdapter = {
       description: scrapeDescription(doc) || null,
       platform: "linkedin",
       confidence: 0,
+      ...(jsonLdFields ? { jsonLdFields } : {}),
     };
   },
 };
@@ -150,6 +155,7 @@ export const workdayAdapter: SiteAdapter = {
     const title = scrapeWorkdayTitle(doc, url);
     if (!title) return null;
     const description = scrapeDescription(doc) || null;
+    const jsonLdFields = parseJsonLdJobFields(doc);
     return {
       title,
       company: scrapeWorkdayCompany(doc, url),
@@ -158,6 +164,7 @@ export const workdayAdapter: SiteAdapter = {
       description,
       platform: "workday",
       confidence: 0,
+      ...(jsonLdFields ? { jsonLdFields } : {}),
     };
   },
 };
@@ -193,10 +200,70 @@ export const genericAdapter = baseAdapter(
   ],
 );
 
+export const leverAdapter = baseAdapter(
+  "lever",
+  [/jobs\.lever\.co\/[^/]+\/[a-f0-9-]{36}/i, /jobs\.lever\.co\/[^/]+\/[^/?#]+/i],
+  ["main", ".posting", ".content", "body"],
+  [".posting-headline .company", ".main-header-logo img[alt]", ".logo"],
+  [".posting-categories .location", ".sort-by-time .location"],
+  ["h2.posting-title", "h1", ".posting-headline h2"],
+);
+
+export const ashbyAdapter = baseAdapter(
+  "ashby",
+  [/jobs\.ashbyhq\.com\/[^/]+\/[a-f0-9-]{36}/i, /jobs\.ashbyhq\.com\/[^/]+\/[^/?#]+/i],
+  ["main", "[class*='JobPosting']", "body"],
+  ["[class*='CompanyName']", "[data-testid='company-name']"],
+  ["[class*='Location']", "[data-testid='location']"],
+  ["h1", "[class*='JobTitle']", "[data-testid='job-title']"],
+);
+
+export const icimsAdapter = baseAdapter(
+  "icims",
+  [/icims\.com/i, /\/job\/[^/]+\/\d+\/?/i],
+  [".iCIMS_JobContent", "main", "body"],
+  [".iCIMS_CompanyName", "[data-company]"],
+  [".iCIMS_JobHeaderTag", "[class*='location']"],
+  [".iCIMS_JobHeaderHeading", "h1", "[class*='job-title']"],
+);
+
+export const smartrecruitersAdapter = baseAdapter(
+  "smartrecruiters",
+  [/smartrecruiters\.com\/[^/]+\/[^/]+/i, /jobs\.smartrecruiters\.com/i],
+  ["main", "[class*='job-ad']", "body"],
+  [".company-name", "[data-test='company-name']"],
+  [".job-location", "[data-test='job-location']"],
+  ["h1", "[data-test='job-title']", ".job-title"],
+);
+
+export const taleoAdapter = baseAdapter(
+  "taleo",
+  [/taleo\.net/i, /oracle\.com\/taleo/i, /\/jobdetail\.ftl/i],
+  ["main", "#requisitionDescriptionInterface", "body"],
+  [".company", "[id*='company']"],
+  [".location", "[id*='location']"],
+  ["h1", ".jobTitle", "[class*='title']"],
+);
+
+export const jobviteAdapter = baseAdapter(
+  "jobvite",
+  [/jobvite\.com/i, /jobs\.jobvite\.com/i],
+  ["main", ".jv-page", "body"],
+  [".jv-company-name", ".company"],
+  [".jv-job-detail-meta", ".location"],
+  ["h1", ".jv-job-title", "[class*='job-title']"],
+);
+
 export const ALL_ADAPTERS = [
   linkedinAdapter,
   indeedAdapter,
   greenhouseAdapter,
   workdayAdapter,
+  leverAdapter,
+  ashbyAdapter,
+  icimsAdapter,
+  smartrecruitersAdapter,
+  taleoAdapter,
+  jobviteAdapter,
   genericAdapter,
 ];

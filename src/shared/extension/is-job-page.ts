@@ -4,6 +4,7 @@ import {
   scrapeDescription,
 } from "./scrape-helpers";
 import { hasStrongJobUrlSignal } from "./job-url-parse";
+import { classifyJobPage } from "./page-classifier";
 
 /** Ported from AutoApplyAI — high-trust job posting URL shapes. */
 export const HIGH_CONFIDENCE_JOB_URL_PATTERNS: RegExp[] = [
@@ -48,6 +49,14 @@ function hasUrlJobSignals(url: string): boolean {
 
 /** AutoApplyAI-style gate: URL pattern + light DOM checks (no numeric score threshold). */
 export function isJobPage(doc: Document, url: string): boolean {
+  const classification = classifyJobPage(url, doc);
+  if (classification.kind === "careers_hub" || classification.kind === "search_results") {
+    return false;
+  }
+  if (classification.kind === "job_posting" || classification.kind === "apply_form") {
+    return true;
+  }
+
   const lower = url.toLowerCase();
 
   if (HIGH_CONFIDENCE_JOB_URL_PATTERNS.some((pattern) => pattern.test(lower))) {

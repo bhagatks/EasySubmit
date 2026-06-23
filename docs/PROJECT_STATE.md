@@ -26,7 +26,7 @@
 - **Job Tracker (web v2)** — … **Review Screen** modal: Resume + Cover tabs share full-bleed preview, overlay toolbar (dark chrome), zoom controls; **ATS Analysis** tab (readiness score, keyword gap, bullet quality, robot parse view); resume PDF/Word export via `resume-content-model` + `resume-style`; Cover inline edit + Save, **Enhance with AI** (cover brain + quota), pipeline seeds **deterministic** 4-part cover (~300 words, no AI credits) on tailor; LaTeX editor; `reviewDocuments` on `job_resume_tailors`; …
 - **Chrome extension v0.1** — MV3 job card, save API, `/extension/bridge`, `npm run build:extension`; card header **resume profile picker** (icon dropdown, default badge); Settings **Default profile** vs **Last selected**; `sourceProfileId` on save/pipeline metadata; **Open dashboard** reuses existing EasySubmit tab; **Apply with EasySubmit** runs capture → tailor pipeline on Workday (`pipelineBusyLabel` progress)
 - **Dashboard shell** — `/dashboard`: Lovable-derived sidebar layout (`DashboardShell`), overview with stats/recent Job Tracker entries/ATS Guarantee (`DashboardOverview`); **Resume profiles** at `/dashboard/resume-profiles` — multi-profile list (target role primary label, person name subtitle), Edit / Set default / Delete (when >1), `+` → copy default or blank → Studio editor at `/dashboard/resume-profiles/[id]/edit`; onboarding default profile marked `isDefault`; **Settings** at `/dashboard/settings` — two-column account + AI/extension cards (segmented controls, toggle rows), OAuth connect badges, sign out in header; header `BYOKStatusBadge` when vaulted or **BYOK KEY** CTA when cold (except Settings/AI Keys where BYOK UI is on-page); sidebar **AI Keys** shows `BYOK Inactive` when cold; one-time BYOK nudge on first dashboard load; compact engine-cold callout on overview when BYOK missing; `KeyProtector` for auth-failure re-lock only
-- **Multi resume profiles** — many `profiles` per login with `isDefault`; structured resume in `profiles.content` JSONB; engine/stats read default profile; `app/actions/resume-profiles.ts`
+- **Multi resume profiles** — many `profiles` per login with `isDefault`; structured resume in `profiles.content` JSONB; engine/stats read default profile; `app/actions/resume-profiles.ts`; cap **`app_config.resumeProfiles.maxProfilesPerCustomer`** (default 20) with dashboard count + disabled add at limit
 - **Login identity** — `users.firstName` / `users.lastName` extracted at OAuth; session + onboarding Identity prefill; resume edits no longer write `users`
 - **Profile model** — `Profile` (many per `User`, one `isDefault`) with `content` JSONB for all resume sections + `calibrationScore`; multi-provider email linking via NextAuth
 - Marketing landing (`/`) + extension page (`/extension`)
@@ -34,30 +34,26 @@
 ## Active work
 
 - **Workday one-click apply E2E** — Phase B tailor stores **per-job overrides** in `job_resume_tailors` (no profile clone); Phase C autofill **stub done**; real Workday field fill **pending** — see [`docs/WORKDAY_ONE_CLICK_APPLY.md`](./WORKDAY_ONE_CLICK_APPLY.md)
-- Extension v2 — Tier 1 ATS adapters (Lever, Ashby, iCIMS, SmartRecruiters)
-- Production deploy (Vercel) — deferred
+- Extension v2 — Tier 1 ATS adapters (Lever, Ashby, iCIMS, SmartRecruiters, Taleo, Jobvite); detection architecture in [`docs/EXTENSION_DETECTION.md`](./EXTENSION_DETECTION.md)
+- **Production deploy (Vercel)** — **deferred** (OAuth prod callbacks done; Vercel/env/migrate when ready)
 
 Full tracker: [`docs/JOB_TRACKER.md`](./JOB_TRACKER.md)
 
 ## Setup (local)
 
+Focus for now: **`run easy`** + extension on localhost — see [`docs/ENV.md`](./ENV.md).
+
 ```bash
 run easy    # local dev — see docs/ENV.md
 ```
 
-Deploy production: `run easy prod` (Vercel — no local prod env files).
+Deploy production: `run easy prod` — **deferred**; use when ready (checklist in `docs/ACTION_ITEMS.md`).
 
-## Deploy (Vercel)
+## Deploy (Vercel) — deferred
 
-1. Connect repo `bhagatks/EasySubmit` to Vercel
-2. Set environment variables (see `.env.example`)
-3. Set `NEXTAUTH_URL` to production URL (e.g. `https://easysubmit.ai`)
-4. Add OAuth redirect URIs:
-   - Google: `https://<domain>/api/auth/callback/google`
-   - LinkedIn: `https://<domain>/api/auth/callback/linkedin`
-5. `npx vercel --prod` or push to main with Vercel Git integration
+OAuth prod callbacks are registered. Remaining when you ship: Vercel connect, env vars, `NEXTAUTH_URL`, prod migrate (see `MIGRATION_RECOVERY.md`), smoke test.
 
-See `docs/ACTION_ITEMS.md` for checklist.
+See `docs/ACTION_ITEMS.md` for the full checklist.
 
 ## Dev
 
