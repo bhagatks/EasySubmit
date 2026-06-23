@@ -364,6 +364,22 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (
+    action === EXTENSION_MESSAGE.GET_APPLICATION_ANSWERS &&
+    typeof message.platform === "string"
+  ) {
+    const params = new URLSearchParams({ platform: message.platform });
+    if (typeof message.tenantHost === "string" && message.tenantHost) {
+      params.set("tenantHost", message.tenantHost);
+    }
+    void apiFetch<{ success: boolean; answers?: unknown; error?: string }>(
+      `/api/extension/application-answers?${params.toString()}`,
+    )
+      .then((data) => sendResponse(data))
+      .catch(() => sendResponse({ success: false, answers: {}, error: "Network error" }));
+    return true;
+  }
+
   if (action === EXTENSION_MESSAGE.CAPTURE_APPLICATION_ANSWERS && message.payload) {
     const payload = message.payload as FieldCapturePayload;
     const jobEntryId =
