@@ -2,6 +2,7 @@
 
 import { Crosshair, Mail, User } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
+import { AvatarUploadField } from "@/components/profile/avatar-upload-field";
 import { CityStateField } from "@/components/onboarding/hub/CityStateField";
 import { PhoneField } from "@/components/onboarding/hub/PhoneField";
 import { TargetRoleField } from "@/components/onboarding/hub/TargetRoleField";
@@ -40,6 +41,7 @@ type CoordinatesPanelProps = {
   /** @deprecated Prefer initialFirstName + initialLastName */
   initialFullName?: string;
   initialEmail?: string;
+  initialImage?: string | null;
   initialValues?: CoordinatesValues;
   monoClass: string;
   onContinue: (values: CoordinatesValues) => void;
@@ -78,6 +80,7 @@ export function CoordinatesPanel({
   initialLastName = "",
   initialFullName = "",
   initialEmail = "",
+  initialImage = null,
   initialValues,
   monoClass,
   onContinue,
@@ -103,6 +106,7 @@ export function CoordinatesPanel({
   );
   const [phone, setPhone] = useState(initialValues?.phone ?? "");
   const [email, setEmail] = useState(initialValues?.email || initialEmail);
+  const [avatarImage, setAvatarImage] = useState(initialImage);
 
   useEffect(() => {
     if (!initialValues) return;
@@ -245,6 +249,16 @@ export function CoordinatesPanel({
             />
           </div>
         </div>
+
+        <AvatarUploadField
+          image={avatarImage}
+          firstName={firstName}
+          lastName={lastName}
+          email={email}
+          seed={email}
+          variant="onboarding"
+          onImageChange={setAvatarImage}
+        />
 
         <TargetRoleField
           id="hub-target-role"

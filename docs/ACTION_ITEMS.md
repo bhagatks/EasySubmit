@@ -15,6 +15,7 @@
 | LinkedIn OAuth redirect URI | Done | Prod callbacks registered |
 | Run Prisma migrate on production DB | Blocked — P3009 | See `docs/MIGRATION_RECOVERY.md` — resolve before prod cutover |
 | Supabase Storage bucket `resumes` | Deferred | Private, authenticated upload |
+| Supabase Storage bucket `avatars` (public read) + `SUPABASE_SERVICE_ROLE_KEY` | Needed for prod avatar upload | Dev falls back to `public/avatars/`; see `lib/profile/avatar-storage.ts` |
 
 ## Post-deploy smoke test (when prod ships)
 

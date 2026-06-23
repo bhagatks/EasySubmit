@@ -53,6 +53,11 @@ async function syncLoginUser(
   provider: SupportedAuthProvider,
   claims: OAuthProfilePayload,
 ) {
+  const existing = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { imageIsCustom: true },
+  });
+
   const identity = extractLoginIdentity({
     name: claims.name,
     given_name: claims.given_name,
@@ -67,7 +72,7 @@ async function syncLoginUser(
       lastName: identity.lastName || null,
       name: identity.displayName || null,
       termsAcceptedAt: new Date(),
-      ...(claims.picture ? { image: claims.picture } : {}),
+      ...(claims.picture && !existing?.imageIsCustom ? { image: claims.picture } : {}),
     },
   });
 }
@@ -83,6 +88,7 @@ async function applyLoginIdentityToToken(
       firstName: true,
       lastName: true,
       name: true,
+      image: true,
       onboardingStep: true,
     },
   });
@@ -101,6 +107,7 @@ async function applyLoginIdentityToToken(
 
   if (dbUser) {
     token.onboardingStep = dbUser.onboardingStep;
+    token.image = dbUser.image;
   } else {
     token.onboardingStep = 0;
   }
@@ -266,6 +273,10 @@ export const authOptions: NextAuthOptions = {
         token.name = session.name;
       }
 
+      if (trigger === "update" && session?.image !== undefined) {
+        token.image = session.image;
+      }
+
       return token;
     },
     async session({ session, token }) {
@@ -276,6 +287,8 @@ export const authOptions: NextAuthOptions = {
         session.user.lastName = (token.lastName as string | null | undefined) ?? null;
         session.user.name =
           (token.name as string | null | undefined) ?? session.user.name ?? null;
+        session.user.image =
+          (token.image as string | null | undefined) ?? session.user.image ?? null;
       }
 
       if (token.id) {

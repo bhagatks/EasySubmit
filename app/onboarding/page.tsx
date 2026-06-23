@@ -609,6 +609,7 @@ export default function OnboardingPage() {
             initialLastName={sessionLastName}
             initialFullName={session?.user?.name ?? ""}
             initialEmail={sessionEmail}
+            initialImage={session?.user?.image ?? null}
             monoClass={jetbrainsMono.className}
             onChange={handleCoordinatesChange}
             onContinue={(values) => void handleCoordinatesContinue(values)}

@@ -36,5 +36,6 @@ declare module "next-auth/jwt" {
     name?: string | null;
     onboardingStep?: number;
     lastAuthProvider?: string | null;
+    image?: string | null;
   }
 }

@@ -20,6 +20,8 @@ model User {
   email            String?        @unique
   emailVerified    DateTime?
   image            String?
+  /// When true, OAuth sign-in must not overwrite `image` with the provider photo.
+  imageIsCustom    Boolean        @default(false)
   onboardingStep   Int            @default(0)
   lastAuthProvider String?
   /// Pointer to `vault.secrets.id` for the active BYOK key — never store raw secrets here.

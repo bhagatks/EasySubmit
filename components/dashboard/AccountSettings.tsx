@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { signIn, useSession } from "next-auth/react";
 import { useMemo, useState } from "react";
@@ -30,6 +29,7 @@ import {
   LegalDocumentLink,
   useLegalDocumentOverlay,
 } from "@/components/legal/legal-document-overlay";
+import { AvatarUploadField } from "@/components/profile/avatar-upload-field";
 import {
   useDashboardExpandAllControl,
   useRegisterDashboardHeaderActions,
@@ -82,13 +82,6 @@ const AI_SOURCE_LABELS: Record<(typeof AI_SOURCE_OPTIONS)[number]["value"], stri
   customer: "My key",
   system: "EasySubmit AI",
 };
-
-function accountInitials(firstName: string | null, lastName: string | null, email: string | null) {
-  const first = firstName?.trim()?.[0] ?? "";
-  const last = lastName?.trim()?.[0] ?? "";
-  const fromEmail = email?.trim()?.[0] ?? "?";
-  return (first + last).toUpperCase() || fromEmail.toUpperCase();
-}
 
 function SegmentedControl<T extends string>({
   value,
@@ -253,12 +246,12 @@ export function AccountSettings({ initial }: AccountSettingsProps) {
   const [autoArchiveBusy, setAutoArchiveBusy] = useState(false);
   const [profilePickerMode, setProfilePickerMode] = useState(initial.resumeProfilePickerMode);
   const [profilePickerBusy, setProfilePickerBusy] = useState(false);
+  const [avatarImage, setAvatarImage] = useState(initial.image);
   const { openDocument, overlay, open } = useLegalDocumentOverlay();
 
   const { expanded, toggleSection } = useDashboardExpandAllControl([...SETTINGS_SECTION_IDS]);
 
   const engineHot = Boolean(initial.vaultKeyId);
-  const initials = accountInitials(initial.firstName, initial.lastName, initial.email);
   const connectedSet = new Set(initial.connectedProviders);
 
   const saveButton = useMemo(
@@ -397,28 +390,15 @@ export function AccountSettings({ initial }: AccountSettingsProps) {
             showDragHandle={false}
           >
             <div className="space-y-4">
-              <div className="flex items-center gap-3 rounded-xl border border-border/70 bg-background/30 px-3 py-2.5">
-                <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-primary/10 text-sm font-semibold text-primary">
-                  {initial.image ? (
-                    <Image
-                      src={initial.image}
-                      alt=""
-                      fill
-                      className="object-cover"
-                      sizes="40px"
-                      unoptimized
-                    />
-                  ) : (
-                    initials
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">
-                    {initial.name || initial.email || "Account"}
-                  </p>
-                  <p className="truncate text-xs text-muted-foreground">{initial.email}</p>
-                </div>
-              </div>
+              <AvatarUploadField
+                image={avatarImage}
+                firstName={firstName}
+                lastName={lastName}
+                email={initial.email}
+                name={initial.name}
+                seed={initial.email}
+                onImageChange={setAvatarImage}
+              />
 
               <form
                 id={SETTINGS_ACCOUNT_FORM_ID}
