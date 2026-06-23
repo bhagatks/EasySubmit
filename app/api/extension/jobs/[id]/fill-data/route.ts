@@ -1,16 +1,14 @@
 import type { NextRequest } from "next/server";
-import {
-  extensionUnauthorizedResponse,
-  getExtensionUserId,
-} from "@/lib/extension/auth-request";
+import { resolveExtensionUserId } from "@/lib/extension/auth-request";
 import { getMergedResumeForJob } from "@/lib/profile/job-resume-tailor";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } },
 ) {
-  const userId = getExtensionUserId(request);
-  if (!userId) return extensionUnauthorizedResponse();
+  const auth = await resolveExtensionUserId(request);
+  if ("response" in auth) return auth.response;
+  const { userId } = auth;
 
   const merged = await getMergedResumeForJob(userId, params.id);
   if (!merged.success) {

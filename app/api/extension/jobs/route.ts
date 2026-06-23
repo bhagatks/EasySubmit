@@ -1,8 +1,7 @@
 import type { NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
 import {
-  extensionUnauthorizedResponse,
-  getExtensionUserId,
+  resolveExtensionUserId,
 } from "@/lib/extension/auth-request";
 import {
   getJobTrackerStatusForUrl,
@@ -11,8 +10,9 @@ import {
 import { getExtensionRuntimeConfig } from "@/lib/extension/runtime-config";
 
 export async function GET(request: NextRequest) {
-  const userId = getExtensionUserId(request);
-  if (!userId) return extensionUnauthorizedResponse();
+  const auth = await resolveExtensionUserId(request);
+  if ("response" in auth) return auth.response;
+  const { userId } = auth;
 
   const url = request.nextUrl.searchParams.get("url");
   if (!url?.trim()) {
@@ -24,8 +24,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const userId = getExtensionUserId(request);
-  if (!userId) return extensionUnauthorizedResponse();
+  const auth = await resolveExtensionUserId(request);
+  if ("response" in auth) return auth.response;
+  const { userId } = auth;
 
   const config = await getExtensionRuntimeConfig(request.nextUrl.origin);
   if (!config.jobCardEnabled || !config.featureFlagEnabled) {
@@ -81,7 +82,12 @@ export async function POST(request: NextRequest) {
       url: saved.canonicalUrl,
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Save failed";
+    const message =
+      err instanceof Error && err.message.includes("Foreign key constraint")
+        ? "Your extension session is out of date. Sign in again and reconnect from Settings."
+        : err instanceof Error
+          ? err.message
+          : "Save failed";
     return Response.json({ success: false, error: message }, { status: 400 });
   }
 }

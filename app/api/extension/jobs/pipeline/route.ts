@@ -1,16 +1,12 @@
 import type { NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
-import {
-  extensionUnauthorizedResponse,
-  getExtensionUserId,
-} from "@/lib/extension/auth-request";
+import { resolveExtensionUserId } from "@/lib/extension/auth-request";
 import { runApplyPipeline, type RunApplyPipelineInput } from "@/lib/extension/apply-pipeline";
 
 export async function POST(request: NextRequest) {
-  const userId = getExtensionUserId(request);
-  if (!userId) {
-    return extensionUnauthorizedResponse();
-  }
+  const auth = await resolveExtensionUserId(request);
+  if ("response" in auth) return auth.response;
+  const { userId } = auth;
 
   let body: RunApplyPipelineInput;
   try {

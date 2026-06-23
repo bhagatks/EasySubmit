@@ -3,15 +3,15 @@ import { getExtensionRuntimeConfig } from "@/lib/extension/runtime-config";
 import { getExtensionUserPrefs } from "@/lib/extension/user-prefs";
 import { getExtensionConnectedUser } from "@/lib/extension/connected-user";
 import { ONE_CLICK_APPLY_PLATFORMS } from "@/lib/extension/apply-pipeline";
-import { getExtensionUserId } from "@/lib/extension/auth-request";
+import { readBearerToken, verifyExtensionToken } from "@/lib/extension/auth-token";
+import { resolveExtensionUserId } from "@/lib/extension/auth-request";
 
 export async function GET(request: NextRequest) {
   const config = await getExtensionRuntimeConfig(request.nextUrl.origin);
-  const userId = getExtensionUserId(request);
-  const [userPrefs, connectedUser] = await Promise.all([
-    userId ? getExtensionUserPrefs(userId) : null,
-    userId ? getExtensionConnectedUser(userId) : null,
-  ]);
+  const tokenUserId = verifyExtensionToken(readBearerToken(request.headers.get("authorization")));
+  const connectedUser = tokenUserId ? await getExtensionConnectedUser(tokenUserId) : null;
+  const userId = connectedUser?.id ?? null;
+  const userPrefs = userId ? await getExtensionUserPrefs(userId) : null;
 
   return Response.json({
     success: true,
