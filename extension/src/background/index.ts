@@ -16,6 +16,8 @@ import type {
   JobSavePayload,
   JobStatusResponse,
 } from "@shared/extension/types";
+import { fieldCapturePayloadToEvents } from "@shared/extension/field-capture-api";
+import type { FieldCapturePayload } from "@shared/extension/field-descriptor";
 
 const CONTEXT_MENU_FORCE_SHOW = "easysubmit-force-show-card";
 
@@ -356,6 +358,31 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (action === EXTENSION_MESSAGE.GET_FILL_DATA && typeof message.entryId === "string") {
     void apiFetch<{ success: boolean; fillData?: unknown; error?: string }>(
       `/api/extension/jobs/${encodeURIComponent(message.entryId)}/fill-data`,
+    )
+      .then((data) => sendResponse(data))
+      .catch(() => sendResponse({ success: false, error: "Network error" }));
+    return true;
+  }
+
+  if (action === EXTENSION_MESSAGE.CAPTURE_APPLICATION_ANSWERS && message.payload) {
+    const payload = message.payload as FieldCapturePayload;
+    const jobEntryId =
+      typeof message.jobEntryId === "string" && message.jobEntryId.trim()
+        ? message.jobEntryId.trim()
+        : undefined;
+    const events = fieldCapturePayloadToEvents(payload, jobEntryId);
+
+    if (events.length === 0) {
+      sendResponse({ success: true, upserted: 0 });
+      return true;
+    }
+
+    void apiFetch<{ success: boolean; upserted?: number; error?: string }>(
+      "/api/extension/application-answers/capture",
+      {
+        method: "POST",
+        body: JSON.stringify({ events }),
+      },
     )
       .then((data) => sendResponse(data))
       .catch(() => sendResponse({ success: false, error: "Network error" }));

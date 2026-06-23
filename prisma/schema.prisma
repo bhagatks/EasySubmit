@@ -50,6 +50,7 @@ model User {
   apiCallLogs      ApiCallLog[]
   jobTrackerEntries JobTrackerEntry[]
   jobResumeTailors  JobResumeTailor[]
+  applicationAnswers UserApplicationAnswer[]
 
   @@index([vaultKeyId])
   @@map("users")
@@ -295,4 +296,31 @@ model FeatureFlag {
   updatedAt   DateTime @updatedAt
 
   @@map("feature_flags")
+}
+
+/// Per-user learned answers for job application wizards (Field Memory).
+model UserApplicationAnswer {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fieldSignature String
+  platform       String
+  tenantHost     String?
+  automationId   String?
+  semanticKey    String
+  label          String
+  fieldType      String
+  optionsHash    String?
+  answer         Json
+  confidence     Float    @default(0.85)
+  hitCount       Int      @default(0)
+  correctCount   Int      @default(0)
+  lastUsedAt     DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([userId, fieldSignature])
+  @@index([userId, semanticKey])
+  @@index([userId, platform, automationId])
+  @@map("user_application_answers")
 }

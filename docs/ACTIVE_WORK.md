@@ -3,23 +3,33 @@
 **Update this file before each Cursor or Claude session.**  
 Both agents should read it first. Only one agent should edit a given path at a time.
 
-Last updated: **2026-06-22** (Claude active on `claude/workday-autofill-phase-c`)
+Last updated: **2026-06-22** (Cursor active on `cursor/field-memory`)
 
 ---
 
-## Claude Phase C — in progress (confirmed plan)
+## Claude Phase C — merged on `main`
 
-Branch: `claude/workday-autofill-phase-c` (latest: `dd27044` API intercept wired)
+Branch: `claude/workday-autofill-phase-c` → merged (`1aea091`)
 
-| # | Deliverable | Spec alignment |
-|---|-------------|----------------|
-| 1 | `workday-autofill.ts` — shadow DOM scan, fill text/select/radio/checkbox, synthetic events | `APPLICATION_FIELD_MEMORY.md` § FieldDescriptor |
-| 2 | Multi-step runner — step detect, Continue, MutationObserver, stop at CAPTCHA | `WORKDAY_ONE_CLICK_APPLY.md` Phase C5/C7 |
-| 3 | `answer-vault` get before fill, set on step continue | Interim until server Field Memory |
-| 4 | `captureStepFields()` → postMessage FieldDescriptors | See **Integration contract** below |
-| 5 | `content/index.ts` — swap stub import only; denylist before fill | Claude owns this file until merge |
+Workday autofill emits `__easysubmit_field_capture__` via `CustomEvent` + `field-descriptor.ts` types.
 
-**Cursor waits** until Claude merges Phase C before: Prisma `user_application_answers`, capture API, Settings UI.
+---
+
+## Cursor Field Memory — in progress
+
+Branch: `cursor/field-memory`
+
+| # | Deliverable | Status |
+|---|-------------|--------|
+| 1 | Prisma `user_application_answers` + migration | Done |
+| 2 | `GET/POST /api/extension/application-answers*` | Done |
+| 3 | Content script bridge → background → capture API | Done |
+| 4 | Settings UI list/edit | Not started (v3) |
+| 5 | Lookup wired into autofill resolution ladder | Not started (v1 follow-up) |
+
+**Cursor owns** `lib/extension/application-field-memory.ts`, `app/api/extension/application-answers/*`, `field-capture-bridge.ts`, `field-capture-api.ts`.
+
+**Do not touch** `workday-autofill.ts` unless coordinating with Claude.
 
 ---
 
@@ -28,7 +38,7 @@ Branch: `claude/workday-autofill-phase-c` (latest: `dd27044` API intercept wired
 Claude emits; Cursor consumes later (no schema on Claude branch).
 
 ```ts
-// postMessage type: "__easysubmit_field_capture__"
+// CustomEvent type: "__easysubmit_field_capture__" (detail = FieldCapturePayload)
 {
   type: "__easysubmit_field_capture__",
   tenantHost: string,
@@ -37,6 +47,8 @@ Claude emits; Cursor consumes later (no schema on Claude branch).
   answers: Array<{ fieldSignature: string, answer: StoredAnswer, source: "user" | "autofill_accepted" | "user_corrected" }>
 }
 ```
+
+**Cursor bridge:** `setupFieldCaptureBridge` in content script → `CAPTURE_APPLICATION_ANSWERS` → `POST /api/extension/application-answers/capture`.
 
 **Recommendation for Claude:** put `FieldDescriptor` + `StoredAnswer` types in `src/shared/extension/field-descriptor.ts` (shared module) so Cursor API can import the same shapes without touching `workday-autofill.ts`.
 
@@ -48,8 +60,8 @@ Denylist before fill: SSN, password, bank — per `APPLICATION_FIELD_MEMORY.md`.
 
 | Agent | Branch (suggested) | Owns | Do not touch |
 |-------|------------------|------|--------------|
-| **Claude** | `claude/workday-autofill-phase-c` | Workday autofill fill loop, `workday-autofill*`, `extension/src/content/index.ts`, wire `answer-vault.ts` locally, `api-intercept` / `shadow-dom` integration | `page-classifier.ts`, `resume-profiles-config`, detection tests (shipped in `643d8a6`) |
-| **Cursor** | `cursor/field-memory` | Field Memory **spec + schema + API** per `APPLICATION_FIELD_MEMORY.md` | `content/index.ts`, `workday-autofill*` while Claude is active |
+| **Claude** | `claude/workday-autofill-phase-c` (merged) | Workday autofill — maintenance only | Field Memory schema/API on `cursor/field-memory` |
+| **Cursor** | `cursor/field-memory` | Field Memory schema + capture API + extension bridge | `workday-autofill.ts` without coordination |
 
 **Human merges one branch at a time.** Rebase the other agent before starting overlapping paths.
 
@@ -68,8 +80,8 @@ Denylist before fill: SSN, password, bank — per `APPLICATION_FIELD_MEMORY.md`.
 
 | Topic | Status | Doc |
 |-------|--------|-----|
-| Workday Phase C autofill (real fill) | **Claude — coding now** | `WORKDAY_ONE_CLICK_APPLY.md` |
-| Application Field Memory (learn + DB) | Cursor — **spec only** | `APPLICATION_FIELD_MEMORY.md` |
+| Workday Phase C autofill (real fill) | **Merged on `main`** | `WORKDAY_ONE_CLICK_APPLY.md` |
+| Application Field Memory (learn + DB) | **Cursor — capture API + bridge** | `APPLICATION_FIELD_MEMORY.md` |
 | Application Profile (work auth, address, EEO) | Not started | `APPLICATION_FIELD_MEMORY.md` § Application Profile |
 
 ---

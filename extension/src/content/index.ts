@@ -25,6 +25,9 @@ import {
 } from "@shared/extension/capture-diagnostics";
 import { pollJobStatusUntil } from "@shared/extension/pipeline-status-poll";
 import { runWorkdayAutofill, type WorkdayFillData } from "@shared/extension/workday-autofill";
+import { fieldCapturePayloadToEvents } from "@shared/extension/field-capture-api";
+import { setupFieldCaptureBridge } from "@shared/extension/field-capture-bridge";
+import type { FieldCapturePayload } from "@shared/extension/field-descriptor";
 import { injectApiInterceptScript, onApiIntercept, type InterceptedJobData } from "@shared/extension/api-intercept";
 
 const CONTENT_INIT_KEY = "__easysubmitContentInit__";
@@ -1511,6 +1514,17 @@ function interceptedToMetadata(data: InterceptedJobData): ScrapedJobMetadata {
 
 function bootJobPageObservers(): void {
   injectApiInterceptScript();
+
+  setupFieldCaptureBridge({
+    getJobEntryId: () => savedStatus.id,
+    onCapture: (payload: FieldCapturePayload, jobEntryId?: string) => {
+      void sendMessage<{ success: boolean; upserted?: number; error?: string }>({
+        action: EXTENSION_MESSAGE.CAPTURE_APPLICATION_ANSWERS,
+        payload,
+        jobEntryId,
+      }).catch(() => undefined);
+    },
+  });
 
   onApiIntercept((data) => {
     if (!data.title) return;

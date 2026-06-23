@@ -347,6 +347,18 @@ Global runtime configuration keyed by namespace. Seeded via `prisma/seed.ts` (`p
 | `enhanceWithAi` | `{ enhanceWithAiTimeoutMs: 90000 }` | Client-side max wait for Enhance with AI server action (ms). Client also bumps timeout to ≥135% of workload estimate. Legacy key `EnhanceWithAITimeout` accepted. Env fallback: `EASYSUBMIT_ENHANCE_WITH_AI_TIMEOUT_MS`. |
 | `aiEngine` | `{ system: { modelId, maxKeySlots }, quotas: { system: { enable, dailyCalls, dailyEnhancements }, customer: { aiDailyUnlimited, dailyCalls, dailyEnhancements } }, customerDailyEnhancementCap }` | `quotas.system.enable` gates EasySubmit system AI; when `false`, all routes require BYOK. `quotas.customer.aiDailyUnlimited` bypasses BYOK daily caps when `true`. System secrets live in Vault (below). |
 | `resumeProfiles` | `{ maxProfilesPerCustomer: 20 }` | Max `profiles` rows per user — enforced on dashboard create and job-tailor clone |
+| `legalDocuments` | `{ terms: { title, updatedLabel, blocks[] }, privacy: { … } }` | Terms of Service and Privacy Policy copy for `/terms`, `/privacy`, and login overlay — structured blocks (paragraphs, headings, lists, links); seeded from `src/lib/services/legal-documents-defaults.ts` |
+
+### `user_application_answers`
+
+Per-user learned answers for job application wizards (Field Memory). See `docs/APPLICATION_FIELD_MEMORY.md`.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `fieldSignature` | string | Unique per user — exact field match |
+| `semanticKey` | string | Cross-employer reuse key |
+| `answer` | jsonb | `StoredAnswer` shape from `field-descriptor.ts` |
+| `confidence` | float | 0–1; auto-fill threshold ≥ 0.85 |
 
 ## PostgreSQL — `feature_flags` (Prisma `FeatureFlag`)
 
