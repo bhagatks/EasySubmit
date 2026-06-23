@@ -110,8 +110,9 @@ export function extractYearsExp(requirements: string): number | null {
 
 // ─── Tiered keyword extraction ────────────────────────────────────────────────
 
-// Stop words — same set as keyword-gap.ts plus additional HR filler
+// Stop words — HR filler, plain English, and company/context noise that must not appear in skills
 const STOP_WORDS = new Set([
+  // Articles / conjunctions / prepositions
   "a","an","the","and","or","but","in","on","at","to","for","of","with",
   "by","from","as","is","was","are","were","be","been","have","has","had",
   "do","does","did","will","would","could","should","may","might","can",
@@ -119,12 +120,40 @@ const STOP_WORDS = new Set([
   "their","not","no","so","if","then","than","when","where","who","which",
   "what","how","all","each","every","both","more","most","other","some",
   "into","about","after","before","through","also","just","only","very",
+  // Generic HR / job-posting filler
   "work","working","use","using","make","ensure","support","including",
   "position","role","opportunity","candidate","apply","application","hiring",
   "join","compensation","benefits","pay","salary","culture","innovation",
   "environment","team","company","organization","business","experience",
   "skill","ability","knowledge","required","preferred","plus","bonus",
   "ideal","strong","excellent","great","key","core","related","relevant",
+  // Retail / supply-chain / generic ops words that bleed in from non-tech JDs
+  "walmart","target","amazon","store","stores","associate","associates",
+  "customer","customers","service","services","product","products",
+  "planning","plan","plans","planned","planner",
+  "scheduling","schedule","schedules","scheduled",
+  "workforce","workers","worker","staff","staffing",
+  "leave","absence","absences","attendance","vacation","pto",
+  "compliance","compliant","regulatory","regulation","regulations",
+  "area","areas","region","regions","location","locations","site","sites",
+  "degree","degrees","education","bachelor","master","phd",
+  "qualifications","qualification","qualified","qualify",
+  "execution","executing","execute","executes",
+  "strategies","strategy","strategic","tactics","tactic",
+  "analytical","analysis","analyze","analyses",
+  "attention","focus","focused","detail","details",
+  "problem","problems","solving","solver","solution","solutions",
+  "people","person","persons","individuals","individual",
+  "communication","communicate","communicates","interpersonal",
+  "leadership","leader","leaders","lead","leading","management","managing",
+  "time","times","timely","deadline","deadlines","priorities","priority",
+  "process","processes","procedure","procedures",
+  "data","information","reporting","reports","report","metrics","metric",
+  "develop","developing","development","developer","building","build",
+  "drive","driving","driven","impact","results","result","outcome","outcomes",
+  "collaborate","collaboration","collaborative","cross","functional",
+  "proactive","initiative","ownership","accountability","accountable",
+  "innovative","creativity","creative","critical","thinking",
 ]);
 
 // Taxonomy of known tech/professional skills for deterministic classification
@@ -174,6 +203,22 @@ function tokenizeSection(text: string): string[] {
     .filter((t) => t.length >= 2 && !STOP_WORDS.has(t));
 }
 
+// Returns true for tokens that look like a genuine tech/professional term:
+// must contain a digit, uppercase letter, slash, dot, or be a known skill.
+// Pure lowercase dictionary words (e.g. "planning", "area", "attention") are excluded.
+function looksLikeTechTerm(token: string): boolean {
+  if (KNOWN_SKILLS.has(token)) return true;
+  // Contains a digit (versions, acronyms with numbers)
+  if (/\d/.test(token)) return true;
+  // Contains / or # or + (e.g. c#, c++, ci/cd, s3)
+  if (/[#+/]/.test(token)) return true;
+  // Hyphenated compound (e.g. event-driven, full-stack, open-source)
+  if (/-/.test(token) && token.length >= 6) return true;
+  // Short known acronyms (2-4 uppercase-equivalent chars that are not stop words)
+  if (token.length <= 4) return KNOWN_SKILLS.has(token);
+  return false;
+}
+
 function bigramsOf(tokens: string[]): string[] {
   const result: string[] = [];
   for (let i = 0; i < tokens.length - 1; i++) {
@@ -191,8 +236,10 @@ function extractKeywordsFromText(text: string, maxTerms: number): string[] {
     freq.set(t, (freq.get(t) ?? 0) + 1);
   }
 
-  // Prefer known taxonomy terms + high-frequency tokens
+  // Only include known skills or terms that look like tech/professional terms.
+  // This prevents plain English words (company names, HR jargon) from leaking into skill keywords.
   const candidates = Array.from(freq.entries())
+    .filter(([kw]) => looksLikeTechTerm(kw))
     .sort((a, b) => {
       const aKnown = KNOWN_SKILLS.has(a[0]) ? 1 : 0;
       const bKnown = KNOWN_SKILLS.has(b[0]) ? 1 : 0;
