@@ -67,6 +67,7 @@ export type ExtensionRuntimeConfig = {
   customizeResume?: boolean;
   applicationProfile?: import("@/lib/profile/application-profile").ApplicationProfile | null;
   connectedUser?: ExtensionConnectedUser | null;
+  aiHealthError?: string | null;
 };
 
 export type ApplyPipelineResponse = {
@@ -113,5 +114,7 @@ export type JobStatusResponse = {
   id?: string;
   status?: string;
   title?: string;
+  canReapply?: boolean;
+  issueMessage?: string | null;
   error?: string;
 };

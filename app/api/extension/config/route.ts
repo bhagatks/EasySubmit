@@ -5,6 +5,7 @@ import { getExtensionConnectedUser } from "@/lib/extension/connected-user";
 import { ONE_CLICK_APPLY_PLATFORMS } from "@/lib/extension/apply-pipeline";
 import { readBearerToken, verifyExtensionToken } from "@/lib/extension/auth-token";
 import { resolveExtensionUserId } from "@/lib/extension/auth-request";
+import { getAiHealthStatusForUser } from "@/lib/ai/ai-health-status";
 
 export async function GET(request: NextRequest) {
   const config = await getExtensionRuntimeConfig(request.nextUrl.origin);
@@ -12,6 +13,8 @@ export async function GET(request: NextRequest) {
   const connectedUser = tokenUserId ? await getExtensionConnectedUser(tokenUserId) : null;
   const userId = connectedUser?.id ?? null;
   const userPrefs = userId ? await getExtensionUserPrefs(userId) : null;
+  const aiHealth = userId ? await getAiHealthStatusForUser(userId) : null;
+  const aiHealthError = aiHealth && !aiHealth.ok ? aiHealth.message : null;
 
   return Response.json({
     success: true,
@@ -28,5 +31,6 @@ export async function GET(request: NextRequest) {
     oneClickApplyPlatforms: ONE_CLICK_APPLY_PLATFORMS,
     autoApplyEnabled: config.autoApplyEnabled,
     connectedUser,
+    aiHealthError,
   });
 }

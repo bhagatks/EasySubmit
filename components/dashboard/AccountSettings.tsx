@@ -50,7 +50,7 @@ import { cn } from "@/lib/utils";
 
 export const SETTINGS_ACCOUNT_FORM_ID = "settings-account-form";
 
-const SETTINGS_SECTION_IDS = ["account", "ai-extension"];
+const SETTINGS_SECTION_IDS = ["account", "ai-keys", "general"];
 
 type AccountSettingsProps = {
   initial: AccountSettingsSnapshot;
@@ -251,6 +251,9 @@ export function AccountSettings({ initial }: AccountSettingsProps) {
 
   const { expanded, toggleSection } = useDashboardExpandAllControl([...SETTINGS_SECTION_IDS]);
 
+  const aiSummaryKeys = `${AI_SOURCE_LABELS[aiSource as keyof typeof AI_SOURCE_LABELS] ?? "Auto"} · ${initial.aiEnhancementsToday}/${SYSTEM_AI_DAILY_ENHANCEMENT_LIMIT} enhancements`;
+  const generalSummary = `${autoApplyUserSwitch ? "One-click on" : "One-click off"} · ${profilePickerMode === "DEFAULT" ? "Default resume" : "Last used resume"}`;
+
   const engineHot = Boolean(initial.vaultKeyId);
   const connectedSet = new Set(initial.connectedProviders);
 
@@ -353,9 +356,6 @@ export function AccountSettings({ initial }: AccountSettingsProps) {
     setProfilePickerMode(result.resumeProfilePickerMode);
   }
 
-  const aiSummary = `${AI_SOURCE_LABELS[aiSource as keyof typeof AI_SOURCE_LABELS] ?? "Auto"} · ${
-    autoApplyUserSwitch ? "One-click on" : "One-click off"
-  } · ${profilePickerMode === "DEFAULT" ? "Default resume" : "Last used resume"}`;
 
   return (
     <>
@@ -457,12 +457,12 @@ export function AccountSettings({ initial }: AccountSettingsProps) {
             title={
               <span className="flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" />
-                AI & extension
+                AI Keys
               </span>
             }
-            description={aiSummary}
-            expanded={Boolean(expanded["ai-extension"])}
-            onToggle={() => toggleSection("ai-extension")}
+            description={aiSummaryKeys}
+            expanded={Boolean(expanded["ai-keys"])}
+            onToggle={() => toggleSection("ai-keys")}
             variant="dashboard"
             showDragHandle={false}
           >
@@ -496,6 +496,42 @@ export function AccountSettings({ initial }: AccountSettingsProps) {
                 </Button>
               </div>
 
+              <p className="text-[11px] leading-snug text-muted-foreground">
+                AI uses work history only — contact info stays local.{" "}
+                <LegalDocumentLink documentId="terms" onOpen={openDocument}>
+                  Terms
+                </LegalDocumentLink>
+                {" · "}
+                <LegalDocumentLink documentId="privacy" onOpen={openDocument}>
+                  Privacy
+                </LegalDocumentLink>
+                {" · "}
+                <a
+                  href="https://ai.google.dev/gemini-api/terms"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  Gemini terms
+                </a>
+              </p>
+            </div>
+          </StudioCollapsibleSection>
+
+          <StudioCollapsibleSection
+            title={
+              <span className="flex items-center gap-2">
+                <Zap className="h-4 w-4 text-primary" aria-hidden="true" />
+                General
+              </span>
+            }
+            description={generalSummary}
+            expanded={Boolean(expanded["general"])}
+            onToggle={() => toggleSection("general")}
+            variant="dashboard"
+            showDragHandle={false}
+          >
+            <div className="space-y-4">
               <SettingToggleRow
                 label="One-click apply"
                 description={
@@ -531,26 +567,6 @@ export function AccountSettings({ initial }: AccountSettingsProps) {
                   onChange={(value) => void handleProfilePickerModeChange(value)}
                 />
               </div>
-
-              <p className="text-[11px] leading-snug text-muted-foreground">
-                AI uses work history only — contact info stays local.{" "}
-                <LegalDocumentLink documentId="terms" onOpen={openDocument}>
-                  Terms
-                </LegalDocumentLink>
-                {" · "}
-                <LegalDocumentLink documentId="privacy" onOpen={openDocument}>
-                  Privacy
-                </LegalDocumentLink>
-                {" · "}
-                <a
-                  href="https://ai.google.dev/gemini-api/terms"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  Gemini terms
-                </a>
-              </p>
             </div>
           </StudioCollapsibleSection>
         </DashboardWorkspaceStack>

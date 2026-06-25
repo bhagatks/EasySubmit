@@ -92,14 +92,20 @@ import {
   isExtensionContextInvalidatedMessage,
 } from "@shared/extension/extension-context";
 
-const CONTENT_INIT_KEY = "__easysubmitContentInit__";
-const contentWindow = window as Window & { [CONTENT_INIT_KEY]?: boolean };
-if (contentWindow[CONTENT_INIT_KEY]) {
-  // Already initialized on this page (e.g. programmatic re-injection).
-} else {
-  contentWindow[CONTENT_INIT_KEY] = true;
-  bootContentScript();
-}
+type EasySubmitContentWindow = Window & {
+  __easysubmitCleanup?: () => void;
+  __easysubmitTeardownDone?: boolean;
+  __easysubmitHandleMessage?: (
+    message: Record<string, unknown>,
+    sendResponse: (response?: unknown) => void,
+  ) => boolean | void;
+  __easysubmitMessageHooked?: boolean;
+  __easysubmitObserversBooted?: boolean;
+};
+
+const contentWindow = window as EasySubmitContentWindow;
+contentWindow.__easysubmitCleanup?.();
+contentWindow.__easysubmitTeardownDone = false;
 
 function bootContentScript(): void {
 const HOST_ID = "easysubmit-job-card-host";
@@ -148,7 +154,7 @@ let assistUploadWarnings: string[] = [];
 let confirmationWatchTimer: ReturnType<typeof setInterval> | null = null;
 let loadingHydrationTimer: ReturnType<typeof setInterval> | null = null;
 let urlWatchTimer: ReturnType<typeof setInterval> | null = null;
-let extensionContextTeardownDone = false;
+let domContentObserver: MutationObserver | null = null;
 
 type ResumeProfileOption = { id: string; label: string; isDefault: boolean };
 let resumeProfiles: ResumeProfileOption[] = [];
@@ -205,8 +211,8 @@ function stopAllExtensionTimers(): void {
 }
 
 function teardownStaleExtensionContext(): void {
-  if (extensionContextTeardownDone) return;
-  extensionContextTeardownDone = true;
+  if (contentWindow.__easysubmitTeardownDone) return;
+  contentWindow.__easysubmitTeardownDone = true;
   stopAllExtensionTimers();
   void stopExtensionJobRealtime();
   realtimeStop = null;
@@ -341,6 +347,33 @@ function cardStyles(): string {
     .header-btn:hover { background: #F3F4F6; color: #374151; }
     .header-btn svg { width: 14px; height: 14px; display: block; pointer-events: none; }
     .header-btn.is-active { color: #0E7490; background: rgba(18, 179, 209, 0.12); }
+    .ai-health-wrap { position: relative; display: inline-flex; z-index: 25; }
+    .ai-health-btn { position: relative; color: #DC2626 !important; }
+    .ai-health-btn:hover { background: rgba(220,38,38,0.08) !important; }
+    .ai-health-dot {
+      position: absolute; top: 1px; right: 1px;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: #DC2626; border: 1px solid #fff;
+      animation: ai-health-pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes ai-health-pulse {
+      0%, 100% { opacity: 1; } 50% { opacity: 0.4; }
+    }
+    .ai-health-tooltip {
+      display: none; position: absolute; top: calc(100% + 6px); right: 0;
+      width: 200px; background: #1F2937; border-radius: 10px;
+      padding: 10px 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+      z-index: 100;
+    }
+    .ai-health-wrap:hover .ai-health-tooltip,
+    .ai-health-wrap:focus-within .ai-health-tooltip { display: block; }
+    .ai-health-tooltip-title { margin: 0 0 4px; font-size: 11px; font-weight: 700; color: #FCA5A5; }
+    .ai-health-tooltip-msg { margin: 0 0 8px; font-size: 11px; color: #D1D5DB; line-height: 1.4; }
+    .ai-health-fix-link {
+      display: inline-block; font-size: 11px; font-weight: 600;
+      color: #60A5FA; text-decoration: none;
+    }
+    .ai-health-fix-link:hover { text-decoration: underline; }
     .profile-picker-wrap {
       position: relative;
       display: inline-flex;
@@ -821,9 +854,9 @@ function renderExpandedCard(root: ShadowRoot): void {
                 <span class="brand"><span class="brand-name">EasySubmit</span><span class="brand-suffix">.ai</span></span>
               </div>
               <div class="grip-actions">
-                <span class="${badgeClass}">${statusLabel(savedStatus.saved, savedStatus.status, cardPresentation)}</span>
                 ${renderProfilePickerMarkup()}
                 ${renderSettingsMenuMarkup()}
+                ${renderAiHealthErrorMarkup()}
                 <button type="button" class="header-btn" data-minimize="1" aria-label="Minimize">×</button>
               </div>
             </div>
@@ -923,7 +956,7 @@ function bindHeaderButton(root: ParentNode, selector: string, onActivate: () => 
 
 function isInteractiveGripTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
-  return Boolean(target.closest("[data-minimize], [data-settings], [data-settings-dashboard], [data-settings-reconnect], .settings-menu, [data-profile-picker], [data-profile-id], .profile-picker-menu, button, a"));
+  return Boolean(target.closest("[data-minimize], [data-settings], [data-settings-dashboard], [data-settings-reconnect], .settings-menu, [data-profile-picker], [data-profile-id], .profile-picker-menu, .ai-health-wrap, button, a"));
 }
 
 function renderCard(root: ShadowRoot): void {
@@ -1030,6 +1063,28 @@ function renderSettingsMenuMarkup(): string {
         ${SETTINGS_ICON_SVG}
       </button>
       ${menu}
+    </div>
+  `;
+}
+
+const ALERT_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>`;
+
+function renderAiHealthErrorMarkup(): string {
+  const error = runtimeConfig?.aiHealthError;
+  if (!error) return "";
+  const hint = escapeHtml(error);
+  const dashboardUrl = `${runtimeConfig?.apiBaseUrl ?? "https://easysubmit.ai"}/dashboard/settings`;
+  return `
+    <div class="ai-health-wrap">
+      <button type="button" class="header-btn ai-health-btn" data-ai-health="1" aria-label="AI issue: ${hint}" title="${hint}" style="color:#DC2626;">
+        ${ALERT_ICON_SVG}
+        <span class="ai-health-dot" aria-hidden="true"></span>
+      </button>
+      <div class="ai-health-tooltip" role="tooltip">
+        <p class="ai-health-tooltip-title">AI issue</p>
+        <p class="ai-health-tooltip-msg">${hint}</p>
+        <a href="${escapeHtml(dashboardUrl)}" target="_blank" rel="noopener noreferrer" class="ai-health-fix-link">Fix in Settings →</a>
+      </div>
     </div>
   `;
 }
@@ -1913,7 +1968,7 @@ async function startApplyPipeline(): Promise<void> {
 
   try {
     // Stage 0→1: capture immediately, get id back
-    const captureRes = await sendMessage<{ success: boolean; id?: string; error?: string }>({
+    const captureRes = await sendMessage<{ success: boolean; id?: string; status?: string; error?: string }>({
       action: EXTENSION_MESSAGE.CAPTURE_JOB,
       payload,
     });
@@ -1929,7 +1984,12 @@ async function startApplyPipeline(): Promise<void> {
     }
 
     const jobId = captureRes.id;
-    savedStatus = { saved: true, status: "CAPTURED", id: jobId };
+    savedStatus = {
+      saved: true,
+      status: captureRes.status ?? "CAPTURED",
+      id: jobId,
+      canReapply: false,
+    };
     pipelineBusy = false;
     pipelineBusyLabel = null;
     if (cardHost) renderCard(cardHost.shadow);
@@ -1979,6 +2039,10 @@ async function onPrimaryClick(): Promise<void> {
   if (cardPresentation === "no_job") return;
 
   if (savedStatus.saved) {
+    if (savedStatus.canReapply) {
+      await startApplyPipeline();
+      return;
+    }
     await openJobTrackerDashboard({ review: true });
     return;
   }
@@ -2241,6 +2305,9 @@ function interceptedToMetadata(data: InterceptedJobData): ScrapedJobMetadata {
 }
 
 function bootJobPageObservers(): void {
+  if (contentWindow.__easysubmitObserversBooted) return;
+  contentWindow.__easysubmitObserversBooted = true;
+
   handleAssistOpenOnLoad();
   injectApiInterceptScript();
 
@@ -2285,6 +2352,7 @@ function bootJobPageObservers(): void {
       scheduleUpdate();
     }
   });
+  domContentObserver = domObserver;
 
   if (document.body) {
     domObserver.observe(document.body, { childList: true, subtree: true });
@@ -2303,7 +2371,6 @@ function bootJobPageObservers(): void {
       pinnedUrl = null;
       runtimeConfig = null;
       interceptedMetadata = null;
-      maybeMarkAppliedFromConfirmation();
       removeCard();
       scheduleUpdate();
     }
@@ -2332,7 +2399,7 @@ if (window.top === window.self) {
       bootWhenGloballyEnabled();
     }
 
-    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    contentWindow.__easysubmitHandleMessage = (message, sendResponse) => {
       if (message?.action === EXTENSION_MESSAGE.FORCE_SHOW_CARD) {
         void forceShowCard().then(sendResponse);
         return true;
@@ -2370,9 +2437,29 @@ if (window.top === window.self) {
       }
 
       return false;
-    });
+    };
+
+    if (!contentWindow.__easysubmitMessageHooked) {
+      contentWindow.__easysubmitMessageHooked = true;
+      chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+        const handle = contentWindow.__easysubmitHandleMessage;
+        if (!handle) return false;
+        return handle(message as Record<string, unknown>, sendResponse);
+      });
+    }
+
+    contentWindow.__easysubmitCleanup = () => {
+      contentWindow.__easysubmitObserversBooted = false;
+      contentWindow.__easysubmitTeardownDone = false;
+      domContentObserver?.disconnect();
+      domContentObserver = null;
+      stopAllExtensionTimers();
+      removeCard();
+    };
 
     console.log("EasySubmit: content script ready");
   }
 }
 }
+
+bootContentScript();

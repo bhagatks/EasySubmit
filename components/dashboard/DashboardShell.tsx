@@ -34,6 +34,7 @@ import {
   BYOKKeyButton,
   BYOKStatusBadge,
 } from "@/components/dashboard/BYOKStatus";
+import { AiHealthAlert } from "@/components/dashboard/AiHealthAlert";
 import { DashboardStudioSidebarEffect } from "@/components/dashboard/DashboardStudioSidebarEffect";
 import { ReviewStudioPageHeader } from "@/components/dashboard/review/ReviewStudioPageHeader";
 import { StudioHeaderCenterProvider, StudioHeaderCenterSlot } from "@/components/resume/StudioHeaderCenter";
@@ -204,6 +205,7 @@ function DashboardShellFrame({ children, vaultKeyId, fromParam }: DashboardShell
           <div className="flex items-center gap-2 justify-self-end">
             <DashboardHeaderActionsSlot />
             <DashboardHeaderExpandSlot />
+            <AiHealthAlert />
             <BYOKStatusBadge vaultKeyId={vaultKeyId} />
             {showByokKeyButton ? <BYOKKeyButton /> : null}
             {showSignOut ? <SignOutButton variant="pill" /> : null}
