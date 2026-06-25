@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Check } from "lucide-react";
 import Link from "next/link";
 import { LogoIcon } from "@/components/ui/logo";
+import { BrandWordmark } from "@/components/ui/brand-wordmark";
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -107,7 +108,10 @@ function ProgressPanel({ activePhase }: { activePhase: OnboardingPhaseId }) {
             href="/"
             className="font-display text-base font-semibold tracking-tight text-foreground transition-opacity hover:opacity-80"
           >
-            easysubmit<span className="text-mint">.ai</span>
+            <BrandWordmark
+              nameClassName="text-foreground"
+              suffixClassName="text-mint"
+            />
           </Link>
           <p className="text-xs text-muted-foreground">Career Navigator</p>
         </div>

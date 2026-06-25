@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { signIn, useSession } from "next-auth/react";
-import { useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   FileText,
@@ -116,8 +117,8 @@ function SegmentedControl<T extends string>({
             className={cn(
               "rounded-lg px-2 py-2 text-center transition-all disabled:cursor-not-allowed disabled:opacity-50",
               active
-                ? "bg-surface text-foreground shadow-sm ring-1 ring-border/70"
-                : "text-muted-foreground hover:text-foreground",
+                ? "bg-surface text-foreground shadow-sm ring-2 ring-primary/55 border border-primary/35"
+                : "text-muted-foreground hover:text-foreground border border-transparent",
             )}
           >
             <span className="block text-xs font-medium sm:text-sm">{option.label}</span>
@@ -230,6 +231,9 @@ function ProviderRow({
 
 export function AccountSettings({ initial }: AccountSettingsProps) {
   const { update: updateSession } = useSession();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const appliedAiSourceParam = useRef(false);
   const [firstName, setFirstName] = useState(initial.firstName ?? "");
   const [lastName, setLastName] = useState(initial.lastName ?? "");
   const [saving, setSaving] = useState(false);
@@ -250,6 +254,31 @@ export function AccountSettings({ initial }: AccountSettingsProps) {
   const { openDocument, overlay, open } = useLegalDocumentOverlay();
 
   const { expanded, toggleSection } = useDashboardExpandAllControl([...SETTINGS_SECTION_IDS]);
+
+  useEffect(() => {
+    if (appliedAiSourceParam.current) return;
+    if (searchParams.get("aiSource") !== "auto") return;
+    appliedAiSourceParam.current = true;
+
+    if (!expanded["ai-keys"]) {
+      toggleSection("ai-keys");
+    }
+
+    void (async () => {
+      if (initial.aiSourcePreference !== "auto") {
+        setAiPrefBusy(true);
+        setError(null);
+        const result = await updateAiSourcePreference("auto");
+        setAiPrefBusy(false);
+        if (!result.success) {
+          setError(result.error);
+        } else {
+          setAiSource("auto");
+        }
+      }
+      router.replace("/dashboard/settings", { scroll: false });
+    })();
+  }, [expanded, initial.aiSourcePreference, router, searchParams, toggleSection]);
 
   const aiSummaryKeys = `${AI_SOURCE_LABELS[aiSource as keyof typeof AI_SOURCE_LABELS] ?? "Auto"} · ${initial.aiEnhancementsToday}/${SYSTEM_AI_DAILY_ENHANCEMENT_LIMIT} enhancements`;
   const generalSummary = `${autoApplyUserSwitch ? "One-click on" : "One-click off"} · ${profilePickerMode === "DEFAULT" ? "Default resume" : "Last used resume"}`;

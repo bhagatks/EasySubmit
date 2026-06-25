@@ -102,21 +102,19 @@ describe("extension job pdf builders", () => {
     }
   });
 
-  it("falls back to default profile when tailor is missing", async () => {
-    vi.mocked(getExtensionUserPrefs).mockResolvedValue({
-      autoApplyUserSwitch: true,
-      resumeProfilePickerMode: "DEFAULT",
-      customizeResume: true,
-      applicationProfile: null,
-    });
+  it("returns error when customizeResume is on but tailor is missing", async () => {
     vi.mocked(getMergedResumeForJob).mockResolvedValue({
       success: false,
       error: "No tailored resume for this job",
     });
 
     const result = await buildExtensionResumePdf("user-1", "job-1");
-    expect(result.success).toBe(true);
-    expect(findDefaultProfile).toHaveBeenCalled();
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain("No tailored resume");
+      expect(result.status).toBe(422);
+    }
+    expect(findDefaultProfile).not.toHaveBeenCalled();
   });
 
   it("uses stored cover letter when it differs from deterministic template", async () => {

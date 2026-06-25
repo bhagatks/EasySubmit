@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "EasySubmit — Job Tracker",
+  "name": "EasySubmit.ai — Job Tracker",
   "version": "0.2.2",
-  "description": "Save jobs to EasySubmit Job Tracker from any supported career site.",
+  "description": "Save jobs to EasySubmit.ai Job Tracker from any supported career site.",
   "permissions": ["storage", "tabs", "scripting", "contextMenus"],
   "host_permissions": ["https://*/*", "http://localhost:*/*"],
   "externally_connectable": {
@@ -19,7 +19,7 @@
     "type": "module"
   },
   "action": {
-    "default_title": "EasySubmit Job Tracker",
+    "default_title": "EasySubmit.ai Job Tracker",
     "default_popup": "popup/popup.html",
     "default_icon": {
       "16": "icons/icon-16.png",

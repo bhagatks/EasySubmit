@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { DM_Sans, Space_Grotesk } from "next/font/google";
 import { AppProviders } from "@/components/providers/app-providers";
 import { ThemeProvider } from "@/components/theme-provider";
+import { BRAND } from "@/lib/brand";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -19,7 +20,7 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "EasySubmit.ai | Deploy your Career",
+  title: `${BRAND.full} | Deploy your Career`,
   description: "Automate applications with a self-learning AI engine.",
 };
 

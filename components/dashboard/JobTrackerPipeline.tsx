@@ -20,6 +20,7 @@ import {
 import { PipelineBar } from "@/components/dashboard/PipelineBar";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { BRAND_FULL } from "@/lib/brand";
 import type { JobTrackerSummary } from "@/lib/job-tracker/types";
 import { resolveJourneyDisplay, type JourneyDisplay } from "@/src/shared/journey-display";
 import {
@@ -173,7 +174,7 @@ export function JobTrackerPipeline({
       return;
     }
     if (!result.usedExtension && journey.applyButtonState === "navigate") {
-      setExtensionHint("Install the EasySubmit extension to continue on the job page.");
+      setExtensionHint(`Install the ${BRAND_FULL} extension to continue on the job page.`);
     }
   }
 

@@ -17,13 +17,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { LogoIcon } from "@/components/ui/logo";
 import { Navbar } from "@/components/Navbar";
+import { BRAND, brandCopyright } from "@/lib/brand";
 
 export const metadata = {
-  title: "EasySubmit.ai — AI Resume + Job Autofill that beats every ATS",
+  title: `${BRAND.full} — AI Resume + Job Autofill that beats every ATS`,
   description:
     "Generate ATS-proof, role-specific resumes and autofill any job application with your own AI key. Free forever, BYOK, guaranteed to pass every ATS scanner.",
   openGraph: {
-    title: "EasySubmit.ai — Beat every ATS, free with your own AI key",
+    title: `${BRAND.full} — Beat every ATS, free with your own AI key`,
     description: "Custom resumes per job + one-click apply Chrome extension. BYOK, free daily usage, ATS-guaranteed.",
   },
 };
@@ -316,7 +317,7 @@ function Footer() {
       <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 text-sm text-muted-foreground md:flex-row">
         <div className="flex items-center gap-2">
           <LogoIcon className="h-6 w-6 shrink-0" aria-hidden="true" />
-          <span>© {new Date().getFullYear()} EasySubmit.ai</span>
+          <span>{brandCopyright(new Date().getFullYear())}</span>
         </div>
         <div className="flex items-center gap-6">
           <Link href="/privacy" className="hover:text-foreground">Privacy</Link>

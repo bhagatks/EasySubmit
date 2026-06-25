@@ -160,7 +160,13 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 
 | Date | Summary |
 |------|---------|
-| 2026-06-25 | AI health alert placement — dashboard header rightmost; extension card grip order resume → alert → settings → close |
+| 2026-06-25 | Extension pipeline tailor — uses `enhanceWithAiResumeProfile` (not one-click apply flag); dashboard/PDF no longer show base profile as if tailored when per-job tailor is missing |
+| 2026-06-25 | Extension auto-applied fix — confirmation watch only on apply/thank-you URLs; job posting pages no longer false-positive to APPLIED while READY_TO_APPLY |
+| 2026-06-25 | Extension apply gate — `isExtensionApplyBlockedByAiHealth` disables **Apply with EasySubmit.ai** on AI health errors; capture/tailor/pipeline APIs return 403 until fixed |
+| 2026-06-25 | Extension card header — refresh icon re-fetches config, journey status, and resume profiles without a full page reload |
+| 2026-06-25 | Extension AI health — refresh runtime config on tab focus/visibility so dashboard settings fixes clear the card banner without a full page reload |
+| 2026-06-25 | Extension AI health — red text banner below card header (right-aligned message + dashboard fix link); header icon removed |
+| 2026-06-25 | AI health alert placement — dashboard header rightmost; extension card grip order resume → refresh → settings → close |
 | 2026-06-25 | Extension job card — single expandable card: summary rows (title, company + Job info, Resume/Cover chips, status above CTA); inline scroll views for job details + resume/cover preview; header ↗ opens dashboard review; `GET /api/extension/jobs/:id/preview` |
 | 2026-06-25 | Dashboard AI health alert — `GET /api/user/ai-health` + refresh on tab visibility, focus, pageshow, and 60s poll (replaces client server-action calls) |
 | 2026-06-25 | Global AI health alert — `getAiHealthStatusForUser` / `AiHealthAlert` in dashboard header; `aiHealthError` on extension config + card tooltip; Settings split into AI Keys + General |

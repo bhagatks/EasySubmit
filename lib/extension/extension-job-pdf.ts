@@ -63,6 +63,7 @@ async function resolveResumeFormForJob(
         targetTitle: merged.targetTitle,
       };
     }
+    return { success: false, error: merged.error, status: 422 };
   }
 
   return resolveDefaultResumeForm(userId);

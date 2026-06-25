@@ -10,9 +10,10 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/Navbar";
+import { BRAND } from "@/lib/brand";
 
 export const metadata = {
-  title: "EasySubmit Chrome Extension — One-click apply, anywhere",
+  title: `${BRAND.full} Chrome Extension — One-click apply, anywhere`,
   description:
     "Autofill any job application with a tailored, ATS-proof resume. Works on LinkedIn, Indeed, Workday, Greenhouse, and 2,000+ portals.",
 };
@@ -48,7 +49,7 @@ export default function ExtensionPage() {
               Apply to any job in <span className="text-gradient">one click</span>.
             </h1>
             <p className="mt-5 max-w-xl text-lg text-muted-foreground">
-              The EasySubmit extension reads the job description, tailors your resume on the fly,
+              The {BRAND.full} extension reads the job description, tailors your resume on the fly,
               and fills the application form — across every major ATS.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">

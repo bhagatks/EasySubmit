@@ -111,10 +111,7 @@ export async function enhanceCoverLetterForUserId(
   }
 
   const variant = input.variant ?? "dashboard";
-  const enhanceEnabled =
-    variant === "pipeline"
-      ? featureFlags.extensionAutoApply
-      : featureFlags.enhanceWithAiResumeProfile;
+  const enhanceEnabled = featureFlags.enhanceWithAiResumeProfile;
 
   if (!enhanceEnabled) {
     return {

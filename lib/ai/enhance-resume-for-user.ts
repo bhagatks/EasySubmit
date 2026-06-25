@@ -151,9 +151,7 @@ export async function enhanceResumeForUserId(
   const enhanceEnabled =
     variant === "onboarding"
       ? featureFlags.enhanceWithAiOnboarding
-      : variant === "pipeline"
-        ? featureFlags.extensionAutoApply
-        : featureFlags.enhanceWithAiResumeProfile;
+      : featureFlags.enhanceWithAiResumeProfile;
 
   if (!enhanceEnabled) {
     logEnhance("server", "action.denied", {

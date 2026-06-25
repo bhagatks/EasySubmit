@@ -9,6 +9,7 @@ import {
 } from "@/lib/onboarding/payload";
 import { createClient } from "@/lib/supabase/client";
 import { LogoIcon } from "@/components/ui/logo";
+import { BRAND } from "@/lib/brand";
 import { useOnboardingStore } from "@/src/stores/onboarding-store";
 
 export default function SignupPage() {
@@ -136,7 +137,7 @@ export default function SignupPage() {
             <LogoIcon className="h-10 w-10" aria-hidden="true" />
           </div>
           <p className="text-sm font-semibold uppercase tracking-wider text-primary">
-            EasySubmit.ai
+            {BRAND.full}
           </p>
           <h1 className="mt-2 text-3xl font-semibold text-foreground">
             Create your account

@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
 import { resolveExtensionUserId } from "@/lib/extension/auth-request";
 import { extensionGlobalDisabledResponse } from "@/lib/extension/extension-global-gate";
+import { getExtensionAiApplyBlockForUser } from "@/lib/extension/extension-ai-apply-gate";
 import { runApplyPipeline, type RunApplyPipelineInput } from "@/lib/extension/apply-pipeline";
 
 export async function POST(request: NextRequest) {
@@ -24,6 +25,11 @@ export async function POST(request: NextRequest) {
       { success: false, error: "url and job description (min 120 chars) are required" },
       { status: 400 },
     );
+  }
+
+  const aiBlock = await getExtensionAiApplyBlockForUser(userId);
+  if (aiBlock) {
+    return Response.json({ success: false, error: aiBlock, saved: false }, { status: 403 });
   }
 
   try {

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { BRAND_FULL } from "@/lib/brand";
 import { signOutUser } from "@/lib/auth/sign-out-client";
 import { cn } from "@/lib/utils";
 
@@ -99,7 +100,7 @@ export function SignOutButton({
         <ConfirmDialog
           open={confirmOpen}
           onOpenChange={setConfirmOpen}
-          title="Sign out of EasySubmit?"
+          title={`Sign out of ${BRAND_FULL}?`}
           description="You'll return to the login screen. Unsaved changes in this tab may be lost."
           confirmLabel="Sign out"
           cancelLabel="Stay signed in"

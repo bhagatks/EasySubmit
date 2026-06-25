@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import type { ReactNode } from "react";
 import { SignOutButton } from "@/components/auth/SignOutButton";
+import { BrandWordmark } from "@/components/ui/brand-wordmark";
 import { LogoIcon } from "@/components/ui/logo";
 import {
   SystemStatusBreadcrumb,
@@ -44,8 +45,7 @@ export function OnboardingWorkbenchHeader({
       <div className="flex shrink-0 items-center gap-2">
         <LogoIcon className="h-7 w-7 shrink-0 sm:h-8 sm:w-8" aria-hidden="true" />
         <span className="hidden font-display text-base font-semibold tracking-tight sm:inline">
-          <span className="text-white">EasySubmit</span>
-          <span className="text-mint">.ai</span>
+          <BrandWordmark />
         </span>
       </div>
 

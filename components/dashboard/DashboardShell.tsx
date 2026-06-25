@@ -29,12 +29,17 @@ import {
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { Button } from "@/components/ui/button";
 import { LogoIcon } from "@/components/ui/logo";
+import { BrandWordmark } from "@/components/ui/brand-wordmark";
 import {
   BYOKInactiveNavBadge,
   BYOKKeyButton,
   BYOKStatusBadge,
 } from "@/components/dashboard/BYOKStatus";
-import { AiHealthAlert } from "@/components/dashboard/AiHealthAlert";
+import {
+  AiHealthAlertBanner,
+  AiHealthAlertIcon,
+  AiHealthAlertProvider,
+} from "@/components/dashboard/AiHealthAlert";
 import { DashboardStudioSidebarEffect } from "@/components/dashboard/DashboardStudioSidebarEffect";
 import { ReviewStudioPageHeader } from "@/components/dashboard/review/ReviewStudioPageHeader";
 import { StudioHeaderCenterProvider, StudioHeaderCenterSlot } from "@/components/resume/StudioHeaderCenter";
@@ -83,7 +88,10 @@ function DashboardSidebar({ vaultKeyId }: { vaultKeyId?: string | null }) {
         >
           <LogoIcon className="h-8 w-8 shrink-0" aria-hidden="true" />
           <span className="font-display text-base font-semibold group-data-[collapsible=icon]:hidden">
-            easysubmit<span className="text-mint">.ai</span>
+            <BrandWordmark
+              nameClassName="text-foreground"
+              suffixClassName="text-mint"
+            />
           </span>
         </Link>
       </SidebarHeader>
@@ -188,29 +196,34 @@ function DashboardShellFrame({ children, vaultKeyId, fromParam }: DashboardShell
     >
       <DashboardSidebar vaultKeyId={vaultKeyId} />
       <div className={cn("flex min-h-0 flex-1 flex-col", isStudioEdit && "overflow-hidden")}>
-        <header className="relative grid h-14 shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b border-border/60 px-4">
-          <div className="flex items-center gap-3 justify-self-start">
-            <SidebarTrigger />
-            <div className="text-sm text-muted-foreground">
-              {isStudioEdit ? "Resume Studio" : "Dashboard"}
+        <AiHealthAlertProvider>
+          <header className="relative shrink-0 border-b border-border/60">
+            <div className="grid h-14 grid-cols-[1fr_auto_1fr] items-center px-4">
+              <div className="flex items-center gap-3 justify-self-start">
+                <SidebarTrigger />
+                <div className="text-sm text-muted-foreground">
+                  {isStudioEdit ? "Resume Studio" : "Dashboard"}
+                </div>
+              </div>
+              {isStudioEdit ? (
+                <div className="flex justify-center justify-self-center">
+                  <StudioHeaderCenterSlot />
+                </div>
+              ) : (
+                <div />
+              )}
+              <div className="flex items-center gap-2 justify-self-end">
+                <DashboardHeaderActionsSlot />
+                <DashboardHeaderExpandSlot />
+                <BYOKStatusBadge vaultKeyId={vaultKeyId} />
+                {showByokKeyButton ? <BYOKKeyButton /> : null}
+                {showSignOut ? <SignOutButton variant="pill" /> : null}
+                <AiHealthAlertIcon />
+              </div>
             </div>
-          </div>
-          {isStudioEdit ? (
-            <div className="flex justify-center justify-self-center">
-              <StudioHeaderCenterSlot />
-            </div>
-          ) : (
-            <div />
-          )}
-          <div className="flex items-center gap-2 justify-self-end">
-            <DashboardHeaderActionsSlot />
-            <DashboardHeaderExpandSlot />
-            <BYOKStatusBadge vaultKeyId={vaultKeyId} />
-            {showByokKeyButton ? <BYOKKeyButton /> : null}
-            {showSignOut ? <SignOutButton variant="pill" /> : null}
-            <AiHealthAlert />
-          </div>
-        </header>
+            <AiHealthAlertBanner />
+          </header>
+        </AiHealthAlertProvider>
         <main
           className={cn(
             "flex min-h-0 flex-1 flex-col",

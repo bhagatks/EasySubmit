@@ -5,10 +5,11 @@ import { TermsContent } from "@/components/legal/terms-content";
 import { LEGAL_PROSE_CLASS } from "@/components/legal/legal-prose";
 import { getAppConfig } from "@/src/lib/services/config-service";
 import { cn } from "@/lib/utils";
+import { BRAND } from "@/lib/brand";
 
 export const metadata: Metadata = {
-  title: "Terms of Service | EasySubmit.ai",
-  description: "Terms of Service for EasySubmit.ai resume and job application tools.",
+  title: `Terms of Service | ${BRAND.full}`,
+  description: `Terms of Service for ${BRAND.full} resume and job application tools.`,
 };
 
 export default async function TermsPage() {
@@ -20,7 +21,7 @@ export default async function TermsPage() {
       <article className={cn(LEGAL_PROSE_CLASS, "mx-auto max-w-3xl")}>
         <LegalPageNav />
         <p className="text-sm text-muted-foreground">
-          <Link href="/">EasySubmit.ai</Link> · {updatedLabel}
+          <Link href="/">{BRAND.full}</Link> · {updatedLabel}
         </p>
         <h1>{title}</h1>
         <TermsContent blocks={blocks} />

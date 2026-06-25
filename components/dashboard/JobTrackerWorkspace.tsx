@@ -16,6 +16,7 @@ import { ReviewScreen } from "@/components/dashboard/ReviewScreen";
 import { useJobTrackerSync } from "@/lib/hooks/useJobTrackerSync";
 import { ToastBanner } from "@/components/ui/toast-banner";
 import { Button } from "@/components/ui/button";
+import { BRAND_FULL } from "@/lib/brand";
 import { useRegisterDashboardHeaderActions } from "@/components/dashboard/DashboardWorkspaceHeader";
 
 const APPLIED_ARCHIVE_TOAST_KEY = "easysubmit_applied_archive_toast_v1";
@@ -235,7 +236,7 @@ export function JobTrackerWorkspace({ entries, autoArchiveAppliedJobs }: JobTrac
             </div>
             <h2 className="mt-4 font-display text-lg font-semibold">No jobs tracked yet</h2>
             <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-              Install the EasySubmit extension and click <strong>Apply</strong> on any supported job
+              Install the {BRAND_FULL} extension and click <strong>Apply</strong> on any supported job
               posting. Use <strong>Review</strong> to open the Review Screen.
             </p>
             <Button variant="mint" className="mt-6" asChild>

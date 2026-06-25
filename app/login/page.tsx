@@ -8,7 +8,7 @@ import { MarketTruth } from "@/components/MarketTruth";
 import { TermsPrivacyConsent } from "@/components/legal/terms-privacy-consent";
 import { InlineAlert } from "@/components/ui/inline-alert";
 import { BrandWordmark } from "@/components/ui/brand-wordmark";
-import { EASYSUBMIT_TAGLINE } from "@/lib/brand";
+import { BRAND, brandCopyright } from "@/lib/brand";
 import { resolveSafeCallbackUrl } from "@/lib/auth/safe-callback-url";
 import { cn } from "@/lib/utils";
 
@@ -56,7 +56,7 @@ function LoginPanelChrome({ children }: { children: React.ReactNode }) {
             nameClassName="text-foreground"
           />
           <p className="mt-3 max-w-[16rem] text-sm leading-snug text-muted-foreground">
-            {EASYSUBMIT_TAGLINE}
+            {BRAND.tagline}
           </p>
           <div
             className="mt-6 h-px w-16 bg-gradient-to-r from-transparent via-primary/50 to-transparent"
@@ -225,7 +225,7 @@ function LoginPanel() {
             />
 
             <p className="mt-2 text-xs text-muted-foreground/65">
-              © {new Date().getFullYear()} EasySubmit.ai
+              {brandCopyright(new Date().getFullYear())}
             </p>
           </div>
         </div>

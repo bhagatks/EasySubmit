@@ -1,3 +1,4 @@
+import { BRAND } from "@shared/brand";
 import { EXTENSION_MESSAGE } from "@shared/extension/constants";
 import type { ExtensionRuntimeConfig } from "@shared/extension/types";
 
@@ -10,6 +11,16 @@ const connectBtn = document.getElementById("connect") as HTMLButtonElement;
 const reconnectBtn = document.getElementById("reconnect") as HTMLButtonElement;
 
 let prefsBusy = false;
+
+function applyBrandToPopup(): void {
+  document.title = BRAND.extension.popupTitle;
+  const eyebrow = document.querySelector<HTMLElement>(".eyebrow");
+  if (eyebrow) eyebrow.textContent = BRAND.full;
+  const title = document.querySelector<HTMLElement>(".title");
+  if (title) title.textContent = BRAND.extension.productLine;
+}
+
+applyBrandToPopup();
 
 function setStatus(message: string): void {
   statusEl.textContent = message;

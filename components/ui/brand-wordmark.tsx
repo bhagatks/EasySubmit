@@ -1,3 +1,4 @@
+import { BRAND } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 
 type BrandWordmarkProps = {
@@ -14,8 +15,8 @@ export function BrandWordmark({
 }: BrandWordmarkProps) {
   return (
     <span className={cn("font-display font-semibold tracking-tight", className)}>
-      <span className={nameClassName}>EasySubmit</span>
-      <span className={suffixClassName}>.ai</span>
+      <span className={nameClassName}>{BRAND.name}</span>
+      <span className={suffixClassName}>{BRAND.suffix}</span>
     </span>
   );
 }

@@ -25,6 +25,7 @@ async function main() {
 
   const sharedAlias = {
     "@shared": resolve(root, "src/shared"),
+    "@": root,
   };
 
   await build({

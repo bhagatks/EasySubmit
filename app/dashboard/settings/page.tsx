@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { getAccountSettings } from "@/app/actions/account";
@@ -22,5 +23,9 @@ export default async function SettingsPage() {
     );
   }
 
-  return <AccountSettings initial={account} />;
+  return (
+    <Suspense fallback={<p className="text-sm text-muted-foreground">Loading settings…</p>}>
+      <AccountSettings initial={account} />
+    </Suspense>
+  );
 }

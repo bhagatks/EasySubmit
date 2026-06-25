@@ -1,3 +1,5 @@
+import { isGreenhouseBoardJobUrl } from "./greenhouse-helpers";
+import { classifyJobPage } from "./page-classifier";
 import { isWorkdayApplyStepUrl, isWorkdayJobUrl } from "./workday-helpers";
 
 const URL_PATTERNS: Record<string, RegExp> = {
@@ -55,7 +57,68 @@ function isWorkdayJobPostingUrl(url: string): boolean {
   return isWorkdayJobUrl(url) && !isWorkdayApplyStepUrl(url) && !matchesTerminalUrl("workday", url);
 }
 
-/** Score 3 confirmation signals; true when 2+ match. Test helper accepts explicit context. */
+/** Job listing / description pages — never auto-mark applied while user is only viewing the role. */
+export function isJobPostingOnlyUrl(platform: string, url: string, doc: Document): boolean {
+  const plat = platform.toLowerCase();
+  if (matchesTerminalUrl(plat, url)) return false;
+  if (Object.values(URL_PATTERNS).some((candidate) => candidate.test(url))) return false;
+
+  if (isWorkdayJobPostingUrl(url)) return true;
+
+  const { kind } = classifyJobPage(url, doc);
+  if (kind === "job_posting" || kind === "careers_hub" || kind === "search_results") {
+    return true;
+  }
+
+  if (isGreenhouseBoardJobUrl(url)) {
+    return true;
+  }
+
+  void platform;
+  return false;
+}
+
+/**
+ * Whether the extension should poll for thank-you confirmation on this page.
+ * Posting pages stay READY_TO_APPLY until the user enters apply / confirmation URLs.
+ */
+export function shouldWatchForApplicationConfirmation(
+  platform: string,
+  url: string,
+  doc: Document,
+): boolean {
+  if (isJobPostingOnlyUrl(platform, url, doc)) return false;
+
+  const { kind } = classifyJobPage(url, doc);
+  if (kind === "apply_form") return true;
+
+  const plat = platform.toLowerCase();
+  if (matchesTerminalUrl(plat, url)) return true;
+  return Object.values(URL_PATTERNS).some((candidate) => candidate.test(url));
+}
+
+function evaluateNonWorkdayConfirmation(platform: string, url: string, doc: Document): boolean {
+  if (isJobPostingOnlyUrl(platform, url, doc)) return false;
+
+  const plat = platform.toLowerCase();
+  const onTerminalUrl = matchesTerminalUrl(plat, url);
+
+  if (onTerminalUrl) {
+    return matchesConfirmationText(doc) || hasNoVisibleSubmitForm(doc);
+  }
+
+  const { kind } = classifyJobPage(url, doc);
+  if (kind === "apply_form") {
+    let score = 0;
+    if (matchesConfirmationText(doc)) score += 1;
+    if (hasNoVisibleSubmitForm(doc)) score += 1;
+    return score >= 2;
+  }
+
+  return false;
+}
+
+/** Score confirmation signals; true only on apply-flow or thank-you pages — not job listings. */
 export function evaluateApplicationConfirmation(
   platform: string,
   url: string,
@@ -78,19 +141,19 @@ export function evaluateApplicationConfirmation(
     return false;
   }
 
-  let score = 0;
-  if (matchesTerminalUrl(plat, url)) score += 1;
-  if (matchesConfirmationText(doc)) score += 1;
-  if (hasNoVisibleSubmitForm(doc)) score += 1;
-  return score >= 2;
+  return evaluateNonWorkdayConfirmation(plat, url, doc);
 }
 
 /**
  * Detect ATS thank-you / confirmation pages for auto MARK_APPLIED.
- * Only meaningful during Stage 2 (`READY_TO_APPLY`).
+ * Only meaningful during Stage 2 (`READY_TO_APPLY`) on apply / confirmation URLs.
  */
 export function detectApplicationConfirmation(platform: string): boolean {
   if (typeof document === "undefined" || typeof location === "undefined") {
+    return false;
+  }
+
+  if (!shouldWatchForApplicationConfirmation(platform, location.href, document)) {
     return false;
   }
 

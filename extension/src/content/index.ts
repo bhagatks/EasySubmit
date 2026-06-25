@@ -37,6 +37,14 @@ import {
   applicationProfilePatchFromScreen2,
   syncProfileSetupDraftsFromProfile,
 } from "@/lib/profile/application-profile-setup";
+import { BRAND, renderBrandMarkup } from "@shared/brand";
+import { SETTINGS_AI_AUTO_HREF } from "@/lib/dashboard/settings-ai-links";
+import {
+  resolveExtensionAiHealthBanner,
+  shouldHidePipelineErrorInBody,
+  isExtensionApplyBlockedByAiHealth,
+  getExtensionAiHealthBlockMessage,
+} from "@shared/extension/ai-health-banner";
 import {
   buildManualCaptureMetadata,
   buildNoJobDetectedMetadata,
@@ -46,7 +54,7 @@ import {
 import { canApplyCapture, applyCaptureBlockReason } from "@shared/extension/apply-gate";
 import { resolveJobIdentity } from "@shared/extension/job-identity";
 import { hasStrongJobUrlSignal } from "@shared/extension/job-url-parse";
-import { detectApplicationConfirmation } from "@shared/extension/confirmation-detect";
+import { detectApplicationConfirmation, shouldWatchForApplicationConfirmation } from "@shared/extension/confirmation-detect";
 import { hasAssistOpenParam, stripAssistOpenParam } from "@shared/extension/assist-open-url";
 import { parseCompanyFromJobHost } from "@shared/extension/job-url-parse";
 import {
@@ -158,6 +166,8 @@ let confirmationWatchTimer: ReturnType<typeof setInterval> | null = null;
 let loadingHydrationTimer: ReturnType<typeof setInterval> | null = null;
 let urlWatchTimer: ReturnType<typeof setInterval> | null = null;
 let domContentObserver: MutationObserver | null = null;
+let tabReturnedAt = 0;
+const TAB_RETURN_GRACE_MS = 2000;
 
 type ResumeProfileOption = { id: string; label: string; isDefault: boolean };
 let resumeProfiles: ResumeProfileOption[] = [];
@@ -165,6 +175,7 @@ let selectedProfileId: string | null = null;
 let defaultProfileId: string | null = null;
 let profilePickerOpen = false;
 let settingsMenuOpen = false;
+let headerRefreshBusy = false;
 let cardView: ExtensionCardView = "summary";
 let previewHtmlCache: Partial<Record<"resume" | "cover", string>> = {};
 let previewLoadState: "idle" | "loading" | "error" = "idle";
@@ -298,9 +309,10 @@ function resolveExtensionJourneyDisplayLocal() {
 function getPrimaryCtaLabel(): string {
   const journey = resolveExtensionJourneyDisplayLocal();
   if (!savedStatus.saved) {
-    return "Apply with EasySubmit";
+    return BRAND.applyCta;
   }
   if (savedStatus.canReapply) return "Re-apply";
+  if (journey.stage === "error") return "Apply";
   if (journey.applyButtonState === "completed") return journey.label;
   return journey.label;
 }
@@ -308,6 +320,7 @@ function getPrimaryCtaLabel(): string {
 function getJourneyStatusLabel(): string | null {
   if (!savedStatus.saved) return null;
   const journey = resolveExtensionJourneyDisplayLocal();
+  if (journey.stage === "error") return null;
   return journey.statusLabel;
 }
 
@@ -371,33 +384,71 @@ function cardStyles(): string {
     .header-btn:hover { background: #F3F4F6; color: #374151; }
     .header-btn svg { width: 14px; height: 14px; display: block; pointer-events: none; }
     .header-btn.is-active { color: #0E7490; background: rgba(18, 179, 209, 0.12); }
-    .ai-health-wrap { position: relative; display: inline-flex; z-index: 25; }
-    .ai-health-btn { position: relative; color: #DC2626 !important; }
-    .ai-health-btn:hover { background: rgba(220,38,38,0.08) !important; }
-    .ai-health-dot {
-      position: absolute; top: 1px; right: 1px;
-      width: 6px; height: 6px; border-radius: 50%;
-      background: #DC2626; border: 1px solid #fff;
-      animation: ai-health-pulse 1.5s ease-in-out infinite;
+    .header-btn.is-spinning { color: #0E7490; pointer-events: none; }
+    .header-btn.is-spinning svg { animation: es-refresh-spin 0.8s linear infinite; }
+    @keyframes es-refresh-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .ai-health-banner {
+      position: relative;
+      z-index: 4;
     }
-    @keyframes ai-health-pulse {
-      0%, 100% { opacity: 1; } 50% { opacity: 0.4; }
+    .ai-health-banner-inner {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      background: #B42318;
+      border-bottom: 1px solid rgba(127, 29, 29, 0.45);
     }
-    .ai-health-tooltip {
-      display: none; position: absolute; top: calc(100% + 6px); right: 0;
-      width: 200px; background: #1F2937; border-radius: 10px;
-      padding: 10px 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.18);
-      z-index: 100;
+    .ai-health-banner-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      width: 16px;
+      height: 16px;
+      color: #fff;
     }
-    .ai-health-wrap:hover .ai-health-tooltip,
-    .ai-health-wrap:focus-within .ai-health-tooltip { display: block; }
-    .ai-health-tooltip-title { margin: 0 0 4px; font-size: 11px; font-weight: 700; color: #FCA5A5; }
-    .ai-health-tooltip-msg { margin: 0 0 8px; font-size: 11px; color: #D1D5DB; line-height: 1.4; }
-    .ai-health-fix-link {
-      display: inline-block; font-size: 11px; font-weight: 600;
-      color: #60A5FA; text-decoration: none;
+    .ai-health-banner-icon svg {
+      width: 16px;
+      height: 16px;
+      display: block;
     }
-    .ai-health-fix-link:hover { text-decoration: underline; }
+    .ai-health-banner-message {
+      flex: 1;
+      min-width: 0;
+      margin: 0;
+      font-size: 11px;
+      line-height: 1.35;
+      font-weight: 500;
+      color: #fff;
+      text-align: left;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      overflow: hidden;
+      word-break: break-word;
+    }
+    .ai-health-banner-cta {
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 26px;
+      padding: 4px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.9);
+      background: transparent;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      font-family: inherit;
+      line-height: 1.2;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    .ai-health-banner-cta:hover { background: rgba(255, 255, 255, 0.14); }
+    .ai-health-banner-cta:active { background: rgba(255, 255, 255, 0.22); }
     .profile-picker-wrap {
       position: relative;
       display: inline-flex;
@@ -513,13 +564,20 @@ function cardStyles(): string {
     .actions { margin-top: 2px; display: flex; flex-direction: column; gap: 8px; }
     .save-error {
       margin: 0;
-      padding: 8px 10px;
+      padding: 8px 10px 8px 9px;
       border-radius: 12px;
-      background: rgba(239, 68, 68, 0.08);
+      background: #fff;
       border: 1px solid rgba(239, 68, 68, 0.2);
-      color: #B91C1C;
+      border-left: 3px solid #EF4444;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+      color: #991B1B;
       font-size: 11px;
-      line-height: 1.4;
+      line-height: 1.45;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      overflow: hidden;
+      word-break: break-word;
     }
     .card-notice {
       margin: 0;
@@ -577,7 +635,7 @@ function renderCollapsedLauncher(root: ShadowRoot): void {
   const iconUrl = chrome.runtime.getURL("icons/icon-48.png");
   root.innerHTML = `
     <style>${cardStyles()}</style>
-    <button type="button" class="launcher" data-launcher="1" aria-label="Open EasySubmit.ai job card">
+    <button type="button" class="launcher" data-launcher="1" aria-label="Open ${BRAND.full} job card">
       <img src="${iconUrl}" alt="" />
     </button>
   `;
@@ -673,6 +731,7 @@ function getCaptureContext(): {
 }
 
 function isApplyEnabled(): boolean {
+  if (isExtensionApplyBlockedByAiHealth(runtimeConfig)) return false;
   if (savedStatus.canReapply) {
     const capture = getCaptureContext();
     return canApplyCapture({ url: capture.url, description: capture.description });
@@ -750,6 +809,9 @@ function startConfirmationWatch(): void {
   stopConfirmationWatch();
   if (!savedStatus.id || savedStatus.status !== "READY_TO_APPLY") return;
 
+  const platform = currentMetadata?.platform ?? "generic";
+  if (!shouldWatchForApplicationConfirmation(platform, location.href, document)) return;
+
   confirmationWatchTimer = setInterval(() => {
     if (!guardExtensionContext()) return;
     if (!savedStatus.id || savedStatus.status !== "READY_TO_APPLY") {
@@ -763,6 +825,7 @@ function startConfirmationWatch(): void {
 function maybeMarkAppliedFromConfirmation(): void {
   if (savedStatus.status !== "READY_TO_APPLY" || !savedStatus.id) return;
   const platform = currentMetadata?.platform ?? "generic";
+  if (!shouldWatchForApplicationConfirmation(platform, location.href, document)) return;
   if (!detectApplicationConfirmation(platform)) return;
   void markCurrentJobApplied("extension_auto").catch(swallowContextInvalidation);
 }
@@ -801,6 +864,8 @@ function renderExpandedCard(root: ShadowRoot): void {
   const meta = currentMetadata;
   if (!meta) return;
 
+  void maybeRefreshAiHealthConfig();
+
   if (cardPresentation === "manual_capture" && !manualCaptureDraft) {
     manualCaptureDraft = defaultManualCaptureDraft();
   }
@@ -810,7 +875,6 @@ function renderExpandedCard(root: ShadowRoot): void {
     journey.applyButtonState === "completed" && !savedStatus.canReapply;
   const capture = getCaptureContext();
   const applyEnabled = isApplyEnabled();
-  const applyHint = applyCaptureBlockReason({ url: capture.url, description: capture.description });
   const uiMode = getPipelineUiMode(runtimeConfig);
   const manualStep = getManualPipelineStep();
   const showUpdateResume = uiMode === "manual" && savedStatus.saved && manualStep === 2;
@@ -825,6 +889,12 @@ function renderExpandedCard(root: ShadowRoot): void {
   const ctaIcon = savedStatus.saved
     ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" x2="3" y1="12" y2="12"/></svg>`
     : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>`;
+
+  const aiHealthBanner = resolveExtensionAiHealthBanner(runtimeConfig, saveError);
+  const cardSaveError = shouldHidePipelineErrorInBody(aiHealthBanner, saveError) ? null : saveError;
+  const aiBlockMessage = getExtensionAiHealthBlockMessage(runtimeConfig);
+  const captureHint = applyCaptureBlockReason({ url: capture.url, description: capture.description });
+  const applyHint = !aiBlockMessage && !applyEnabled ? captureHint : null;
 
   let bodyMarkup = "";
   if (profileSetupScreen === 1) {
@@ -855,7 +925,7 @@ function renderExpandedCard(root: ShadowRoot): void {
       ctaIcon,
       showUpdateResume: false,
       applyHint: null,
-      saveError,
+      saveError: cardSaveError,
       escapeHtml,
     });
   } else if (cardView === "job-detail") {
@@ -915,8 +985,8 @@ function renderExpandedCard(root: ShadowRoot): void {
       ctaDisabled: !applyEnabled || pipelineBusy,
       ctaIcon,
       showUpdateResume,
-      applyHint: !applyEnabled ? applyHint : null,
-      saveError,
+      applyHint,
+      saveError: cardSaveError,
       escapeHtml,
     });
   }
@@ -934,15 +1004,16 @@ function renderExpandedCard(root: ShadowRoot): void {
             <div class="grip" data-grip="1">
               <div class="grip-left">
                 <span class="dots">⋮⋮</span>
-                <span class="brand"><span class="brand-name">EasySubmit</span><span class="brand-suffix">.ai</span></span>
+                ${renderBrandMarkup()}
               </div>
               <div class="grip-actions">
                 ${renderProfilePickerMarkup()}
-                ${renderAiHealthErrorMarkup()}
+                ${renderRefreshButtonMarkup()}
                 ${renderSettingsMenuMarkup()}
                 <button type="button" class="header-btn" data-minimize="1" aria-label="Minimize">×</button>
               </div>
             </div>
+            ${renderAiHealthBannerMarkup(aiHealthBanner)}
             <div class="${bodyClass}">${bodyMarkup}</div>
           </div>
         </div>
@@ -956,6 +1027,15 @@ function renderExpandedCard(root: ShadowRoot): void {
 
   root.querySelector("[data-update-resume]")?.addEventListener("click", () => {
     void openUpdateResumeDashboard();
+  });
+
+  root.querySelector("[data-fix-ai-dashboard]")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const path =
+      (event.currentTarget as HTMLElement).getAttribute("data-fix-path") ??
+      SETTINGS_AI_AUTO_HREF;
+    void openDashboardPath(path);
   });
 
   bindCardViewHandlers(root);
@@ -987,6 +1067,9 @@ function renderExpandedCard(root: ShadowRoot): void {
 
   bindHeaderButton(root, "[data-minimize]", () => {
     minimizeCard();
+  });
+  bindHeaderButton(root, "[data-refresh-card]", () => {
+    void refreshCardFromHeader();
   });
   bindSettingsMenu(root);
   bindProfilePicker(root);
@@ -1088,7 +1171,7 @@ function bindHeaderButton(root: ParentNode, selector: string, onActivate: () => 
 
 function isInteractiveGripTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
-  return Boolean(target.closest("[data-minimize], [data-settings], [data-settings-dashboard], [data-settings-reconnect], .settings-menu, [data-profile-picker], [data-profile-id], .profile-picker-menu, .ai-health-wrap, button, a"));
+  return Boolean(target.closest("[data-minimize], [data-refresh-card], [data-settings], [data-settings-dashboard], [data-settings-reconnect], [data-fix-ai-dashboard], .settings-menu, [data-profile-picker], [data-profile-id], .profile-picker-menu, .ai-health-banner, button, a"));
 }
 
 function renderCard(root: ShadowRoot): void {
@@ -1113,6 +1196,29 @@ const SETTINGS_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 
 const DASHBOARD_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>`;
 
 const RESUME_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/></svg>`;
+
+const REFRESH_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>`;
+
+function renderRefreshButtonMarkup(): string {
+  return `<button type="button" class="header-btn${headerRefreshBusy ? " is-spinning" : ""}" data-refresh-card="1" aria-label="Refresh card" title="Refresh status"${headerRefreshBusy ? " disabled" : ""}>
+    ${REFRESH_ICON_SVG}
+  </button>`;
+}
+
+async function refreshCardFromHeader(): Promise<void> {
+  if (headerRefreshBusy) return;
+  headerRefreshBusy = true;
+  if (cardHost) renderCard(cardHost.shadow);
+  lastAiHealthConfigRefreshAt = Date.now();
+  try {
+    await refreshRuntimeConfig();
+    await applyServerJourneyRefresh("header_refresh").catch(() => undefined);
+    await refreshResumeProfiles().catch(() => undefined);
+  } finally {
+    headerRefreshBusy = false;
+    if (cardHost) renderCard(cardHost.shadow);
+  }
+}
 
 function selectedProfileLabel(): string {
   const match = resumeProfiles.find((p) => p.id === selectedProfileId);
@@ -1199,25 +1305,38 @@ function renderSettingsMenuMarkup(): string {
   `;
 }
 
-const ALERT_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>`;
+const AI_HEALTH_ALERT_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>`;
 
-function renderAiHealthErrorMarkup(): string {
-  const error = runtimeConfig?.aiHealthError;
-  if (!error) return "";
-  const hint = escapeHtml(error);
-  const fixPath = runtimeConfig?.byokKeyInvalid ? "/dashboard/keys" : "/dashboard/settings";
-  const dashboardUrl = `${runtimeConfig?.apiBaseUrl ?? "https://easysubmit.ai"}${fixPath}`;
-  const fixLabel = runtimeConfig?.byokKeyInvalid ? "Verify in AI Keys →" : "Fix in Settings →";
+let lastAiHealthConfigRefreshAt = 0;
+
+function scheduleRuntimeConfigRefresh(minIntervalMs: number): void {
+  const now = Date.now();
+  if (now - lastAiHealthConfigRefreshAt < minIntervalMs) return;
+  lastAiHealthConfigRefreshAt = now;
+  void refreshRuntimeConfig().catch(() => undefined);
+}
+
+function maybeRefreshAiHealthConfig(): void {
+  if (!isExtensionApplyBlockedByAiHealth(runtimeConfig)) return;
+  scheduleRuntimeConfigRefresh(30_000);
+}
+
+function refreshRuntimeConfigOnTabResume(): void {
+  scheduleRuntimeConfigRefresh(2_000);
+}
+
+function renderAiHealthBannerMarkup(
+  banner: ReturnType<typeof resolveExtensionAiHealthBanner>,
+): string {
+  if (!banner) return "";
+  const hint = escapeHtml(banner.message);
+  const ctaLabel = banner.isKeyIssue ? "Keys" : "Fix";
   return `
-    <div class="ai-health-wrap">
-      <button type="button" class="header-btn ai-health-btn" data-ai-health="1" aria-label="AI issue: ${hint}" title="${hint}" style="color:#DC2626;">
-        ${ALERT_ICON_SVG}
-        <span class="ai-health-dot" aria-hidden="true"></span>
-      </button>
-      <div class="ai-health-tooltip" role="tooltip">
-        <p class="ai-health-tooltip-title">AI issue</p>
-        <p class="ai-health-tooltip-msg">${hint}</p>
-        <a href="${escapeHtml(dashboardUrl)}" target="_blank" rel="noopener noreferrer" class="ai-health-fix-link">${fixLabel}</a>
+    <div class="ai-health-banner" role="alert">
+      <div class="ai-health-banner-inner">
+        <span class="ai-health-banner-icon">${AI_HEALTH_ALERT_ICON}</span>
+        <p class="ai-health-banner-message" title="${hint}">${hint}</p>
+        <button type="button" class="ai-health-banner-cta" data-fix-ai-dashboard="1" data-fix-path="${escapeHtml(banner.fixPath)}" aria-label="${escapeHtml(banner.fixLabel)}">${ctaLabel}</button>
       </div>
     </div>
   `;
@@ -1666,6 +1785,8 @@ async function applyServerJourneyRefresh(reason: string): Promise<void> {
     await syncRealtimeSubscription().catch(() => undefined);
     if (after.status === "READY_TO_APPLY") {
       startConfirmationWatch();
+    } else {
+      stopConfirmationWatch();
     }
   }
 }
@@ -1920,6 +2041,10 @@ function defaultReviewPanelForStatus(status?: string): string {
   return "job";
 }
 
+async function openDashboardPath(path: string): Promise<void> {
+  await sendMessage({ action: EXTENSION_MESSAGE.OPEN_DASHBOARD, path });
+}
+
 async function openJobTrackerDashboard(options?: {
   review?: boolean;
   panel?: "job" | "resume" | "cover" | "apply";
@@ -1929,14 +2054,14 @@ async function openJobTrackerDashboard(options?: {
     const panel = options?.panel ?? defaultReviewPanelForStatus(savedStatus.status);
     path = `/dashboard/job-tracker?job=${encodeURIComponent(savedStatus.id)}&panel=${panel}`;
   }
-  await sendMessage({ action: EXTENSION_MESSAGE.OPEN_DASHBOARD, path });
+  await openDashboardPath(path);
 }
 
 async function openUpdateResumeDashboard(): Promise<void> {
   const path = selectedProfileId
     ? `/dashboard/resume-profiles/${selectedProfileId}/edit`
     : "/dashboard/resume-profiles";
-  await sendMessage({ action: EXTENSION_MESSAGE.OPEN_DASHBOARD, path });
+  await openDashboardPath(path);
 }
 
 async function waitForJobDescriptionBeforeSave(maxMs = 4500): Promise<void> {
@@ -2057,6 +2182,9 @@ async function onProfileSetupFinish(root: ShadowRoot, skipAll: boolean): Promise
 async function startApplyPipeline(): Promise<void> {
   if (pipelineBusy) return;
 
+  const config = runtimeConfig ?? (await ensureRuntimeConfig());
+  if (isExtensionApplyBlockedByAiHealth(config)) return;
+
   if (cardPresentation === "manual_capture" && cardHost) {
     manualCaptureDraft = readManualCaptureDraftFromDom(cardHost.shadow);
   }
@@ -2069,7 +2197,6 @@ async function startApplyPipeline(): Promise<void> {
     return;
   }
 
-  const config = runtimeConfig ?? (await ensureRuntimeConfig());
   if (cardPresentation !== "manual_capture") {
     await refreshMetadataBeforeSave(config);
   }
@@ -2196,6 +2323,7 @@ async function onPrimaryClick(): Promise<void> {
   if (!isApplyEnabled()) return;
 
   await ensureRuntimeConfig();
+  if (isExtensionApplyBlockedByAiHealth(runtimeConfig)) return;
 
   if (needsApplicationProfileSetup() && profileSetupScreen === 0) {
     profileSetupScreen = 1;
@@ -2228,7 +2356,7 @@ async function forceShowCard(): Promise<{
   if (isEasySubmitAppPage()) {
     return {
       success: false,
-      error: "The job card is hidden on the EasySubmit dashboard. Use Job Tracker in the app.",
+      error: `The job card is hidden on the ${BRAND.full} dashboard. Use Job Tracker in the app.`,
     };
   }
 
@@ -2390,13 +2518,24 @@ async function updateCard(): Promise<void> {
 
     pinnedUrl = null;
 
+    const inTabReturnGrace = cardHost && Date.now() - tabReturnedAt < TAB_RETURN_GRACE_MS;
+
     if (!onJobPage) {
+      if (inTabReturnGrace) {
+        // Page DOM may still be restoring after tab return — retry after grace window.
+        scheduleUpdate(TAB_RETURN_GRACE_MS);
+        return;
+      }
       removeCard();
       return;
     }
 
     const { presentation, metadata } = resolveCardContent(config, "auto");
     if (presentation === "no_job") {
+      if (inTabReturnGrace) {
+        scheduleUpdate(TAB_RETURN_GRACE_MS);
+        return;
+      }
       removeCard();
       return;
     }
@@ -2483,13 +2622,16 @@ function bootJobPageObservers(): void {
 
   window.addEventListener("focus", () => {
     if (document.visibilityState !== "visible") return;
-    scheduleUpdate();
+    if (!cardHost) scheduleUpdate();
+    refreshRuntimeConfigOnTabResume();
     void applyServerJourneyRefresh("tab_focus").catch(swallowContextInvalidation);
   });
 
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState !== "visible") return;
-    scheduleUpdate();
+    tabReturnedAt = Date.now();
+    if (!cardHost) scheduleUpdate();
+    refreshRuntimeConfigOnTabResume();
     void applyServerJourneyRefresh("tab_visible").catch(swallowContextInvalidation);
   });
 

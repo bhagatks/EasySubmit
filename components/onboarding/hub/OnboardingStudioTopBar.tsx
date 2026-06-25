@@ -1,6 +1,7 @@
 "use client";
 
 import { EnhanceWithAiButton } from "@/components/resume/EnhanceWithAiFlow";
+import { BrandWordmark } from "@/components/ui/brand-wordmark";
 import { cn } from "@/lib/utils";
 
 type OnboardingStudioTopBarProps = {
@@ -34,8 +35,12 @@ export function OnboardingStudioTopBar({
           />
         ) : null}
       </div>
-      <div className="justify-self-end font-display text-xs font-semibold tracking-tight text-foreground">
-        easysubmit<span className="text-mint"> AI</span>
+      <div className="justify-self-end">
+        <BrandWordmark
+          className="text-xs"
+          nameClassName="text-foreground"
+          suffixClassName="text-mint"
+        />
       </div>
     </header>
   );

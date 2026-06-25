@@ -135,11 +135,11 @@ describe("enhanceResumeForUserId", () => {
     });
   });
 
-  it("blocks pipeline variant when extension_auto_apply is off", async () => {
+  it("blocks pipeline variant when resume-profile enhance is off", async () => {
     vi.mocked(getFeatureFlags).mockResolvedValue({
       enhanceWithAiResumeProfile: false,
       enhanceWithAiOnboarding: true,
-      extensionAutoApply: false,
+      extensionAutoApply: true,
     } as never);
 
     const result = await enhanceResumeForUserId("user-1", {
@@ -156,11 +156,11 @@ describe("enhanceResumeForUserId", () => {
     expect(runResumeEnhance).not.toHaveBeenCalled();
   });
 
-  it("allows pipeline variant when extension_auto_apply is on even if resume profile enhance is off", async () => {
+  it("allows pipeline variant when resume-profile enhance is on", async () => {
     vi.mocked(getFeatureFlags).mockResolvedValue({
-      enhanceWithAiResumeProfile: false,
+      enhanceWithAiResumeProfile: true,
       enhanceWithAiOnboarding: true,
-      extensionAutoApply: true,
+      extensionAutoApply: false,
     } as never);
 
     const result = await enhanceResumeForUserId("user-1", {

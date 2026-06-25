@@ -5,10 +5,11 @@ import { PrivacyContent } from "@/components/legal/privacy-content";
 import { LEGAL_PROSE_CLASS } from "@/components/legal/legal-prose";
 import { getAppConfig } from "@/src/lib/services/config-service";
 import { cn } from "@/lib/utils";
+import { BRAND } from "@/lib/brand";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy | EasySubmit.ai",
-  description: "How EasySubmit.ai collects, uses, and protects your data.",
+  title: `Privacy Policy | ${BRAND.full}`,
+  description: `How ${BRAND.full} collects, uses, and protects your data.`,
 };
 
 export default async function PrivacyPage() {
@@ -20,7 +21,7 @@ export default async function PrivacyPage() {
       <article className={cn(LEGAL_PROSE_CLASS, "mx-auto max-w-3xl")}>
         <LegalPageNav />
         <p className="text-sm text-muted-foreground">
-          <Link href="/">EasySubmit.ai</Link> · {updatedLabel}
+          <Link href="/">{BRAND.full}</Link> · {updatedLabel}
         </p>
         <h1>{title}</h1>
         <PrivacyContent blocks={blocks} />

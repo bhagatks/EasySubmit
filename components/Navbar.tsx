@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Settings } from "lucide-react";
+import { BrandWordmark } from "@/components/ui/brand-wordmark";
 import { Button } from "@/components/ui/button";
 import { LogoIcon } from "@/components/ui/logo";
 import { cn } from "@/lib/utils";
@@ -27,10 +28,7 @@ export function Navbar() {
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
         <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-90">
           <LogoIcon className="h-8 w-8 shrink-0" />
-          <span className="font-display text-lg font-semibold tracking-tight">
-            <span className="text-white">EasySubmit</span>
-            <span className="text-mint">.ai</span>
-          </span>
+          <BrandWordmark className="text-lg" />
         </Link>
 
         <nav className="hidden items-center gap-8 text-sm text-muted-foreground md:flex">

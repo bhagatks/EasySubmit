@@ -18,10 +18,6 @@ import { journeySyncLog } from "@/src/shared/extension/journey-sync-log";
 import { resumeProfileDisplayLabel } from "@/lib/extension/resume-profiles";
 import { getMergedResumeForJob, updateJobReviewDocuments } from "@/lib/profile/job-resume-tailor";
 import { findProfileForUser } from "@/lib/profile/resume-profile-core";
-import {
-  hubRefineryFormFromProfile,
-  targetTitleFromProfile,
-} from "@/lib/profile/studio-form-db";
 
 const AUTO_ARCHIVE_MS = 24 * 60 * 60 * 1000;
 
@@ -226,24 +222,6 @@ export async function getJobTrackerEntryById(entryId: string): Promise<JobTracke
       );
     } else {
       previewError = merged.error;
-    }
-  } else if (entry.sourceProfileId) {
-    const source = await findProfileForUser(userId, entry.sourceProfileId);
-    if (source) {
-      const form = hubRefineryFormFromProfile(source);
-      const targetTitle = targetTitleFromProfile(source);
-      entry.reviewContact = {
-        firstName: form.firstName,
-        lastName: form.lastName,
-        email: form.email,
-        phone: form.phone,
-      };
-      entry.tailoredResumePreview = buildTailoredResumePreview(
-        form,
-        targetTitle,
-        [],
-        entry.updatedAt,
-      );
     }
   }
 

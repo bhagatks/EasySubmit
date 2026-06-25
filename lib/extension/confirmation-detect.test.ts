@@ -1,6 +1,10 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { evaluateApplicationConfirmation } from "@/src/shared/extension/confirmation-detect";
+import {
+  evaluateApplicationConfirmation,
+  isJobPostingOnlyUrl,
+  shouldWatchForApplicationConfirmation,
+} from "@/src/shared/extension/confirmation-detect";
 
 describe("evaluateApplicationConfirmation", () => {
   it("requires two of three signals", () => {
@@ -55,5 +59,23 @@ describe("evaluateApplicationConfirmation", () => {
       doc,
     );
     expect(result).toBe(true);
+  });
+
+  it("does not treat Greenhouse job postings as confirmation", () => {
+    const postingDoc = document.implementation.createHTMLDocument("Posting");
+    postingDoc.body.innerHTML =
+      "<main><p>Thank you for applying to our team. We received your application.</p><button type='button'>Apply</button></main>";
+    const url = "https://job-boards.greenhouse.io/hightouch/jobs/5727573004";
+    expect(isJobPostingOnlyUrl("greenhouse", url, postingDoc)).toBe(true);
+    expect(shouldWatchForApplicationConfirmation("greenhouse", url, postingDoc)).toBe(false);
+    expect(evaluateApplicationConfirmation("greenhouse", url, postingDoc)).toBe(false);
+  });
+
+  it("does not treat generic job listings as confirmation without thank-you URL", () => {
+    const postingDoc = document.implementation.createHTMLDocument("Posting");
+    postingDoc.body.innerHTML =
+      "<main><p>Application submitted materials should include a resume.</p></main>";
+    const url = "https://jobs.lever.co/acme/senior-engineer";
+    expect(evaluateApplicationConfirmation("lever", url, postingDoc)).toBe(false);
   });
 });

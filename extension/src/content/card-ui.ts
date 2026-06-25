@@ -459,15 +459,21 @@ export function renderSummaryCardBody(input: SummaryCardInput): string {
       </div>`
     : "";
 
-  const statusRow = input.statusLabel
-    ? `<p class="journey-status">${input.escapeHtml(input.statusLabel)}</p>`
-    : "";
+  const statusRow =
+    input.statusLabel && input.statusLabel !== input.ctaLabel
+      ? `<p class="journey-status">${input.escapeHtml(input.statusLabel)}</p>`
+      : "";
+
+  const saveErrorMarkup = (message: string) => {
+    const text = input.escapeHtml(message);
+    return `<p class="save-error" role="alert" title="${text}">${text}</p>`;
+  };
 
   const errors = [
     !input.showPrimaryCta && input.applyHint
       ? `<p class="save-error">${input.escapeHtml(input.applyHint)}</p>`
       : "",
-    input.saveError ? `<p class="save-error" role="alert">${input.escapeHtml(input.saveError)}</p>` : "",
+    input.saveError ? saveErrorMarkup(input.saveError) : "",
   ]
     .filter(Boolean)
     .join("");
@@ -482,7 +488,7 @@ export function renderSummaryCardBody(input: SummaryCardInput): string {
               : ""
           }
           ${input.showPrimaryCta && input.applyHint ? `<p class="save-error">${input.escapeHtml(input.applyHint)}</p>` : ""}
-          ${input.showPrimaryCta && input.saveError ? `<p class="save-error" role="alert">${input.escapeHtml(input.saveError)}</p>` : ""}
+          ${input.showPrimaryCta && input.saveError ? saveErrorMarkup(input.saveError) : ""}
         </div>`
       : errors;
 
