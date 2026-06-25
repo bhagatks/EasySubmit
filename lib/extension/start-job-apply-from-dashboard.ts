@@ -1,4 +1,5 @@
 import { EXTENSION_MESSAGE } from "@/src/shared/extension/constants";
+import { appendAssistOpenParam } from "@/src/shared/extension/assist-open-url";
 
 const DASHBOARD_EXTENSION_ID_KEY = "easysubmit_extension_id_v1";
 
@@ -44,9 +45,12 @@ export type StartJobApplyResult =
 export async function startJobApplyFromDashboard(input: {
   jobId: string;
   canonicalUrl: string;
+  /** When false, do not open the job URL if the extension is unreachable. */
+  openUrlFallback?: boolean;
 }): Promise<StartJobApplyResult> {
   const chromeBridge = getChromeBridge();
   const extensionId = readExtensionIdForDashboard();
+  const openUrlFallback = input.openUrlFallback !== false;
 
   if (chromeBridge?.runtime?.sendMessage && extensionId) {
     const response = await new Promise<{ success?: boolean; error?: string }>((resolve) => {
@@ -86,8 +90,20 @@ export async function startJobApplyFromDashboard(input: {
     if (response.success) {
       return { success: true, usedExtension: true };
     }
+
+    if (!openUrlFallback) {
+      return {
+        success: false,
+        error: response.error ?? "Extension not reachable. Install EasySubmit to continue.",
+      };
+    }
+  } else if (!openUrlFallback) {
+    return {
+      success: false,
+      error: "Install the EasySubmit extension to continue on the job page.",
+    };
   }
 
-  window.open(input.canonicalUrl, "_blank", "noopener,noreferrer");
+  window.open(appendAssistOpenParam(input.canonicalUrl), "_blank", "noopener,noreferrer");
   return { success: true, usedExtension: false };
 }

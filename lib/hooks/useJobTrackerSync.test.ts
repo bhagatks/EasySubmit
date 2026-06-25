@@ -22,8 +22,11 @@ function entry(status: JobTrackerSummary["status"]): JobTrackerSummary {
 }
 
 describe("resolveJobTrackerPollIntervalMs", () => {
-  it("uses 3s when any entry is CAPTURED or READY_TO_APPLY", () => {
+  it("uses 3s when any entry is CAPTURED, RESUME_READY, or READY_TO_APPLY", () => {
     expect(resolveJobTrackerPollIntervalMs([entry("CAPTURED")])).toBe(
+      JOB_TRACKER_SYNC_POLL_FAST_MS,
+    );
+    expect(resolveJobTrackerPollIntervalMs([entry("RESUME_READY")])).toBe(
       JOB_TRACKER_SYNC_POLL_FAST_MS,
     );
     expect(resolveJobTrackerPollIntervalMs([entry("READY_TO_APPLY")])).toBe(

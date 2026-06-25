@@ -181,7 +181,7 @@ function installApiIntercept(): void {
     ...rest: [boolean?, string?, string?]
   ) {
     (this as XMLHttpRequest & { __es_url__?: string }).__es_url__ = String(url);
-    return origOpen.apply(this, [method, url, ...rest]);
+    return origOpen.apply(this, [method, url, ...rest] as Parameters<typeof origOpen>);
   };
 
   XMLHttpRequest.prototype.send = function sendIntercept(...args: Parameters<XMLHttpRequest["send"]>) {

@@ -12,6 +12,7 @@ import { buildTailoredResumePreview } from "@/lib/job-tracker/build-tailored-res
 import { JOB_TRACKER_EDITABLE_STATUSES } from "@/lib/job-tracker/pipeline";
 import type { JobTrackerSummary, JobTrackerDetail } from "@/lib/job-tracker/types";
 import { updateJobTrackerStatus } from "@/lib/extension/job-service";
+import { markJobTrackerApplied } from "@/lib/extension/mark-applied";
 import { resumeProfileDisplayLabel } from "@/lib/extension/resume-profiles";
 import { getMergedResumeForJob, updateJobReviewDocuments } from "@/lib/profile/job-resume-tailor";
 import { findProfileForUser } from "@/lib/profile/resume-profile-core";
@@ -436,6 +437,25 @@ export async function updateJobTrackerEntryStatus(
   const result = await updateJobTrackerStatus(userId, entryId, status);
   if (result.count === 0) {
     return { success: false, error: "Job not found" };
+  }
+
+  revalidatePath("/dashboard/job-tracker");
+  return { success: true };
+}
+
+export async function markJobTrackerEntryApplied(
+  entryId: string,
+): Promise<UpdateJobTrackerStatusResult> {
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return { success: false, error: "Sign in required" };
+  }
+
+  const result = await markJobTrackerApplied(userId, entryId.trim(), "dashboard_manual");
+  if (!result.success) {
+    return { success: false, error: result.error };
   }
 
   revalidatePath("/dashboard/job-tracker");

@@ -1,12 +1,13 @@
 import type { ExtensionPlatform, ExtensionRuntimeConfig } from "./types";
 
 export const EXTENSION_RUNTIME_DEFAULTS: ExtensionRuntimeConfig = {
+  extensionGlobalSwitch: true,
   jobCardEnabled: true,
   enabledPlatforms: ["linkedin", "indeed", "greenhouse", "workday", "generic"],
   genericFallbackEnabled: true,
   minConfidence: 55,
   apiBaseUrl: "http://localhost:3000",
-  oneClickApply: true,
+  autoApplyUserSwitch: true,
   oneClickApplyPlatforms: ["workday"],
   autoApplyEnabled: true,
 };
@@ -25,16 +26,21 @@ export function mergeExtensionRuntimeConfig(
       : EXTENSION_RUNTIME_DEFAULTS.enabledPlatforms;
 
   return {
+    extensionGlobalSwitch:
+      partial.extensionGlobalSwitch ?? EXTENSION_RUNTIME_DEFAULTS.extensionGlobalSwitch,
     jobCardEnabled: partial.jobCardEnabled ?? EXTENSION_RUNTIME_DEFAULTS.jobCardEnabled,
     enabledPlatforms,
     genericFallbackEnabled:
       partial.genericFallbackEnabled ?? EXTENSION_RUNTIME_DEFAULTS.genericFallbackEnabled,
     minConfidence: partial.minConfidence ?? EXTENSION_RUNTIME_DEFAULTS.minConfidence,
     apiBaseUrl: partial.apiBaseUrl ?? EXTENSION_RUNTIME_DEFAULTS.apiBaseUrl,
-    oneClickApply: partial.oneClickApply ?? EXTENSION_RUNTIME_DEFAULTS.oneClickApply,
+    autoApplyUserSwitch:
+      partial.autoApplyUserSwitch ?? EXTENSION_RUNTIME_DEFAULTS.autoApplyUserSwitch,
     oneClickApplyPlatforms:
       partial.oneClickApplyPlatforms ?? EXTENSION_RUNTIME_DEFAULTS.oneClickApplyPlatforms,
     autoApplyEnabled: partial.autoApplyEnabled ?? EXTENSION_RUNTIME_DEFAULTS.autoApplyEnabled,
+    customizeResume: partial.customizeResume ?? true,
+    applicationProfile: partial.applicationProfile ?? null,
     connectedUser: partial.connectedUser ?? null,
   };
 }

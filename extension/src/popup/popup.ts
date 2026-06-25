@@ -73,7 +73,7 @@ async function refreshAuthState(): Promise<void> {
 
   const config = configRes.config;
   const autoApplyEnabled = config?.autoApplyEnabled !== false;
-  oneClickToggle.checked = autoApplyEnabled && (config?.oneClickApply ?? true);
+  oneClickToggle.checked = autoApplyEnabled && (config?.autoApplyUserSwitch ?? true);
   oneClickToggle.disabled = !autoApplyEnabled || prefsBusy;
   oneClickRow.classList.toggle("hidden", !autoApplyEnabled);
 
@@ -92,16 +92,25 @@ showCardBtn.addEventListener("click", () => {
     setStatus("Showing job card on this page…");
 
     try {
-      const result = await sendToActiveTab<{ success?: boolean; error?: string; title?: string }>({
+      const result = await sendToActiveTab<{
+        success?: boolean;
+        error?: string;
+        title?: string;
+        jobDetected?: boolean;
+      }>({
         action: EXTENSION_MESSAGE.FORCE_SHOW_CARD,
       });
 
       if (result?.success) {
-        setStatus(
-          result.title
-            ? `Job card visible: ${result.title}`
-            : "Job card is now visible on this page.",
-        );
+        if (result.jobDetected === false) {
+          setStatus("Job card opened — job not detected on this page.");
+        } else {
+          setStatus(
+            result.title
+              ? `Job card visible: ${result.title}`
+              : "Job card is now visible on this page.",
+          );
+        }
       } else {
         setStatus(result?.error ?? "Could not show the job card on this page.");
       }
@@ -131,7 +140,7 @@ oneClickToggle.addEventListener("change", () => {
     try {
       const result = (await chrome.runtime.sendMessage({
         action: EXTENSION_MESSAGE.UPDATE_USER_PREFS,
-        oneClickApply: enabled,
+        autoApplyUserSwitch: enabled,
       })) as { success?: boolean; error?: string };
 
       if (!result?.success) {

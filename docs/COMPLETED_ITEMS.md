@@ -1,5 +1,8 @@
 | Date | Item |
 |------|------|
+| 2026-06-23 | Extension on-demand PDFs + file injector: resume/cover-letter PDF routes, `file-inject.ts`, Workday upload wiring |
+| 2026-06-23 | Application profile Phases 6–8: user-prefs PATCH JSONB merge, extension setup Screens 1–2, field-resolution `application_profile` step, journey display button states |
+| 2026-06-23 | Journey sync (extension ↔ app): State 0 manual capture + loading hydration, Stage 2 two-card assist, Realtime + poll sync, `?es_open=assist`, `MARK_APPLIED`, Layer B apply gate — `docs/SYNC_ARCHITECTURE.md` |
 | 2026-06-22 | ATS score calibration fixes: keyword-gap fallback to ≥1 threshold for short JDs (<5 repeat keywords), bullet quality reweighted 70/30 verb/metric, compliance penalty 3pts/warning (was 5); `review-documents.ts` variant fixed to `"dashboard"` |
 | 2026-06-22 | Smart Resume Engine: `job-intelligence.ts` (JobIntelligence layer), `onet-service.ts` (O*NET vocabulary), `deterministic-enhancer.ts` (zero-token fallback), `platform-rules.ts` (9 ATS platforms), two-pass AI prompts with intelligence block, `EnhanceFeedbackCard` before/after ATS delta UI |
 | 2026-06-22 | Review Screen ATS Analysis + ATS-quality exports: `resume-content-model` shared by HTML/PDF/Word/robot view; `resume-docx` + `resume-pdf`; readiness score panel; unit tests |

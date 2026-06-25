@@ -1,6 +1,7 @@
 import { enhanceResumeForUserId } from "@/lib/ai/enhance-resume-for-user";
 import type { SaveJobTrackerInput } from "@/lib/extension/job-service";
 import { updateJobTrackerStatus } from "@/lib/extension/job-service";
+import { resolveJobIdentity } from "@/src/shared/extension/job-identity";
 import {
   mergeJobEntryMetadata,
   recordPipelineTailorError,
@@ -168,10 +169,17 @@ export function buildTailorInputFromSave(
   entryId: string,
   input: SaveJobTrackerInput,
 ): PipelineTailorInput {
+  const identity = resolveJobIdentity({
+    url: input.url,
+    title: input.title,
+    company: input.company,
+    description: input.description ?? "",
+  });
+
   return {
     entryId,
-    jobTitle: input.title.trim(),
-    company: input.company,
+    jobTitle: input.title?.trim() || identity.title,
+    company: input.company?.trim() || identity.company,
     jobDescription: input.description,
     sourceProfileId: input.sourceProfileId,
   };

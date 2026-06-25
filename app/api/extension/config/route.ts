@@ -15,13 +15,16 @@ export async function GET(request: NextRequest) {
 
   return Response.json({
     success: true,
-    jobCardEnabled: config.jobCardEnabled && config.featureFlagEnabled,
+    extensionGlobalSwitch: config.extensionGlobalSwitch,
+    jobCardEnabled: config.extensionGlobalSwitch && config.jobCardEnabled,
     enabledPlatforms: config.enabledPlatforms,
     genericFallbackEnabled: config.genericFallbackEnabled,
     minConfidence: config.minConfidence,
     selectorOverrides: config.selectorOverrides,
     apiBaseUrl: config.apiBaseUrl,
-    oneClickApply: userPrefs?.oneClickApply ?? true,
+    autoApplyUserSwitch: userPrefs?.autoApplyUserSwitch ?? true,
+    applicationProfile: userPrefs?.applicationProfile ?? null,
+    customizeResume: userPrefs?.customizeResume ?? true,
     oneClickApplyPlatforms: ONE_CLICK_APPLY_PLATFORMS,
     autoApplyEnabled: config.autoApplyEnabled,
     connectedUser,

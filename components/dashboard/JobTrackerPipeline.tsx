@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import {
   AlertCircle,
   Archive,
@@ -14,14 +14,18 @@ import {
 import {
   archiveJobTrackerEntry,
   deleteJobTrackerEntry,
+  markJobTrackerEntryApplied,
   unarchiveJobTrackerEntry,
 } from "@/app/actions/job-tracker";
 import { PipelineBar } from "@/components/dashboard/PipelineBar";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { canStartApply } from "@/lib/job-tracker/pipeline-progress";
 import type { JobTrackerSummary } from "@/lib/job-tracker/types";
-import { startJobApplyFromDashboard } from "@/lib/extension/start-job-apply-from-dashboard";
+import { resolveJourneyDisplay, type JourneyDisplay } from "@/src/shared/journey-display";
+import {
+  readExtensionIdForDashboard,
+  startJobApplyFromDashboard,
+} from "@/lib/extension/start-job-apply-from-dashboard";
 import { cn } from "@/lib/utils";
 
 type JobTrackerPipelineProps = {
@@ -39,6 +43,21 @@ function trackerRowLine(entry: JobTrackerSummary): string {
   const role = entry.title.trim() || "Role unknown";
   const company = entry.company?.trim() || "Company unknown";
   return `${role} · ${company}`;
+}
+
+function stageAssistSubtitle(extensionInstalled: boolean): string {
+  return extensionInstalled ? "Apply assist active" : "Continue on job page";
+}
+
+function applyButtonLabel(journey: JourneyDisplay): string {
+  if (journey.applyButtonState === "navigate") return "Apply assist";
+  if (journey.applyButtonState === "reapply") return "Re-apply";
+  if (journey.label === "Apply") return "Apply";
+  return journey.label;
+}
+
+function isApplyInteractive(journey: JourneyDisplay): boolean {
+  return journey.applyButtonState === "navigate" || journey.applyButtonState === "reapply";
 }
 
 function EntryIssueButton({ message }: { message: string | null | undefined }) {
@@ -99,6 +118,8 @@ export function JobTrackerPipeline({
 }: JobTrackerPipelineProps) {
   const [deleteTarget, setDeleteTarget] = useState<JobTrackerSummary | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [extensionHint, setExtensionHint] = useState<string | null>(null);
+  const extensionInstalled = useMemo(() => Boolean(readExtensionIdForDashboard()), []);
 
   async function handleArchive(entryId: string) {
     setBusyId(entryId);
@@ -126,13 +147,31 @@ export function JobTrackerPipeline({
     return false;
   }
 
-  async function handleApply(entry: JobTrackerSummary) {
+  async function handleApply(entry: JobTrackerSummary, journey: JourneyDisplay) {
+    if (!isApplyInteractive(journey)) return;
+
     setBusyId(entry.id);
-    await startJobApplyFromDashboard({
+    setExtensionHint(null);
+    const result = await startJobApplyFromDashboard({
       jobId: entry.id,
       canonicalUrl: entry.canonicalUrl,
+      openUrlFallback: extensionInstalled,
     });
     setBusyId(null);
+    if (!result.success) {
+      setExtensionHint(result.error);
+      return;
+    }
+    if (!result.usedExtension && journey.applyButtonState === "navigate") {
+      setExtensionHint("Install the EasySubmit extension to continue on the job page.");
+    }
+  }
+
+  async function handleMarkApplied(entryId: string) {
+    setBusyId(entryId);
+    const result = await markJobTrackerEntryApplied(entryId);
+    setBusyId(null);
+    if (result.success) onMutated?.();
   }
 
   if (entries.length === 0) {
@@ -145,10 +184,26 @@ export function JobTrackerPipeline({
 
   return (
     <>
+      {extensionHint ? (
+        <p className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
+          {extensionHint}{" "}
+          <Link href="/extension" className="font-semibold underline">
+            Get extension
+          </Link>
+        </p>
+      ) : null}
       <ul className="space-y-2">
         {entries.map((entry) => {
-          const applyEnabled = canStartApply(entry.status);
+          const journey = resolveJourneyDisplay(
+            entry.status,
+            Boolean(entry.issueMessage),
+          );
           const rowBusy = busyId === entry.id;
+          const showSpinner = journey.stage === 1 && entry.status === "CAPTURED";
+          const stage2 = journey.applyButtonState === "navigate";
+          const stage3 = journey.applyButtonState === "completed";
+          const stageError = journey.stage === "error";
+          const subtitle = stage2 ? stageAssistSubtitle(extensionInstalled) : journey.label;
 
           return (
             <li key={entry.id}>
@@ -183,6 +238,12 @@ export function JobTrackerPipeline({
                       </div>
                     </div>
                     <PipelineBar status={entry.status} className="w-full shrink-0" />
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      {showSpinner ? (
+                        <Loader2 className="h-3 w-3 shrink-0 animate-spin text-primary" aria-hidden="true" />
+                      ) : null}
+                      <p>{subtitle}</p>
+                    </div>
                   </div>
 
                   <div
@@ -256,22 +317,64 @@ export function JobTrackerPipeline({
                         Review
                       </Button>
                       {!archivedView ? (
-                        <Button
-                          type="button"
-                          variant="mint"
-                          size="sm"
-                          className={cn(
-                            "rounded-xl",
-                            applyEnabled && !rowBusy && "animate-mint-cta",
-                          )}
-                          disabled={!applyEnabled || rowBusy}
-                          onClick={() => void handleApply(entry)}
-                        >
-                          {rowBusy ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                          ) : null}
-                          Apply
-                        </Button>
+                        stage3 ? (
+                          <span className="inline-flex min-h-8 items-center rounded-xl bg-mint/15 px-3 text-xs font-semibold text-mint">
+                            Completed
+                          </span>
+                        ) : stageError ? (
+                          <>
+                            <span className="inline-flex min-h-8 items-center rounded-xl bg-amber-500/10 px-3 text-xs font-semibold text-amber-700 dark:text-amber-300">
+                              {journey.label}
+                            </span>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="rounded-xl"
+                              disabled={rowBusy}
+                              onClick={() => onReview(entry.id)}
+                            >
+                              Retry
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            {stage2 ? (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="rounded-xl"
+                                disabled={rowBusy}
+                                onClick={() => void handleMarkApplied(entry.id)}
+                              >
+                                Mark applied
+                              </Button>
+                            ) : null}
+                            <Button
+                              type="button"
+                              variant="mint"
+                              size="sm"
+                              className={cn(
+                                "rounded-xl",
+                                isApplyInteractive(journey) && !rowBusy && "animate-mint-cta",
+                              )}
+                              disabled={
+                                !isApplyInteractive(journey) ||
+                                rowBusy ||
+                                journey.applyButtonState === "disabled" ||
+                                journey.applyButtonState === "hidden" ||
+                                journey.applyButtonState === "completed"
+                              }
+                              onClick={() => void handleApply(entry, journey)}
+                            >
+                              {rowBusy ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                              ) : null}
+                              {applyButtonLabel(journey)}
+                            </Button>
+                          </>
+                        )
                       ) : null}
                     </div>
                   </div>

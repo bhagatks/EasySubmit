@@ -14,21 +14,18 @@ export async function GET() {
   }
 
   if (!isSupabaseRealtimeConfigured()) {
-    return Response.json({
-      success: false,
-      error: "Realtime not configured",
-      code: "realtime_unavailable",
-    });
-  }
-
-  const token = signSupabaseRealtimeToken(userId);
-  const publicConfig = getSupabaseRealtimePublicConfig();
-  if (!token || !publicConfig) {
     return Response.json(
-      { success: false, error: "Realtime not configured", code: "realtime_unavailable" },
+      {
+        success: false,
+        error: "Realtime not configured",
+        code: "realtime_unavailable",
+      },
       { status: 503 },
     );
   }
+
+  const token = signSupabaseRealtimeToken(userId)!;
+  const publicConfig = getSupabaseRealtimePublicConfig()!;
 
   return Response.json({
     success: true,

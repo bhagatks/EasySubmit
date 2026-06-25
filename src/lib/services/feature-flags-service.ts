@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 export const FEATURE_FLAG_KEYS = {
   enhanceWithAiOnboarding: "enhance_with_ai_onboarding",
   enhanceWithAiResumeProfile: "enhance_with_ai_resume_profile",
-  extensionJobCard: "extension_job_card",
+  extensionGlobalSwitch: "extension_global_switch",
   extensionAutoApply: "extension_auto_apply",
 } as const;
 
@@ -40,9 +40,9 @@ export const FEATURE_FLAG_REGISTRY: Record<
     description: "Show Enhance with AI in dashboard resume profile studio",
     defaultEnabled: true,
   },
-  extensionJobCard: {
-    key: FEATURE_FLAG_KEYS.extensionJobCard,
-    description: "Show in-page Job Tracker card on supported job sites (Chrome extension)",
+  extensionGlobalSwitch: {
+    key: FEATURE_FLAG_KEYS.extensionGlobalSwitch,
+    description: "This will shutdown the extension for all the users",
     defaultEnabled: true,
   },
   extensionAutoApply: {
@@ -56,14 +56,14 @@ export const FEATURE_FLAG_REGISTRY: Record<
 export type FeatureFlagsSnapshot = {
   enhanceWithAiOnboarding: boolean;
   enhanceWithAiResumeProfile: boolean;
-  extensionJobCard: boolean;
+  extensionGlobalSwitch: boolean;
   extensionAutoApply: boolean;
 };
 
 export const FEATURE_FLAGS_DEFAULTS: FeatureFlagsSnapshot = {
   enhanceWithAiOnboarding: FEATURE_FLAG_REGISTRY.enhanceWithAiOnboarding.defaultEnabled,
   enhanceWithAiResumeProfile: FEATURE_FLAG_REGISTRY.enhanceWithAiResumeProfile.defaultEnabled,
-  extensionJobCard: FEATURE_FLAG_REGISTRY.extensionJobCard.defaultEnabled,
+  extensionGlobalSwitch: FEATURE_FLAG_REGISTRY.extensionGlobalSwitch.defaultEnabled,
   extensionAutoApply: FEATURE_FLAG_REGISTRY.extensionAutoApply.defaultEnabled,
 };
 
@@ -137,9 +137,9 @@ export async function getFeatureFlags(): Promise<FeatureFlagsSnapshot> {
       FEATURE_FLAG_REGISTRY.enhanceWithAiResumeProfile.defaultEnabled,
       byKey,
     ),
-    extensionJobCard: resolveEnabled(
-      FEATURE_FLAG_REGISTRY.extensionJobCard.key,
-      FEATURE_FLAG_REGISTRY.extensionJobCard.defaultEnabled,
+    extensionGlobalSwitch: resolveEnabled(
+      FEATURE_FLAG_REGISTRY.extensionGlobalSwitch.key,
+      FEATURE_FLAG_REGISTRY.extensionGlobalSwitch.defaultEnabled,
       byKey,
     ),
     extensionAutoApply: resolveEnabled(

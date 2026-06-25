@@ -48,14 +48,24 @@ describe("completePipelineAutofill", () => {
     expect(result).toEqual({ success: true, id: "entry-1", status: "READY_TO_APPLY" });
   });
 
-  it("returns success when job is already READY_TO_APPLY", async () => {
+  it("returns success when job is already READY_TO_APPLY and merges autofill note", async () => {
     vi.mocked(prisma.jobTrackerEntry.findFirst).mockResolvedValue({
       status: "READY_TO_APPLY",
     } as never);
 
-    const result = await completePipelineAutofill("user-1", "entry-2");
+    const result = await completePipelineAutofill("user-1", "entry-2", {
+      stub: false,
+      note: "Filled Workday step 1",
+    });
 
     expect(advancePipelineAfterAutofill).not.toHaveBeenCalled();
+    expect(mergeJobEntryMetadata).toHaveBeenCalledWith(
+      "user-1",
+      "entry-2",
+      expect.objectContaining({
+        autofillNote: "Filled Workday step 1",
+      }),
+    );
     expect(result).toEqual({ success: true, id: "entry-2", status: "READY_TO_APPLY" });
   });
 

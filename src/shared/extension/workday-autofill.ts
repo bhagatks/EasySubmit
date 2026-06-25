@@ -24,7 +24,13 @@ import {
   resolveStepFields,
 } from "./field-resolution";
 import { isDenylistedApplicationField } from "./field-denylist";
+import {
+  injectPdfDocument,
+  resolveUploadDocumentKind,
+  type UploadDocumentKind,
+} from "./file-inject";
 import type { ScrapedJobMetadata } from "./types";
+import type { ApplicationProfile } from "@/lib/profile/application-profile";
 
 export type { WorkdayFillData } from "./field-resolution";
 
@@ -38,6 +44,7 @@ export type WorkdayAutofillResult =
       fieldsFilled: number;
       reviewCount: number;
       missCount: number;
+      failedFileUploads: string[];
     }
   | { ok: false; error: string; manualFinish?: boolean };
 
@@ -393,6 +400,16 @@ function waitForDomSettle(doc: Document, timeoutMs: number): Promise<void> {
   });
 }
 
+export type WorkdayDocumentFetcher = (
+  kind: UploadDocumentKind,
+) => Promise<{ bytes: Uint8Array; filename: string } | null>;
+
+export type WorkdayAutofillOptions = {
+  onCapture?: (payload: FieldCapturePayload) => void | Promise<void>;
+  applicationProfile?: ApplicationProfile | null;
+  fetchDocument?: WorkdayDocumentFetcher;
+};
+
 // ── Main entry point ──────────────────────────────────────────────────────────
 
 export async function runWorkdayAutofill(
@@ -401,7 +418,7 @@ export async function runWorkdayAutofill(
   fillData: WorkdayFillData,
   serverMap: ServerLookupMap = {},
   _meta?: ScrapedJobMetadata | null,
-  onCapture?: (payload: FieldCapturePayload) => void | Promise<void>,
+  options?: WorkdayAutofillOptions,
 ): Promise<WorkdayAutofillResult> {
   if (!/myworkdayjobs\.com/i.test(href)) {
     return { ok: false, error: "Autofill is only supported on Workday job pages right now.", manualFinish: true };
@@ -416,7 +433,15 @@ export async function runWorkdayAutofill(
     applyBtn.click();
     await waitForDomSettle(doc, STEP_SETTLE_MS);
     if (!findContinueButton(doc) && !isOnReviewStep(doc)) {
-      return { ok: true, note: "Opened apply form — review fields and submit when ready.", stepsFilled: 0, fieldsFilled: 0, reviewCount: 0, missCount: 0 };
+      return {
+        ok: true,
+        note: "Opened apply form — review fields and submit when ready.",
+        stepsFilled: 0,
+        fieldsFilled: 0,
+        reviewCount: 0,
+        missCount: 0,
+        failedFileUploads: [],
+      };
     }
   }
 
@@ -424,6 +449,7 @@ export async function runWorkdayAutofill(
   let totalFilled = 0;
   let totalReview = 0;
   let totalMiss = 0;
+  const failedFileUploads: string[] = [];
 
   for (let step = 0; step < MAX_STEPS; step++) {
     if (isOnReviewStep(doc)) {
@@ -436,6 +462,7 @@ export async function runWorkdayAutofill(
         fieldsFilled: totalFilled,
         reviewCount: totalReview,
         missCount: totalMiss,
+        failedFileUploads,
       };
     }
 
@@ -445,7 +472,12 @@ export async function runWorkdayAutofill(
     }
 
     const descriptors = discoverStepFields(doc, location.href);
-    const resolvedMap = await resolveStepFields(descriptors, serverMap, fillData);
+    const resolvedMap = await resolveStepFields(
+      descriptors,
+      serverMap,
+      fillData,
+      options?.applicationProfile,
+    );
 
     const filledValues = new Map<string, string>();
     const watchMap = new Map<string, EditWatchEntry>();
@@ -454,6 +486,30 @@ export async function runWorkdayAutofill(
     let stepMiss = 0;
 
     for (const descriptor of descriptors) {
+      if (descriptor.fieldType === "file") {
+        const uploadKind = resolveUploadDocumentKind(descriptor.label);
+        if (uploadKind && options?.fetchDocument) {
+          const documentBytes = await options.fetchDocument(uploadKind);
+          if (documentBytes) {
+            const injected = await injectPdfDocument(doc, {
+              label: descriptor.label,
+              automationId: descriptor.automationId,
+              platform: descriptor.platform,
+              bytes: documentBytes.bytes,
+              filename: documentBytes.filename,
+            });
+            if (injected) {
+              stepFilled++;
+            } else {
+              failedFileUploads.push(descriptor.label);
+            }
+          } else {
+            failedFileUploads.push(descriptor.label);
+          }
+        }
+        continue;
+      }
+
       const sig = fieldSignature(descriptor);
       const resolved = resolvedMap.get(sig);
 
@@ -498,7 +554,7 @@ export async function runWorkdayAutofill(
     // Persist captures before navigation (await so background POST completes)
     const capturePayload = buildCapturePayload(watchMap, descriptors, tenantHost, stepFingerprint);
     if (capturePayload) {
-      await emitCaptures(capturePayload, onCapture);
+      await emitCaptures(capturePayload, options?.onCapture);
     }
 
     continueBtn.click();

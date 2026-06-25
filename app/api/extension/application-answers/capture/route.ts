@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { resolveExtensionUserId } from "@/lib/extension/auth-request";
+import { extensionGlobalDisabledResponse } from "@/lib/extension/extension-global-gate";
 import { captureApplicationAnswers } from "@/lib/extension/application-field-memory";
 import type { ApplicationAnswerCaptureEvent } from "@/src/shared/extension/field-capture-api";
 import type { FieldDescriptor, StoredAnswer } from "@/src/shared/extension/field-descriptor";
@@ -51,6 +52,9 @@ function parseCaptureEvents(body: unknown): ApplicationAnswerCaptureEvent[] | nu
 }
 
 export async function POST(request: NextRequest) {
+  const disabled = await extensionGlobalDisabledResponse(request);
+  if (disabled) return disabled;
+
   const auth = await resolveExtensionUserId(request);
   if ("response" in auth) return auth.response;
   const { userId } = auth;

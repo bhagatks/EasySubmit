@@ -30,7 +30,15 @@ import type { FieldCapturePayload } from "@shared/extension/field-descriptor";
 import type { ServerLookupMap } from "@shared/extension/field-resolution";
 import { injectApiInterceptScript, onApiIntercept, type InterceptedJobData } from "@shared/extension/api-intercept";
 import { isExtensionGlobalSwitchOn } from "@shared/extension/extension-global-switch";
-import { resolveJourneyDisplay } from "@shared/journey-display";
+import { resolveJourneyDisplay, type JourneyDisplay } from "@shared/journey-display";
+import type { JobTrackerStatus } from "@/lib/generated/prisma/client";
+import type { ApplicationProfile } from "@/lib/profile/application-profile";
+import {
+  isApplicationProfileSetupComplete,
+  applicationProfilePatchFromScreen1,
+  applicationProfilePatchFromScreen2,
+  syncProfileSetupDraftsFromProfile,
+} from "@/lib/profile/application-profile-setup";
 import {
   buildManualCaptureMetadata,
   buildNoJobDetectedMetadata,
@@ -50,9 +58,23 @@ import {
   renderLoadingBody,
   renderManualCaptureBody,
   renderResumeReadyCardMarkup,
+  renderProfileSetupScreen1,
+  renderProfileSetupScreen2,
+  readProfileSetupScreen1FromDom,
+  readProfileSetupScreen2FromDom,
+  defaultProfileSetupScreen1Draft,
+  defaultProfileSetupScreen2Draft,
+  profileSetupStyles,
   type ManualCaptureDraft,
+  type ProfileSetupScreen1Draft,
+  type ProfileSetupScreen2Draft,
 } from "./card-ui";
 import { startExtensionJobRealtime, stopExtensionJobRealtime } from "./job-realtime";
+import {
+  isChromeExtensionContextValid,
+  isExtensionContextInvalidatedError,
+  isExtensionContextInvalidatedMessage,
+} from "@shared/extension/extension-context";
 
 const CONTENT_INIT_KEY = "__easysubmitContentInit__";
 const contentWindow = window as Window & { [CONTENT_INIT_KEY]?: boolean };
@@ -98,10 +120,17 @@ let saveError: string | null = null;
 let statusPollTimer: ReturnType<typeof setInterval> | null = null;
 let autofillRunForEntryId: string | null = null;
 let manualCaptureDraft: ManualCaptureDraft | null = null;
+let profileSetupScreen: 0 | 1 | 2 = 0;
+let profileSetupScreen1Draft: ProfileSetupScreen1Draft = defaultProfileSetupScreen1Draft();
+let profileSetupScreen2Draft: ProfileSetupScreen2Draft = defaultProfileSetupScreen2Draft();
+let cachedApplicationProfile: ApplicationProfile | null = null;
 let cardLaunchMode: "auto" | "manual" = "auto";
 let realtimeStop: (() => Promise<void>) | null = null;
+let assistUploadWarnings: string[] = [];
 let confirmationWatchTimer: ReturnType<typeof setInterval> | null = null;
 let loadingHydrationTimer: ReturnType<typeof setInterval> | null = null;
+let urlWatchTimer: ReturnType<typeof setInterval> | null = null;
+let extensionContextTeardownDone = false;
 
 type ResumeProfileOption = { id: string; label: string; isDefault: boolean };
 let resumeProfiles: ResumeProfileOption[] = [];
@@ -135,27 +164,67 @@ function stopDrag(): void {
 }
 
 function isContextValid(): boolean {
-  try {
-    return Boolean(chrome.runtime?.id);
-  } catch {
-    return false;
+  return isChromeExtensionContextValid();
+}
+
+function stopUrlWatch(): void {
+  if (urlWatchTimer) {
+    clearInterval(urlWatchTimer);
+    urlWatchTimer = null;
   }
 }
 
-function sendMessage<T>(message: Record<string, unknown>): Promise<T> {
-  return new Promise((resolve, reject) => {
-    if (!isContextValid()) {
-      reject(new Error("Extension context invalidated"));
-      return;
-    }
+function stopAllExtensionTimers(): void {
+  stopStatusPolling();
+  stopConfirmationWatch();
+  stopLoadingHydrationWatch();
+  stopUrlWatch();
+  if (updateTimer) {
+    clearTimeout(updateTimer);
+    updateTimer = null;
+  }
+}
+
+function teardownStaleExtensionContext(): void {
+  if (extensionContextTeardownDone) return;
+  extensionContextTeardownDone = true;
+  stopAllExtensionTimers();
+  void stopExtensionJobRealtime();
+  realtimeStop = null;
+  removeCard();
+}
+
+function guardExtensionContext(): boolean {
+  if (isContextValid()) return true;
+  teardownStaleExtensionContext();
+  return false;
+}
+
+function sendMessage<T>(message: Record<string, unknown>): Promise<T | undefined> {
+  if (!isContextValid()) {
+    teardownStaleExtensionContext();
+    return Promise.resolve(undefined);
+  }
+
+  return new Promise((resolve) => {
     chrome.runtime.sendMessage(message, (response) => {
-      if (chrome.runtime.lastError) {
-        reject(new Error(chrome.runtime.lastError.message));
+      const lastError = chrome.runtime.lastError;
+      if (lastError?.message) {
+        if (isExtensionContextInvalidatedMessage(lastError.message)) {
+          teardownStaleExtensionContext();
+        }
+        resolve(undefined);
         return;
       }
       resolve(response as T);
     });
   });
+}
+
+function swallowContextInvalidation(error: unknown): void {
+  if (isExtensionContextInvalidatedError(error)) {
+    teardownStaleExtensionContext();
+  }
 }
 
 function shouldUseOneClickApply(
@@ -185,29 +254,42 @@ function getManualPipelineStep(): ManualPipelineStep {
   return 2;
 }
 
+function resolveExtensionJourneyDisplay(): JourneyDisplay {
+  if (savedStatus.canReapply) {
+    return {
+      stage: 0,
+      label: "Re-apply",
+      applyButtonState: "reapply",
+      showResumeCard: false,
+      showAssistCard: false,
+    };
+  }
+
+  if (pipelineBusy) {
+    return {
+      stage: 1,
+      label: pipelineBusyLabel ?? "Optimizing resume…",
+      applyButtonState: "disabled",
+      showResumeCard: false,
+      showAssistCard: false,
+    };
+  }
+
+  const status = savedStatus.saved
+    ? ((savedStatus.status as JobTrackerStatus | undefined) ?? null)
+    : null;
+  return resolveJourneyDisplay(status, Boolean(saveError));
+}
+
 function getPrimaryCtaLabel(): string {
-  const display = resolveJourneyDisplay({
-    saved: savedStatus.saved,
-    status: savedStatus.status,
-    canReapply: savedStatus.canReapply,
-    pipelineBusy,
-    pipelineBusyLabel,
-  });
-  return display.extensionPrimaryLabel;
+  return resolveExtensionJourneyDisplay().label;
 }
 
 function statusLabel(saved: boolean, status?: string, presentation: CardPresentation = "job"): string {
   if (presentation === "no_job") return "Not detected";
   if (presentation === "loading") return "Reading…";
   if (presentation === "manual_capture") return "Add details";
-  const display = resolveJourneyDisplay({
-    saved,
-    status,
-    canReapply: savedStatus.canReapply,
-    pipelineBusy,
-    pipelineBusyLabel,
-  });
-  return display.extensionBadge;
+  return resolveExtensionJourneyDisplay().label;
 }
 
 function getHostWidth(): number {
@@ -582,6 +664,7 @@ function startLoadingHydrationWatch(): void {
 
   const started = Date.now();
   loadingHydrationTimer = setInterval(() => {
+    if (!guardExtensionContext()) return;
     if (cardPresentation !== "loading") {
       stopLoadingHydrationWatch();
       return;
@@ -596,7 +679,7 @@ function startLoadingHydrationWatch(): void {
       }
       return;
     }
-    void updateCard();
+    void updateCard().catch(swallowContextInvalidation);
   }, 800);
 }
 
@@ -609,17 +692,23 @@ function stopConfirmationWatch(): void {
 
 function startConfirmationWatch(): void {
   stopConfirmationWatch();
-  if (!savedStatus.id || savedStatus.status === "APPLIED") return;
+  if (!savedStatus.id || savedStatus.status !== "READY_TO_APPLY") return;
 
   confirmationWatchTimer = setInterval(() => {
-    if (!savedStatus.id || savedStatus.status === "APPLIED") {
+    if (!guardExtensionContext()) return;
+    if (!savedStatus.id || savedStatus.status !== "READY_TO_APPLY") {
       stopConfirmationWatch();
       return;
     }
-    const detected = detectApplicationConfirmation(location.href, document);
-    if (!detected.isConfirmation) return;
-    void markCurrentJobApplied("extension_auto");
+    maybeMarkAppliedFromConfirmation();
   }, 3000);
+}
+
+function maybeMarkAppliedFromConfirmation(): void {
+  if (savedStatus.status !== "READY_TO_APPLY" || !savedStatus.id) return;
+  const platform = currentMetadata?.platform ?? "generic";
+  if (!detectApplicationConfirmation(platform)) return;
+  void markCurrentJobApplied("extension_auto").catch(swallowContextInvalidation);
 }
 
 async function markCurrentJobApplied(
@@ -660,18 +749,27 @@ function renderExpandedCard(root: ShadowRoot): void {
     manualCaptureDraft = defaultManualCaptureDraft();
   }
 
-  const showAssistLayout = savedStatus.saved && savedStatus.status === "READY_TO_APPLY";
-  const showAppliedLayout = savedStatus.saved && savedStatus.status === "APPLIED";
+  const journey = resolveExtensionJourneyDisplay();
+  const showAssistLayout = profileSetupScreen === 0 && journey.showAssistCard;
+  const showResumeCardLayout = profileSetupScreen === 0 && journey.showResumeCard;
+  const showAppliedLayout =
+    journey.applyButtonState === "completed" && !savedStatus.canReapply;
   const capture = getCaptureContext();
   const applyEnabled = isApplyEnabled();
   const applyHint = applyCaptureBlockReason({ url: capture.url, description: capture.description });
   const profileLabel = selectedProfileLabel();
   const assistSuggestions = showAssistLayout
-    ? buildAssistFieldSuggestions(document, location.href)
+    ? buildAssistFieldSuggestions(document, location.href, {
+        uploadWarnings: assistUploadWarnings,
+      })
     : [];
 
   let bodyMarkup = "";
-  if (cardPresentation === "no_job") {
+  if (profileSetupScreen === 1) {
+    bodyMarkup = renderProfileSetupScreen1(profileSetupScreen1Draft, escapeHtml);
+  } else if (profileSetupScreen === 2) {
+    bodyMarkup = renderProfileSetupScreen2(profileSetupScreen2Draft, escapeHtml);
+  } else if (cardPresentation === "no_job") {
     bodyMarkup = `
       <h2 class="title">${escapeHtml(meta.title)}</h2>
       <p class="card-notice">${escapeHtml(NO_JOB_DETECTED_MESSAGE)}</p>
@@ -702,13 +800,17 @@ function renderExpandedCard(root: ShadowRoot): void {
   const manualStep = getManualPipelineStep();
   const showUpdateResume = uiMode === "manual" && savedStatus.saved && manualStep === 2;
   const nudgeVariant = savedStatus.saved ? "captured" : "capture";
-  const showPrimaryCta = !showAssistLayout && !showAppliedLayout && cardPresentation !== "no_job";
+  const showPrimaryCta =
+    profileSetupScreen === 0 &&
+    !showAssistLayout &&
+    !showAppliedLayout &&
+    cardPresentation !== "no_job";
   const ctaIcon = savedStatus.saved
     ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" x2="3" y1="12" y2="12"/></svg>`
     : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>`;
 
   root.innerHTML = `
-    <style>${cardStyles()}${glossyShellStyles()}${stageNudgeStyles()}${manualCaptureStyles()}</style>
+    <style>${cardStyles()}${glossyShellStyles()}${stageNudgeStyles()}${manualCaptureStyles()}${profileSetupStyles()}</style>
     <div class="glossy-stack">
       <div class="glossy-shell${savedStatus.saved ? "" : " is-live"}">
         <div class="glossy-shell-sheen" aria-hidden="true"></div>
@@ -752,9 +854,9 @@ function renderExpandedCard(root: ShadowRoot): void {
             </div>`
             }
           </div>
-          ${showAssistLayout ? renderResumeReadyCardMarkup(profileLabel, escapeHtml) : ""}
+          ${showResumeCardLayout ? renderResumeReadyCardMarkup(profileLabel, escapeHtml) : ""}
           ${showAssistLayout ? renderAssistCardMarkup(assistSuggestions, escapeHtml) : ""}
-          ${!showAssistLayout && !showAppliedLayout ? renderStageNudgeMarkup(nudgeVariant, { mode: uiMode, manualStep }) : ""}
+          ${!showAssistLayout && !showResumeCardLayout && !showAppliedLayout && profileSetupScreen === 0 ? renderStageNudgeMarkup(nudgeVariant, { mode: uiMode, manualStep }) : ""}
         </div>
       </div>
     </div>
@@ -774,6 +876,16 @@ function renderExpandedCard(root: ShadowRoot): void {
 
   root.querySelector("[data-mark-applied]")?.addEventListener("click", () => {
     void markCurrentJobApplied("extension_manual");
+  });
+
+  root.querySelector("[data-profile-continue]")?.addEventListener("click", () => {
+    void onProfileSetupContinue(root);
+  });
+  root.querySelector("[data-profile-finish]")?.addEventListener("click", () => {
+    void onProfileSetupFinish(root, false);
+  });
+  root.querySelector("[data-profile-skip-all]")?.addEventListener("click", () => {
+    void onProfileSetupFinish(root, true);
   });
 
   if (cardPresentation === "manual_capture") {
@@ -1292,6 +1404,7 @@ async function refreshSavedStatus(): Promise<void> {
     action: EXTENSION_MESSAGE.JOB_STATUS,
     url: location.href,
   });
+  if (!res) return;
   savedStatus = {
     saved: Boolean(res.saved),
     status: res.status,
@@ -1310,6 +1423,7 @@ function stopStatusPolling(): void {
 function startStatusPolling(intervalMs = 2000): void {
   stopStatusPolling();
   statusPollTimer = setInterval(() => {
+    if (!guardExtensionContext()) return;
     void refreshSavedStatus()
       .then(() => {
         if (cardHost) renderCard(cardHost.shadow);
@@ -1321,7 +1435,7 @@ function startStatusPolling(intervalMs = 2000): void {
           stopStatusPolling();
         }
       })
-      .catch(() => undefined);
+      .catch(swallowContextInvalidation);
   }, intervalMs);
 }
 
@@ -1369,13 +1483,19 @@ async function runAutofillPhase(entryId: string): Promise<void> {
 
   try {
     // Fetch tailored resume fields for this job
-    const fillRes = await sendMessage<{ success: boolean; fillData?: WorkdayFillData; error?: string }>({
+    const fillRes = await sendMessage<{
+      success: boolean;
+      fillData?: WorkdayFillData;
+      applicationProfile?: ApplicationProfile | null;
+      error?: string;
+    }>({
       action: EXTENSION_MESSAGE.GET_FILL_DATA,
       entryId,
     });
     const fillData: WorkdayFillData = fillRes?.fillData ?? {
       firstName: "", lastName: "", email: "", phone: "",
     };
+    const applicationProfile = fillRes?.applicationProfile ?? cachedApplicationProfile;
 
     pipelineBusyLabel = "Filling application…";
     if (cardHost) renderCard(cardHost.shadow);
@@ -1387,11 +1507,37 @@ async function runAutofillPhase(entryId: string): Promise<void> {
       fillData,
       serverMap,
       currentMetadata,
+      {
+        applicationProfile,
+        fetchDocument: async (kind) => {
+          const action =
+            kind === "resume"
+              ? EXTENSION_MESSAGE.GET_RESUME_PDF
+              : EXTENSION_MESSAGE.GET_COVER_LETTER_PDF;
+          const res = await sendMessage<{
+            success: boolean;
+            bytes?: number[];
+            filename?: string;
+            error?: string;
+          }>({
+            action,
+            entryId,
+          });
+          if (!res?.success || !res.bytes?.length) return null;
+          return {
+            bytes: new Uint8Array(res.bytes),
+            filename: res.filename ?? `${kind}.pdf`,
+          };
+        },
+      },
     );
     if (!result.ok) {
       saveError = result.error;
+      assistUploadWarnings = [];
       if (!result.manualFinish) return;
       // manualFinish: still mark READY_TO_APPLY so user can submit
+    } else {
+      assistUploadWarnings = result.failedFileUploads;
     }
 
     pipelineBusyLabel = "Finalizing apply…";
@@ -1423,6 +1569,10 @@ async function runAutofillPhase(entryId: string): Promise<void> {
     await chrome.storage.local.remove(STORAGE_KEYS.pendingApplyJobId);
     void refreshSavedStatus().catch(() => undefined);
   } catch (error) {
+    if (isExtensionContextInvalidatedError(error)) {
+      teardownStaleExtensionContext();
+      return;
+    }
     saveError =
       error instanceof Error
         ? error.message
@@ -1535,16 +1685,85 @@ async function refreshMetadataBeforeSave(config: ExtensionRuntimeConfig): Promis
   currentMetadata = interceptedMetadata ?? detected.metadata;
 }
 
-async function onPrimaryClick(): Promise<void> {
-  if (!currentMetadata || pipelineBusy) return;
-  if (cardPresentation === "no_job") return;
+async function refreshRuntimeConfig(): Promise<ExtensionRuntimeConfig> {
+  const res = await sendMessage<{ success: boolean; config?: ExtensionRuntimeConfig }>({
+    action: EXTENSION_MESSAGE.GET_CONFIG,
+  });
+  if (!res) {
+    return runtimeConfig ?? mergeExtensionRuntimeConfig(undefined);
+  }
+  runtimeConfig = mergeExtensionRuntimeConfig(res.config);
+  connectedAccountEmail = runtimeConfig.connectedUser?.email ?? null;
+  cachedApplicationProfile = runtimeConfig.applicationProfile ?? null;
+  const synced = syncProfileSetupDraftsFromProfile(cachedApplicationProfile);
+  profileSetupScreen1Draft = synced.screen1;
+  profileSetupScreen2Draft = synced.screen2;
+  return runtimeConfig;
+}
 
-  if (savedStatus.saved) {
-    await openJobTrackerDashboard({ review: true });
+function needsApplicationProfileSetup(): boolean {
+  return !isApplicationProfileSetupComplete(cachedApplicationProfile);
+}
+
+async function patchApplicationProfile(
+  patch: Partial<ApplicationProfile>,
+): Promise<{ success: boolean; error?: string }> {
+  const res = await sendMessage<{
+    success: boolean;
+    applicationProfile?: ApplicationProfile | null;
+    error?: string;
+  }>({
+    action: EXTENSION_MESSAGE.UPDATE_USER_PREFS,
+    applicationProfile: patch,
+  });
+
+  if (res?.success) {
+    cachedApplicationProfile = res.applicationProfile ?? cachedApplicationProfile;
+    if (runtimeConfig) {
+      runtimeConfig = { ...runtimeConfig, applicationProfile: cachedApplicationProfile };
+    }
+    return { success: true };
+  }
+
+  return { success: false, error: res?.error ?? "Could not save application profile." };
+}
+
+async function onProfileSetupContinue(root: ShadowRoot): Promise<void> {
+  profileSetupScreen1Draft = readProfileSetupScreen1FromDom(root);
+  const patchResult = await patchApplicationProfile(
+    applicationProfilePatchFromScreen1(profileSetupScreen1Draft),
+  );
+  if (!patchResult.success) {
+    saveError = patchResult.error ?? "Could not save application profile.";
+    if (cardHost) renderCard(cardHost.shadow);
     return;
   }
 
-  if (!isApplyEnabled()) return;
+  profileSetupScreen = 2;
+  saveError = null;
+  if (cardHost) renderCard(cardHost.shadow);
+}
+
+async function onProfileSetupFinish(root: ShadowRoot, skipAll: boolean): Promise<void> {
+  if (!skipAll) {
+    profileSetupScreen2Draft = readProfileSetupScreen2FromDom(root);
+  }
+  const patchResult = await patchApplicationProfile(
+    applicationProfilePatchFromScreen2(profileSetupScreen2Draft, skipAll),
+  );
+  if (!patchResult.success) {
+    saveError = patchResult.error ?? "Could not save application profile.";
+    if (cardHost) renderCard(cardHost.shadow);
+    return;
+  }
+
+  profileSetupScreen = 0;
+  saveError = null;
+  if (cardHost) renderCard(cardHost.shadow);
+}
+
+async function startApplyPipeline(): Promise<void> {
+  if (pipelineBusy) return;
 
   if (cardPresentation === "manual_capture" && cardHost) {
     manualCaptureDraft = readManualCaptureDraftFromDom(cardHost.shadow);
@@ -1553,8 +1772,10 @@ async function onPrimaryClick(): Promise<void> {
   const capture = getCaptureContext();
 
   const tokenRes = await sendMessage<{ token: string | null }>({ action: EXTENSION_MESSAGE.GET_AUTH });
-  if (!tokenRes.token) {
-    await sendMessage({ action: EXTENSION_MESSAGE.OPEN_LOGIN });
+  if (!tokenRes?.token) {
+    if (tokenRes) {
+      await sendMessage({ action: EXTENSION_MESSAGE.OPEN_LOGIN });
+    }
     return;
   }
 
@@ -1645,6 +1866,10 @@ async function onPrimaryClick(): Promise<void> {
       await sendMessage({ action: EXTENSION_MESSAGE.OPEN_LOGIN });
     }
   } catch (error) {
+    if (isExtensionContextInvalidatedError(error)) {
+      teardownStaleExtensionContext();
+      return;
+    }
     saveError =
       error instanceof Error
         ? error.message
@@ -1657,17 +1882,30 @@ async function onPrimaryClick(): Promise<void> {
   }
 }
 
-async function onSaveClick(): Promise<void> {
-  await onPrimaryClick();
+async function onPrimaryClick(): Promise<void> {
+  if (!currentMetadata || pipelineBusy) return;
+  if (cardPresentation === "no_job") return;
+
+  if (savedStatus.saved) {
+    await openJobTrackerDashboard({ review: true });
+    return;
+  }
+
+  if (!isApplyEnabled()) return;
+
+  await ensureRuntimeConfig();
+
+  if (needsApplicationProfileSetup() && profileSetupScreen === 0) {
+    profileSetupScreen = 1;
+    cardCollapsed = false;
+    if (cardHost) renderCard(cardHost.shadow);
+  }
+
+  await startApplyPipeline();
 }
 
-async function refreshRuntimeConfig(): Promise<ExtensionRuntimeConfig> {
-  const res = await sendMessage<{ success: boolean; config?: ExtensionRuntimeConfig }>({
-    action: EXTENSION_MESSAGE.GET_CONFIG,
-  });
-  runtimeConfig = mergeExtensionRuntimeConfig(res.config);
-  connectedAccountEmail = runtimeConfig.connectedUser?.email ?? null;
-  return runtimeConfig;
+async function onSaveClick(): Promise<void> {
+  await onPrimaryClick();
 }
 
 async function ensureRuntimeConfig(): Promise<ExtensionRuntimeConfig> {
@@ -1785,12 +2023,11 @@ async function mountCard(
 
 function removeCard(): void {
   stopDrag();
+  stopAllExtensionTimers();
   closeProfilePickerMenu();
   closeSettingsMenu();
   profilePickerDelegationReady = false;
   settingsMenuDelegationReady = false;
-  stopConfirmationWatch();
-  stopLoadingHydrationWatch();
   void stopExtensionJobRealtime();
   realtimeStop = null;
   cardHost?.host.remove();
@@ -1877,10 +2114,11 @@ async function updateCard(): Promise<void> {
 }
 
 function scheduleUpdate(delayMs = 350): void {
+  if (!isContextValid()) return;
   if (updateTimer) clearTimeout(updateTimer);
   const delay = pinnedUrl === location.href ? Math.max(delayMs, 2000) : delayMs;
   updateTimer = setTimeout(() => {
-    void updateCard();
+    void updateCard().catch(swallowContextInvalidation);
   }, delay);
 }
 
@@ -1918,6 +2156,13 @@ function bootJobPageObservers(): void {
   handleAssistOpenOnLoad();
   injectApiInterceptScript();
 
+  window.addEventListener("unhandledrejection", (event) => {
+    if (isExtensionContextInvalidatedError(event.reason)) {
+      event.preventDefault();
+      teardownStaleExtensionContext();
+    }
+  });
+
   setupFieldCaptureBridge({
     getJobEntryId: () => savedStatus.id,
     onCapture: (payload: FieldCapturePayload, jobEntryId?: string) => {
@@ -1952,12 +2197,15 @@ function bootJobPageObservers(): void {
   window.addEventListener("hashchange", () => scheduleUpdate());
 
   let lastUrl = location.href;
-  setInterval(() => {
+  stopUrlWatch();
+  urlWatchTimer = setInterval(() => {
+    if (!guardExtensionContext()) return;
     if (location.href !== lastUrl) {
       lastUrl = location.href;
       pinnedUrl = null;
       runtimeConfig = null;
       interceptedMetadata = null;
+      maybeMarkAppliedFromConfirmation();
       removeCard();
       scheduleUpdate();
     }

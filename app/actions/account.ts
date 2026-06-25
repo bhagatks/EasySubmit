@@ -25,7 +25,7 @@ export type AccountSettingsSnapshot = {
   aiSourcePreference: string;
   aiEnhancementsToday: number;
   aiCallsToday: number;
-  oneClickApply: boolean;
+  autoApplyUserSwitch: boolean;
   autoArchiveAppliedJobs: boolean;
   autoApplyFeatureEnabled: boolean;
   resumeProfilePickerMode: ResumeProfilePickerMode;
@@ -75,7 +75,7 @@ export async function getAccountSettings(): Promise<AccountSettingsSnapshot | nu
         aiEnhancementsToday: true,
         aiCallsToday: true,
         aiQuotaResetAt: true,
-        oneClickApply: true,
+        autoApplyUserSwitch: true,
         autoArchiveAppliedJobs: true,
         resumeProfilePickerMode: true,
         accounts: {
@@ -117,7 +117,7 @@ export async function getAccountSettings(): Promise<AccountSettingsSnapshot | nu
     aiSourcePreference: user.aiSourcePreference,
     aiEnhancementsToday: user.aiEnhancementsToday,
     aiCallsToday: user.aiCallsToday,
-    oneClickApply: user.oneClickApply,
+    autoApplyUserSwitch: user.autoApplyUserSwitch,
     autoArchiveAppliedJobs: user.autoArchiveAppliedJobs,
     autoApplyFeatureEnabled: featureFlags.extensionAutoApply,
     resumeProfilePickerMode: user.resumeProfilePickerMode,
@@ -149,9 +149,9 @@ export async function updateResumeProfilePickerMode(
   return { success: true, resumeProfilePickerMode: user.resumeProfilePickerMode };
 }
 
-export async function updateOneClickApply(
+export async function updateAutoApplyUserSwitch(
   enabled: boolean,
-): Promise<{ success: true; oneClickApply: boolean } | { success: false; error: string }> {
+): Promise<{ success: true; autoApplyUserSwitch: boolean } | { success: false; error: string }> {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return { success: false, error: "Sign in required." };
@@ -167,13 +167,13 @@ export async function updateOneClickApply(
 
   const user = await prisma.user.update({
     where: { id: session.user.id },
-    data: { oneClickApply: enabled },
-    select: { oneClickApply: true },
+    data: { autoApplyUserSwitch: enabled },
+    select: { autoApplyUserSwitch: true },
   });
 
   revalidatePath("/dashboard/settings");
 
-  return { success: true, oneClickApply: user.oneClickApply };
+  return { success: true, autoApplyUserSwitch: user.autoApplyUserSwitch };
 }
 
 export async function updateAutoArchiveAppliedJobs(

@@ -20,7 +20,10 @@ export type JobTrackerEntriesResponse = {
 
 export function resolveJobTrackerPollIntervalMs(entries: JobTrackerSummary[]): number {
   const hasActiveJourney = entries.some(
-    (entry) => entry.status === "CAPTURED" || entry.status === "READY_TO_APPLY",
+    (entry) =>
+      entry.status === "CAPTURED" ||
+      entry.status === "RESUME_READY" ||
+      entry.status === "READY_TO_APPLY",
   );
   return hasActiveJourney ? JOB_TRACKER_SYNC_POLL_FAST_MS : JOB_TRACKER_SYNC_POLL_SLOW_MS;
 }
@@ -77,13 +80,8 @@ export function useJobTrackerSync({
       schedulePoll(resolveJobTrackerPollIntervalMs(entries));
     };
 
-    const syncFromRealtime = async () => {
-      if (cancelled) return;
-      const entries = await fetchJobTrackerEntries(entriesUrl);
-      if (cancelled) return;
-      onUpdateRef.current(entries);
-      schedulePoll(resolveJobTrackerPollIntervalMs(entries));
-    };
+    // Realtime and poll share the same refresh path; polling backs up Realtime when unavailable.
+    const syncFromRealtime = syncFromPoll;
 
     void syncFromPoll();
 

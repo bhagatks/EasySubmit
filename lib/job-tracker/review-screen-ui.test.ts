@@ -34,9 +34,10 @@ describe("pipeline-progress", () => {
     expect(pipelineProgressForStatus("APPLIED").filledThrough).toBe(4);
   });
 
-  it("gates Apply by resume-ready statuses", () => {
+  it("gates Apply by ready-to-apply status", () => {
     expect(canStartApply("CAPTURED")).toBe(false);
-    expect(canStartApply("RESUME_READY")).toBe(true);
+    expect(canStartApply("RESUME_READY")).toBe(false);
+    expect(canStartApply("READY_TO_APPLY")).toBe(true);
     expect(canStartApply("APPLIED")).toBe(false);
   });
 });

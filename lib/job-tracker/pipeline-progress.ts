@@ -58,9 +58,12 @@ export function pipelineProgressForStatus(status: JobTrackerStatus): PipelinePro
 }
 
 export function canStartApply(status: JobTrackerStatus): boolean {
+  return status === "READY_TO_APPLY";
+}
+
+export function isAppliedStatus(status: JobTrackerStatus): boolean {
   return (
-    status === "RESUME_READY" ||
-    status === "READY_TO_APPLY" ||
+    status === "APPLIED" ||
     status === "INTERVIEW" ||
     status === "OFFER" ||
     status === "REJECTED"

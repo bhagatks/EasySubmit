@@ -55,7 +55,7 @@ describe("getFeatureFlags", () => {
     await expect(getFeatureFlags()).resolves.toEqual({
       enhanceWithAiOnboarding: false,
       enhanceWithAiResumeProfile: true,
-      extensionJobCard: true,
+      extensionGlobalSwitch: true,
       extensionAutoApply: true,
     });
   });
@@ -152,7 +152,7 @@ describe("isEnhanceOnboardingVisible", () => {
         {
           enhanceWithAiOnboarding: true,
           enhanceWithAiResumeProfile: true,
-          extensionJobCard: true,
+          extensionGlobalSwitch: true,
           extensionAutoApply: true,
         },
         true,
@@ -164,7 +164,7 @@ describe("isEnhanceOnboardingVisible", () => {
         {
           enhanceWithAiOnboarding: true,
           enhanceWithAiResumeProfile: true,
-          extensionJobCard: true,
+          extensionGlobalSwitch: true,
           extensionAutoApply: true,
         },
         false,
@@ -176,7 +176,7 @@ describe("isEnhanceOnboardingVisible", () => {
         {
           enhanceWithAiOnboarding: false,
           enhanceWithAiResumeProfile: true,
-          extensionJobCard: true,
+          extensionGlobalSwitch: true,
           extensionAutoApply: true,
         },
         true,

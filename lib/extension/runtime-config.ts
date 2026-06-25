@@ -9,7 +9,7 @@ import {
 import { isFeatureEnabled, FEATURE_FLAG_KEYS } from "@/src/lib/services/feature-flags-service";
 
 export type ExtensionRuntimeConfig = ExtensionSitesConfig & {
-  featureFlagEnabled: boolean;
+  extensionGlobalSwitch: boolean;
   autoApplyEnabled: boolean;
   apiBaseUrl: string;
 };
@@ -17,12 +17,12 @@ export type ExtensionRuntimeConfig = ExtensionSitesConfig & {
 export async function getExtensionRuntimeConfig(
   requestOrigin?: string | null,
 ): Promise<ExtensionRuntimeConfig> {
-  const [row, featureFlagEnabled, autoApplyEnabled] = await Promise.all([
+  const [row, extensionGlobalSwitch, autoApplyEnabled] = await Promise.all([
     prisma.appConfig.findUnique({
       where: { key: EXTENSION_SITES_CONFIG_KEY },
       select: { value: true },
     }),
-    isFeatureEnabled(FEATURE_FLAG_KEYS.extensionJobCard),
+    isFeatureEnabled(FEATURE_FLAG_KEYS.extensionGlobalSwitch),
     isFeatureEnabled(FEATURE_FLAG_KEYS.extensionAutoApply),
   ]);
 
@@ -30,7 +30,7 @@ export async function getExtensionRuntimeConfig(
 
   return {
     ...sites,
-    featureFlagEnabled,
+    extensionGlobalSwitch,
     autoApplyEnabled,
     apiBaseUrl: resolveExtensionApiBaseUrl(requestOrigin),
   };

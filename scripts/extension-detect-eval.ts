@@ -22,6 +22,7 @@ if (!url) {
 }
 
 const config: ExtensionRuntimeConfig = {
+  extensionGlobalSwitch: true,
   jobCardEnabled: true,
   enabledPlatforms: [
     "linkedin",

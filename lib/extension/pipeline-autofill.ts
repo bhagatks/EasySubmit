@@ -9,7 +9,7 @@ export type CompletePipelineAutofillResult =
 
 const AUTOFILL_READY_FROM: JobTrackerStatus[] = ["RESUME_READY"];
 
-/** Phase C scaffold — marks job READY_TO_APPLY after autofill (stub or real runner). */
+/** Records Workday autofill assist completion — status is already READY_TO_APPLY from server pipeline. */
 export async function completePipelineAutofill(
   userId: string,
   entryId: string,
@@ -26,6 +26,13 @@ export async function completePipelineAutofill(
 
   if (!AUTOFILL_READY_FROM.includes(row.status)) {
     if (row.status === "READY_TO_APPLY" || row.status === "APPLIED") {
+      if (options?.note || options?.stub !== undefined) {
+        await mergeJobEntryMetadata(userId, entryId, {
+          pipelinePhases: ["capture", "tailor", "autofill"],
+          ...(options.stub ? { autofillStub: true, autofillNote: options.note ?? null } : {}),
+          ...(options.note && !options.stub ? { autofillNote: options.note } : {}),
+        });
+      }
       return { success: true, id: entryId, status: row.status };
     }
     return {

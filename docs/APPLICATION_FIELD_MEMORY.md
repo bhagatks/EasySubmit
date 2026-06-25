@@ -85,15 +85,19 @@ Workday apply step loads
 
 ### Resolution ladder (per field)
 
-1. `userId` + exact `fieldSignature` + same `tenantHost`
-2. `userId` + `platform` + `automationId` (any tenant on Workday)
-3. `userId` + `semanticKey`
-4. `userId` + normalized `label` only (compat with `answer-vault`)
-5. **Application Profile** (work auth, address, EEO prefs — separate table/JSON)
-6. **Resume / tailor map** (name, email, experience rows)
-7. **Miss** — leave empty; card shows “New question — we'll remember your answer”
+> **Canonical 8-step ladder lives in [`APPLICATION_PROFILE.md`](./APPLICATION_PROFILE.md).** This is a summary only.
 
-Auto-fill only when `confidence >= 0.85`. `0.6–0.85` → pre-fill + highlight for review.
+1. Exact `fieldSignature` + same `tenantHost`
+2. Same `automationId` cross-tenant
+3. `semanticKey` match
+4. `answer-vault` (local interim — migration compat)
+5. `applicationProfile` JSONB (work auth, EEO, salary, address)
+6. Resume / tailor map (name, email, phone, experience)
+7. Local template engine (open-ended fields — all users)
+8. AI generation (open-ended fields — BYOK only)
+→ Blank + visual indicator
+
+Auto-fill at `confidence >= 0.85`. `0.6–0.85` → pre-fill + yellow ring on field + card indicator.
 
 ### Capture triggers
 
@@ -112,16 +116,14 @@ SSN, tax ID, bank account, password, credit card, fields matching `/social secur
 
 ## Application Profile (companion data — not Field Memory)
 
-Collected **lazily** before first Workday autofill (not in onboarding):
+> **Superseded by [`APPLICATION_PROFILE.md`](./APPLICATION_PROFILE.md)** for full spec (UX, setup screens, generation triggers, AI gating).
+> This section is kept for DB/API context only.
 
-| Field | Required for Workday page 1 |
-|-------|----------------------------|
-| Street line 1, line 2, city, state, postal, country | Yes |
-| Authorized to work (country) | Yes |
-| Require sponsorship now / future | Yes |
-| EEO preferences (gender, race, veteran, disability) + “prefer not to answer” | Before EEO step |
+Storage: `users.applicationProfile` JSONB — one row per user (not per resume profile).
 
-Storage: `users.applicationProfile` JSONB or `application_profiles` table — **one row per user** (not per resume profile).
+Fields covered: work auth, visa sponsorship, salary range, start date, EEO prefs, address (lazily captured on first form that needs it — not in setup screens).
+
+Resolution: inserted at step 4 in the ladder below (between Field Memory and resume map).
 
 ---
 
@@ -182,13 +184,14 @@ DELETE /api/application-answers/:id
 
 ## Extension UX
 
-| State | Card copy |
-|-------|-----------|
-| Scanning | “Step 2 of 5 — Experience” |
-| Partial fill | “Filled 8 of 12 fields” |
-| New field | “New question — saved when you continue” |
-| Review | Yellow ring on medium-confidence fields |
-| Blocked | “Complete Application Profile” link |
+| State | Behavior |
+|-------|----------|
+| Scanning | Step indicator in assist card |
+| Partial fill | Field count in assist card |
+| New field | Visual warning icon — no text copy, no prompt |
+| Medium confidence (0.6–0.85) | Pre-fill + yellow ring on field + card indicator |
+| Blank | Warning icon in assist card only |
+| AI error | Error icon → links to settings |
 
 Settings: **Application answers** — searchable table (label, answer, last used, delete).
 
@@ -207,7 +210,7 @@ Settings: **Application answers** — searchable table (label, answer, last used
 | Phase | Deliverable |
 |-------|-------------|
 | **v1** | Prisma + capture/lookup API; extension capture on user edit; exact + semanticKey match |
-| **v2** | Application Profile + preflight gate before pipeline |
+| **v2** | Application Profile setup screens + full resolution ladder (see `APPLICATION_PROFILE.md`) |
 | **v3** | Confidence scoring + Settings UI |
 | **v4** | Step templates + other ATS platforms |
 

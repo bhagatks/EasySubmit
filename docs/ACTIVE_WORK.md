@@ -25,7 +25,7 @@ Branch: `cursor/field-memory`
 | 2 | `GET/POST /api/extension/application-answers*` | Done |
 | 3 | Content script bridge → background → capture API | Done |
 | 4 | Settings UI list/edit | Not started (v3) |
-| 5 | Lookup wired into autofill resolution ladder | Not started (v1 follow-up) |
+| 5 | Lookup wired into autofill resolution ladder | Not started — full 8-step ladder spec in `APPLICATION_PROFILE.md` |
 
 **Cursor owns** `lib/extension/application-field-memory.ts`, `app/api/extension/application-answers/*`, `field-capture-bridge.ts`, `field-capture-api.ts`.
 
@@ -82,7 +82,7 @@ Denylist before fill: SSN, password, bank — per `APPLICATION_FIELD_MEMORY.md`.
 |-------|--------|-----|
 | Workday Phase C autofill (real fill) | **Merged on `main`** | `WORKDAY_ONE_CLICK_APPLY.md` |
 | Application Field Memory (learn + DB) | **Cursor — capture API + bridge** | `APPLICATION_FIELD_MEMORY.md` |
-| Application Profile (work auth, address, EEO) | Not started | `APPLICATION_FIELD_MEMORY.md` § Application Profile |
+| Application Profile (work auth, address, EEO, salary) | Not started | `APPLICATION_PROFILE.md` — full spec, schema, setup UX |
 
 ---
 

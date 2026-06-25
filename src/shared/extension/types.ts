@@ -55,14 +55,17 @@ export type ExtensionConnectedUser = {
 };
 
 export type ExtensionRuntimeConfig = {
+  extensionGlobalSwitch: boolean;
   jobCardEnabled: boolean;
   enabledPlatforms: ExtensionPlatform[];
   genericFallbackEnabled: boolean;
   minConfidence: number;
   apiBaseUrl: string;
-  oneClickApply?: boolean;
+  autoApplyUserSwitch?: boolean;
   oneClickApplyPlatforms?: ExtensionPlatform[];
   autoApplyEnabled?: boolean;
+  customizeResume?: boolean;
+  applicationProfile?: import("@/lib/profile/application-profile").ApplicationProfile | null;
   connectedUser?: ExtensionConnectedUser | null;
 };
 

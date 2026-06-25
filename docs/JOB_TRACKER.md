@@ -24,7 +24,7 @@ Last updated: **2026-06-22**
 | `/api/extension/jobs/[id]` | PATCH | Bearer — update status |
 | `/api/extension/jobs/pipeline` | POST | Bearer — capture + tailor → autofill stub → `READY_TO_APPLY` |
 | `/api/extension/jobs/[id]/autofill-complete` | POST | Bearer — mark autofill complete (stub or real) |
-| `/api/extension/user-prefs` | PATCH | Bearer — update `oneClickApply` from popup |
+| `/api/extension/user-prefs` | PATCH | Bearer — update `autoApplyUserSwitch` from popup |
 | `/api/extension/config` | GET | Public runtime config |
 
 ### Auth bridge
@@ -41,7 +41,7 @@ Last updated: **2026-06-22**
 
 ### Config & flags
 - `app_config.extensionSites` (seeded)
-- `feature_flags.extension_job_card` (seeded, default on)
+- `feature_flags.extension_global_switch` (seeded, default on — off = extension inactive platform-wide)
 - `feature_flags.extension_auto_apply` (seeded, default on — off = manual 3-step apply flow)
 
 ---

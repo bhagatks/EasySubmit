@@ -139,6 +139,12 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 
 | Date | Summary |
 |------|---------|
+| 2026-06-23 | Job tracker sync: fast poll (3s) includes `RESUME_READY`; realtime-token routes return 503 when Supabase Realtime is not configured |
+| 2026-06-23 | Extension content script: graceful teardown on invalidated context — stop polling/url watchers, swallow unhandled rejections, no console spam after reload |
+| 2026-06-23 | Phases 6–12 application profile + PDF inject + confirmation detect (3-signal) + tracker journey UI via `resolveJourneyDisplay` |
+| 2026-06-23 | Journey display mapper simplified: `resolveJourneyDisplay(status, hasError)` → `{ stage, label, applyButtonState, showResumeCard, showAssistCard }` per SYNC_ARCHITECTURE state map |
+| 2026-06-23 | On-demand extension PDFs: `GET /api/extension/jobs/:id/resume-pdf` + `cover-letter-pdf`; `file-inject.ts` DataTransfer upload; `application-profile-resolve` step 5 with fieldType |
+| 2026-06-23 | Application profile: `PATCH /api/extension/user-prefs` JSONB merge for `applicationProfile`; extension setup Screens 1–2 on first Apply (parallel to pipeline); field-resolution step 5 `application_profile`; journey display `applyButtonState` + `showAssistCard` |
 | 2026-06-23 | Journey lifecycle: active row lookup by most recent non-archived urlHash; re-apply archives APPLIED row + fresh CAPTURED; `customizeResume` pipeline short-circuit; Realtime sync hook + token APIs; `resolveJourneyDisplay` Re-apply state |
 | 2026-06-23 | Application profile schema: `users.customizeResume`, `users.applicationProfile` JSONB; `JobTrackerEntry` drops `@@unique([userId, urlHash])` for re-apply — migration `allow_multiple_journeys_per_url` |
 | 2026-06-23 | Full journey sync: State 0 manual capture, Stage 2 two-card assist, extension Realtime, `?es_open=assist`, `MARK_APPLIED`, Layer B apply gate — `docs/SYNC_ARCHITECTURE.md` |

@@ -5,13 +5,16 @@
  *   2. Same platform + automationId (client-side from lookup map)
  *   3. semanticKey match (server lookup)
  *   4. Local answer-vault by normalized label
- *   5. Resume map (name / email / phone / city / linkedIn / work-auth)
- *   6. Miss
+ *   5. applicationProfile JSONB (work auth, EEO, salary, address)
+ *   6. Resume map (name / email / phone / city / linkedIn / work-auth)
+ *   7. Miss
  */
 
 import { fieldSignature, semanticKey, type FieldDescriptor, type StoredAnswer } from "./field-descriptor";
 import { isDenylistedApplicationField } from "./field-denylist";
 import { vaultGet } from "./answer-vault";
+import type { ApplicationProfile } from "@/lib/profile/application-profile";
+import { resolveFromApplicationProfile } from "./application-profile-resolve";
 
 export type WorkdayFillData = {
   firstName: string;
@@ -82,7 +85,7 @@ export type ResolvedField = {
   value: string;
   confidence: number;
   gate: FillConfidence;
-  source: "server_exact" | "server_automation_id" | "server_semantic" | "vault" | "resume";
+  source: "server_exact" | "server_automation_id" | "server_semantic" | "vault" | "application_profile" | "resume";
 };
 
 // ── Resolution ladder ─────────────────────────────────────────────────────────
@@ -95,6 +98,7 @@ export async function resolveField(
   descriptor: FieldDescriptor,
   serverMap: ServerLookupMap,
   fillData: WorkdayFillData,
+  applicationProfile?: ApplicationProfile | null,
 ): Promise<ResolvedField | null> {
   if (isDenylistedApplicationField(descriptor.label)) return null;
   if (descriptor.fieldType === "file") return null;
@@ -142,7 +146,22 @@ export async function resolveField(
     return { value: vaultValue, confidence: 0.8, gate: confidenceGate(0.8), source: "vault" };
   }
 
-  // 5. Resume map
+  // 5. applicationProfile JSONB
+  const profileValue = resolveFromApplicationProfile(
+    descriptor.label,
+    descriptor.fieldType,
+    applicationProfile,
+  );
+  if (profileValue) {
+    return {
+      value: profileValue,
+      confidence: 0.9,
+      gate: "auto",
+      source: "application_profile",
+    };
+  }
+
+  // 6. Resume map
   const resumeValue = resolveFromResume(descriptor.label, fillData);
   if (resumeValue) {
     return { value: resumeValue, confidence: 0.95, gate: confidenceGate(0.95), source: "resume" };
@@ -159,10 +178,11 @@ export async function resolveStepFields(
   descriptors: FieldDescriptor[],
   serverMap: ServerLookupMap,
   fillData: WorkdayFillData,
+  applicationProfile?: ApplicationProfile | null,
 ): Promise<Map<string, ResolvedField>> {
   const results = await Promise.all(
     descriptors.map(async (d) => {
-      const resolved = await resolveField(d, serverMap, fillData);
+      const resolved = await resolveField(d, serverMap, fillData, applicationProfile);
       return [fieldSignature(d), resolved] as const;
     }),
   );

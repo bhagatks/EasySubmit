@@ -17,6 +17,7 @@ import type {
   JobStatusResponse,
 } from "@shared/extension/types";
 import { fieldCapturePayloadToEvents } from "@shared/extension/field-capture-api";
+import { appendAssistOpenParam } from "@shared/extension/assist-open-url";
 import type { FieldCapturePayload } from "@shared/extension/field-descriptor";
 
 const CONTEXT_MENU_FORCE_SHOW = "easysubmit-force-show-card";
@@ -62,6 +63,38 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return data as T;
 }
 
+async function apiFetchBinary(
+  path: string,
+): Promise<{ success: boolean; bytes?: number[]; filename?: string; error?: string }> {
+  const base = await getApiBase();
+  const token = await getAuthToken();
+  const headers = new Headers();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+
+  const res = await fetch(`${base}${path}`, { headers });
+  if (!res.ok) {
+    let error = `Request failed (${res.status})`;
+    try {
+      const data = (await res.json()) as { error?: string };
+      if (typeof data.error === "string") error = data.error;
+    } catch {
+      // non-JSON error body
+    }
+    return { success: false, error };
+  }
+
+  const buffer = await res.arrayBuffer();
+  const disposition = res.headers.get("Content-Disposition") ?? "";
+  const filenameMatch = disposition.match(/filename="([^"]+)"/i);
+  const filename = filenameMatch?.[1] ?? "document.pdf";
+
+  return {
+    success: true,
+    bytes: Array.from(new Uint8Array(buffer)),
+    filename,
+  };
+}
+
 async function loadRuntimeConfig(): Promise<ExtensionRuntimeConfig> {
   const base = (await getApiBase()).replace(/\/$/, "");
   const data = await apiFetch<ExtensionRuntimeConfig & { success?: boolean }>(
@@ -71,11 +104,12 @@ async function loadRuntimeConfig(): Promise<ExtensionRuntimeConfig> {
   await chrome.storage.local.set({ [STORAGE_KEYS.apiBaseUrl]: base });
   return {
     jobCardEnabled: Boolean(data.jobCardEnabled),
+    extensionGlobalSwitch: data.extensionGlobalSwitch ?? true,
     enabledPlatforms: data.enabledPlatforms ?? ["generic"],
     genericFallbackEnabled: data.genericFallbackEnabled ?? true,
     minConfidence: data.minConfidence ?? 55,
     apiBaseUrl: base,
-    oneClickApply: data.oneClickApply ?? true,
+    autoApplyUserSwitch: data.autoApplyUserSwitch ?? true,
     oneClickApplyPlatforms: data.oneClickApplyPlatforms ?? ["workday"],
     autoApplyEnabled: data.autoApplyEnabled ?? true,
     connectedUser: data.connectedUser ?? null,
@@ -182,12 +216,13 @@ async function notifyTabStartApply(
 
 async function startApplyFromDashboard(jobId: string, url: string): Promise<{ success: boolean }> {
   await chrome.storage.local.set({ [STORAGE_KEYS.pendingApplyJobId]: jobId });
+  const targetUrl = appendAssistOpenParam(url);
 
   const tabs = await chrome.tabs.query({});
   const existing = tabs.find((tab) => tab.url && jobUrlsMatch(tab.url, url));
 
   if (existing?.id) {
-    await chrome.tabs.update(existing.id, { active: true });
+    await chrome.tabs.update(existing.id, { active: true, url: targetUrl });
     if (existing.windowId != null) {
       await chrome.windows.update(existing.windowId, { focused: true });
     }
@@ -195,7 +230,7 @@ async function startApplyFromDashboard(jobId: string, url: string): Promise<{ su
     return { success: true };
   }
 
-  const created = await chrome.tabs.create({ url, active: true });
+  const created = await chrome.tabs.create({ url: targetUrl, active: true });
   if (created.id) {
     // Content script boot reads pendingApplyJobId when the tab loads.
     await notifyTabStartApply(created.id, jobId, url).catch(() => undefined);
@@ -364,6 +399,24 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (action === EXTENSION_MESSAGE.GET_RESUME_PDF && typeof message.entryId === "string") {
+    void apiFetchBinary(
+      `/api/extension/jobs/${encodeURIComponent(message.entryId)}/resume-pdf`,
+    )
+      .then((data) => sendResponse(data))
+      .catch(() => sendResponse({ success: false, error: "Network error" }));
+    return true;
+  }
+
+  if (action === EXTENSION_MESSAGE.GET_COVER_LETTER_PDF && typeof message.entryId === "string") {
+    void apiFetchBinary(
+      `/api/extension/jobs/${encodeURIComponent(message.entryId)}/cover-letter-pdf`,
+    )
+      .then((data) => sendResponse(data))
+      .catch(() => sendResponse({ success: false, error: "Network error" }));
+    return true;
+  }
+
   if (
     action === EXTENSION_MESSAGE.GET_APPLICATION_ANSWERS &&
     typeof message.platform === "string"
@@ -423,15 +476,31 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (
     action === EXTENSION_MESSAGE.UPDATE_USER_PREFS &&
-    typeof message.oneClickApply === "boolean"
+    (typeof message.autoApplyUserSwitch === "boolean" ||
+      (message.applicationProfile != null &&
+        typeof message.applicationProfile === "object" &&
+        !Array.isArray(message.applicationProfile)))
   ) {
-    void apiFetch<{ success: boolean; oneClickApply?: boolean; error?: string }>(
-      "/api/extension/user-prefs",
-      {
-        method: "PATCH",
-        body: JSON.stringify({ oneClickApply: message.oneClickApply }),
-      },
-    )
+    const body: Record<string, unknown> = {};
+    if (typeof message.autoApplyUserSwitch === "boolean") {
+      body.autoApplyUserSwitch = message.autoApplyUserSwitch;
+    }
+    if (
+      message.applicationProfile != null &&
+      typeof message.applicationProfile === "object" &&
+      !Array.isArray(message.applicationProfile)
+    ) {
+      body.applicationProfile = message.applicationProfile;
+    }
+    void apiFetch<{
+      success: boolean;
+      autoApplyUserSwitch?: boolean;
+      applicationProfile?: unknown;
+      error?: string;
+    }>("/api/extension/user-prefs", {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    })
       .then((data) => sendResponse(data))
       .catch(() => sendResponse({ success: false, error: "Network error" }));
     return true;
@@ -443,6 +512,24 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       .then((tab) => forceShowOnTab(tab))
       .then(() => sendResponse({ success: true }))
       .catch((error: Error) => sendResponse({ success: false, error: error.message }));
+    return true;
+  }
+
+  if (
+    action === EXTENSION_MESSAGE.MARK_APPLIED &&
+    typeof message.entryId === "string"
+  ) {
+    void apiFetch<{ success: boolean; id?: string; status?: string; error?: string }>(
+      `/api/extension/jobs/${encodeURIComponent(message.entryId)}/mark-applied`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          source: message.source === "extension_auto" ? "extension_auto" : "extension_manual",
+        }),
+      },
+    )
+      .then((data) => sendResponse(data))
+      .catch(() => sendResponse({ success: false, error: "Network error" }));
     return true;
   }
 

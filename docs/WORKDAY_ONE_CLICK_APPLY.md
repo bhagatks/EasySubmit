@@ -27,7 +27,7 @@ Anchor ATS: **Workday** (`*.myworkdayjobs.com`). Other platforms stay **Save to 
 
 | Flag | DB key | Default | When **off** |
 |------|--------|---------|--------------|
-| Extension auto apply | `extension_auto_apply` | `true` | Manual 3-step flow only (Save → Update resume → Apply). User `oneClickApply` setting ignored. |
+| Extension auto apply | `extension_auto_apply` | `true` | Manual 3-step flow only (Save → Update resume → Apply). User `autoApplyUserSwitch` setting ignored. |
 
 Toggle in DB: `UPDATE feature_flags SET enabled = false WHERE key = 'extension_auto_apply';`
 
@@ -43,7 +43,7 @@ Toggle in DB: `UPDATE feature_flags SET enabled = false WHERE key = 'extension_a
 | Apply scope v1 | Autofill only — user submits manually |
 | One-click scope v1 | **Workday only** |
 | Concurrency v1 | One pipeline run at a time per tab |
-| Setting default | `oneClickApply = true` for all users |
+| Setting default | `autoApplyUserSwitch = true` for all users |
 
 ---
 
@@ -83,9 +83,9 @@ Toggle in DB: `UPDATE feature_flags SET enabled = false WHERE key = 'extension_a
 
 | # | Task | Status |
 |---|------|--------|
-| A1 | `users.oneClickApply` boolean default `true` | **Done** |
+| A1 | `users.autoApplyUserSwitch` boolean default `true` | **Done** |
 | A2 | Settings toggle + server action | **Done** |
-| A3 | Extension config returns `oneClickApply` when authed | **Done** |
+| A3 | Extension config returns `autoApplyUserSwitch` when authed | **Done** |
 | A4 | `POST /api/extension/jobs/pipeline` orchestrator | **Done** — capture → tailor → `pendingPhase: autofill` |
 | A5 | Extension CTA: Workday + one-click → **Apply with EasySubmit** | **Done** |
 | A6 | Card progress states (Capturing / Tailoring / Ready) | **Partial** — `pipelineBusyLabel` on card; no background polling yet |
@@ -177,9 +177,9 @@ Response (tailor failed after capture):
 
 | Condition | CTA label |
 |-----------|-----------|
-| Workday + oneClickApply + not saved | **Apply with EasySubmit** |
-| Workday + oneClickApply + pipeline done to READY | **Open Tracker** |
-| oneClickApply off or non-Workday | **Save to Tracker** |
+| Workday + autoApplyUserSwitch + not saved | **Apply with EasySubmit** |
+| Workday + autoApplyUserSwitch + pipeline done to READY | **Open Tracker** |
+| autoApplyUserSwitch off or non-Workday | **Save to Tracker** |
 | Already saved, one-click off | **Open Tracker** |
 
 **Resume profile picker (card header):** document icon only — click opens profile list (default badge on default row). Selection persisted locally; save/pipeline sends `sourceProfileId`. **Update resume** manual step opens Studio for the selected profile.
@@ -201,7 +201,7 @@ CAPTURED → RESUME_READY → READY_TO_APPLY → (user submits) → APPLIED
 - [ ] Unit: Workday URL canonicalization (posting vs apply)
 - [ ] Unit: scrape fixtures (posting + apply DOM)
 - [ ] Unit: pipeline rejects non-Workday when one-click on
-- [ ] Unit: pipeline respects `oneClickApply = false`
+- [ ] Unit: pipeline respects `autoApplyUserSwitch = false`
 - [ ] Integration: save → enhance → profile copy → status update
 - [ ] Manual: full Workday flow on localhost with extension loaded
 - [ ] `npm test` + `npm run build`

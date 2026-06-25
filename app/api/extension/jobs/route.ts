@@ -8,11 +8,15 @@ import {
   saveJobTrackerEntry,
 } from "@/lib/extension/job-service";
 import { getExtensionRuntimeConfig } from "@/lib/extension/runtime-config";
+import { extensionGlobalDisabledResponse } from "@/lib/extension/extension-global-gate";
 
 export async function GET(request: NextRequest) {
   const auth = await resolveExtensionUserId(request);
   if ("response" in auth) return auth.response;
   const { userId } = auth;
+
+  const disabled = await extensionGlobalDisabledResponse(request);
+  if (disabled) return disabled;
 
   const url = request.nextUrl.searchParams.get("url");
   if (!url?.trim()) {
@@ -24,12 +28,15 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const disabled = await extensionGlobalDisabledResponse(request);
+  if (disabled) return disabled;
+
   const auth = await resolveExtensionUserId(request);
   if ("response" in auth) return auth.response;
   const { userId } = auth;
 
   const config = await getExtensionRuntimeConfig(request.nextUrl.origin);
-  if (!config.jobCardEnabled || !config.featureFlagEnabled) {
+  if (!config.jobCardEnabled) {
     return Response.json({ success: false, error: "Job card is disabled" }, { status: 403 });
   }
 
@@ -46,16 +53,19 @@ export async function POST(request: NextRequest) {
 
   const record = body as Record<string, unknown>;
   const url = typeof record.url === "string" ? record.url : "";
-  const title = typeof record.title === "string" ? record.title : "";
+  const description = typeof record.description === "string" ? record.description : "";
 
-  if (!url.trim() || !title.trim()) {
-    return Response.json({ success: false, error: "url and title are required" }, { status: 400 });
+  if (!url.trim() || description.trim().length < 120) {
+    return Response.json(
+      { success: false, error: "url and job description (min 120 chars) are required" },
+      { status: 400 },
+    );
   }
 
   try {
     const saved = await saveJobTrackerEntry(userId, {
       url,
-      title,
+      title: typeof record.title === "string" ? record.title : "",
       company: typeof record.company === "string" ? record.company : null,
       location: typeof record.location === "string" ? record.location : null,
       salaryText: typeof record.salaryText === "string" ? record.salaryText : null,

@@ -19,7 +19,7 @@ import {
   type AccountSettingsSnapshot,
   type AuthProviderId,
   updateLoginProfile,
-  updateOneClickApply,
+  updateAutoApplyUserSwitch,
   updateAutoArchiveAppliedJobs,
   updateResumeProfilePickerMode,
 } from "@/app/actions/account";
@@ -238,8 +238,8 @@ export function AccountSettings({ initial }: AccountSettingsProps) {
   const [connecting, setConnecting] = useState<AuthProviderId | null>(null);
   const [aiSource, setAiSource] = useState(initial.aiSourcePreference || "auto");
   const [aiPrefBusy, setAiPrefBusy] = useState(false);
-  const [oneClickApply, setOneClickApply] = useState(initial.oneClickApply);
-  const [oneClickBusy, setOneClickBusy] = useState(false);
+  const [autoApplyUserSwitch, setAutoApplyUserSwitch] = useState(initial.autoApplyUserSwitch);
+  const [autoApplyUserSwitchBusy, setAutoApplyUserSwitchBusy] = useState(false);
   const [autoArchiveAppliedJobs, setAutoArchiveAppliedJobs] = useState(
     initial.autoArchiveAppliedJobs,
   );
@@ -317,16 +317,16 @@ export function AccountSettings({ initial }: AccountSettingsProps) {
     setAiSource(value);
   }
 
-  async function handleOneClickApplyChange(enabled: boolean) {
-    setOneClickBusy(true);
+  async function handleAutoApplyUserSwitchChange(enabled: boolean) {
+    setAutoApplyUserSwitchBusy(true);
     setError(null);
-    const result = await updateOneClickApply(enabled);
-    setOneClickBusy(false);
+    const result = await updateAutoApplyUserSwitch(enabled);
+    setAutoApplyUserSwitchBusy(false);
     if (!result.success) {
       setError(result.error);
       return;
     }
-    setOneClickApply(result.oneClickApply);
+    setAutoApplyUserSwitch(result.autoApplyUserSwitch);
   }
 
   async function handleAutoArchiveChange(enabled: boolean) {
@@ -354,7 +354,7 @@ export function AccountSettings({ initial }: AccountSettingsProps) {
   }
 
   const aiSummary = `${AI_SOURCE_LABELS[aiSource as keyof typeof AI_SOURCE_LABELS] ?? "Auto"} · ${
-    oneClickApply ? "One-click on" : "One-click off"
+    autoApplyUserSwitch ? "One-click on" : "One-click off"
   } · ${profilePickerMode === "DEFAULT" ? "Default resume" : "Last used resume"}`;
 
   return (
@@ -503,9 +503,9 @@ export function AccountSettings({ initial }: AccountSettingsProps) {
                     ? "Workday capture, tailor, and fill — you submit."
                     : "Disabled platform-wide."
                 }
-                checked={oneClickApply}
-                disabled={oneClickBusy || !initial.autoApplyFeatureEnabled}
-                onChange={(enabled) => void handleOneClickApplyChange(enabled)}
+                checked={autoApplyUserSwitch}
+                disabled={autoApplyUserSwitchBusy || !initial.autoApplyFeatureEnabled}
+                onChange={(enabled) => void handleAutoApplyUserSwitchChange(enabled)}
                 icon={<Zap className="h-3.5 w-3.5 text-primary" aria-hidden="true" />}
               />
 

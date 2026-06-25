@@ -1,9 +1,13 @@
 import type { NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
 import { resolveExtensionUserId } from "@/lib/extension/auth-request";
+import { extensionGlobalDisabledResponse } from "@/lib/extension/extension-global-gate";
 import { runApplyPipeline, type RunApplyPipelineInput } from "@/lib/extension/apply-pipeline";
 
 export async function POST(request: NextRequest) {
+  const disabled = await extensionGlobalDisabledResponse(request);
+  if (disabled) return disabled;
+
   const auth = await resolveExtensionUserId(request);
   if ("response" in auth) return auth.response;
   const { userId } = auth;
@@ -15,8 +19,11 @@ export async function POST(request: NextRequest) {
     return Response.json({ success: false, error: "Invalid JSON body" }, { status: 400 });
   }
 
-  if (!body.url?.trim() || !body.title?.trim()) {
-    return Response.json({ success: false, error: "url and title are required" }, { status: 400 });
+  if (!body.url?.trim() || (body.description?.trim().length ?? 0) < 120) {
+    return Response.json(
+      { success: false, error: "url and job description (min 120 chars) are required" },
+      { status: 400 },
+    );
   }
 
   try {

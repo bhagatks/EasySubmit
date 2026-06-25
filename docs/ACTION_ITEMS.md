@@ -14,7 +14,7 @@
 | Google OAuth redirect URI | Done | Prod callbacks registered |
 | LinkedIn OAuth redirect URI | Done | Prod callbacks registered |
 | Run Prisma migrate on production DB | Blocked — P3009 | See `docs/MIGRATION_RECOVERY.md` — resolve before prod cutover |
-| Supabase Storage bucket `resumes` | Deferred | Private, authenticated upload |
+| Supabase Storage bucket `resumes` | **Cancelled** — PDFs on-demand only, never stored (see `APPLICATION_PROFILE.md`) | — |
 | Supabase Storage bucket `avatars` (public read) + `SUPABASE_SERVICE_ROLE_KEY` | Needed for prod avatar upload | Dev falls back to `public/avatars/`; see `lib/profile/avatar-storage.ts` |
 
 ## Post-deploy smoke test (when prod ships)
@@ -120,9 +120,10 @@ Full specs: **[`docs/JOB_TRACKER.md`](./JOB_TRACKER.md)** · Workday E2E: **[`do
 | Extension reconnect hint on tracker page | Removed — use extension popup / bridge only |
 | Extension API (`/api/extension/jobs`) | Done |
 | MV3 extension + in-page card | Done |
-| **One-click apply setting** (`users.oneClickApply`) | Done |
-| **Pipeline API** (`POST /api/extension/jobs/pipeline`) | Done — capture → tailor → autofill stub → `READY_TO_APPLY` |
-| **Autofill complete API** (`POST /api/extension/jobs/[id]/autofill-complete`) | Done (stub) — real Workday fill pending |
+| **Auto-apply user switch** (`users.autoApplyUserSwitch`) | Done |
+| **Pipeline API** (`POST /api/extension/jobs/pipeline`) | Done — capture → tailor → server `READY_TO_APPLY`; Workday autofill assist optional |
+| **Autofill complete API** (`POST /api/extension/jobs/[id]/autofill-complete`) | Done — metadata only when already `READY_TO_APPLY`; real Workday fill pending |
+| **Job Tracker Realtime sync** | Done (QA) — publication + RLS applied; `SUPABASE_JWT_SECRET` in `.env.local`; restart dev server to pick up |
 | Workday scraper hardening (W1–W10) | Partial — apply URL canonicalize + company fallback |
 | Enhance AI in pipeline (Phase B) | Done — B1–B7 (B6 partial: card busy label + polling) |
 | Workday autofill port (Phase C) | Partial — stub runner + `READY_TO_APPLY`; field map pending |
