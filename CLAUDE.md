@@ -187,3 +187,23 @@ npm run db:seed
 | Job tracker types | `lib/job-tracker/types.ts` |
 | Review Screen | `components/dashboard/ReviewScreen.tsx` |
 | Pipeline tailor | `lib/extension/pipeline-tailor.ts` |
+
+---
+
+## Claude Code Session Rules
+
+- Never explore the full codebase unless explicitly asked
+- Read only the files directly relevant to the task
+- Do not run `npm run build` or full test suite unless asked — run targeted tests only
+- No explanatory summaries at end of response unless asked
+
+---
+
+## Session Discipline
+
+- Use `/clear` between unrelated tasks — never carry over context from a previous topic
+- Always reference specific files and line numbers in prompts (e.g. `lib/auth.ts:42`) rather than describing symptoms
+- Split explore-then-implement work into two separate sessions: locate first, edit second
+- Prefer targeted test runs (`npx vitest run --config config/vitest.config.ts <specific-file>`) over full suite
+- Do not re-read files already established in the current session
+- If a task is done, stop — do not propose follow-up refactors or related improvements unless asked
