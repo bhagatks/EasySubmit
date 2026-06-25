@@ -1,3 +1,5 @@
+import { isWorkdayApplyStepUrl, isWorkdayJobUrl } from "./workday-helpers";
+
 const URL_PATTERNS: Record<string, RegExp> = {
   workday: /\/(applied|thank-you|complete|confirmation|thank|success)(\/|$|\?)/i,
   greenhouse: /\/confirmation(\/|$|\?)/i,
@@ -49,14 +51,35 @@ function hasNoVisibleSubmitForm(doc: Document): boolean {
   return true;
 }
 
+function isWorkdayJobPostingUrl(url: string): boolean {
+  return isWorkdayJobUrl(url) && !isWorkdayApplyStepUrl(url) && !matchesTerminalUrl("workday", url);
+}
+
 /** Score 3 confirmation signals; true when 2+ match. Test helper accepts explicit context. */
 export function evaluateApplicationConfirmation(
   platform: string,
   url: string,
   doc: Document,
 ): boolean {
+  const plat = platform.toLowerCase();
+
+  if (plat === "workday" || isWorkdayJobUrl(url)) {
+    if (isWorkdayJobPostingUrl(url)) return false;
+    if (matchesTerminalUrl("workday", url)) {
+      return matchesConfirmationText(doc) || hasNoVisibleSubmitForm(doc);
+    }
+    if (isWorkdayApplyStepUrl(url)) {
+      let score = 0;
+      if (matchesConfirmationText(doc)) score += 1;
+      if (hasNoVisibleSubmitForm(doc)) score += 1;
+      if (matchesTerminalUrl("workday", url)) score += 1;
+      return score >= 2;
+    }
+    return false;
+  }
+
   let score = 0;
-  if (matchesTerminalUrl(platform, url)) score += 1;
+  if (matchesTerminalUrl(plat, url)) score += 1;
   if (matchesConfirmationText(doc)) score += 1;
   if (hasNoVisibleSubmitForm(doc)) score += 1;
   return score >= 2;

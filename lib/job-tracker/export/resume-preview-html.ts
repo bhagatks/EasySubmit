@@ -10,6 +10,7 @@ import {
   FONT_SIZE,
   LINE_HEIGHT,
   SECTION_TITLE,
+  SPACING,
 } from "@/lib/job-tracker/export/resume-style";
 
 function sectionHtml(title: string, body: string): string {
@@ -120,7 +121,7 @@ export function buildResumePreviewHtml(form: HubRefineryForm, targetTitle: strin
     }
     h1 {
       font-size: ${FONT_SIZE.name}pt;
-      margin: 0 0 6px;
+      margin: 0 0 ${SPACING.afterName}pt;
       text-align: center;
       font-weight: 700;
       color: ${COLOR.nearBlack};

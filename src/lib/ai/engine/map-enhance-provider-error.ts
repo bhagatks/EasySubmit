@@ -99,6 +99,31 @@ export function mapEnhanceProviderError(
     };
   }
 
+  if (/safety|blocked|harm|content.?filter|prohibited|responsible ai/i.test(coreMessage)) {
+    return {
+      code: "provider_error",
+      userMessage:
+        "The AI provider blocked this request. Shorten or edit the job description and try again, or switch to your own API key in AI Keys.",
+      rawMessage,
+    };
+  }
+
+  if (/overloaded|503|service unavailable|high demand|temporarily unavailable/i.test(coreMessage)) {
+    return {
+      code: "provider_error",
+      userMessage: "AI is temporarily overloaded. Wait a minute and try again.",
+      rawMessage,
+    };
+  }
+
+  if (/no (?:output|text|candidates)|empty response|zero.?token/i.test(coreMessage)) {
+    return {
+      code: "invalid_response",
+      userMessage: "AI returned an empty response. Try again or switch AI source in Settings.",
+      rawMessage,
+    };
+  }
+
   return {
     code: "provider_error",
     userMessage:

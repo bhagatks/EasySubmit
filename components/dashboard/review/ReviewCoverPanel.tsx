@@ -39,6 +39,7 @@ export function ReviewCoverPanel({ entry, onRefresh }: ReviewCoverPanelProps) {
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [latexOpen, setLatexOpen] = useState(false);
   const [latexPayload, setLatexPayload] = useState<{
     latex: string;
@@ -170,11 +171,15 @@ export function ReviewCoverPanel({ entry, onRefresh }: ReviewCoverPanelProps) {
           void (async () => {
             setBusy("enhance");
             setError(null);
+            setNotice(null);
             const result = await enhanceJobCoverLetter(entry.id);
             setBusy(null);
             if (!result.success) {
               setError(result.error);
               return;
+            }
+            if (result.fallbackUsed && result.fallbackSummary) {
+              setNotice(result.fallbackSummary);
             }
             onRefresh();
           })();
@@ -244,6 +249,12 @@ export function ReviewCoverPanel({ entry, onRefresh }: ReviewCoverPanelProps) {
         {error ? (
           <p className="absolute left-2 right-2 top-11 z-10 rounded-lg border border-red-500/30 bg-[oklch(0.16_0.04_268/0.92)] px-3 py-1.5 text-xs text-red-300">
             {error}
+          </p>
+        ) : null}
+
+        {notice ? (
+          <p className="absolute left-2 right-2 top-11 z-10 rounded-lg border border-amber-500/30 bg-[oklch(0.16_0.04_268/0.92)] px-3 py-1.5 text-xs text-amber-200">
+            {notice}
           </p>
         ) : null}
 

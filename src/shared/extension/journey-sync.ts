@@ -61,6 +61,30 @@ export function extensionShowsJourneyError(
   return Boolean(saved && saveError?.trim());
 }
 
+/**
+ * Reconcile extension saveError with server tracker state.
+ * Server issue wins; when the saved row is healthy, drop stale client-only fetch errors.
+ */
+export function resolveExtensionSaveError(input: {
+  clientSaveError: string | null | undefined;
+  serverIssueMessage: string | null | undefined;
+  saved: boolean;
+  syncSucceeded: boolean;
+}): string | null {
+  if (!input.syncSucceeded) {
+    return input.clientSaveError?.trim() || null;
+  }
+
+  if (!input.saved) {
+    return input.clientSaveError?.trim() || null;
+  }
+
+  const serverIssue = input.serverIssueMessage?.trim() ?? null;
+  if (serverIssue) return serverIssue;
+
+  return null;
+}
+
 export function resolveExtensionJourneyDisplay(input: {
   saved: boolean;
   status?: string | null;

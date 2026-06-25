@@ -38,6 +38,11 @@ describe("job-service active row lookup", () => {
       title: "Engineer",
       company: "Acme",
       canonicalUrl: URL,
+      location: null,
+      salaryText: null,
+      description: LONG_JD,
+      platform: "workday",
+      metadata: {},
     } as never);
 
     const status = await getJobTrackerStatusForUrl("user-1", URL);
@@ -48,6 +53,7 @@ describe("job-service active row lookup", () => {
       status: "READY_TO_APPLY",
       title: "Engineer",
       canReapply: false,
+      issueMessage: null,
     });
     expect(prisma.jobTrackerEntry.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -81,6 +87,24 @@ describe("job-service active row lookup", () => {
     expect(withTracking.saved).toBe(true);
     expect(withoutTracking.saved).toBe(true);
     expect(withTracking.id).toBe("entry-1");
+  });
+
+  it("returns server pipeline issue message for extension sync", async () => {
+    vi.mocked(prisma.jobTrackerEntry.findFirst).mockResolvedValue({
+      id: "entry-2",
+      status: "CAPTURED",
+      title: "Engineer",
+      company: "Acme",
+      canonicalUrl: URL,
+      location: null,
+      salaryText: null,
+      description: LONG_JD,
+      platform: "workday",
+      metadata: { pipelineError: "Tailor failed" },
+    } as never);
+
+    const status = await getJobTrackerStatusForUrl("user-1", URL);
+    expect(status.issueMessage).toBe("Tailor failed");
   });
 
   it("returns saved:false after row deleted", async () => {
@@ -123,8 +147,48 @@ describe("saveJobTrackerEntry re-apply", () => {
     });
 
     expect(prisma.jobTrackerEntry.create).not.toHaveBeenCalled();
-    expect(prisma.jobTrackerEntry.update).toHaveBeenCalled();
+    expect(prisma.jobTrackerEntry.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "entry-progress" },
+        data: expect.objectContaining({
+          status: "CAPTURED",
+          appliedAt: null,
+        }),
+      }),
+    );
     expect(saved.id).toBe("entry-progress");
+  });
+
+  it("resets READY_TO_APPLY back to CAPTURED when capturing again", async () => {
+    vi.mocked(prisma.jobTrackerEntry.findFirst).mockResolvedValueOnce({
+      id: "entry-ready",
+      status: "READY_TO_APPLY",
+      title: "Old",
+      company: null,
+      canonicalUrl: URL,
+    } as never);
+
+    vi.mocked(prisma.jobTrackerEntry.update).mockResolvedValue({
+      id: "entry-ready",
+      status: "CAPTURED",
+      title: "Engineer",
+      company: "Acme",
+      canonicalUrl: URL,
+    } as never);
+
+    const saved = await saveJobTrackerEntry("user-1", {
+      url: URL,
+      title: "Engineer",
+      company: "Acme",
+      description: LONG_JD,
+    });
+
+    expect(prisma.jobTrackerEntry.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "CAPTURED", appliedAt: null }),
+      }),
+    );
+    expect(saved.status).toBe("CAPTURED");
   });
 
   it("archives APPLIED row and creates fresh CAPTURED on re-apply", async () => {

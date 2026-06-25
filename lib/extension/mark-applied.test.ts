@@ -35,4 +35,14 @@ describe("markJobTrackerApplied", () => {
     expect(result).toMatchObject({ success: true, alreadyApplied: true });
     expect(updateJobTrackerStatus).not.toHaveBeenCalled();
   });
+
+  it("rejects mark applied before READY_TO_APPLY", async () => {
+    vi.mocked(prisma.jobTrackerEntry.findFirst).mockResolvedValue({
+      status: "CAPTURED",
+    } as never);
+
+    const result = await markJobTrackerApplied("user-1", "entry-1", "extension_auto");
+    expect(result).toMatchObject({ success: false, code: "invalid_status" });
+    expect(updateJobTrackerStatus).not.toHaveBeenCalled();
+  });
 });

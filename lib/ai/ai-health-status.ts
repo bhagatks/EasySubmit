@@ -15,9 +15,11 @@ export type AiHealthStatus =
   | { ok: false; code: AiHealthErrorCode; message: string };
 
 const KEY_ERROR_CODES = [
+  "vault_decrypt_failed",
+  "insufficient_quota",
+  "provider_error",
   "invalid_api_key",
   "authentication_failed",
-  "insufficient_quota",
   "permission_denied",
   "api_key_invalid",
 ];
@@ -60,7 +62,7 @@ async function _checkForUser(userId: string): Promise<AiHealthStatus> {
     const recentKeyFailures = await prisma.apiCallLog.count({
       where: {
         userId,
-        keySource: "customer",
+        aiMode: "customer",
         status: "error",
         errorCode: { in: KEY_ERROR_CODES },
         createdAt: { gte: since },

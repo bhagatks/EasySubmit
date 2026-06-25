@@ -43,12 +43,16 @@ export type UseJobTrackerSyncOptions = {
 async function fetchJobTrackerEntries(
   entriesUrl: string,
 ): Promise<JobTrackerSummary[] | null> {
-  const response = await fetch(entriesUrl, { credentials: "include" });
-  if (!response.ok) return null;
+  try {
+    const response = await fetch(entriesUrl, { credentials: "include" });
+    if (!response.ok) return null;
 
-  const body = (await response.json()) as JobTrackerEntriesResponse;
-  if (!body.success || !Array.isArray(body.entries)) return null;
-  return body.entries;
+    const body = (await response.json()) as JobTrackerEntriesResponse;
+    if (!body.success || !Array.isArray(body.entries)) return null;
+    return body.entries;
+  } catch {
+    return null;
+  }
 }
 
 /**

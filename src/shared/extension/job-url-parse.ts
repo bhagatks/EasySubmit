@@ -1,5 +1,10 @@
 import { parseWorkdayTitleFromUrl, isWorkdayJobUrl, isWorkdayApplyStepUrl } from "./workday-helpers";
-import { isGreenhouseEmbeddedJobUrl } from "./greenhouse-helpers";
+import {
+  isGreenhouseEmbeddedJobUrl,
+  isGreenhouseBoardJobUrl,
+  parseGreenhouseBoardJobFromUrl,
+  parseGreenhouseCompanyFromBoardUrl,
+} from "./greenhouse-helpers";
 
 export function slugToTitle(slug: string): string {
   const decoded = decodeURIComponent(slug).trim();
@@ -51,6 +56,9 @@ export function parseJobTitleFromUrl(url: string): string | null {
   const workdayTitle = parseWorkdayTitleFromUrl(url);
   if (workdayTitle) return workdayTitle;
 
+  const greenhouseBoard = parseGreenhouseBoardJobFromUrl(url);
+  if (greenhouseBoard) return `Job ${greenhouseBoard.jobId}`;
+
   const icims = parseIcimsJobFromUrl(url);
   if (icims?.title) return icims.title;
 
@@ -100,6 +108,9 @@ export function parseCompanyFromJobHost(url: string): string | null {
     const parsed = new URL(url);
     const host = parsed.hostname.replace(/^www\./i, "");
     if (KNOWN_CAREER_HOSTS[host]) return KNOWN_CAREER_HOSTS[host];
+
+    const greenhouseCompany = parseGreenhouseCompanyFromBoardUrl(url);
+    if (greenhouseCompany) return greenhouseCompany;
 
     const jobsSubdomain = host.match(/^jobs\.([^.]+)\./i);
     if (jobsSubdomain?.[1] && jobsSubdomain[1] !== "wd1") {
@@ -156,6 +167,7 @@ export function hasStrongJobUrlSignal(url: string): boolean {
   if (isWorkdayJobUrl(url) && parseWorkdayTitleFromUrl(url)) return true;
   if (isWorkdayApplyStepUrl(url)) return true;
   if (isGreenhouseEmbeddedJobUrl(url)) return true;
+  if (isGreenhouseBoardJobUrl(url)) return true;
   if (/linkedin\.com\/jobs\/(view|collections)/i.test(lower)) return true;
   if (/\/jobdetail\b/i.test(lower) && /[?&]jobid=/i.test(lower)) return true;
   if (/\/job\/[^/]+\/\d+\/?(?:\?|$)/i.test(lower)) return true;

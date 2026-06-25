@@ -2,8 +2,10 @@ import Link from "next/link";
 import { JetBrains_Mono } from "next/font/google";
 import {
   ArrowUpRight,
+  Briefcase,
   CheckCircle2,
   ChevronRight,
+  FileText,
   KeyRound,
   Loader2,
   Plus,
@@ -301,7 +303,37 @@ export async function DashboardOverview({
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-2xl border border-border bg-surface/60 p-5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs uppercase tracking-wider text-muted-foreground">
+              Activity
+            </span>
+            <div className="flex items-center gap-1.5">
+              <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+              <Briefcase className="h-3.5 w-3.5 text-muted-foreground" />
+            </div>
+          </div>
+          <div className="mt-3 flex items-end gap-4">
+            <div>
+              <div className={mono + " text-3xl font-semibold tabular-nums"}>
+                {formatDashboardInteger(stats.resumesGenerated)}
+              </div>
+              <div className="mt-0.5 text-xs text-muted-foreground">resumes</div>
+            </div>
+            <div className="mb-0.5 text-muted-foreground/40 text-lg font-light">/</div>
+            <div>
+              <div className={mono + " text-3xl font-semibold tabular-nums"}>
+                {formatDashboardInteger(stats.jobsTracked)}
+              </div>
+              <div className="mt-0.5 text-xs text-muted-foreground">jobs tracked</div>
+            </div>
+          </div>
+          <div className={mono + " mt-2 text-xs tabular-nums"} style={{ color: SYSTEM_MINT }}>
+            {stats.targetRole ? `Target · ${stats.targetRole}` : "Career Architecture"}
+          </div>
+        </div>
+
         <div className="rounded-2xl border border-border bg-surface/60 p-5">
           <div className="flex items-center justify-between">
             <span className="text-xs uppercase tracking-wider text-muted-foreground">
@@ -334,11 +366,15 @@ export async function DashboardOverview({
         ) : (
           <NextActionCard action={stats.nextBestAction} />
         )}
-
-        {showSystemQuota && stats.systemQuota ? (
-          <NextActionCard action={stats.nextBestAction} />
-        ) : null}
       </div>
+
+      {showSystemQuota && stats.systemQuota ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="lg:col-start-4">
+            <NextActionCard action={stats.nextBestAction} />
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid min-w-0 gap-6 lg:grid-cols-[3fr_2fr]">
         <div

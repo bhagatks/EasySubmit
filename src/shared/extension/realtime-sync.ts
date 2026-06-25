@@ -51,9 +51,9 @@ export function subscribeJobTrackerRealtime(
   };
 }
 
-export type JobStatusChangeHandler = (status: string) => void;
+export type JobStatusChangeHandler = (status: string, row?: { metadata?: unknown }) => void;
 
-/** Subscribe to status changes for a single job entry. Calls handler with new status on each change. */
+/** Subscribe to status changes for a single job entry. Calls handler on each row update. */
 export function subscribeJobStatusRealtime(
   supabase: SupabaseClient,
   jobId: string,
@@ -70,8 +70,8 @@ export function subscribeJobStatusRealtime(
         filter: `id=eq.${jobId}`,
       },
       (payload) => {
-        const status = (payload.new as { status?: string }).status;
-        if (status) onStatus(status);
+        const row = payload.new as { status?: string; metadata?: unknown };
+        if (row.status) onStatus(row.status, row);
       },
     )
     .subscribe();

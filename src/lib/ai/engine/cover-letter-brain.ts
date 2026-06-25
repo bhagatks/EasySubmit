@@ -5,7 +5,7 @@ import {
 } from "@/src/lib/ai/engine/cover-letter-rules";
 
 function experienceHighlights(form: HubRefineryForm): string[] {
-  return form.experience
+  return (form.experience ?? [])
     .filter((entry) => !entry.hidden && (entry.title?.trim() || entry.company?.trim()))
     .slice(0, 3)
     .map((entry) => {

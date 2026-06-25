@@ -3,6 +3,7 @@ import {
   classifyJourneySyncTransition,
   extensionShowsJourneyError,
   resolveExtensionJourneyDisplay,
+  resolveExtensionSaveError,
   shouldResetExtensionAfterSync,
   snapshotFromServerStatus,
 } from "@/src/shared/extension/journey-sync";
@@ -83,7 +84,31 @@ describe("extension journey display after delete", () => {
       pipelineBusy: false,
     });
     expect(display.stage).toBe(2);
-    expect(display.label).toBe("Apply assist");
+    expect(display.label).toBe("Ready to ApplyAssist");
     expect(display.showAssistCard).toBe(true);
+  });
+});
+
+describe("resolveExtensionSaveError", () => {
+  it("clears stale client Failed to fetch when server row is healthy", () => {
+    expect(
+      resolveExtensionSaveError({
+        clientSaveError: "Failed to fetch",
+        serverIssueMessage: null,
+        saved: true,
+        syncSucceeded: true,
+      }),
+    ).toBeNull();
+  });
+
+  it("prefers server issue message over stale client error", () => {
+    expect(
+      resolveExtensionSaveError({
+        clientSaveError: "Failed to fetch",
+        serverIssueMessage: "Tailor failed",
+        saved: true,
+        syncSucceeded: true,
+      }),
+    ).toBe("Tailor failed");
   });
 });

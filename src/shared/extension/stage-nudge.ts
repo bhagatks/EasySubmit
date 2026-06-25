@@ -59,6 +59,10 @@ export function glossyShellStyles(): string {
     .glossy-shell.is-live {
       animation: shell-glow 3.4s ease-in-out infinite;
     }
+    .glossy-shell.is-live .glossy-shell-shimmer {
+      opacity: 1;
+      animation: shell-shimmer 5s ease-in-out infinite;
+    }
     .glossy-shell-sheen {
       pointer-events: none;
       position: absolute;
@@ -80,7 +84,7 @@ export function glossyShellStyles(): string {
         transparent 62%
       );
       transform: translateX(-130%);
-      animation: shell-shimmer 5s ease-in-out infinite;
+      opacity: 0;
     }
     .glossy-cards {
       position: relative;

@@ -26,6 +26,14 @@ export async function markJobTrackerApplied(
     return { success: true, id: entryId, status: "APPLIED", alreadyApplied: true };
   }
 
+  if (row.status !== "READY_TO_APPLY") {
+    return {
+      success: false,
+      error: "Complete the apply steps before marking this job as applied.",
+      code: "invalid_status",
+    };
+  }
+
   await updateJobTrackerStatus(userId, entryId, "APPLIED");
   await mergeJobEntryMetadata(userId, entryId, {
     appliedSource: source,

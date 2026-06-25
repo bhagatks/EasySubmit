@@ -36,6 +36,8 @@ export type EnhanceCoverLetterSuccess = {
   success: true;
   body: string;
   aiMode: "customer" | "system";
+  fallbackUsed?: boolean;
+  fallbackSummary?: string;
 };
 
 export type EnhanceCoverLetterFailure = {
@@ -190,25 +192,34 @@ export async function enhanceCoverLetterForUserId(
     };
   }
 
-  const increment = incrementQuotaPatch(quotaRow, aiEngine, {
-    isEnhancement: true,
-    callCount: result.apiCallCount,
-    mode: route.mode,
-  });
+  const usedFallback = Boolean(result.fallbackUsed);
 
-  await prisma.user.update({
-    where: { id: userId },
-    data: {
-      ...(resetPatch ?? {}),
-      ...increment,
-    },
-  });
+  if (!usedFallback) {
+    const increment = incrementQuotaPatch(quotaRow, aiEngine, {
+      isEnhancement: true,
+      callCount: result.apiCallCount,
+      mode: route.mode,
+    });
 
-  if (result.tokensUsed > 0) {
-    await recordUsageLogForUser(userId, {
-      modelId: result.modelId,
-      tokensUsed: result.tokensUsed,
-      estimatedCost: 0,
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(resetPatch ?? {}),
+        ...increment,
+      },
+    });
+
+    if (result.tokensUsed > 0) {
+      await recordUsageLogForUser(userId, {
+        modelId: result.modelId,
+        tokensUsed: result.tokensUsed,
+        estimatedCost: 0,
+      });
+    }
+  } else if (resetPatch) {
+    await prisma.user.update({
+      where: { id: userId },
+      data: resetPatch,
     });
   }
 
@@ -218,11 +229,18 @@ export async function enhanceCoverLetterForUserId(
     userId,
     aiMode: route.mode,
     bodyChars: result.body.length,
+    fallbackUsed: usedFallback,
   });
 
   return {
     success: true,
     body: result.body,
     aiMode: route.mode,
+    ...(usedFallback
+      ? {
+          fallbackUsed: true,
+          fallbackSummary: result.fallbackSummary,
+        }
+      : {}),
   };
 }

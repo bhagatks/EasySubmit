@@ -3,7 +3,7 @@ import { buildFallbackJobMetadata } from "@shared/extension/force-metadata";
 import { isJobPage } from "@shared/extension/is-job-page";
 import { canApplyCapture } from "@shared/extension/apply-gate";
 import { hasStrongJobUrlSignal } from "@shared/extension/job-url-parse";
-import { isGreenhouseEmbeddedJobUrl } from "@shared/extension/greenhouse-helpers";
+import { isGreenhouseEmbeddedJobUrl, isGreenhouseBoardJobUrl } from "@shared/extension/greenhouse-helpers";
 import {
   buildLoadingJobMetadata,
   buildManualCaptureMetadata,
@@ -61,7 +61,7 @@ export function resolveCardContent(
 
   if (hasStrongJobUrlSignal(input.url)) {
     const metadata = buildLoadingJobMetadata();
-    if (isGreenhouseEmbeddedJobUrl(input.url)) {
+    if (isGreenhouseEmbeddedJobUrl(input.url) || isGreenhouseBoardJobUrl(input.url)) {
       metadata.platform = "greenhouse";
     }
     return { presentation: "loading", metadata };

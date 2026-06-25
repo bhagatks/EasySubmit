@@ -35,7 +35,7 @@ export const COLOR = {
 export const SPACING = {
   pageMarginV:     36, // 0.5in = 36pt
   pageMarginH:     48, // 0.67in = 48pt
-  afterName:        4,
+  afterName:        8,
   afterContact:    14,
   afterSectionRule: 4,
   betweenSections: 12,

@@ -47,7 +47,7 @@ export type RunApplyPipelineResult =
       status?: JobTrackerStatus;
     };
 
-const TAILOR_COMPLETE_STATUSES: JobTrackerStatus[] = ["RESUME_READY", "READY_TO_APPLY", "APPLIED"];
+const TAILOR_COMPLETE_STATUSES: JobTrackerStatus[] = ["RESUME_READY", "READY_TO_APPLY"];
 
 async function findExistingTailoredState(
   userId: string,
@@ -109,9 +109,9 @@ function shouldOfferAutofillPhase(
 export async function captureJob(
   userId: string,
   input: RunApplyPipelineInput,
-): Promise<{ id: string }> {
+): Promise<{ id: string; status: JobTrackerStatus }> {
   const saved = await saveJobTrackerEntry(userId, input);
-  return { id: saved.id };
+  return { id: saved.id, status: saved.status };
 }
 
 /** Stage 1→2: tailor resume + advance to READY_TO_APPLY. Called fire-and-forget after capture. */

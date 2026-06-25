@@ -34,6 +34,18 @@ describe("evaluateApplicationConfirmation", () => {
     expect(result).toBe(true);
   });
 
+  it("does not treat Workday job posting pages as confirmation", () => {
+    const postingDoc = document.implementation.createHTMLDocument("Posting");
+    postingDoc.body.innerHTML =
+      "<main><p>Thank you for applying to our team.</p><button>Apply</button></main>";
+    const result = evaluateApplicationConfirmation(
+      "workday",
+      "https://irhythmtech.wd5.myworkdayjobs.com/iRhythm/job/Remote---US/Sr-Manager--Software-Engineering_JR1346",
+      postingDoc,
+    );
+    expect(result).toBe(false);
+  });
+
   it("detects lever thanks pages", () => {
     const doc = document.implementation.createHTMLDocument("Thanks");
     doc.body.textContent = "Application submitted";

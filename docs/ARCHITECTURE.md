@@ -160,6 +160,8 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 
 | Date | Summary |
 |------|---------|
+| 2026-06-25 | Global AI health alert — `getAiHealthStatus` / `AiHealthAlert` in dashboard header; `aiHealthError` on extension config + card tooltip; Settings split into AI Keys + General |
+| 2026-06-25 | Extension pipeline hardening — re-capture resets row to CAPTURED; `markJobTrackerApplied` only from READY_TO_APPLY; content script `__easysubmitCleanup` teardown; BYOK health uses `aiMode: customer` in ApiCallLog |
 | 2026-06-25 | Event-driven apply pipeline: split into `/capture` (instant) + `/tailor` (async); per-job Supabase Realtime push replaces extension polling; `captureJob` + `tailorJobPipeline` in `apply-pipeline.ts`; `subscribeJobStatusRealtime` in `realtime-sync.ts`; `startJobStatusRealtime` in `job-realtime.ts` |
 | 2026-06-25 | Pipeline bar active segment labels dynamic: CAPTURED→"Optimizing resume", RESUME_READY→"Resume ready", READY_TO_APPLY→"Ready to ApplyAssist" via `pipelineActiveSegmentLabel` |
 | 2026-06-25 | Extension key/quota failures: specific card badge + message + Open Settings deeplink (`resolveKeyFailurePresentation`, `DashboardKeyFailureAlert` on web) |

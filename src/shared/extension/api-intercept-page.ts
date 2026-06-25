@@ -61,7 +61,7 @@ function tryParse(text: string): Record<string, unknown> | null {
 const ATS_PATTERNS: AtsPattern[] = [
   {
     platform: "greenhouse",
-    pattern: /boards-api\.greenhouse\.io\/v1\/boards\/[^/]+\/jobs\/\d+/i,
+    pattern: /(?:boards-api|job-boards-api)\.greenhouse\.io\/v1\/boards\/[^/]+\/jobs\/\d+/i,
     parse: (data) => ({
       title: typeof data.title === "string" ? data.title : undefined,
       company: undefined,

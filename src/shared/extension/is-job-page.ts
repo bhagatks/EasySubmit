@@ -12,7 +12,7 @@ export const HIGH_CONFIDENCE_JOB_URL_PATTERNS: RegExp[] = [
   /linkedin\.com\/jobs\/collections/i,
   /indeed\.com\/viewjob/i,
   /indeed\.com\/rc\/clk/i,
-  /boards\.greenhouse\.io\/[^/]+\/jobs\//i,
+  /(?:boards|job-boards)\.greenhouse\.io\/[^/]+\/jobs\//i,
   /[?&]gh_jid=\d+/i,
   /jobs\.lever\.co\/[^/]+/i,
   /jobs\.ashbyhq\.com\/[^/]+/i,

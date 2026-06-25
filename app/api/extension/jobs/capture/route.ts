@@ -23,8 +23,8 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { id } = await captureJob(userId, body);
-    return Response.json({ success: true, id, status: "CAPTURED" });
+    const { id, status } = await captureJob(userId, body);
+    return Response.json({ success: true, id, status });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Capture failed";
     return Response.json({ success: false, error: message }, { status: 500 });

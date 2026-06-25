@@ -139,7 +139,7 @@ export const indeedAdapter = baseAdapter(
 
 export const greenhouseAdapter = baseAdapter(
   "greenhouse",
-  [/boards\.greenhouse\.io\/.*\/jobs\//i, /[?&]gh_jid=\d+/i],
+  [/(?:boards|job-boards)\.greenhouse\.io\/.*\/jobs\//i, /[?&]gh_jid=\d+/i],
   ["#content", ".content", "main", "#grnhse_app", "[id*='grnhse']"],
   [".company-name", ".logo-container a"],
   [".location"],

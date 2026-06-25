@@ -1,7 +1,7 @@
 import { parseJobDescriptionFromJsonLd } from "./scrape-helpers";
 import { hasStrongJobUrlSignal, parseJobTitleFromUrl } from "./job-url-parse";
 import { isWorkdayApplyStepUrl, isWorkdayJobUrl } from "./workday-helpers";
-import { isGreenhouseEmbeddedJobUrl } from "./greenhouse-helpers";
+import { isGreenhouseEmbeddedJobUrl, isGreenhouseBoardJobUrl } from "./greenhouse-helpers";
 
 /** What kind of careers page this URL/DOM represents. */
 export type PageKind =
@@ -90,6 +90,11 @@ export function classifyJobPage(url: string, doc?: Document | null): PageClassif
 
   if (isGreenhouseEmbeddedJobUrl(url)) {
     pushReason(reasons, "greenhouse:gh_jid");
+    return { kind: "job_posting", reasons };
+  }
+
+  if (isGreenhouseBoardJobUrl(url)) {
+    pushReason(reasons, "greenhouse:job_boards");
     return { kind: "job_posting", reasons };
   }
 

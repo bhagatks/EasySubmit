@@ -1,5 +1,7 @@
 | Date | Item |
 |------|------|
+| 2026-06-25 | Extension pipeline hardening — re-capture resets to CAPTURED, mark-applied only from READY_TO_APPLY, content script teardown via window cleanup, AI health BYOK log query fix (`aiMode: customer`) |
+| 2026-06-25 | Global AI health alert (dashboard header + extension card icon) + Settings split into AI Keys / General |
 | 2026-06-23 | Extension on-demand PDFs + file injector: resume/cover-letter PDF routes, `file-inject.ts`, Workday upload wiring |
 | 2026-06-23 | Application profile Phases 6–8: user-prefs PATCH JSONB merge, extension setup Screens 1–2, field-resolution `application_profile` step, journey display button states |
 | 2026-06-23 | Journey sync (extension ↔ app): State 0 manual capture + loading hydration, Stage 2 two-card assist, Realtime + poll sync, `?es_open=assist`, `MARK_APPLIED`, Layer B apply gate — `docs/SYNC_ARCHITECTURE.md` |

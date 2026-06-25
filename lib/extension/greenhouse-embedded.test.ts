@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isGreenhouseEmbeddedJobUrl,
+  isGreenhouseBoardJobUrl,
   parseGreenhouseJobPostId,
 } from "@/src/shared/extension/greenhouse-helpers";
 import {
@@ -11,6 +12,9 @@ import {
 
 const SUVODA_JOB =
   "https://www.suvoda.com/careers/job-openings?gh_jid=8521135002";
+
+const HIGHTOUCH_JOB =
+  "https://job-boards.greenhouse.io/hightouch/jobs/5727573004";
 
 describe("greenhouse embedded job URLs", () => {
   it("parses gh_jid from embedded career-site URLs", () => {
@@ -39,7 +43,19 @@ describe("greenhouse embedded job URLs", () => {
     ).toBe("Acmecorp");
   });
 
-  it("does not invent company on native Greenhouse board URLs", () => {
-    expect(parseCompanyFromJobHost("https://boards.greenhouse.io/acme/jobs/12345")).toBeNull();
+  it("parses company from native Greenhouse board URLs", () => {
+    expect(parseCompanyFromJobHost("https://boards.greenhouse.io/acme/jobs/12345")).toBe("Acme");
+  });
+});
+
+describe("greenhouse job-boards host", () => {
+  it("detects job-boards.greenhouse.io posting URLs", () => {
+    expect(hasStrongJobUrlSignal(HIGHTOUCH_JOB)).toBe(true);
+    expect(isJobPostingPage(HIGHTOUCH_JOB)).toBe(true);
+    expect(isGreenhouseBoardJobUrl(HIGHTOUCH_JOB)).toBe(true);
+  });
+
+  it("parses company from job-boards path segment", () => {
+    expect(parseCompanyFromJobHost(HIGHTOUCH_JOB)).toBe("Hightouch");
   });
 });

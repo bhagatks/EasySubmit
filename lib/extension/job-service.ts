@@ -6,6 +6,7 @@ import {
   logJobCaptureOnSave,
 } from "@/lib/job-tracker/capture-log";
 import { normalizeSaveJobInput } from "@/lib/extension/normalize-save-job";
+import { entryIssueMessage } from "@/src/shared/extension/capture-fields";
 
 export type SaveJobTrackerInput = {
   url: string;
@@ -26,6 +27,8 @@ export type JobTrackerStatusResult = {
   title?: string;
   /** True when the latest non-archived row is APPLIED — extension shows Re-apply. */
   canReapply?: boolean;
+  /** Matches dashboard tracker issue — server is source of truth for saved jobs. */
+  issueMessage?: string | null;
 };
 
 const IN_PROGRESS_STATUSES: JobTrackerStatus[] = ["CAPTURED", "RESUME_READY", "READY_TO_APPLY"];
@@ -36,6 +39,11 @@ const activeEntrySelect = {
   title: true,
   company: true,
   canonicalUrl: true,
+  location: true,
+  salaryText: true,
+  description: true,
+  platform: true,
+  metadata: true,
 } as const;
 
 function buildUrlHash(rawUrl: string): { canonicalUrl: string; urlHash: string } {
@@ -91,6 +99,19 @@ export async function getJobTrackerStatusForUrl(
     status: row.status,
     title: row.title,
     canReapply: row.status === "APPLIED",
+    issueMessage: entryIssueMessage({
+      url: row.canonicalUrl,
+      title: row.title,
+      company: row.company,
+      location: row.location,
+      salaryText: row.salaryText,
+      description: row.description,
+      platform: row.platform,
+      metadata:
+        row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+          ? (row.metadata as Record<string, unknown>)
+          : null,
+    }),
   };
 }
 
@@ -139,6 +160,21 @@ function buildSaveMetadata(
   return Object.keys(withDiagnostics).length > 0
     ? (withDiagnostics as Prisma.InputJsonValue)
     : undefined;
+}
+
+function withoutPipelineOutcomeMetadata(
+  metadata: Prisma.InputJsonValue | undefined,
+): Prisma.InputJsonValue | undefined {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return metadata;
+  }
+
+  const next = { ...(metadata as Record<string, unknown>) };
+  delete next.pipelineError;
+  delete next.pipelineErrorCode;
+  delete next.appliedSource;
+  delete next.appliedMarkedAt;
+  return next as Prisma.InputJsonValue;
 }
 
 async function archiveAppliedRowForReapply(userId: string, urlHash: string): Promise<void> {
@@ -190,7 +226,12 @@ export async function saveJobTrackerEntry(userId: string, input: SaveJobTrackerI
   if (inProgress) {
     saved = await prisma.jobTrackerEntry.update({
       where: { id: inProgress.id },
-      data: rowData,
+      data: {
+        ...rowData,
+        metadata: withoutPipelineOutcomeMetadata(metadata),
+        status: "CAPTURED",
+        appliedAt: null,
+      },
       select: activeEntrySelect,
     });
   } else {
@@ -203,6 +244,7 @@ export async function saveJobTrackerEntry(userId: string, input: SaveJobTrackerI
         urlHash,
         status: "CAPTURED",
         ...rowData,
+        metadata: withoutPipelineOutcomeMetadata(metadata),
       },
       select: activeEntrySelect,
     });

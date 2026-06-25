@@ -1,4 +1,5 @@
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
+import { buildDeterministicCoverLetterMarkdown } from "@/lib/job-tracker/build-deterministic-cover-letter";
 import {
   buildCoverLetterSystemPrompt,
   buildCoverLetterUserPrompt,
@@ -32,6 +33,8 @@ export type RunCoverLetterEnhanceSuccess = {
   tokensUsed: number;
   modelId: string;
   apiCallCount: number;
+  fallbackUsed?: boolean;
+  fallbackSummary?: string;
 };
 
 export type RunCoverLetterEnhanceResult = RunCoverLetterEnhanceSuccess | RunEnhanceFailure;
@@ -64,6 +67,25 @@ export async function runCoverLetterEnhance(
 
     const body = normalizeCoverLetterBody(result.text);
     if (body.length < 80) {
+      const fallback = buildDeterministicCoverLetterMarkdown({
+        form: input.form,
+        targetTitle: input.targetTitle,
+        company: input.company,
+        jobTitle: input.jobTitle,
+        jobDescription: input.jobDescription,
+      });
+      if (fallback.ok && fallback.markdown.trim().length >= 80) {
+        return {
+          ok: true,
+          body: fallback.markdown.trim(),
+          tokensUsed: result.tokensUsed,
+          modelId: result.modelId,
+          apiCallCount: 1,
+          fallbackUsed: true,
+          fallbackSummary:
+            "AI returned an unusable draft. We saved a template-based letter you can edit.",
+        };
+      }
       return {
         ok: false,
         error: "AI returned an invalid cover letter. Try again.",
@@ -103,7 +125,34 @@ export async function runCoverLetterEnhance(
       durationMs: Date.now() - startedAt,
       code: mapped.code,
       userMessage: mapped.userMessage,
+      rawMessage: mapped.rawMessage,
     });
+
+    const fallback = buildDeterministicCoverLetterMarkdown({
+      form: input.form,
+      targetTitle: input.targetTitle,
+      company: input.company,
+      jobTitle: input.jobTitle,
+      jobDescription: input.jobDescription,
+    });
+
+    if (fallback.ok && fallback.markdown.trim().length >= 80) {
+      logEnhance("engine", "cover.run.fallback.success", {
+        traceId,
+        step: ENHANCE_PIPELINE.ENGINE_ERROR,
+        bodyChars: fallback.markdown.length,
+      });
+      return {
+        ok: true,
+        body: fallback.markdown.trim(),
+        tokensUsed: 0,
+        modelId: "deterministic",
+        apiCallCount: 0,
+        fallbackUsed: true,
+        fallbackSummary:
+          "AI was unavailable. We saved a template-based draft — review and edit before applying.",
+      };
+    }
 
     return {
       ok: false,

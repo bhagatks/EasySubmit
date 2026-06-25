@@ -53,6 +53,10 @@ export type ReviewActionResult =
   | { success: true }
   | { success: false; error: string; code?: string };
 
+export type EnhanceCoverActionResult =
+  | { success: true; fallbackUsed?: boolean; fallbackSummary?: string }
+  | { success: false; error: string; code?: string };
+
 export type ReviewExportActionResult =
   | { success: true; filename: string; mimeType: string; base64: string }
   | { success: false; error: string; code?: string };
@@ -239,7 +243,7 @@ export async function enhanceJobResumeFromReview(jobId: string): Promise<Enhance
   };
 }
 
-export async function enhanceJobCoverLetter(jobId: string): Promise<ReviewActionResult> {
+export async function enhanceJobCoverLetter(jobId: string): Promise<EnhanceCoverActionResult> {
   const userId = await requireUserId();
   if (!userId) return { success: false, error: "Sign in required", code: "unauthorized" };
 
@@ -291,7 +295,15 @@ export async function enhanceJobCoverLetter(jobId: string): Promise<ReviewAction
   if (!updated.success) return updated;
 
   revalidatePath("/dashboard/job-tracker");
-  return { success: true };
+  return {
+    success: true,
+    ...(enhanced.fallbackUsed
+      ? {
+          fallbackUsed: true,
+          fallbackSummary: enhanced.fallbackSummary,
+        }
+      : {}),
+  };
 }
 
 export async function exportReviewDocument(input: {
