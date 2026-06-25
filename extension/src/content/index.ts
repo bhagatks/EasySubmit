@@ -54,6 +54,7 @@ import {
   classifyJourneySyncTransition,
   extensionJourneySyncPollIntervalMs,
   resolveExtensionJourneyDisplay,
+  resolveExtensionSaveError,
   shouldResetExtensionAfterSync,
   shouldRunExtensionJourneySyncPoll,
   snapshotFromServerStatus,
@@ -79,7 +80,12 @@ import {
   type ProfileSetupScreen1Draft,
   type ProfileSetupScreen2Draft,
 } from "./card-ui";
-import { startExtensionJobRealtime, stopExtensionJobRealtime } from "./job-realtime";
+import {
+  startExtensionJobRealtime,
+  startJobStatusRealtime,
+  stopExtensionJobRealtime,
+  stopJobStatusRealtime,
+} from "./job-realtime";
 import {
   isChromeExtensionContextValid,
   isExtensionContextInvalidatedError,
@@ -1424,7 +1430,7 @@ function startJourneySyncPoll(): void {
 
 async function applyServerJourneyRefresh(reason: string): Promise<void> {
   const before = snapshotFromServerStatus(savedStatus);
-  await refreshSavedStatus();
+  const sync = await refreshSavedStatus();
   const after = snapshotFromServerStatus(savedStatus);
   const transition = classifyJourneySyncTransition(before, after);
 
@@ -1444,12 +1450,16 @@ async function applyServerJourneyRefresh(reason: string): Promise<void> {
     return;
   }
 
-  if (transition === "server_updated") {
-    saveError = null;
-  }
+  const previousSaveError = saveError;
+  saveError = resolveExtensionSaveError({
+    clientSaveError: saveError,
+    serverIssueMessage: sync?.issueMessage,
+    saved: after.saved,
+    syncSucceeded: sync !== null,
+  });
 
-  if (transition !== "unchanged" && cardHost) {
-    renderCard(cardHost.shadow);
+  if (transition !== "unchanged" || previousSaveError !== saveError) {
+    if (cardHost) renderCard(cardHost.shadow);
   }
 
   if (shouldRunExtensionJourneySyncPoll(after)) {
@@ -1468,20 +1478,23 @@ async function applyServerJourneyRefresh(reason: string): Promise<void> {
   }
 }
 
-async function refreshSavedStatus(): Promise<void> {
+async function refreshSavedStatus(): Promise<{
+  issueMessage: string | null | undefined;
+} | null> {
   const lookupUrl = canonicalizeJobUrl(location.href);
   const res = await sendMessage<{
     saved: boolean;
     status?: string;
     id?: string;
     canReapply?: boolean;
+    issueMessage?: string | null;
   }>({
     action: EXTENSION_MESSAGE.JOB_STATUS,
     url: lookupUrl,
   });
   if (!res) {
     journeySyncWarn("extension", "job_status_unreachable", { lookupUrl, pageUrl: location.href });
-    return;
+    return null;
   }
   savedStatus = {
     saved: Boolean(res.saved),
@@ -1489,6 +1502,7 @@ async function refreshSavedStatus(): Promise<void> {
     id: typeof res.id === "string" ? res.id : undefined,
     canReapply: Boolean(res.canReapply),
   };
+  return { issueMessage: res.issueMessage };
 }
 
 function stopStatusPolling(): void {
@@ -1895,51 +1909,56 @@ async function startApplyPipeline(): Promise<void> {
   pipelineBusy = true;
   pipelineBusyLabel = "Optimizing resume…";
   saveError = null;
-  startStatusPolling();
   if (cardHost) renderCard(cardHost.shadow);
 
   try {
-    const res = await sendMessage<{
-      success: boolean;
-      saved?: boolean;
-      status?: string;
-      id?: string;
-      pendingPhase?: string | null;
-      hasTailoredResume?: boolean;
-      sourceProfileId?: string | null;
-      error?: string;
-      code?: string;
-    }>({
-      action: EXTENSION_MESSAGE.RUN_PIPELINE,
+    // Stage 0→1: capture immediately, get id back
+    const captureRes = await sendMessage<{ success: boolean; id?: string; error?: string }>({
+      action: EXTENSION_MESSAGE.CAPTURE_JOB,
       payload,
     });
 
-    const jobSaved = Boolean(res?.success || res?.saved);
-
-    if (jobSaved) {
-      savedStatus = {
-        saved: true,
-        status: res?.status ?? "CAPTURED",
-        id: typeof res.id === "string" ? res.id : savedStatus.id,
-      };
-      pendingPipelinePhase = res?.pendingPhase ?? null;
-      saveError = res?.success ? null : (res?.error ?? null);
-      await applyServerJourneyRefresh("pipeline_save").catch(() => undefined);
-      if (cardHost) renderCard(cardHost.shadow);
-
-      if (res?.success && res?.pendingPhase === "autofill" && savedStatus.id) {
-        void runAutofillPhase(savedStatus.id);
+    if (!captureRes?.success || !captureRes.id) {
+      saveError =
+        captureRes?.error ??
+        "Could not save this job. Reconnect the extension from the dashboard, then try again.";
+      if (captureRes?.error?.toLowerCase().includes("unauthorized")) {
+        await sendMessage({ action: EXTENSION_MESSAGE.OPEN_LOGIN });
       }
       return;
     }
 
-    saveError =
-      res?.error ??
-      "Could not save this job. Reconnect the extension from the dashboard, then try again.";
+    const jobId = captureRes.id;
+    savedStatus = { saved: true, status: "CAPTURED", id: jobId };
+    pipelineBusy = false;
+    pipelineBusyLabel = null;
+    if (cardHost) renderCard(cardHost.shadow);
 
-    if (res?.error?.toLowerCase().includes("unauthorized")) {
-      await sendMessage({ action: EXTENSION_MESSAGE.OPEN_LOGIN });
-    }
+    // Subscribe to per-job Realtime — each DB status write pushes here instantly
+    const config = runtimeConfig ?? (await ensureRuntimeConfig());
+    void startJobStatusRealtime({
+      jobId,
+      apiBaseUrl: config.apiBaseUrl,
+      getAuthToken: async () => {
+        const t = await sendMessage<{ token: string | null }>({ action: EXTENSION_MESSAGE.GET_AUTH });
+        return t?.token ?? null;
+      },
+      onSync: () => undefined,
+      onStatus: (status) => {
+        savedStatus = { ...savedStatus, status };
+        void applyServerJourneyRefresh("realtime_status").catch(() => undefined);
+        if (cardHost) renderCard(cardHost.shadow);
+        if (status === "READY_TO_APPLY" || status === "APPLIED") {
+          void stopJobStatusRealtime();
+        }
+      },
+    });
+
+    // Stage 1→2: fire tailor async — Realtime delivers each state change
+    void sendMessage({
+      action: EXTENSION_MESSAGE.TAILOR_JOB_ASYNC,
+      payload: { ...payload, entryId: jobId },
+    });
   } catch (error) {
     if (isExtensionContextInvalidatedError(error)) {
       teardownStaleExtensionContext();
@@ -1949,10 +1968,8 @@ async function startApplyPipeline(): Promise<void> {
       error instanceof Error
         ? error.message
         : "Could not reach the extension background worker. Reload the extension and try again.";
-  } finally {
     pipelineBusy = false;
     pipelineBusyLabel = null;
-    stopStatusPolling();
     if (cardHost) renderCard(cardHost.shadow);
   }
 }

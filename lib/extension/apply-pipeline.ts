@@ -105,6 +105,54 @@ function shouldOfferAutofillPhase(
   return autoApplyEnabled && autoApplyUserSwitch && isOneClickPlatform(platform);
 }
 
+/** Stage 0→1: save job entry, write CAPTURED, return immediately. */
+export async function captureJob(
+  userId: string,
+  input: RunApplyPipelineInput,
+): Promise<{ id: string }> {
+  const saved = await saveJobTrackerEntry(userId, input);
+  return { id: saved.id };
+}
+
+/** Stage 1→2: tailor resume + advance to READY_TO_APPLY. Called fire-and-forget after capture. */
+export async function tailorJobPipeline(
+  userId: string,
+  entryId: string,
+  input: RunApplyPipelineInput,
+): Promise<{ success: boolean; status: JobTrackerStatus; error?: string }> {
+  const prefs = await getExtensionUserPrefs(userId);
+
+  if (!prefs.customizeResume) {
+    await advancePipelineAfterAutofill(userId, entryId);
+    await mergeJobEntryMetadata(userId, entryId, {
+      pipelinePhases: ["capture"],
+      pipelineError: null,
+      pipelineErrorCode: null,
+    });
+    return { success: true, status: "READY_TO_APPLY" };
+  }
+
+  const existingTailored = await findExistingTailoredState(userId, entryId);
+  if (existingTailored) {
+    const status = await ensureApplyAssistStatus(userId, entryId, existingTailored.status);
+    return { success: true, status };
+  }
+
+  const tailor = await runPipelineTailor(userId, buildTailorInputFromSave(entryId, input));
+  if (!tailor.success) {
+    return { success: false, status: "CAPTURED", error: tailor.error };
+  }
+
+  await advancePipelineAfterAutofill(userId, entryId);
+  await mergeJobEntryMetadata(userId, entryId, {
+    pipelinePhases: ["capture", "tailor", "autofill"],
+    pipelineError: null,
+    pipelineErrorCode: null,
+  });
+
+  return { success: true, status: "READY_TO_APPLY" };
+}
+
 /**
  * Apply journey: capture → tailor (all platforms) → server auto-advance to READY_TO_APPLY.
  * Workday one-click may still run client autofill assist (`pendingPhase: autofill`) — adapters later.

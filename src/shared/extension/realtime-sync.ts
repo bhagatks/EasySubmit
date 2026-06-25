@@ -51,6 +51,38 @@ export function subscribeJobTrackerRealtime(
   };
 }
 
+export type JobStatusChangeHandler = (status: string) => void;
+
+/** Subscribe to status changes for a single job entry. Calls handler with new status on each change. */
+export function subscribeJobStatusRealtime(
+  supabase: SupabaseClient,
+  jobId: string,
+  onStatus: JobStatusChangeHandler,
+): JobTrackerRealtimeSubscription {
+  const channel: RealtimeChannel = supabase
+    .channel(`job-status-${jobId}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "UPDATE",
+        schema: "public",
+        table: "job_tracker_entries",
+        filter: `id=eq.${jobId}`,
+      },
+      (payload) => {
+        const status = (payload.new as { status?: string }).status;
+        if (status) onStatus(status);
+      },
+    )
+    .subscribe();
+
+  return {
+    async unsubscribe() {
+      await supabase.removeChannel(channel);
+    },
+  };
+}
+
 export async function fetchJobTrackerRealtimeCredentials(
   tokenUrl: string,
   init?: { authorization?: string },

@@ -384,6 +384,32 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (action === EXTENSION_MESSAGE.CAPTURE_JOB && message.payload) {
+    void apiFetch<{ success: boolean; id?: string; status?: string; error?: string }>(
+      "/api/extension/jobs/capture",
+      {
+        method: "POST",
+        body: JSON.stringify(message.payload as JobSavePayload),
+      },
+    )
+      .then((data) => sendResponse(data))
+      .catch(() => sendResponse({ success: false, error: "Network error" }));
+    return true;
+  }
+
+  if (action === EXTENSION_MESSAGE.TAILOR_JOB_ASYNC && message.payload) {
+    // Fire and forget — Realtime pushes status changes to the extension.
+    void apiFetch<{ success: boolean; status?: string; error?: string }>(
+      "/api/extension/jobs/tailor",
+      {
+        method: "POST",
+        body: JSON.stringify(message.payload as JobSavePayload & { entryId: string }),
+      },
+    ).catch(() => undefined);
+    sendResponse({ success: true });
+    return true;
+  }
+
   if (action === EXTENSION_MESSAGE.GET_FILL_DATA && typeof message.entryId === "string") {
     void apiFetch<{ success: boolean; fillData?: unknown; error?: string }>(
       `/api/extension/jobs/${encodeURIComponent(message.entryId)}/fill-data`,
