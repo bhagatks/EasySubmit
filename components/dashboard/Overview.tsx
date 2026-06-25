@@ -2,20 +2,20 @@ import Link from "next/link";
 import { JetBrains_Mono } from "next/font/google";
 import {
   ArrowUpRight,
-  Briefcase,
+  CheckCircle2,
   ChevronRight,
-  FileText,
+  KeyRound,
+  Loader2,
   Plus,
-  Snowflake,
+  Send,
   Sparkles,
-  TrendingUp,
+  Zap,
 } from "lucide-react";
 import { getDashboardStats } from "@/app/actions/dashboard/stats";
 import { DashboardWorkspaceShell } from "@/components/dashboard/DashboardWorkspacePage";
 import { PipelineBar } from "@/components/dashboard/PipelineBar";
 import { Button } from "@/components/ui/button";
 import {
-  formatDashboardDeltaSpend,
   formatDashboardInteger,
   formatDashboardPercent,
   formatDashboardUsd,
@@ -25,6 +25,7 @@ import {
   defaultReviewScreenPanel,
   jobTrackerReviewScreenUrl,
 } from "@/lib/job-tracker/review-screen-ui";
+import type { NextBestAction, SystemQuotaStats } from "@/app/actions/dashboard/stats";
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
@@ -33,10 +34,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 const SYSTEM_MINT = "oklch(0.82 0.16 165)";
-const NAVY_SURFACE = "oklch(0.12 0.03 268)";
 const NAVY_CANVAS = "oklch(0.16 0.04 268)";
-const MUTED = "oklch(0.45 0.02 268)";
-/** ~4 pipeline rows (title, subtitle, progress bar) plus list gaps */
 const RECENT_JOB_TRACKER_LIST_MAX_HEIGHT = "24.5rem";
 
 type DashboardOverviewProps = {
@@ -45,8 +43,211 @@ type DashboardOverviewProps = {
   userEmail?: string | null;
 };
 
-function monoClassName(): string {
+function monoClass(): string {
   return jetbrainsMono.className;
+}
+
+function SystemQuotaCard({ quota }: { quota: SystemQuotaStats }) {
+  const mono = monoClass();
+  const pct = Math.min((quota.callsToday / quota.dailyCap) * 100, 100);
+  const nearLimit = pct >= 75;
+  const exhausted = quota.slotsExhausted === quota.slotsTotal;
+
+  if (!nearLimit && !exhausted) return null;
+
+  const barColor = exhausted
+    ? "oklch(0.55 0.22 25)"
+    : pct >= 90
+      ? "oklch(0.68 0.18 45)"
+      : SYSTEM_MINT;
+
+  return (
+    <div className="rounded-2xl border border-border bg-surface/60 p-5">
+      <div className="flex items-center justify-between">
+        <span className="text-xs uppercase tracking-wider text-muted-foreground">
+          System AI Quota
+        </span>
+        <Sparkles className="h-4 w-4 text-muted-foreground" />
+      </div>
+      <div className={mono + " mt-3 text-3xl font-semibold tabular-nums"}>
+        {formatDashboardInteger(quota.callsToday)}
+        <span className="ml-1 text-base font-normal text-muted-foreground">
+          / {formatDashboardInteger(quota.dailyCap)}
+        </span>
+      </div>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full rounded-full transition-all"
+          style={{ width: `${pct}%`, backgroundColor: barColor }}
+        />
+      </div>
+      <p className={mono + " mt-1.5 text-xs tabular-nums"} style={{ color: barColor }}>
+        {exhausted
+          ? `All ${quota.slotsTotal} keys exhausted · resets at midnight PT`
+          : quota.slotsExhausted > 0
+            ? `${quota.slotsExhausted} of ${quota.slotsTotal} keys exhausted`
+            : `${Math.round(100 - pct)}% remaining today`}
+      </p>
+    </div>
+  );
+}
+
+function OwnKeyCard({
+  vaultKeyId,
+  activeProvider,
+  aiCallCount,
+  aiSpendUsd,
+}: {
+  vaultKeyId: string | null;
+  activeProvider: string | null;
+  aiCallCount: number;
+  aiSpendUsd: number;
+}) {
+  const mono = monoClass();
+
+  if (!vaultKeyId) {
+    return (
+      <div className="rounded-2xl border border-dashed border-border bg-surface/40 p-5">
+        <div className="flex items-center justify-between">
+          <span className="text-xs uppercase tracking-wider text-muted-foreground">
+            Your AI Key
+          </span>
+          <KeyRound className="h-4 w-4 text-muted-foreground" />
+        </div>
+        <p className="mt-3 text-sm text-muted-foreground">
+          No key connected. Add your own key for unlimited AI — bypasses the system quota entirely.
+        </p>
+        <Button variant="mint" size="sm" className="mt-3 rounded-xl" asChild>
+          <Link href="/dashboard/keys">Connect key</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  const providerLabel = activeProvider
+    ? activeProvider.charAt(0).toUpperCase() + activeProvider.slice(1)
+    : "Connected";
+
+  return (
+    <div className="rounded-2xl border border-border bg-surface/60 p-5">
+      <div className="flex items-center justify-between">
+        <span className="text-xs uppercase tracking-wider text-muted-foreground">
+          Your AI Key
+        </span>
+        <KeyRound className="h-4 w-4 text-muted-foreground" />
+      </div>
+      <div className={mono + " mt-3 text-3xl font-semibold tabular-nums"}>
+        {formatDashboardInteger(aiCallCount)}
+      </div>
+      <div className={mono + " mt-1 text-xs tabular-nums"} style={{ color: SYSTEM_MINT }}>
+        {providerLabel} · unlimited · {formatDashboardUsd(aiSpendUsd)} spend
+      </div>
+    </div>
+  );
+}
+
+function NextActionCard({ action }: { action: NextBestAction }) {
+  const mono = monoClass();
+
+  if (action.type === "save_first_job") {
+    return (
+      <div className="rounded-2xl border border-dashed border-border bg-surface/40 p-5">
+        <div className="flex items-center justify-between">
+          <span className="text-xs uppercase tracking-wider text-muted-foreground">
+            Next Action
+          </span>
+          <Zap className="h-4 w-4 text-muted-foreground" />
+        </div>
+        <p className="mt-3 text-sm text-muted-foreground">
+          Save your first job from the extension to start tracking and tailoring.
+        </p>
+        <Button variant="outline" size="sm" className="mt-3 rounded-xl" asChild>
+          <Link href="/extension">Get extension</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  if (action.type === "ready_to_apply") {
+    return (
+      <div className="rounded-2xl border border-primary/30 bg-surface/60 p-5">
+        <div className="flex items-center justify-between">
+          <span className="text-xs uppercase tracking-wider text-muted-foreground">
+            Next Action
+          </span>
+          <Send className="h-4 w-4 text-primary" />
+        </div>
+        <div className={mono + " mt-3 text-3xl font-semibold tabular-nums text-primary"}>
+          {action.count}
+        </div>
+        <div className={mono + " mt-1 text-xs tabular-nums"} style={{ color: SYSTEM_MINT }}>
+          {action.count === 1 ? "job ready to apply" : "jobs ready to apply"}
+        </div>
+        <Button variant="mint" size="sm" className="mt-3 rounded-xl" asChild>
+          <Link href="/dashboard/job-tracker">Apply now</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  if (action.type === "add_key") {
+    return (
+      <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-5">
+        <div className="flex items-center justify-between">
+          <span className="text-xs uppercase tracking-wider text-muted-foreground">
+            Next Action
+          </span>
+          <KeyRound className="h-4 w-4 text-amber-500" />
+        </div>
+        <p className="mt-3 text-sm text-foreground font-medium">
+          Add your AI key
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {action.count === 1 ? "1 job is" : `${action.count} jobs are`} waiting for tailoring. Connect a key to run the engine.
+        </p>
+        <Button variant="outline" size="sm" className="mt-3 rounded-xl border-amber-500/40 text-amber-600 hover:bg-amber-500/10 dark:text-amber-400" asChild>
+          <Link href="/dashboard/keys">Connect key</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  if (action.type === "tailoring") {
+    return (
+      <div className="rounded-2xl border border-border bg-surface/60 p-5">
+        <div className="flex items-center justify-between">
+          <span className="text-xs uppercase tracking-wider text-muted-foreground">
+            Next Action
+          </span>
+          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+        </div>
+        <div className={mono + " mt-3 text-3xl font-semibold tabular-nums"}>
+          {action.count}
+        </div>
+        <div className={mono + " mt-1 text-xs tabular-nums"} style={{ color: SYSTEM_MINT }}>
+          {action.count === 1 ? "job tailoring in progress" : "jobs tailoring in progress"}
+        </div>
+      </div>
+    );
+  }
+
+  // all_good
+  return (
+    <div className="rounded-2xl border border-border bg-surface/60 p-5">
+      <div className="flex items-center justify-between">
+        <span className="text-xs uppercase tracking-wider text-muted-foreground">
+          Next Action
+        </span>
+        <CheckCircle2 className="h-4 w-4 text-mint" />
+      </div>
+      <div className={mono + " mt-3 text-3xl font-semibold tabular-nums"}>
+        {formatDashboardInteger(action.appliedCount)}
+      </div>
+      <div className={mono + " mt-1 text-xs tabular-nums"} style={{ color: SYSTEM_MINT }}>
+        {action.appliedCount === 1 ? "application sent" : "applications sent"} · queue clear
+      </div>
+    </div>
+  );
 }
 
 export async function DashboardOverview({
@@ -56,7 +257,7 @@ export async function DashboardOverview({
 }: DashboardOverviewProps) {
   const firstName = getDisplayName(userFirstName, userEmail, userName);
   const result = await getDashboardStats();
-  const mono = monoClassName();
+  const mono = monoClass();
 
   if (!result.success) {
     return (
@@ -70,42 +271,17 @@ export async function DashboardOverview({
 
   const { stats } = result;
   const engineHot = Boolean(stats.vaultKeyId);
-  const statCards = [
-    {
-      label: "Resumes generated",
-      value: formatDashboardInteger(stats.resumesGenerated),
-      delta: stats.targetRole ? `Target · ${stats.targetRole}` : "Career Architecture",
-      icon: FileText,
-    },
-    {
-      label: "Jobs tracked",
-      value: formatDashboardInteger(stats.jobsTracked),
-      delta:
-        stats.recentJobTrackerEntries.length > 0
-          ? "Saved and applied roles"
-          : "Save from the extension",
-      icon: Briefcase,
-    },
-    {
-      label: "Avg ATS score",
-      value: formatDashboardPercent(stats.avgAtsScore),
-      delta:
-        stats.avgAtsScore !== null ? "From calibration scores" : "Run engine refinement",
-      icon: TrendingUp,
-    },
-    {
-      label: "AI calls (BYOK)",
-      value: formatDashboardInteger(stats.aiCallCount),
-      delta: formatDashboardDeltaSpend(stats.aiSpendUsd),
-      icon: Sparkles,
-    },
-  ];
 
   const verificationMetrics = [
     { label: "Parse integrity", value: stats.verification.parseIntegrity },
     { label: "Keyword match", value: stats.verification.keywordMatch },
     { label: "Recruiter readability", value: stats.verification.recruiterReadability },
   ];
+
+  const showSystemQuota =
+    stats.systemQuota !== null &&
+    (stats.systemQuota.slotsExhausted > 0 ||
+      stats.systemQuota.callsToday / stats.systemQuota.dailyCap >= 0.75);
 
   return (
     <DashboardWorkspaceShell className="space-y-8">
@@ -125,21 +301,43 @@ export async function DashboardOverview({
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {statCards.map((stat) => (
-          <div key={stat.label} className="rounded-2xl border border-border bg-surface/60 p-5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs uppercase tracking-wider text-muted-foreground">
-                {stat.label}
-              </span>
-              <stat.icon className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <div className={mono + " mt-3 text-3xl font-semibold tabular-nums"}>
-              {stat.value}
-            </div>
-            <div className={mono + " mt-1 text-xs text-mint tabular-nums"}>{stat.delta}</div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="rounded-2xl border border-border bg-surface/60 p-5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs uppercase tracking-wider text-muted-foreground">
+              Avg ATS score
+            </span>
           </div>
-        ))}
+          <div className={mono + " mt-3 text-3xl font-semibold tabular-nums"}>
+            {formatDashboardPercent(stats.avgAtsScore)}
+          </div>
+          <div className={mono + " mt-1 text-xs tabular-nums"} style={{ color: SYSTEM_MINT }}>
+            {stats.avgAtsScore !== null
+              ? stats.avgAtsScore >= 80
+                ? "Strong · ready to apply"
+                : stats.avgAtsScore >= 60
+                  ? "Good · keep refining"
+                  : "Needs work · run engine"
+              : "Run engine refinement"}
+          </div>
+        </div>
+
+        <OwnKeyCard
+          vaultKeyId={stats.vaultKeyId}
+          activeProvider={stats.activeProvider}
+          aiCallCount={stats.aiCallCount}
+          aiSpendUsd={stats.aiSpendUsd}
+        />
+
+        {showSystemQuota && stats.systemQuota ? (
+          <SystemQuotaCard quota={stats.systemQuota} />
+        ) : (
+          <NextActionCard action={stats.nextBestAction} />
+        )}
+
+        {showSystemQuota && stats.systemQuota ? (
+          <NextActionCard action={stats.nextBestAction} />
+        ) : null}
       </div>
 
       <div className="grid min-w-0 gap-6 lg:grid-cols-[3fr_2fr]">
@@ -148,7 +346,7 @@ export async function DashboardOverview({
           style={{ backgroundColor: NAVY_CANVAS }}
         >
           <div className="flex items-center justify-between">
-            <h2 className="font-display text-lg font-semibold">Recent in Job Tracker</h2>
+            <h2 className="font-display text-lg font-semibold">Job Tracker</h2>
             <Link
               href="/dashboard/job-tracker"
               className="text-xs text-muted-foreground hover:text-foreground"
@@ -165,64 +363,50 @@ export async function DashboardOverview({
             <div
               className="mt-4 -mr-1 overflow-y-auto pr-1 [scrollbar-gutter:stable]"
               style={{ maxHeight: RECENT_JOB_TRACKER_LIST_MAX_HEIGHT }}
-              aria-label="Recent job tracker entries"
+              aria-label="Job tracker entries"
             >
               <ul className="space-y-2">
-              {stats.recentJobTrackerEntries.map((entry) => {
-                const subtitle = [entry.company, entry.location].filter(Boolean).join(" · ");
-                const reviewHref = jobTrackerReviewScreenUrl(
-                  entry.id,
-                  defaultReviewScreenPanel(entry.status),
-                );
+                {stats.recentJobTrackerEntries.map((entry) => {
+                  const subtitle = [entry.company, entry.location].filter(Boolean).join(" · ");
+                  const reviewHref = jobTrackerReviewScreenUrl(
+                    entry.id,
+                    defaultReviewScreenPanel(entry.status),
+                  );
 
-                return (
-                  <li key={entry.id}>
-                    <Link
-                      href={reviewHref}
-                      className="group block cursor-pointer rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 transition-all hover:border-primary/35 hover:bg-white/[0.08] hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                      title="Open job review"
-                    >
-                      <div className="flex min-w-0 flex-col gap-2">
-                        <div className="flex min-w-0 items-center gap-1">
-                          <p
-                            className="min-w-0 flex-1 truncate text-sm font-medium leading-snug text-foreground transition-colors group-hover:text-primary"
-                            title={entry.title}
-                          >
-                            {entry.title}
-                          </p>
-                          <ChevronRight
-                            className="h-3.5 w-3.5 shrink-0 text-primary/0 transition-all group-hover:text-primary/70 group-focus-visible:text-primary/70"
-                            aria-hidden="true"
-                          />
+                  return (
+                    <li key={entry.id}>
+                      <Link
+                        href={reviewHref}
+                        className="group block cursor-pointer rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 transition-all hover:border-primary/35 hover:bg-white/[0.08] hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                        title="Open job review"
+                      >
+                        <div className="flex min-w-0 flex-col gap-2">
+                          <div className="flex min-w-0 items-center gap-1">
+                            <p
+                              className="min-w-0 flex-1 truncate text-sm font-medium leading-snug text-foreground transition-colors group-hover:text-primary"
+                              title={entry.title}
+                            >
+                              {entry.title}
+                            </p>
+                            <ChevronRight
+                              className="h-3.5 w-3.5 shrink-0 text-primary/0 transition-all group-hover:text-primary/70 group-focus-visible:text-primary/70"
+                              aria-hidden="true"
+                            />
+                          </div>
+                          {subtitle ? (
+                            <p className="truncate text-xs text-muted-foreground" title={subtitle}>
+                              {subtitle}
+                            </p>
+                          ) : null}
+                          <PipelineBar status={entry.status} className="w-full shrink-0" />
                         </div>
-                        {subtitle ? (
-                          <p className="truncate text-xs text-muted-foreground" title={subtitle}>
-                            {subtitle}
-                          </p>
-                        ) : null}
-                        <PipelineBar status={entry.status} className="w-full shrink-0" />
-                      </div>
-                    </Link>
-                  </li>
-                );
-              })}
+                      </Link>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}
-          {!engineHot ? (
-            <div className="mt-8 rounded-xl border border-white/10 p-4 text-center" style={{ backgroundColor: NAVY_SURFACE }}>
-              <Snowflake className="mx-auto h-5 w-5" style={{ color: MUTED }} aria-hidden="true" />
-              <p className={mono + " mt-2 text-[10px] uppercase tracking-[0.18em]"} style={{ color: MUTED }}>
-                Engine cold
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Connect AI Keys to run resume refinement and apply automation.
-              </p>
-              <Button variant="mint" size="sm" className="mt-3" asChild>
-                <Link href="/dashboard/keys">Connect AI Keys</Link>
-              </Button>
-            </div>
-          ) : null}
         </div>
 
         <div className="rounded-2xl border border-primary/40 bg-surface p-6 shadow-glow">
