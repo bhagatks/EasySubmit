@@ -26,13 +26,13 @@ describe("review-screen-ui", () => {
 describe("pipeline-progress", () => {
   it("maps pipeline segments by status", () => {
     expect(pipelineProgressForStatus("CAPTURED")).toEqual({
-      filledThrough: 0,
-      currentIndex: 1,
+      filledThrough: 1,
+      currentIndex: 2,
       isComplete: false,
     });
     expect(pipelineProgressForStatus("READY_TO_APPLY")).toEqual({
-      filledThrough: 2,
-      currentIndex: 3,
+      filledThrough: 3,
+      currentIndex: 4,
       isComplete: false,
     });
     expect(pipelineProgressForStatus("APPLIED").isComplete).toBe(true);

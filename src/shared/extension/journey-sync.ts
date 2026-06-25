@@ -97,19 +97,24 @@ export function resolveExtensionJourneyDisplay(input: {
     return {
       stage: 0,
       label: "Re-apply",
+      statusLabel: "Re-apply",
       applyButtonState: "reapply",
       showResumeCard: false,
       showAssistCard: false,
+      showReviewRow: false,
     };
   }
 
   if (input.pipelineBusy) {
+    const busyLabel = input.pipelineBusyLabel ?? "Optimizing resume…";
     return {
       stage: 1,
-      label: input.pipelineBusyLabel ?? "Optimizing resume…",
+      label: "Apply",
+      statusLabel: busyLabel,
       applyButtonState: "disabled",
       showResumeCard: false,
       showAssistCard: false,
+      showReviewRow: false,
     };
   }
 

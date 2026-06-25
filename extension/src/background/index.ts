@@ -438,6 +438,19 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (
+    action === EXTENSION_MESSAGE.GET_DOCUMENT_PREVIEW &&
+    typeof message.entryId === "string" &&
+    (message.kind === "resume" || message.kind === "cover")
+  ) {
+    void apiFetch<{ success: boolean; previewHtml?: string; error?: string }>(
+      `/api/extension/jobs/${encodeURIComponent(message.entryId)}/preview?kind=${message.kind}`,
+    )
+      .then((data) => sendResponse(data))
+      .catch(() => sendResponse({ success: false, error: "Network error" }));
+    return true;
+  }
+
+  if (
     action === EXTENSION_MESSAGE.GET_APPLICATION_ANSWERS &&
     typeof message.platform === "string"
   ) {

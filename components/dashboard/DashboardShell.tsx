@@ -205,10 +205,10 @@ function DashboardShellFrame({ children, vaultKeyId, fromParam }: DashboardShell
           <div className="flex items-center gap-2 justify-self-end">
             <DashboardHeaderActionsSlot />
             <DashboardHeaderExpandSlot />
-            <AiHealthAlert />
             <BYOKStatusBadge vaultKeyId={vaultKeyId} />
             {showByokKeyButton ? <BYOKKeyButton /> : null}
             {showSignOut ? <SignOutButton variant="pill" /> : null}
+            <AiHealthAlert />
           </div>
         </header>
         <main

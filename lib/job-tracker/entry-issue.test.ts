@@ -17,7 +17,8 @@ describe("entry-issue", () => {
     ).toBeNull();
   });
 
-  it("surfaces capture gaps for critical fields without optional noise", () => {
+  it("resolves company from Greenhouse board URL path — no gap surfaced", () => {
+    // boards.greenhouse.io/acme/jobs/... → company inferred as "Acme" from URL slug
     expect(
       entryIssueMessage({
         url: "https://boards.greenhouse.io/acme/jobs/12345",
@@ -27,6 +28,21 @@ describe("entry-issue", () => {
         salaryText: null,
         description: "x".repeat(500),
         platform: "greenhouse",
+        metadata: null,
+      }),
+    ).toBeNull();
+  });
+
+  it("surfaces company gap when URL provides no host inference", () => {
+    expect(
+      entryIssueMessage({
+        url: "https://apply.example.com/job/12345",
+        title: "Engineer",
+        company: null,
+        location: null,
+        salaryText: null,
+        description: "x".repeat(500),
+        platform: "generic",
         metadata: null,
       }),
     ).toBe("Capture gap: Company");

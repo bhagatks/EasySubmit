@@ -22,4 +22,12 @@ describe("mergeExtensionRuntimeConfig", () => {
   it("falls back to defaults when config is missing", () => {
     expect(mergeExtensionRuntimeConfig(null)).toEqual(EXTENSION_RUNTIME_DEFAULTS);
   });
+
+  it("preserves aiHealthError from the config API", () => {
+    const merged = mergeExtensionRuntimeConfig({
+      aiHealthError: "Your API key is failing. Check it in AI Keys settings.",
+      apiBaseUrl: "http://localhost:3000",
+    });
+    expect(merged.aiHealthError).toBe("Your API key is failing. Check it in AI Keys settings.");
+  });
 });

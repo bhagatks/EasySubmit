@@ -8,15 +8,17 @@ import {
   summarizeQuotaForLog,
 } from "@/src/lib/ai/engine/enhance-logger";
 import { ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
+import { getAiReadinessForUser } from "@/lib/ai/ai-readiness-gate-for-user";
+import type { AiReadinessErrorCode } from "@/lib/ai/ai-readiness-gate-for-user";
+import { SYSTEM_QUOTA_USER_SELECT } from "@/lib/ai/system-quota-gate-for-user";
 import {
-  checkAiQuota,
-  incrementQuotaPatch,
-  quotaResetPatchIfNeeded,
-  type AiQuotaMode,
-  type QuotaCheckResult,
-} from "@/src/lib/ai/engine/quota";
+  resolveQuotaRowWithReset,
+  SYSTEM_QUOTA_DEFAULT_ESTIMATED_CALLS,
+} from "@/src/lib/ai/engine/system-quota-gate";
+import { checkAiQuota, incrementQuotaPatch, type QuotaCheckResult } from "@/src/lib/ai/engine/quota";
 import { resolveAiRoute } from "@/src/lib/ai/engine/router";
 import { runCoverLetterEnhance } from "@/src/lib/ai/engine/run-cover-letter-enhance";
+import { isCustomerQuotaUnlimited } from "@/src/lib/services/ai-engine-config";
 import { getAppConfig } from "@/src/lib/services/config-service";
 import { getFeatureFlags } from "@/src/lib/services/feature-flags-service";
 
@@ -59,19 +61,25 @@ export type EnhanceCoverLetterFailure = {
 
 export type EnhanceCoverLetterResult = EnhanceCoverLetterSuccess | EnhanceCoverLetterFailure;
 
-function quotaBlockedMessage(
+function mapReadinessFailureCode(
+  code: AiReadinessErrorCode,
+  systemQuotaCode: "quota_enhancement" | "quota_calls" | null,
+): NonNullable<EnhanceCoverLetterFailure["code"]> {
+  if (code === "quota_exhausted") {
+    return systemQuotaCode ?? "quota_enhancement";
+  }
+  if (code === "key_missing") {
+    return "no_customer_key";
+  }
+  return "provider_error";
+}
+
+function customerQuotaBlockedMessage(
   check: Extract<QuotaCheckResult, { ok: false }>,
-  mode: AiQuotaMode,
 ): string {
   const { snapshot } = check;
   if (check.reason === "enhancement_limit") {
-    if (mode === "system") {
-      return `Daily enhancement limit reached (${snapshot.enhancementsLimit}/day). Add your API key for more.`;
-    }
     return `Daily enhancement limit reached (${snapshot.enhancementsLimit}/day). Try again tomorrow.`;
-  }
-  if (mode === "system") {
-    return `Daily AI call limit reached (${snapshot.callsLimit}/day). Add your API key or try again tomorrow.`;
   }
   return `Daily AI call limit reached (${snapshot.callsLimit}/day). Try again tomorrow.`;
 }
@@ -92,14 +100,7 @@ export async function enhanceCoverLetterForUserId(
   const [user, aiEngine, featureFlags] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
-      select: {
-        vaultKeyId: true,
-        activeProvider: true,
-        aiSourcePreference: true,
-        aiEnhancementsToday: true,
-        aiCallsToday: true,
-        aiQuotaResetAt: true,
-      },
+      select: SYSTEM_QUOTA_USER_SELECT,
     }),
     getAppConfig("aiEngine"),
     getFeatureFlags(),
@@ -123,8 +124,20 @@ export async function enhanceCoverLetterForUserId(
     };
   }
 
-  const resetPatch = quotaResetPatchIfNeeded(user);
-  const quotaRow = resetPatch ? { ...user, ...resetPatch } : user;
+  const readiness = await getAiReadinessForUser(userId, {
+    forceSystem: input.forceSystem ?? false,
+    estimatedCalls: SYSTEM_QUOTA_DEFAULT_ESTIMATED_CALLS,
+  });
+
+  if (!readiness.status.ok) {
+    return {
+      success: false,
+      error: readiness.status.message,
+      code: mapReadinessFailureCode(readiness.status.code, readiness.systemQuota.code),
+    };
+  }
+
+  const { quotaRow, resetPatch } = resolveQuotaRowWithReset(user);
 
   logEnhance("server", "cover.action.quota.before", {
     traceId,
@@ -156,19 +169,20 @@ export async function enhanceCoverLetterForUserId(
     };
   }
 
-  const quotaMode: AiQuotaMode = route.mode;
-  const quotaCheck = checkAiQuota(quotaRow, aiEngine, quotaMode, {
-    isEnhancement: true,
-    estimatedCalls: 1,
-  });
+  if (route.mode === "customer" && !isCustomerQuotaUnlimited(aiEngine)) {
+    const quotaCheck = checkAiQuota(quotaRow, aiEngine, "customer", {
+      isEnhancement: true,
+      estimatedCalls: SYSTEM_QUOTA_DEFAULT_ESTIMATED_CALLS,
+    });
 
-  if (!quotaCheck.ok) {
-    return {
-      success: false,
-      error: quotaBlockedMessage(quotaCheck, quotaMode),
-      code:
-        quotaCheck.reason === "enhancement_limit" ? "quota_enhancement" : "quota_calls",
-    };
+    if (!quotaCheck.ok) {
+      return {
+        success: false,
+        error: customerQuotaBlockedMessage(quotaCheck),
+        code:
+          quotaCheck.reason === "enhancement_limit" ? "quota_enhancement" : "quota_calls",
+      };
+    }
   }
 
   const pricingMap = await getAppConfig("ai_pricing_map");

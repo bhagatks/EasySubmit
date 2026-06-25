@@ -5,7 +5,7 @@ import { mergeJobEntryMetadata } from "@/lib/extension/pipeline-metadata";
 
 export type MarkJobAppliedResult =
   | { success: true; id: string; status: JobTrackerStatus; alreadyApplied: boolean }
-  | { success: false; error: string; code?: "not_found" };
+  | { success: false; error: string; code?: "not_found" | "invalid_status" };
 
 /** Idempotent transition to APPLIED — used by extension auto-detect and dashboard manual action. */
 export async function markJobTrackerApplied(
@@ -26,7 +26,7 @@ export async function markJobTrackerApplied(
     return { success: true, id: entryId, status: "APPLIED", alreadyApplied: true };
   }
 
-  if (row.status !== "READY_TO_APPLY") {
+  if (row.status !== "READY_TO_APPLY" && row.status !== "RESUME_READY") {
     return {
       success: false,
       error: "Complete the apply steps before marking this job as applied.",

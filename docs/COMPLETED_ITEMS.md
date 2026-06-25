@@ -1,5 +1,6 @@
 | Date | Item |
 |------|------|
+| 2026-06-25 | Extension single-card layout — expandable job/resume/cover views, preview API, dashboard header deeplink |
 | 2026-06-25 | Extension pipeline hardening — re-capture resets to CAPTURED, mark-applied only from READY_TO_APPLY, content script teardown via window cleanup, AI health BYOK log query fix (`aiMode: customer`) |
 | 2026-06-25 | Global AI health alert (dashboard header + extension card icon) + Settings split into AI Keys / General |
 | 2026-06-23 | Extension on-demand PDFs + file injector: resume/cover-letter PDF routes, `file-inject.ts`, Workday upload wiring |

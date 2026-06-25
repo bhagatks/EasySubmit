@@ -30,11 +30,16 @@ vi.mock("@/app/actions/ai/usage-log", () => ({
   recordUsageLogForUser: vi.fn(),
 }));
 
+vi.mock("@/lib/ai/ai-readiness-gate-for-user", () => ({
+  getAiReadinessForUser: vi.fn(),
+}));
+
 import { prisma } from "@/lib/prisma";
 import { getAppConfig } from "@/src/lib/services/config-service";
 import { getFeatureFlags } from "@/src/lib/services/feature-flags-service";
 import { resolveAiRoute } from "@/src/lib/ai/engine/router";
 import { runResumeEnhance } from "@/src/lib/ai/engine/run-enhance";
+import { getAiReadinessForUser } from "@/lib/ai/ai-readiness-gate-for-user";
 
 const baseForm = {
   firstName: "Ada",
@@ -92,6 +97,26 @@ describe("enhanceResumeForUserId", () => {
       partialEnhance: false,
     } as never);
     vi.mocked(prisma.user.update).mockResolvedValue({} as never);
+    vi.mocked(getAiReadinessForUser).mockResolvedValue({
+      status: { ok: true },
+      reason: "healthy",
+      systemQuota: {
+        applies: false,
+        exceeded: false,
+        reason: null,
+        message: null,
+        code: null,
+        snapshot: null,
+      },
+      byokKey: {
+        applies: true,
+        valid: true,
+        reason: null,
+        message: null,
+        code: null,
+        lastJobFailure: null,
+      },
+    });
   });
 
   it("returns unauthorized when user is missing", async () => {

@@ -20,12 +20,19 @@ import {
   buildQuotaSnapshot,
   checkAiQuota,
   incrementQuotaPatch,
-  quotaResetPatchIfNeeded,
   type AiQuotaMode,
   type QuotaCheckResult,
 } from "@/src/lib/ai/engine/quota";
 import { resolveAiRoute } from "@/src/lib/ai/engine/router";
 import { runResumeEnhance } from "@/src/lib/ai/engine/run-enhance";
+import { getAiReadinessForUser } from "@/lib/ai/ai-readiness-gate-for-user";
+import type { AiReadinessErrorCode } from "@/lib/ai/ai-readiness-gate-for-user";
+import { SYSTEM_QUOTA_USER_SELECT } from "@/lib/ai/system-quota-gate-for-user";
+import {
+  resolveQuotaRowWithReset,
+  SYSTEM_QUOTA_DEFAULT_ESTIMATED_CALLS,
+  SYSTEM_QUOTA_PIPELINE_ESTIMATED_CALLS,
+} from "@/src/lib/ai/engine/system-quota-gate";
 import { getAppConfig } from "@/src/lib/services/config-service";
 import { isCustomerQuotaUnlimited, isSystemAiEnabled } from "@/src/lib/services/ai-engine-config";
 import { getFeatureFlags } from "@/src/lib/services/feature-flags-service";
@@ -83,19 +90,25 @@ export type EnhanceResumeProfileResult =
   | EnhanceResumeProfileSuccess
   | EnhanceResumeProfileFailure;
 
-function quotaBlockedMessage(
+function mapReadinessFailureCode(
+  code: AiReadinessErrorCode,
+  systemQuotaCode: "quota_enhancement" | "quota_calls" | null,
+): NonNullable<EnhanceResumeProfileFailure["code"]> {
+  if (code === "quota_exhausted") {
+    return systemQuotaCode ?? "quota_enhancement";
+  }
+  if (code === "key_missing") {
+    return "no_customer_key";
+  }
+  return "provider_error";
+}
+
+function customerQuotaBlockedMessage(
   check: Extract<QuotaCheckResult, { ok: false }>,
-  mode: AiQuotaMode,
 ): string {
   const { snapshot } = check;
   if (check.reason === "enhancement_limit") {
-    if (mode === "system") {
-      return `Daily enhancement limit reached (${snapshot.enhancementsLimit}/day). Add your API key for more.`;
-    }
     return `Daily enhancement limit reached (${snapshot.enhancementsLimit}/day). Try again tomorrow.`;
-  }
-  if (mode === "system") {
-    return `Daily AI call limit reached (${snapshot.callsLimit}/day). Add your API key or try again tomorrow.`;
   }
   return `Daily AI call limit reached (${snapshot.callsLimit}/day). Try again tomorrow.`;
 }
@@ -118,14 +131,7 @@ export async function enhanceResumeForUserId(
   const [user, aiEngine, featureFlags] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
-      select: {
-        vaultKeyId: true,
-        activeProvider: true,
-        aiSourcePreference: true,
-        aiEnhancementsToday: true,
-        aiCallsToday: true,
-        aiQuotaResetAt: true,
-      },
+      select: SYSTEM_QUOTA_USER_SELECT,
     }),
     getAppConfig("aiEngine"),
     getFeatureFlags(),
@@ -164,8 +170,34 @@ export async function enhanceResumeForUserId(
     };
   }
 
-  const resetPatch = quotaResetPatchIfNeeded(user);
-  const quotaRow = resetPatch ? { ...user, ...resetPatch } : user;
+  const estimatedCalls = input.jobDescription?.trim()
+    ? SYSTEM_QUOTA_PIPELINE_ESTIMATED_CALLS
+    : SYSTEM_QUOTA_DEFAULT_ESTIMATED_CALLS;
+
+  const readiness = await getAiReadinessForUser(userId, {
+    forceSystem: input.forceSystem ?? false,
+    estimatedCalls,
+  });
+
+  if (!readiness.status.ok) {
+    logEnhance("server", "action.readiness.blocked", {
+      traceId,
+      step: ENHANCE_PIPELINE.SERVER_FAIL,
+      reason: readiness.reason,
+      code: readiness.status.code,
+      userId,
+    });
+    return {
+      success: false,
+      error: readiness.status.message,
+      code: mapReadinessFailureCode(
+        readiness.status.code,
+        readiness.systemQuota.code,
+      ),
+    };
+  }
+
+  const { quotaRow, resetPatch } = resolveQuotaRowWithReset(user);
 
   logEnhance("server", "action.quota.before", {
     traceId,
@@ -218,27 +250,28 @@ export async function enhanceResumeForUserId(
   }
 
   const quotaMode: AiQuotaMode = route.mode;
-  const estimatedCalls = input.jobDescription?.trim() ? 2 : 1;
 
-  const quotaCheck = checkAiQuota(quotaRow, aiEngine, quotaMode, {
-    isEnhancement: true,
-    estimatedCalls,
-  });
-
-  if (!quotaCheck.ok) {
-    logEnhance("server", "action.quota.blocked", {
-      traceId,
-      step: ENHANCE_PIPELINE.SERVER_FAIL,
-      reason: quotaCheck.reason,
-      quotaMode,
-      userId,
+  if (route.mode === "customer" && !isCustomerQuotaUnlimited(aiEngine)) {
+    const quotaCheck = checkAiQuota(quotaRow, aiEngine, quotaMode, {
+      isEnhancement: true,
+      estimatedCalls,
     });
-    return {
-      success: false,
-      error: quotaBlockedMessage(quotaCheck, quotaMode),
-      code:
-        quotaCheck.reason === "enhancement_limit" ? "quota_enhancement" : "quota_calls",
-    };
+
+    if (!quotaCheck.ok) {
+      logEnhance("server", "action.quota.blocked", {
+        traceId,
+        step: ENHANCE_PIPELINE.SERVER_FAIL,
+        reason: quotaCheck.reason,
+        quotaMode,
+        userId,
+      });
+      return {
+        success: false,
+        error: customerQuotaBlockedMessage(quotaCheck),
+        code:
+          quotaCheck.reason === "enhancement_limit" ? "quota_enhancement" : "quota_calls",
+      };
+    }
   }
 
   // Pre-compute ATS intelligence — feeds tactical prompts and deterministic fallback.

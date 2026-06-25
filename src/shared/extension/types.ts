@@ -68,6 +68,8 @@ export type ExtensionRuntimeConfig = {
   applicationProfile?: import("@/lib/profile/application-profile").ApplicationProfile | null;
   connectedUser?: ExtensionConnectedUser | null;
   aiHealthError?: string | null;
+  systemQuotaExceeded?: boolean;
+  byokKeyInvalid?: boolean;
 };
 
 export type ApplyPipelineResponse = {

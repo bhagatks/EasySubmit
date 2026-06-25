@@ -7,35 +7,40 @@ describe("resolveJourneyDisplay", () => {
     expect(display).toEqual({
       stage: 0,
       label: "Apply",
+      statusLabel: "Apply",
       applyButtonState: "hidden",
       showResumeCard: false,
       showAssistCard: false,
+      showReviewRow: false,
     });
   });
 
   it("returns preparing copy for CAPTURED", () => {
     const display = resolveJourneyDisplay("CAPTURED", false);
     expect(display.stage).toBe(1);
-    expect(display.label).toBe("Optimizing resume…");
+    expect(display.label).toBe("Apply");
+    expect(display.statusLabel).toBe("Optimizing resume…");
     expect(display.applyButtonState).toBe("disabled");
-    expect(display.showResumeCard).toBe(false);
+    expect(display.showReviewRow).toBe(false);
   });
 
   it("returns resume ready for RESUME_READY", () => {
     const display = resolveJourneyDisplay("RESUME_READY", false);
-    expect(display.label).toBe("Resume ready");
-    expect(display.showResumeCard).toBe(true);
+    expect(display.statusLabel).toBe("Resume ready");
+    expect(display.showReviewRow).toBe(true);
     expect(display.showAssistCard).toBe(false);
   });
 
-  it("returns apply assist for READY_TO_APPLY", () => {
+  it("returns ready to apply for READY_TO_APPLY", () => {
     const display = resolveJourneyDisplay("READY_TO_APPLY", false);
     expect(display).toEqual({
       stage: 2,
-      label: "Apply assist",
+      label: "Apply",
+      statusLabel: "Ready to apply",
       applyButtonState: "navigate",
       showResumeCard: true,
-      showAssistCard: true,
+      showAssistCard: false,
+      showReviewRow: true,
     });
   });
 
@@ -43,6 +48,8 @@ describe("resolveJourneyDisplay", () => {
     const display = resolveJourneyDisplay("APPLIED", false);
     expect(display.stage).toBe(3);
     expect(display.label).toBe("Applied");
+    expect(display.statusLabel).toBe("Applied");
+    expect(display.showReviewRow).toBe(true);
     expect(display.applyButtonState).toBe("completed");
   });
 
@@ -51,9 +58,11 @@ describe("resolveJourneyDisplay", () => {
     expect(display).toEqual({
       stage: "error",
       label: "Something went wrong",
+      statusLabel: "Something went wrong",
       applyButtonState: "disabled",
       showResumeCard: false,
       showAssistCard: false,
+      showReviewRow: false,
     });
   });
 });

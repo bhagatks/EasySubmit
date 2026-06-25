@@ -42,5 +42,8 @@ export function mergeExtensionRuntimeConfig(
     customizeResume: partial.customizeResume ?? true,
     applicationProfile: partial.applicationProfile ?? null,
     connectedUser: partial.connectedUser ?? null,
+    aiHealthError: partial.aiHealthError ?? null,
+    systemQuotaExceeded: partial.systemQuotaExceeded ?? false,
+    byokKeyInvalid: partial.byokKeyInvalid ?? false,
   };
 }

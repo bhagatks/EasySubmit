@@ -6,6 +6,7 @@ function boardSlugToLabel(slug: string): string {
   const decoded = decodeURIComponent(slug).trim();
   if (!decoded) return "";
   return decoded
+    .replace(/--/g, ", ")
     .replace(/-/g, " ")
     .replace(/\s+/g, " ")
     .trim()

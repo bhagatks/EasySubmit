@@ -10,18 +10,18 @@ import {
   type EnhanceResumeProfileResult,
   type EnhanceResumeProfileSuccess,
 } from "@/lib/ai/enhance-resume-for-user";
+import { getAiReadinessForUser } from "@/lib/ai/ai-readiness-gate-for-user";
+import type { AiReadinessErrorCode } from "@/lib/ai/ai-readiness-gate-for-user";
 import { getAppConfig } from "@/src/lib/services/config-service";
 import { getFeatureFlags } from "@/src/lib/services/feature-flags-service";
 import type { AiSourcePreference } from "@/src/lib/ai/engine/constants";
 import {
   buildQuotaSnapshot,
-  checkAiQuota,
   quotaResetPatchIfNeeded,
-  type AiQuotaMode,
-  type QuotaCheckResult,
 } from "@/src/lib/ai/engine/quota";
 import { isSystemAiEnabled } from "@/src/lib/services/ai-engine-config";
-import { resolveAiRoute, resolveEffectiveAiSource } from "@/src/lib/ai/engine/router";
+import { resolveEffectiveAiSource } from "@/src/lib/ai/engine/router";
+import { SYSTEM_QUOTA_USER_SELECT } from "@/lib/ai/system-quota-gate-for-user";
 
 export type {
   EnhanceResumeProfileFailure,
@@ -49,21 +49,17 @@ export type EnhancePreflightFailure = {
 
 export type EnhancePreflightResult = EnhancePreflightSuccess | EnhancePreflightFailure;
 
-function quotaBlockedMessage(
-  check: Extract<QuotaCheckResult, { ok: false }>,
-  mode: AiQuotaMode,
-): string {
-  const { snapshot } = check;
-  if (check.reason === "enhancement_limit") {
-    if (mode === "system") {
-      return `Daily enhancement limit reached (${snapshot.enhancementsLimit}/day). Add your API key for more.`;
-    }
-    return `Daily enhancement limit reached (${snapshot.enhancementsLimit}/day). Try again tomorrow.`;
+function mapReadinessPreflightCode(
+  code: AiReadinessErrorCode,
+  systemQuotaCode: "quota_enhancement" | "quota_calls" | null,
+): NonNullable<EnhanceResumeProfileFailure["code"]> {
+  if (code === "quota_exhausted") {
+    return systemQuotaCode ?? "quota_enhancement";
   }
-  if (mode === "system") {
-    return `Daily AI call limit reached (${snapshot.callsLimit}/day). Add your API key or try again tomorrow.`;
+  if (code === "key_missing") {
+    return "no_customer_key";
   }
-  return `Daily AI call limit reached (${snapshot.callsLimit}/day). Try again tomorrow.`;
+  return "provider_error";
 }
 
 /** Validates feature flag, routing, and quota before opening the Enhance dialog. */
@@ -83,14 +79,7 @@ export async function checkEnhanceWithAiPreflight(
   const [user, aiEngine, featureFlags] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
-      select: {
-        vaultKeyId: true,
-        activeProvider: true,
-        aiSourcePreference: true,
-        aiEnhancementsToday: true,
-        aiCallsToday: true,
-        aiQuotaResetAt: true,
-      },
+      select: SYSTEM_QUOTA_USER_SELECT,
     }),
     getAppConfig("aiEngine"),
     getFeatureFlags(),
@@ -126,48 +115,16 @@ export async function checkEnhanceWithAiPreflight(
     }
   }
 
-  const resetPatch = quotaResetPatchIfNeeded(user);
-  const quotaRow = resetPatch ? { ...user, ...resetPatch } : user;
-
-  const preference = (user.aiSourcePreference || "auto") as AiSourcePreference;
-  const route = await resolveAiRoute({
-    aiSourcePreference: preference,
-    vaultKeyId: user.vaultKeyId,
-    activeProvider: user.activeProvider,
+  const readiness = await getAiReadinessForUser(userId, {
     forceSystem,
-    aiEngine,
-  });
-
-  if ("error" in route) {
-    if (route.error === "no_system_key") {
-      return {
-        ok: false,
-        error: "EasySubmit AI is not configured. Add your own API key in AI Keys.",
-        code: "no_system_key",
-      };
-    }
-    return {
-      ok: false,
-      error: systemAiEnabled
-        ? "Add an API key in AI Keys or switch to EasySubmit AI in Settings."
-        : "Add an API key in AI Keys to use Enhance with AI.",
-      code: "no_customer_key",
-      requiresByokOnly: !systemAiEnabled,
-    };
-  }
-
-  const quotaMode: AiQuotaMode = route.mode;
-  const quotaCheck = checkAiQuota(quotaRow, aiEngine, quotaMode, {
-    isEnhancement: true,
     estimatedCalls: 1,
   });
 
-  if (!quotaCheck.ok) {
+  if (!readiness.status.ok) {
     return {
       ok: false,
-      error: quotaBlockedMessage(quotaCheck, quotaMode),
-      code:
-        quotaCheck.reason === "enhancement_limit" ? "quota_enhancement" : "quota_calls",
+      error: readiness.status.message,
+      code: mapReadinessPreflightCode(readiness.status.code, readiness.systemQuota.code),
     };
   }
 

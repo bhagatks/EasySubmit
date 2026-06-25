@@ -77,15 +77,16 @@ describe("extension journey display after delete", () => {
     expect(display.label).toBe("Something went wrong");
   });
 
-  it("matches READY_TO_APPLY assist stage from shared mapper", () => {
+  it("matches READY_TO_APPLY stage from shared mapper", () => {
     const display = resolveExtensionJourneyDisplay({
       saved: true,
       status: "READY_TO_APPLY",
       pipelineBusy: false,
     });
     expect(display.stage).toBe(2);
-    expect(display.label).toBe("Ready to ApplyAssist");
-    expect(display.showAssistCard).toBe(true);
+    expect(display.statusLabel).toBe("Ready to apply");
+    expect(display.showReviewRow).toBe(true);
+    expect(display.showAssistCard).toBe(false);
   });
 });
 

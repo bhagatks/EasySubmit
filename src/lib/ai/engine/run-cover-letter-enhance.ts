@@ -128,13 +128,18 @@ export async function runCoverLetterEnhance(
       rawMessage: mapped.rawMessage,
     });
 
-    const fallback = buildDeterministicCoverLetterMarkdown({
-      form: input.form,
-      targetTitle: input.targetTitle,
-      company: input.company,
-      jobTitle: input.jobTitle,
-      jobDescription: input.jobDescription,
-    });
+    let fallback: ReturnType<typeof buildDeterministicCoverLetterMarkdown>;
+    try {
+      fallback = buildDeterministicCoverLetterMarkdown({
+        form: input.form,
+        targetTitle: input.targetTitle,
+        company: input.company,
+        jobTitle: input.jobTitle,
+        jobDescription: input.jobDescription,
+      });
+    } catch {
+      return { ok: false, error: mapped.userMessage, code: mapped.code };
+    }
 
     if (fallback.ok && fallback.markdown.trim().length >= 80) {
       logEnhance("engine", "cover.run.fallback.success", {
