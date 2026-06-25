@@ -96,23 +96,44 @@ lib/extension/              Pipeline orchestrator, job service, auth token, scra
 lib/profile/                Profile copy + persist helpers for pipeline tailor
 ```
 
-## Extension one-click pipeline (Workday)
+## Extension apply pipeline — event-driven (2026-06-25)
 
-Gated by `feature_flags.extension_auto_apply` + `users.autoApplyUserSwitch`. Entry: extension card **Apply with EasySubmit** → `POST /api/extension/jobs/pipeline`.
+Entry: extension card **Apply with EasySubmit**. Pipeline is split into two independent stages — capture responds instantly, tailor runs async, both surfaces react via Supabase Realtime push (no polling).
 
 ```
-Extension RUN_PIPELINE
-  → runApplyPipeline (lib/extension/apply-pipeline.ts)
-      → saveJobTrackerEntry → CAPTURED
-      → runPipelineTailor (lib/extension/pipeline-tailor.ts)
-          → copySourceProfileForJob
-          → enhanceResumeForUserId (variant: pipeline)
-          → persistProfileFromForm
-      → RESUME_READY + tailoredProfileId
-      → pendingPhase: "autofill" (Phase C not implemented)
+Extension CAPTURE_JOB
+  → POST /api/extension/jobs/capture
+      → captureJob (lib/extension/apply-pipeline.ts)
+          → saveJobTrackerEntry → write CAPTURED → respond immediately
+  ← {id, status: "CAPTURED"}
+
+Extension subscribes to per-job Supabase Realtime (subscribeJobStatusRealtime)
+
+Extension TAILOR_JOB_ASYNC (fire and forget)
+  → POST /api/extension/jobs/tailor
+      → tailorJobPipeline (lib/extension/apply-pipeline.ts)
+          → runPipelineTailor (lib/extension/pipeline-tailor.ts)
+              → resolveSourceProfileForJob
+              → enhanceResumeForUserId (variant: pipeline)
+              → upsertJobResumeTailor
+          → write RESUME_READY  ──► Realtime push → extension card + dashboard update
+          → advancePipelineAfterAutofill
+          → write READY_TO_APPLY ──► Realtime push → extension shows Apply Assist + dashboard update
 ```
 
-Status flow: `CAPTURED` → `RESUME_READY` → `READY_TO_APPLY` → `APPLIED`. Tailor failure: job stays `CAPTURED`, cloned profile deleted, error in `metadata.pipelineError`; API returns HTTP 200 with `saved: true`. Autofill stub: extension `runAutofillPhase` → `POST /api/extension/jobs/:id/autofill-complete` → `READY_TO_APPLY` (real Workday field fill pending Phase C1–C5).
+**Status flow:** `CAPTURED` → `RESUME_READY` → `READY_TO_APPLY` → `APPLIED`
+
+**Realtime:** Both extension (`startJobStatusRealtime` in `extension/src/content/job-realtime.ts`) and dashboard (`useJobTrackerSync`) subscribe to `job_tracker_entries` via Supabase Realtime. DB writes are the events — no polling in the new flow.
+
+**Pipeline bar labels (active segment):**
+- `CAPTURED` → "Optimizing resume"
+- `RESUME_READY` → "Resume ready"
+- `READY_TO_APPLY` → "Ready to ApplyAssist"
+- `APPLIED` → all segments complete
+
+**Tailor failure:** job stays `CAPTURED` with `metadata.pipelineError`. Extension and dashboard both see error state via Realtime.
+
+Legacy `POST /api/extension/jobs/pipeline` (`runApplyPipeline`) retained for backward compatibility.
 
 Spec: [`docs/WORKDAY_ONE_CLICK_APPLY.md`](./WORKDAY_ONE_CLICK_APPLY.md).
 
@@ -139,6 +160,9 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 
 | Date | Summary |
 |------|---------|
+| 2026-06-25 | Event-driven apply pipeline: split into `/capture` (instant) + `/tailor` (async); per-job Supabase Realtime push replaces extension polling; `captureJob` + `tailorJobPipeline` in `apply-pipeline.ts`; `subscribeJobStatusRealtime` in `realtime-sync.ts`; `startJobStatusRealtime` in `job-realtime.ts` |
+| 2026-06-25 | Pipeline bar active segment labels dynamic: CAPTURED→"Optimizing resume", RESUME_READY→"Resume ready", READY_TO_APPLY→"Ready to ApplyAssist" via `pipelineActiveSegmentLabel` |
+| 2026-06-25 | Extension key/quota failures: specific card badge + message + Open Settings deeplink (`resolveKeyFailurePresentation`, `DashboardKeyFailureAlert` on web) |
 | 2026-06-23 | Job tracker sync: fast poll (3s) includes `RESUME_READY`; realtime-token routes return 503 when Supabase Realtime is not configured |
 | 2026-06-23 | Extension content script: graceful teardown on invalidated context — stop polling/url watchers, swallow unhandled rejections, no console spam after reload |
 | 2026-06-23 | Phases 6–12 application profile + PDF inject + confirmation detect (3-signal) + tracker journey UI via `resolveJourneyDisplay` |

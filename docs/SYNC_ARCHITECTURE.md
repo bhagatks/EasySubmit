@@ -39,9 +39,12 @@ Layer B gate: `canApplyCapture()` — URL + description ≥ 120 chars. Title der
 
 | Surface | Mechanism |
 |---------|-----------|
-| App dashboard | `useJobTrackerSync` — Realtime + 10s poll |
-| Extension | Realtime when token configured + 2s poll during journey |
+| App dashboard | `useJobTrackerSync` — Supabase Realtime + 10s poll fallback |
+| Extension (pipeline) | Per-job Supabase Realtime push via `startJobStatusRealtime` — no polling |
+| Extension (journey) | User-level Realtime via `startExtensionJobRealtime` + 2s poll during apply assist |
 | Token APIs | `/api/job-tracker/realtime-token`, `/api/extension/realtime-token` |
+
+**Pipeline sync flow (2026-06-25):** Extension calls `/capture` → gets `{id}` instantly → subscribes `subscribeJobStatusRealtime(jobId)` → fires `/tailor` async. Server writes `RESUME_READY` then `READY_TO_APPLY` to DB → Realtime pushes each to extension + dashboard simultaneously. No polling in capture→tailor flow.
 
 Requires `SUPABASE_JWT_SECRET`, Realtime publication on `job_tracker_entries`, RLS `userId = auth.jwt() ->> 'sub'`.
 
