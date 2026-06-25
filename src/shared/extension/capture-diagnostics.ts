@@ -158,8 +158,10 @@ export function logCaptureDiagnostics(
     fields: diagnostics.fields.filter((field) => !field.present),
   };
 
-  if (hasGap) {
+  if (diagnostics.missingRequired.length > 0) {
     console.warn(JOB_CAPTURE_LOG_PREFIX, payload);
+  } else if (hasGap) {
+    console.info(JOB_CAPTURE_LOG_PREFIX, payload);
   } else {
     console.info(JOB_CAPTURE_LOG_PREFIX, payload);
   }

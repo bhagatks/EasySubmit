@@ -6,6 +6,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import type { JobTrackerStatus } from "@/lib/generated/prisma/client";
 import { entryIssueMessage } from "@/lib/job-tracker/entry-issue";
+import { resolveJobIdentity } from "@/src/shared/extension/job-identity";
 import { attachReviewDocumentsToDetail } from "@/lib/job-tracker/review-documents-map";
 import { buildCoverLetterSeedPatch } from "@/lib/job-tracker/build-deterministic-cover-letter";
 import { buildTailoredResumePreview } from "@/lib/job-tracker/build-tailored-resume-preview";
@@ -13,6 +14,7 @@ import { JOB_TRACKER_EDITABLE_STATUSES } from "@/lib/job-tracker/pipeline";
 import type { JobTrackerSummary, JobTrackerDetail } from "@/lib/job-tracker/types";
 import { updateJobTrackerStatus } from "@/lib/extension/job-service";
 import { markJobTrackerApplied } from "@/lib/extension/mark-applied";
+import { journeySyncLog } from "@/src/shared/extension/journey-sync-log";
 import { resumeProfileDisplayLabel } from "@/lib/extension/resume-profiles";
 import { getMergedResumeForJob, updateJobReviewDocuments } from "@/lib/profile/job-resume-tailor";
 import { findProfileForUser } from "@/lib/profile/resume-profile-core";
@@ -56,10 +58,18 @@ function toSummary(entry: {
   resumeTailor?: { id: string } | null;
 }): JobTrackerSummary {
   const metadata = readMetadata(entry.metadata);
+  const identity = resolveJobIdentity({
+    url: entry.canonicalUrl,
+    title: entry.title,
+    company: entry.company,
+    description: entry.description ?? null,
+  });
+  const company = entry.company?.trim() || identity.company;
+
   return {
     id: entry.id,
     title: entry.title,
-    company: entry.company,
+    company,
     location: entry.location,
     salaryText: entry.salaryText,
     status: entry.status,
@@ -71,7 +81,7 @@ function toSummary(entry: {
     issueMessage: entryIssueMessage({
       url: entry.canonicalUrl,
       title: entry.title,
-      company: entry.company,
+      company,
       location: entry.location,
       salaryText: entry.salaryText,
       description: entry.description ?? null,
@@ -410,6 +420,11 @@ export async function deleteJobTrackerEntry(entryId: string): Promise<JobTracker
   if (result.count === 0) {
     return { success: false, error: "Job not found" };
   }
+
+  journeySyncLog("server", "job_deleted", {
+    entryId: entryId.trim(),
+    userId,
+  });
 
   revalidatePath("/dashboard/job-tracker");
   return { success: true };

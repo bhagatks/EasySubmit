@@ -18,7 +18,7 @@ import type {
   ExtensionRuntimeConfig,
   ScrapedJobMetadata,
 } from "@shared/extension/types";
-import { bindStageNudge, glossyShellStyles, renderStageNudgeMarkup, stageNudgeStyles, type ManualPipelineStep } from "@shared/extension/stage-nudge";
+import { glossyShellStyles, type ManualPipelineStep } from "@shared/extension/stage-nudge";
 import {
   buildCaptureDiagnostics,
   logCaptureDiagnostics,
@@ -30,8 +30,6 @@ import type { FieldCapturePayload } from "@shared/extension/field-descriptor";
 import type { ServerLookupMap } from "@shared/extension/field-resolution";
 import { injectApiInterceptScript, onApiIntercept, type InterceptedJobData } from "@shared/extension/api-intercept";
 import { isExtensionGlobalSwitchOn } from "@shared/extension/extension-global-switch";
-import { resolveJourneyDisplay, type JourneyDisplay } from "@shared/journey-display";
-import type { JobTrackerStatus } from "@/lib/generated/prisma/client";
 import type { ApplicationProfile } from "@/lib/profile/application-profile";
 import {
   isApplicationProfileSetupComplete,
@@ -51,6 +49,18 @@ import { hasStrongJobUrlSignal } from "@shared/extension/job-url-parse";
 import { detectApplicationConfirmation } from "@shared/extension/confirmation-detect";
 import { buildAssistFieldSuggestions } from "@shared/extension/assist-suggestions";
 import { hasAssistOpenParam, stripAssistOpenParam } from "@shared/extension/assist-open-url";
+import { parseCompanyFromJobHost } from "@shared/extension/job-url-parse";
+import {
+  classifyJourneySyncTransition,
+  extensionJourneySyncPollIntervalMs,
+  resolveExtensionJourneyDisplay,
+  shouldResetExtensionAfterSync,
+  shouldRunExtensionJourneySyncPoll,
+  snapshotFromServerStatus,
+  type JourneySnapshot,
+} from "@shared/extension/journey-sync";
+import { journeySyncDebug, journeySyncLog } from "@shared/extension/journey-sync-log";
+import { canonicalizeJobUrl } from "@shared/extension/job-url";
 import { resolveCardContent as resolveCardContentShared } from "./resolve-card-content";
 import {
   manualCaptureStyles,
@@ -118,6 +128,8 @@ let pipelineBusyLabel: string | null = null;
 let pendingPipelinePhase: string | null = null;
 let saveError: string | null = null;
 let statusPollTimer: ReturnType<typeof setInterval> | null = null;
+let journeySyncTimer: ReturnType<typeof setInterval> | null = null;
+let lastJourneySnapshot: JourneySnapshot | null = null;
 let autofillRunForEntryId: string | null = null;
 let manualCaptureDraft: ManualCaptureDraft | null = null;
 let profileSetupScreen: 0 | 1 | 2 = 0;
@@ -176,6 +188,7 @@ function stopUrlWatch(): void {
 
 function stopAllExtensionTimers(): void {
   stopStatusPolling();
+  stopJourneySyncPoll();
   stopConfirmationWatch();
   stopLoadingHydrationWatch();
   stopUrlWatch();
@@ -254,42 +267,26 @@ function getManualPipelineStep(): ManualPipelineStep {
   return 2;
 }
 
-function resolveExtensionJourneyDisplay(): JourneyDisplay {
-  if (savedStatus.canReapply) {
-    return {
-      stage: 0,
-      label: "Re-apply",
-      applyButtonState: "reapply",
-      showResumeCard: false,
-      showAssistCard: false,
-    };
-  }
-
-  if (pipelineBusy) {
-    return {
-      stage: 1,
-      label: pipelineBusyLabel ?? "Optimizing resume…",
-      applyButtonState: "disabled",
-      showResumeCard: false,
-      showAssistCard: false,
-    };
-  }
-
-  const status = savedStatus.saved
-    ? ((savedStatus.status as JobTrackerStatus | undefined) ?? null)
-    : null;
-  return resolveJourneyDisplay(status, Boolean(saveError));
+function resolveExtensionJourneyDisplayLocal() {
+  return resolveExtensionJourneyDisplay({
+    saved: savedStatus.saved,
+    status: savedStatus.status,
+    canReapply: savedStatus.canReapply,
+    pipelineBusy,
+    pipelineBusyLabel,
+    saveError,
+  });
 }
 
 function getPrimaryCtaLabel(): string {
-  return resolveExtensionJourneyDisplay().label;
+  return resolveExtensionJourneyDisplayLocal().label;
 }
 
 function statusLabel(saved: boolean, status?: string, presentation: CardPresentation = "job"): string {
   if (presentation === "no_job") return "Not detected";
   if (presentation === "loading") return "Reading…";
   if (presentation === "manual_capture") return "Add details";
-  return resolveExtensionJourneyDisplay().label;
+  return resolveExtensionJourneyDisplayLocal().label;
 }
 
 function getHostWidth(): number {
@@ -592,7 +589,7 @@ function getCaptureContext(): {
   }
 
   const meta = currentMetadata;
-  const url = location.href;
+  const url = canonicalizeJobUrl(location.href);
   const identity = resolveJobIdentity({
     url,
     title: meta?.title,
@@ -641,11 +638,7 @@ async function syncRealtimeSubscription(): Promise<void> {
       return res.token;
     },
     onSync: () => {
-      void refreshSavedStatus()
-        .then(() => {
-          if (cardHost) renderCard(cardHost.shadow);
-        })
-        .catch(() => undefined);
+      void applyServerJourneyRefresh("realtime").catch(swallowContextInvalidation);
     },
   });
   realtimeStop = stop;
@@ -749,7 +742,7 @@ function renderExpandedCard(root: ShadowRoot): void {
     manualCaptureDraft = defaultManualCaptureDraft();
   }
 
-  const journey = resolveExtensionJourneyDisplay();
+  const journey = resolveExtensionJourneyDisplayLocal();
   const showAssistLayout = profileSetupScreen === 0 && journey.showAssistCard;
   const showResumeCardLayout = profileSetupScreen === 0 && journey.showResumeCard;
   const showAppliedLayout =
@@ -799,7 +792,6 @@ function renderExpandedCard(root: ShadowRoot): void {
   const uiMode = getPipelineUiMode(runtimeConfig);
   const manualStep = getManualPipelineStep();
   const showUpdateResume = uiMode === "manual" && savedStatus.saved && manualStep === 2;
-  const nudgeVariant = savedStatus.saved ? "captured" : "capture";
   const showPrimaryCta =
     profileSetupScreen === 0 &&
     !showAssistLayout &&
@@ -810,7 +802,7 @@ function renderExpandedCard(root: ShadowRoot): void {
     : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>`;
 
   root.innerHTML = `
-    <style>${cardStyles()}${glossyShellStyles()}${stageNudgeStyles()}${manualCaptureStyles()}${profileSetupStyles()}</style>
+    <style>${cardStyles()}${glossyShellStyles()}${manualCaptureStyles()}${profileSetupStyles()}</style>
     <div class="glossy-stack">
       <div class="glossy-shell${savedStatus.saved ? "" : " is-live"}">
         <div class="glossy-shell-sheen" aria-hidden="true"></div>
@@ -856,7 +848,6 @@ function renderExpandedCard(root: ShadowRoot): void {
           </div>
           ${showResumeCardLayout ? renderResumeReadyCardMarkup(profileLabel, escapeHtml) : ""}
           ${showAssistLayout ? renderAssistCardMarkup(assistSuggestions, escapeHtml) : ""}
-          ${!showAssistLayout && !showResumeCardLayout && !showAppliedLayout && profileSetupScreen === 0 ? renderStageNudgeMarkup(nudgeVariant, { mode: uiMode, manualStep }) : ""}
         </div>
       </div>
     </div>
@@ -901,18 +892,6 @@ function renderExpandedCard(root: ShadowRoot): void {
       });
     }
   }
-
-  bindStageNudge(root, {
-    saved: savedStatus.saved,
-    onCapture: () => {
-      void onPrimaryClick();
-    },
-    onManualStep: (step) => {
-      if (step === 2) {
-        void openUpdateResumeDashboard();
-      }
-    },
-  });
 
   bindHeaderButton(root, "[data-minimize]", () => {
     minimizeCard();
@@ -1394,7 +1373,103 @@ function bindDragTarget(
   }
 }
 
+function resetExtensionJourneyToStage0(reason: string): void {
+  journeySyncLog("extension", "journey_reset_stage_0", {
+    reason,
+    url: location.href,
+    canonicalUrl: canonicalizeJobUrl(location.href),
+    previous: lastJourneySnapshot,
+  });
+
+  savedStatus = { saved: false };
+  lastJourneySnapshot = snapshotFromServerStatus({ saved: false });
+  saveError = null;
+  pipelineBusy = false;
+  pipelineBusyLabel = null;
+  pendingPipelinePhase = null;
+  autofillRunForEntryId = null;
+  stopStatusPolling();
+  stopJourneySyncPoll();
+  stopConfirmationWatch();
+  void stopExtensionJobRealtime();
+  realtimeStop = null;
+  void chrome.storage.local.remove(STORAGE_KEYS.pendingApplyJobId);
+  if (cardHost) renderCard(cardHost.shadow);
+}
+
+function stopJourneySyncPoll(): void {
+  if (journeySyncTimer) {
+    clearInterval(journeySyncTimer);
+    journeySyncTimer = null;
+  }
+}
+
+function startJourneySyncPoll(): void {
+  stopJourneySyncPoll();
+  const snapshot = snapshotFromServerStatus(savedStatus);
+  if (!shouldRunExtensionJourneySyncPoll(snapshot)) return;
+
+  const intervalMs = extensionJourneySyncPollIntervalMs(savedStatus.status);
+  journeySyncDebug("extension", "journey_sync_poll_start", {
+    intervalMs,
+    entryId: savedStatus.id,
+    status: savedStatus.status,
+  });
+
+  journeySyncTimer = setInterval(() => {
+    if (!guardExtensionContext()) return;
+    void applyServerJourneyRefresh("poll").catch(swallowContextInvalidation);
+  }, intervalMs);
+}
+
+async function applyServerJourneyRefresh(reason: string): Promise<void> {
+  const before = snapshotFromServerStatus(savedStatus);
+  await refreshSavedStatus();
+  const after = snapshotFromServerStatus(savedStatus);
+  const transition = classifyJourneySyncTransition(before, after);
+
+  journeySyncLog("extension", "journey_sync", {
+    reason,
+    transition,
+    pageUrl: location.href,
+    lookupUrl: canonicalizeJobUrl(location.href),
+    before,
+    after,
+  });
+
+  lastJourneySnapshot = after;
+
+  if (shouldResetExtensionAfterSync(transition)) {
+    resetExtensionJourneyToStage0(reason);
+    return;
+  }
+
+  if (transition === "server_updated") {
+    saveError = null;
+  }
+
+  if (transition !== "unchanged" && cardHost) {
+    renderCard(cardHost.shadow);
+  }
+
+  if (shouldRunExtensionJourneySyncPoll(after)) {
+    if (!journeySyncTimer) {
+      startJourneySyncPoll();
+    }
+  } else {
+    stopJourneySyncPoll();
+  }
+
+  if (after.saved) {
+    await syncRealtimeSubscription().catch(() => undefined);
+    if (after.status === "READY_TO_APPLY") {
+      startConfirmationWatch();
+    }
+  }
+}
+
 async function refreshSavedStatus(): Promise<void> {
+  const lookupUrl = canonicalizeJobUrl(location.href);
   const res = await sendMessage<{
     saved: boolean;
     status?: string;
@@ -1402,9 +1477,12 @@ async function refreshSavedStatus(): Promise<void> {
     canReapply?: boolean;
   }>({
     action: EXTENSION_MESSAGE.JOB_STATUS,
-    url: location.href,
+    url: lookupUrl,
   });
-  if (!res) return;
+  if (!res) {
+    journeySyncWarn("extension", "job_status_unreachable", { lookupUrl, pageUrl: location.href });
+    return;
+  }
   savedStatus = {
     saved: Boolean(res.saved),
     status: res.status,
@@ -1424,9 +1502,8 @@ function startStatusPolling(intervalMs = 2000): void {
   stopStatusPolling();
   statusPollTimer = setInterval(() => {
     if (!guardExtensionContext()) return;
-    void refreshSavedStatus()
+    void applyServerJourneyRefresh("pipeline_poll")
       .then(() => {
-        if (cardHost) renderCard(cardHost.shadow);
         if (
           savedStatus.status === "READY_TO_APPLY" ||
           savedStatus.status === "APPLIED" ||
@@ -1567,7 +1644,7 @@ async function runAutofillPhase(entryId: string): Promise<void> {
     pendingPipelinePhase = null;
     saveError = null;
     await chrome.storage.local.remove(STORAGE_KEYS.pendingApplyJobId);
-    void refreshSavedStatus().catch(() => undefined);
+    void applyServerJourneyRefresh("autofill_complete").catch(() => undefined);
   } catch (error) {
     if (isExtensionContextInvalidatedError(error)) {
       teardownStaleExtensionContext();
@@ -1769,8 +1846,6 @@ async function startApplyPipeline(): Promise<void> {
     manualCaptureDraft = readManualCaptureDraftFromDom(cardHost.shadow);
   }
 
-  const capture = getCaptureContext();
-
   const tokenRes = await sendMessage<{ token: string | null }>({ action: EXTENSION_MESSAGE.GET_AUTH });
   if (!tokenRes?.token) {
     if (tokenRes) {
@@ -1783,6 +1858,8 @@ async function startApplyPipeline(): Promise<void> {
   if (cardPresentation !== "manual_capture") {
     await refreshMetadataBeforeSave(config);
   }
+
+  const capture = getCaptureContext();
 
   const captureDiagnostics = buildCaptureDiagnostics({
     url: capture.url,
@@ -1847,9 +1924,7 @@ async function startApplyPipeline(): Promise<void> {
       };
       pendingPipelinePhase = res?.pendingPhase ?? null;
       saveError = res?.success ? null : (res?.error ?? null);
-      await refreshSavedStatus().catch(() => undefined);
-      await syncRealtimeSubscription();
-      startConfirmationWatch();
+      await applyServerJourneyRefresh("pipeline_save").catch(() => undefined);
       if (cardHost) renderCard(cardHost.shadow);
 
       if (res?.success && res?.pendingPhase === "autofill" && savedStatus.id) {
@@ -1965,11 +2040,7 @@ async function mountCard(
 
   const sameTitle = currentMetadata?.title === metadata.title;
   currentMetadata = metadata;
-  await refreshSavedStatus().catch(() => undefined);
-  await syncRealtimeSubscription().catch(() => undefined);
-  if (savedStatus.status === "READY_TO_APPLY") {
-    startConfirmationWatch();
-  }
+  await applyServerJourneyRefresh("mount_card").catch(() => undefined);
   await refreshResumeProfiles().catch(() => undefined);
   await maybeContinuePendingAutofill().catch(() => undefined);
   if (cardHost && !isDragging()) {
@@ -2142,7 +2213,7 @@ function interceptedToMetadata(data: InterceptedJobData): ScrapedJobMetadata {
       : undefined;
   return {
     title: data.title ?? "",
-    company: data.company ?? null,
+    company: data.company?.trim() || parseCompanyFromJobHost(location.href) || null,
     location: data.location ?? null,
     salaryText: null,
     description: data.description ?? null,
@@ -2178,6 +2249,16 @@ function bootJobPageObservers(): void {
       currentMetadata = interceptedMetadata;
       renderCard(cardHost.shadow);
     }
+  });
+
+  window.addEventListener("focus", () => {
+    if (document.visibilityState !== "visible") return;
+    void applyServerJourneyRefresh("tab_focus").catch(swallowContextInvalidation);
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible") return;
+    void applyServerJourneyRefresh("tab_visible").catch(swallowContextInvalidation);
   });
 
   scheduleUpdate();
@@ -2252,7 +2333,7 @@ if (window.top === window.self) {
             pendingPipelinePhase = "autofill";
             const shown = await forceShowCard();
             if (shown.success) {
-              await refreshSavedStatus().catch(() => undefined);
+              await applyServerJourneyRefresh("dashboard_start_apply").catch(() => undefined);
               if (savedStatus.status === "RESUME_READY") {
                 void runAutofillPhase(jobId);
               } else if (savedStatus.saved) {

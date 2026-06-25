@@ -61,17 +61,35 @@ describe("job-service active row lookup", () => {
     );
   });
 
-  it("flags canReapply when active row is APPLIED", async () => {
+  it("matches Workday posting URLs with and without source tracking param", async () => {
+    const withSource =
+      "https://irhythmtech.wd5.myworkdayjobs.com/iRhythm/job/Remote---US/Sr-Manager--Software-Engineering_JR1346?source=LinkedIn";
+    const withoutSource =
+      "https://irhythmtech.wd5.myworkdayjobs.com/iRhythm/job/Remote---US/Sr-Manager--Software-Engineering_JR1346";
+
     vi.mocked(prisma.jobTrackerEntry.findFirst).mockResolvedValue({
-      id: "entry-applied",
-      status: "APPLIED",
-      title: "Engineer",
-      company: null,
-      canonicalUrl: URL,
+      id: "entry-1",
+      status: "READY_TO_APPLY",
+      title: "Sr Manager",
+      company: "iRhythm",
+      canonicalUrl: withoutSource,
     } as never);
 
-    const status = await getJobTrackerStatusForUrl("user-1", URL);
-    expect(status.canReapply).toBe(true);
+    const withTracking = await getJobTrackerStatusForUrl("user-1", withSource);
+    const withoutTracking = await getJobTrackerStatusForUrl("user-1", withoutSource);
+
+    expect(withTracking.saved).toBe(true);
+    expect(withoutTracking.saved).toBe(true);
+    expect(withTracking.id).toBe("entry-1");
+  });
+
+  it("returns saved:false after row deleted", async () => {
+    vi.mocked(prisma.jobTrackerEntry.findFirst).mockResolvedValue(null);
+    const status = await getJobTrackerStatusForUrl(
+      "user-1",
+      "https://irhythmtech.wd5.myworkdayjobs.com/iRhythm/job/Remote---US/Role_JR1346?source=LinkedIn",
+    );
+    expect(status).toEqual({ saved: false });
   });
 });
 

@@ -88,6 +88,23 @@ Requires `SUPABASE_JWT_SECRET`, Realtime publication on `job_tracker_entries`, R
 
 ---
 
+## Delete / reset (Stage → 0)
+
+When a row is **deleted** from the Job Tracker dashboard:
+
+| Surface | Expected behavior |
+|---------|-------------------|
+| **App** | Row removed immediately (server action + Realtime/poll) |
+| **Extension** | Within one sync tick: `saved:false`, clear pipeline/`saveError`, card returns to **Apply** (Stage 0) |
+
+Sync paths: Supabase Realtime `DELETE`, extension journey poll (3s while saved), tab focus/visibility refresh.
+
+Structured logs: prefix `[EasySubmit:Sync]` — enable verbose dashboard logs with `localStorage.easysubmit_sync_debug = "1"`.
+
+URL lookup for status always uses **canonical URL** (strips `source`, `utm_*`, `gh_src`, etc.) so Workday reposts with `?source=LinkedIn` still match the saved row.
+
+---
+
 ## App → extension deep link
 
 - `appendAssistOpenParam(url)` adds `?es_open=assist`

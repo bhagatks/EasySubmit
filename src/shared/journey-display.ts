@@ -55,7 +55,7 @@ export function resolveJourneyDisplay(
     case "READY_TO_APPLY":
       return {
         stage: 2,
-        label: "Apply assist",
+        label: "Ready to ApplyAssist",
         applyButtonState: "navigate",
         showResumeCard: true,
         showAssistCard: true,

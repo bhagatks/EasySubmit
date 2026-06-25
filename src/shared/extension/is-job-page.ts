@@ -13,6 +13,7 @@ export const HIGH_CONFIDENCE_JOB_URL_PATTERNS: RegExp[] = [
   /indeed\.com\/viewjob/i,
   /indeed\.com\/rc\/clk/i,
   /boards\.greenhouse\.io\/[^/]+\/jobs\//i,
+  /[?&]gh_jid=\d+/i,
   /jobs\.lever\.co\/[^/]+/i,
   /jobs\.ashbyhq\.com\/[^/]+/i,
   /smartrecruiters\.com\/[^/]+\/[^/]+/i,
@@ -71,7 +72,7 @@ export function isJobPage(doc: Document, url: string): boolean {
   const urlLooksLikeJob =
     /\/(job|jobs|career|careers|vacancy|posting|position|opening)s?\//i.test(url) ||
     /\/jobdetail\b/i.test(url) ||
-    /[?&](job|jobid|posting)=/i.test(url);
+    /[?&](job|jobid|posting|gh_jid)=/i.test(url);
 
   if (!urlLooksLikeJob) return false;
 

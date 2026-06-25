@@ -11,6 +11,7 @@ import {
   type AppTabCandidate,
 } from "@shared/extension/open-dashboard";
 import { jobUrlsMatch } from "@shared/extension/job-url";
+import { mergeExtensionRuntimeConfig } from "@shared/extension/runtime-config-merge";
 import type {
   ExtensionRuntimeConfig,
   JobSavePayload,
@@ -102,18 +103,11 @@ async function loadRuntimeConfig(): Promise<ExtensionRuntimeConfig> {
   );
   // Pin to the host we actually reached — do not drift to NEXT_PUBLIC_APP_URL from the body.
   await chrome.storage.local.set({ [STORAGE_KEYS.apiBaseUrl]: base });
-  return {
-    jobCardEnabled: Boolean(data.jobCardEnabled),
-    extensionGlobalSwitch: data.extensionGlobalSwitch ?? true,
-    enabledPlatforms: data.enabledPlatforms ?? ["generic"],
-    genericFallbackEnabled: data.genericFallbackEnabled ?? true,
-    minConfidence: data.minConfidence ?? 55,
+  return mergeExtensionRuntimeConfig({
+    ...data,
     apiBaseUrl: base,
-    autoApplyUserSwitch: data.autoApplyUserSwitch ?? true,
-    oneClickApplyPlatforms: data.oneClickApplyPlatforms ?? ["workday"],
-    autoApplyEnabled: data.autoApplyEnabled ?? true,
-    connectedUser: data.connectedUser ?? null,
-  };
+    jobCardEnabled: Boolean(data.jobCardEnabled),
+  });
 }
 
 async function gatherAppTabCandidates(appOrigin: string): Promise<AppTabCandidate[]> {

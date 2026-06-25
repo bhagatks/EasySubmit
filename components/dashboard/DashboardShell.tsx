@@ -6,6 +6,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import {
   Briefcase,
   FileText,
+  FlaskConical,
   Key,
   LayoutDashboard,
   Puzzle,
@@ -58,6 +59,11 @@ const navItems = [
   { title: "Settings", href: "/dashboard/settings", icon: Settings },
 ] as const;
 
+const devNavItems =
+  process.env.NODE_ENV === "development"
+    ? [{ title: "Testing Resume", href: "/dashboard/testing-resume", icon: FlaskConical }]
+    : [];
+
 type DashboardShellProps = {
   children: React.ReactNode;
   vaultKeyId?: string | null;
@@ -109,6 +115,29 @@ function DashboardSidebar({ vaultKeyId }: { vaultKeyId?: string | null }) {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        {devNavItems.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Dev</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {devNavItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      tooltip={item.title}
+                      isActive={pathname.startsWith(item.href)}
+                    >
+                      <Link href={item.href} className="flex w-full items-center gap-2">
+                        <item.icon className="h-4 w-4 shrink-0" />
+                        <span className="flex-1 truncate">{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
       <SidebarFooter className="group-data-[collapsible=icon]:hidden">
         <div className="rounded-lg border border-border bg-surface p-3 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">

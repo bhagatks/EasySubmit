@@ -110,6 +110,10 @@ function EntryIssueButton({ message }: { message: string | null | undefined }) {
   );
 }
 
+function rowLinkActionClass(): string {
+  return "inline-flex items-center gap-1 rounded-xl px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10 disabled:pointer-events-none disabled:opacity-50";
+}
+
 export function JobTrackerPipeline({
   entries,
   archivedView = false,
@@ -117,15 +121,21 @@ export function JobTrackerPipeline({
   onMutated,
 }: JobTrackerPipelineProps) {
   const [deleteTarget, setDeleteTarget] = useState<JobTrackerSummary | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<JobTrackerSummary | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [extensionHint, setExtensionHint] = useState<string | null>(null);
   const extensionInstalled = useMemo(() => Boolean(readExtensionIdForDashboard()), []);
 
-  async function handleArchive(entryId: string) {
-    setBusyId(entryId);
-    const result = await archiveJobTrackerEntry(entryId);
+  async function handleArchive() {
+    if (!archiveTarget) return false;
+    setBusyId(archiveTarget.id);
+    const result = await archiveJobTrackerEntry(archiveTarget.id);
     setBusyId(null);
-    if (result.success) onMutated?.();
+    if (result.success) {
+      onMutated?.();
+      return true;
+    }
+    return false;
   }
 
   async function handleUnarchive(entryId: string) {
@@ -221,37 +231,48 @@ export function JobTrackerPipeline({
                 title="Click anywhere to open review"
                 className="group cursor-pointer rounded-xl border border-border bg-surface/60 px-3 py-2 transition-all hover:border-primary/35 hover:bg-surface/80 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
               >
-                <div className="flex items-stretch gap-2">
-                  <div className="flex min-w-0 flex-1 flex-col justify-between gap-2 text-left">
-                    <div className="flex min-h-[1.25rem] flex-1 items-center py-0.5">
-                      <div className="flex w-full min-w-0 items-center gap-1">
-                        <p
-                          className="min-w-0 truncate text-sm font-medium leading-snug text-foreground transition-colors group-hover:text-primary"
-                          title={trackerRowLine(entry)}
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 flex-1 items-center gap-1 py-0.5">
+                      <p
+                        className="min-w-0 truncate text-sm font-medium leading-snug text-foreground transition-colors group-hover:text-primary"
+                        title={trackerRowLine(entry)}
+                      >
+                        {trackerRowLine(entry)}
+                      </p>
+                      <ChevronRight
+                        className="h-3.5 w-3.5 shrink-0 text-primary/0 transition-all group-hover:text-primary/70 group-focus-visible:text-primary/70"
+                        aria-hidden="true"
+                      />
+                    </div>
+                    <div
+                      className="flex shrink-0 items-center gap-1"
+                      onClick={stopRowAction}
+                      onKeyDown={stopRowAction}
+                    >
+                      {entry.hasTailoredResume &&
+                      (entry.status === "RESUME_READY" ||
+                        entry.status === "READY_TO_APPLY" ||
+                        entry.status === "APPLIED") ? (
+                        <Link
+                          href={`/dashboard/job-tracker/${entry.id}/resume`}
+                          onClick={stopRowAction}
+                          className={rowLinkActionClass()}
+                          title="Open tailored resume in Studio"
                         >
-                          {trackerRowLine(entry)}
-                        </p>
-                        <ChevronRight
-                          className="h-3.5 w-3.5 shrink-0 text-primary/0 transition-all group-hover:text-primary/70 group-focus-visible:text-primary/70"
-                          aria-hidden="true"
-                        />
-                      </div>
-                    </div>
-                    <PipelineBar status={entry.status} className="w-full shrink-0" />
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      {showSpinner ? (
-                        <Loader2 className="h-3 w-3 shrink-0 animate-spin text-primary" aria-hidden="true" />
+                          Studio
+                          <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                        </Link>
                       ) : null}
-                      <p>{subtitle}</p>
-                    </div>
-                  </div>
-
-                  <div
-                    className="flex shrink-0 flex-col items-end justify-between gap-2 self-stretch"
-                    onClick={stopRowAction}
-                    onKeyDown={stopRowAction}
-                  >
-                    <div className="flex items-center gap-0.5">
+                      <button
+                        type="button"
+                        disabled={rowBusy}
+                        onClick={() => onReview(entry.id)}
+                        className={rowLinkActionClass()}
+                      >
+                        Review
+                        <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                      </button>
                       {archivedView ? (
                         <button
                           type="button"
@@ -267,7 +288,10 @@ export function JobTrackerPipeline({
                         <button
                           type="button"
                           disabled={rowBusy}
-                          onClick={() => void handleArchive(entry.id)}
+                          onClick={(event) => {
+                            stopRowAction(event);
+                            setArchiveTarget(entry);
+                          }}
                           className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
                           aria-label={`Archive ${entry.title}`}
                           title="Archive job"
@@ -290,38 +314,26 @@ export function JobTrackerPipeline({
                       </button>
                       <EntryIssueButton message={entry.issueMessage} />
                     </div>
+                  </div>
 
-                    <div className="flex items-center justify-end gap-2">
-                      {entry.hasTailoredResume &&
-                      (entry.status === "RESUME_READY" ||
-                        entry.status === "READY_TO_APPLY" ||
-                        entry.status === "APPLIED") ? (
-                        <Link
-                          href={`/dashboard/job-tracker/${entry.id}/resume`}
-                          onClick={stopRowAction}
-                          className="inline-flex items-center gap-1 rounded-xl px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10"
-                          title="Open tailored resume in Studio"
-                        >
-                          Studio
-                          <ExternalLink className="h-3 w-3" aria-hidden="true" />
-                        </Link>
-                      ) : null}
-                      <Button
-                        type="button"
-                        variant="mintOutline"
-                        size="sm"
-                        className="rounded-xl"
-                        disabled={rowBusy}
-                        onClick={() => onReview(entry.id)}
-                      >
-                        Review
-                      </Button>
+                  <div className="flex items-end gap-4">
+                    <div className="min-w-0 flex-1">
+                      <PipelineBar status={entry.status} className="w-full" />
+                      <div className="mt-1.5 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+                        {showSpinner ? (
+                          <Loader2 className="h-3 w-3 shrink-0 animate-spin text-primary" aria-hidden="true" />
+                        ) : null}
+                        <p className="truncate">{subtitle}</p>
+                      </div>
+                    </div>
+
+                    <div
+                      className="flex shrink-0 items-center justify-end gap-2"
+                      onClick={stopRowAction}
+                      onKeyDown={stopRowAction}
+                    >
                       {!archivedView ? (
-                        stage3 ? (
-                          <span className="inline-flex min-h-8 items-center rounded-xl bg-mint/15 px-3 text-xs font-semibold text-mint">
-                            Completed
-                          </span>
-                        ) : stageError ? (
+                        stageError ? (
                           <>
                             <span className="inline-flex min-h-8 items-center rounded-xl bg-amber-500/10 px-3 text-xs font-semibold text-amber-700 dark:text-amber-300">
                               {journey.label}
@@ -339,10 +351,10 @@ export function JobTrackerPipeline({
                           </>
                         ) : (
                           <>
-                            {stage2 ? (
+                            {stage2 && !stage3 ? (
                               <Button
                                 type="button"
-                                variant="outline"
+                                variant="mintOutline"
                                 size="sm"
                                 className="rounded-xl"
                                 disabled={rowBusy}
@@ -353,13 +365,14 @@ export function JobTrackerPipeline({
                             ) : null}
                             <Button
                               type="button"
-                              variant="mint"
+                              variant={stage3 ? "outline" : "mint"}
                               size="sm"
                               className={cn(
                                 "rounded-xl",
                                 isApplyInteractive(journey) && !rowBusy && "animate-mint-cta",
                               )}
                               disabled={
+                                stage3 ||
                                 !isApplyInteractive(journey) ||
                                 rowBusy ||
                                 journey.applyButtonState === "disabled" ||
@@ -371,7 +384,7 @@ export function JobTrackerPipeline({
                               {rowBusy ? (
                                 <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
                               ) : null}
-                              {applyButtonLabel(journey)}
+                              {stage3 ? "Completed" : applyButtonLabel(journey)}
                             </Button>
                           </>
                         )
@@ -384,6 +397,17 @@ export function JobTrackerPipeline({
           );
         })}
       </ul>
+
+      <ConfirmDialog
+        open={Boolean(archiveTarget)}
+        onOpenChange={(open) => {
+          if (!open) setArchiveTarget(null);
+        }}
+        title="Archive this job?"
+        description={`“${archiveTarget?.title ?? "This job"}” will move to your archived list. You can restore it anytime.`}
+        confirmLabel="Archive"
+        onConfirm={handleArchive}
+      />
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}

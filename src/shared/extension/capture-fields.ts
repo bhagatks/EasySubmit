@@ -1,3 +1,5 @@
+import { resolveJobIdentity } from "./job-identity";
+
 export type CaptureFieldId =
   | "url"
   | "title"
@@ -152,7 +154,17 @@ export function entryIssueMessage(input: EntryIssueInput): string | null {
   const metadataError = readMetadataError(input.metadata);
   if (metadataError) return metadataError;
 
-  const completeness = assessCaptureCompleteness(input);
+  const identity = resolveJobIdentity({
+    url: input.url ?? "",
+    title: input.title,
+    company: input.company,
+    description: input.description,
+  });
+
+  const completeness = assessCaptureCompleteness({
+    ...input,
+    company: input.company?.trim() || identity.company,
+  });
   if (completeness.missingBlockingQuality.length === 0) {
     return null;
   }

@@ -28,7 +28,7 @@ export type AtsEngine =
 const URL_ENGINE_PATTERNS: Array<{ pattern: RegExp; engine: AtsEngine; platform: ExtensionPlatform }> = [
   { pattern: /linkedin\.com\/jobs/i, engine: "linkedin", platform: "linkedin" },
   { pattern: /indeed\.com/i, engine: "indeed", platform: "indeed" },
-  { pattern: /boards\.greenhouse\.io|greenhouse\.io/i, engine: "greenhouse", platform: "greenhouse" },
+  { pattern: /boards\.greenhouse\.io|greenhouse\.io|[?&]gh_jid=\d+/i, engine: "greenhouse", platform: "greenhouse" },
   { pattern: /myworkdayjobs\.com|\.wd\d+\.myworkdayjobs\.com/i, engine: "workday", platform: "workday" },
   { pattern: /jobs\.cvshealth\.com|data-ph-at-id|phenompeople\.com/i, engine: "phenom", platform: "generic" },
   { pattern: /icims\.com|optimumcareers\.com/i, engine: "icims", platform: "icims" },

@@ -7,6 +7,11 @@ import {
   fetchJobTrackerRealtimeCredentials,
   subscribeJobTrackerRealtime,
 } from "@/src/shared/extension/realtime-sync";
+import {
+  isJourneySyncDebugEnabled,
+  journeySyncDebug,
+  journeySyncLog,
+} from "@/src/shared/extension/journey-sync-log";
 
 export const JOB_TRACKER_SYNC_POLL_FAST_MS = 3_000;
 export const JOB_TRACKER_SYNC_POLL_SLOW_MS = 30_000;
@@ -37,12 +42,12 @@ export type UseJobTrackerSyncOptions = {
 
 async function fetchJobTrackerEntries(
   entriesUrl: string,
-): Promise<JobTrackerSummary[]> {
+): Promise<JobTrackerSummary[] | null> {
   const response = await fetch(entriesUrl, { credentials: "include" });
-  if (!response.ok) return [];
+  if (!response.ok) return null;
 
   const body = (await response.json()) as JobTrackerEntriesResponse;
-  if (!body.success || !Array.isArray(body.entries)) return [];
+  if (!body.success || !Array.isArray(body.entries)) return null;
   return body.entries;
 }
 
@@ -76,6 +81,19 @@ export function useJobTrackerSync({
       if (cancelled) return;
       const entries = await fetchJobTrackerEntries(entriesUrl);
       if (cancelled) return;
+      if (entries === null) {
+        if (isJourneySyncDebugEnabled()) {
+          journeySyncDebug("app", "poll_skipped", { reason: "fetch_failed", entriesUrl });
+        }
+        schedulePoll(JOB_TRACKER_SYNC_POLL_SLOW_MS);
+        return;
+      }
+      if (isJourneySyncDebugEnabled()) {
+        journeySyncLog("app", "poll_update", {
+          count: entries.length,
+          intervalMs: resolveJobTrackerPollIntervalMs(entries),
+        });
+      }
       onUpdateRef.current(entries);
       schedulePoll(resolveJobTrackerPollIntervalMs(entries));
     };
@@ -97,6 +115,9 @@ export function useJobTrackerSync({
 
       const subscription = subscribeJobTrackerRealtime(supabase, credentials.userId, {
         onChange: () => {
+          if (isJourneySyncDebugEnabled()) {
+            journeySyncLog("app", "realtime_change", { userId: credentials.userId });
+          }
           void syncFromRealtime();
         },
       });

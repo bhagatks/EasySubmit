@@ -25,25 +25,50 @@ export function isWorkdayApplyStepUrl(url: string): boolean {
   return /myworkdayjobs\.com\/.*\/job\/(?:[^/]+\/)+apply\/?$/i.test(url);
 }
 
-/** Best-effort company/site label from Workday career site path. */
-export function parseWorkdayCompanyFromUrl(url: string): string | null {
-  try {
-    const parts = new URL(url).pathname.split("/").filter(Boolean);
-    const localePattern = /^(en-us|en-gb|en-ca|fr-fr|de-de)$/i;
+const WORKDAY_LOCALE_SEGMENT = /^(en-us|en-gb|en-ca|fr-fr|de-de)$/i;
 
-    for (const part of parts) {
-      if (part === "job" || part === "details" || localePattern.test(part)) continue;
-      if (/^R-[\w-]+$/i.test(part)) continue;
-      if (part.includes("_R-") || part.includes("--")) continue;
-      const label = part
-        .replace(/-/g, " ")
-        .replace(/([a-z])([A-Z])/g, "$1 $2")
-        .trim();
-      if (label.length < 2) continue;
-      return label.replace(/\b\w/g, (c) => c.toUpperCase());
+function formatWorkdaySiteSegment(site: string): string | null {
+  const trimmed = site.trim();
+  if (trimmed.length < 2) return null;
+  if (/^R-[\w-]+$/i.test(trimmed) || trimmed.includes("_R-")) return null;
+
+  if (/^[a-z][a-zA-Z0-9]*[A-Z]/.test(trimmed)) {
+    return trimmed;
+  }
+
+  const spaced = trimmed
+    .replace(/_/g, " ")
+    .replace(/-/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .trim();
+  if (spaced.length < 2) return null;
+  return spaced.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** Best-effort company/site label from the career site segment before `/job/` or `/details/`. */
+export function parseWorkdayCompanyFromUrl(url: string): string | null {
+  if (!/myworkdayjobs\.com/i.test(url)) return null;
+
+  try {
+    const pathname = new URL(url).pathname;
+    const siteMatch = pathname.match(/\/([^/]+)\/(?:job|details)\//i);
+    if (!siteMatch?.[1]) return null;
+
+    let site = siteMatch[1];
+    if (WORKDAY_LOCALE_SEGMENT.test(site)) {
+      const afterLocale = pathname.match(/^\/[^/]+\/([^/]+)\/(?:job|details)\//i);
+      site = afterLocale?.[1] ?? site;
     }
 
-    return null;
+    if (
+      WORKDAY_LOCALE_SEGMENT.test(site) ||
+      site === "job" ||
+      site === "details"
+    ) {
+      return null;
+    }
+
+    return formatWorkdaySiteSegment(site);
   } catch {
     return null;
   }
@@ -90,6 +115,7 @@ export function humanizeWorkdaySiteName(siteName: string): string {
   const normalized = siteName.trim();
   if (/^walmart/i.test(normalized)) return "Walmart";
   if (/cvs/i.test(normalized)) return "CVS Health";
+  if (/^irhythm/i.test(normalized)) return "iRhythm";
   return normalized.replace(/\s+External$/i, "").trim() || normalized;
 }
 

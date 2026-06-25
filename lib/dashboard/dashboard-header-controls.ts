@@ -14,6 +14,9 @@ export function isDashboardDetailScreen(
   if (isJobReviewStudioContext(pathname, fromParam ?? null)) {
     return true;
   }
+  if (pathname === "/dashboard/testing-resume") {
+    return true;
+  }
   return false;
 }
 

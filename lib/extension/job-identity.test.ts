@@ -23,4 +23,15 @@ describe("resolveJobIdentity", () => {
     expect(identity.title.toLowerCase()).toContain("senior");
     expect(identity.titleSource).toBe("url_slug");
   });
+
+  it("resolves Workday company from career site path when scrape missed company", () => {
+    const identity = resolveJobIdentity({
+      url: "https://irhythmtech.wd5.myworkdayjobs.com/iRhythm/job/Remote---US/Sr-Manager--Software-Engineering_JR1346",
+      title: "Sr Manager, Software Engineering",
+      company: null,
+      description: "x".repeat(200),
+    });
+    expect(identity.company).toBe("iRhythm");
+    expect(identity.companySource).toBe("workday_url");
+  });
 });

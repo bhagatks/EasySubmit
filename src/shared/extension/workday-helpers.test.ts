@@ -37,4 +37,13 @@ describe("workday helpers", () => {
       ),
     ).toBe("Walmart External");
   });
+
+  it("parses camelCase Workday site segment without splitting brand names", () => {
+    expect(
+      parseWorkdayCompanyFromUrl(
+        "https://irhythmtech.wd5.myworkdayjobs.com/iRhythm/job/Remote---US/Sr-Manager--Software-Engineering_JR1346?source=LinkedIn",
+      ),
+    ).toBe("iRhythm");
+    expect(humanizeWorkdaySiteName("iRhythm")).toBe("iRhythm");
+  });
 });

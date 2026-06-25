@@ -139,11 +139,11 @@ export const indeedAdapter = baseAdapter(
 
 export const greenhouseAdapter = baseAdapter(
   "greenhouse",
-  [/boards\.greenhouse\.io\/.*\/jobs\//i],
-  ["#content", ".content", "main"],
+  [/boards\.greenhouse\.io\/.*\/jobs\//i, /[?&]gh_jid=\d+/i],
+  ["#content", ".content", "main", "#grnhse_app", "[id*='grnhse']"],
   [".company-name", ".logo-container a"],
   [".location"],
-  ["h1.app-title", "h1"],
+  ["h1.app-title", "h1", "[class*='job-title']"],
 );
 
 export const workdayAdapter: SiteAdapter = {
@@ -180,7 +180,7 @@ export const genericAdapter = baseAdapter(
     /\/(jobs?|careers?|postings?|openings?)\//i,
     /\/jobdetail\b/i,
     /\/careersmarketplace\//i,
-    /[?&](job|jobid|posting)=/i,
+    /[?&](job|jobid|posting|gh_jid)=/i,
   ],
   ["main", "article", "[role='main']", "body"],
   [

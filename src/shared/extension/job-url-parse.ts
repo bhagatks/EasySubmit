@@ -1,4 +1,5 @@
 import { parseWorkdayTitleFromUrl, isWorkdayJobUrl, isWorkdayApplyStepUrl } from "./workday-helpers";
+import { isGreenhouseEmbeddedJobUrl } from "./greenhouse-helpers";
 
 export function slugToTitle(slug: string): string {
   const decoded = decodeURIComponent(slug).trim();
@@ -90,23 +91,58 @@ const KNOWN_CAREER_HOSTS: Record<string, string> = {
   "jobs.cvshealth.com": "CVS Health",
   "optimumcareers.com": "Optimum",
   "www.optimumcareers.com": "Optimum",
+  "suvoda.com": "Suvoda",
 };
 
 /** Company label from careers host when DOM company is missing. */
 export function parseCompanyFromJobHost(url: string): string | null {
   try {
-    const host = new URL(url).hostname.replace(/^www\./i, "");
+    const parsed = new URL(url);
+    const host = parsed.hostname.replace(/^www\./i, "");
     if (KNOWN_CAREER_HOSTS[host]) return KNOWN_CAREER_HOSTS[host];
 
     const jobsSubdomain = host.match(/^jobs\.([^.]+)\./i);
     if (jobsSubdomain?.[1] && jobsSubdomain[1] !== "wd1") {
       return slugToTitle(jobsSubdomain[1]);
     }
+
+    if (isHostedAtsBoardUrl(host)) return null;
+
+    if (isCorporateCareersJobUrl(url, parsed.pathname)) {
+      const brand = host.split(".")[0];
+      if (brand && brand.length >= 2 && !RESERVED_CAREER_HOST_LABELS.has(brand.toLowerCase())) {
+        return slugToTitle(brand);
+      }
+    }
   } catch {
     return null;
   }
 
   return null;
+}
+
+const RESERVED_CAREER_HOST_LABELS = new Set([
+  "jobs",
+  "careers",
+  "apply",
+  "www",
+  "boards",
+  "job",
+]);
+
+function isHostedAtsBoardUrl(host: string): boolean {
+  return (
+    /greenhouse\.io$/i.test(host) ||
+    /lever\.co$/i.test(host) ||
+    /ashbyhq\.com$/i.test(host) ||
+    /myworkdayjobs\.com$/i.test(host) ||
+    /smartrecruiters\.com$/i.test(host)
+  );
+}
+
+function isCorporateCareersJobUrl(url: string, pathname: string): boolean {
+  if (isGreenhouseEmbeddedJobUrl(url)) return true;
+  return /\/(careers?|job-openings?|openings?|postings?)(\/|$)/i.test(pathname);
 }
 
 /** Careers portal hubs/listings — not a single job posting (e.g. CVS /careerareas). */
@@ -119,6 +155,7 @@ export function hasStrongJobUrlSignal(url: string): boolean {
 
   if (isWorkdayJobUrl(url) && parseWorkdayTitleFromUrl(url)) return true;
   if (isWorkdayApplyStepUrl(url)) return true;
+  if (isGreenhouseEmbeddedJobUrl(url)) return true;
   if (/linkedin\.com\/jobs\/(view|collections)/i.test(lower)) return true;
   if (/\/jobdetail\b/i.test(lower) && /[?&]jobid=/i.test(lower)) return true;
   if (/\/job\/[^/]+\/\d+\/?(?:\?|$)/i.test(lower)) return true;

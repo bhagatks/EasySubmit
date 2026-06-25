@@ -10,6 +10,7 @@ import {
   parseLinkedInCompanyFromDoc,
   parseLinkedInLocationFromDoc,
 } from "./linkedin-helpers";
+import { isWorkdayJobUrl, scrapeWorkdayCompany } from "./workday-helpers";
 import type { ScrapedJobMetadata } from "./types";
 
 function readOgTitle(doc: Document): string | null {
@@ -55,11 +56,25 @@ export function enrichScrapedJobMetadata(
     company = docMeta.company;
     enrichments.push("document.title.company");
   }
+  if (!company) {
+    const fromDocPipe = parseCareersOgTitleMeta(doc.title);
+    if (fromDocPipe.company) {
+      company = fromDocPipe.company;
+      enrichments.push("document.title.pipe");
+    }
+  }
   if (!company && isLinkedInUrl(url)) {
     const fromLinkedIn = parseLinkedInCompanyFromDoc(doc);
     if (fromLinkedIn) {
       company = fromLinkedIn;
       enrichments.push("linkedin.meta.company");
+    }
+  }
+  if (!company && isWorkdayJobUrl(url)) {
+    const fromWorkday = scrapeWorkdayCompany(doc, url);
+    if (fromWorkday) {
+      company = fromWorkday;
+      enrichments.push("workday.company");
     }
   }
   if (!company) {

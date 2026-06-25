@@ -61,6 +61,24 @@ function tryParse(text: string): Record<string, unknown> | null {
 const ATS_PATTERNS: AtsPattern[] = [
   {
     platform: "greenhouse",
+    pattern: /boards-api\.greenhouse\.io\/v1\/boards\/[^/]+\/jobs\/\d+/i,
+    parse: (data) => ({
+      title: typeof data.title === "string" ? data.title : undefined,
+      company: undefined,
+      location: (data.location as { name?: string } | undefined)?.name,
+      description: typeof data.content === "string" ? data.content : undefined,
+      qualifications: extractSection(
+        typeof data.content === "string" ? data.content : null,
+        ["qualifications", "requirements"],
+      ),
+      responsibilities: extractSection(
+        typeof data.content === "string" ? data.content : null,
+        ["responsibilities", "what you"],
+      ),
+    }),
+  },
+  {
+    platform: "greenhouse",
     pattern: /\/gh\/jobs\/[\w-]+/,
     parse: (data) => ({
       title: typeof data.title === "string" ? data.title : undefined,

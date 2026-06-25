@@ -1,4 +1,5 @@
 import { parseCompanyFromJobHost, parseJobTitleFromUrl } from "./job-url-parse";
+import { isWorkdayJobUrl, parseWorkdayCompanyFromUrl } from "./workday-helpers";
 
 export type ResolvedJobIdentity = {
   title: string;
@@ -13,6 +14,30 @@ function hostLabelFromUrl(url: string): string {
   } catch {
     return "this site";
   }
+}
+
+function resolveCompanyFallback(
+  url: string,
+  scrapedCompany?: string | null,
+): { company: string | null; source: string | null } {
+  const trimmed = scrapedCompany?.trim();
+  if (trimmed) {
+    return { company: trimmed, source: "scrape" };
+  }
+
+  if (isWorkdayJobUrl(url)) {
+    const fromWorkday = parseWorkdayCompanyFromUrl(url);
+    if (fromWorkday) {
+      return { company: fromWorkday, source: "workday_url" };
+    }
+  }
+
+  const fromHost = parseCompanyFromJobHost(url);
+  if (fromHost) {
+    return { company: fromHost, source: "host" };
+  }
+
+  return { company: null, source: null };
 }
 
 function titleFromDescriptionFirstLine(description: string | null | undefined): string | null {
@@ -33,49 +58,52 @@ export function resolveJobIdentity(input: {
 }): ResolvedJobIdentity {
   const scrapedTitle = input.title?.trim() ?? "";
   if (scrapedTitle.length >= 2 && scrapedTitle !== "Job posting on this page") {
-    const company =
-      input.company?.trim() ||
-      parseCompanyFromJobHost(input.url) ||
-      null;
+    const { company, source: companySource } = resolveCompanyFallback(
+      input.url,
+      input.company,
+    );
     return {
       title: scrapedTitle,
       company,
       titleSource: "scrape",
-      companySource: input.company?.trim()
-        ? "scrape"
-        : company
-          ? "host"
-          : null,
+      companySource,
     };
   }
 
   const fromUrl = parseJobTitleFromUrl(input.url);
   if (fromUrl) {
-    const company = input.company?.trim() || parseCompanyFromJobHost(input.url) || null;
+    const { company, source: companySource } = resolveCompanyFallback(
+      input.url,
+      input.company,
+    );
     return {
       title: fromUrl,
       company,
       titleSource: "url_slug",
-      companySource: input.company?.trim() ? "scrape" : company ? "host" : null,
+      companySource,
     };
   }
 
   const fromDescription = titleFromDescriptionFirstLine(input.description);
   if (fromDescription) {
-    const company = input.company?.trim() || parseCompanyFromJobHost(input.url) || null;
+    const { company, source: companySource } = resolveCompanyFallback(
+      input.url,
+      input.company,
+    );
     return {
       title: fromDescription,
       company,
       titleSource: "description",
-      companySource: input.company?.trim() ? "scrape" : company ? "host" : null,
+      companySource,
     };
   }
 
   const host = hostLabelFromUrl(input.url);
+  const { company, source: companySource } = resolveCompanyFallback(input.url, input.company);
   return {
     title: `Role on ${host}`,
-    company: input.company?.trim() || parseCompanyFromJobHost(input.url) || null,
+    company,
     titleSource: "fallback_host",
-    companySource: input.company?.trim() ? "scrape" : parseCompanyFromJobHost(input.url) ? "host" : null,
+    companySource,
   };
 }

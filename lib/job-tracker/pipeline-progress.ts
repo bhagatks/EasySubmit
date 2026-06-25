@@ -69,3 +69,15 @@ export function isAppliedStatus(status: JobTrackerStatus): boolean {
     status === "REJECTED"
   );
 }
+
+/** Live label for the active pipeline segment (non-active segments use column titles). */
+export function pipelineActiveSegmentLabel(status: JobTrackerStatus): string | null {
+  switch (status) {
+    case "CAPTURED":
+      return "Optimizing resume";
+    case "RESUME_READY":
+      return "Resume ready";
+    default:
+      return null;
+  }
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { PIPELINE_STEPS, pipelineProgressForStatus } from "@/lib/job-tracker/pipeline-progress";
+import { PIPELINE_STEPS, pipelineActiveSegmentLabel, pipelineProgressForStatus } from "@/lib/job-tracker/pipeline-progress";
 import type { JobTrackerStatus } from "@/lib/generated/prisma/client";
 import { cn } from "@/lib/utils";
 
@@ -11,6 +11,7 @@ type PipelineBarProps = {
 
 export function PipelineBar({ status, className }: PipelineBarProps) {
   const progress = pipelineProgressForStatus(status);
+  const activeLabel = pipelineActiveSegmentLabel(status);
 
   return (
     <div className={cn("space-y-1", className)}>
@@ -28,6 +29,8 @@ export function PipelineBar({ status, className }: PipelineBarProps) {
             progress.isComplete || stepNumber <= progress.filledThrough;
           const isCurrent =
             !progress.isComplete && progress.currentIndex === stepNumber;
+          const segmentLabel =
+            isCurrent && activeLabel ? activeLabel : step.label;
 
           return (
             <div
@@ -40,26 +43,28 @@ export function PipelineBar({ status, className }: PipelineBarProps) {
                     ? "border-primary/50 bg-primary/30 animate-pipe-glow"
                     : "border-border/60 bg-muted/25",
               )}
-              title={step.label}
+              title={segmentLabel}
             />
           );
         })}
       </div>
-      <div className="flex gap-1 text-[10px] text-muted-foreground">
+      <div className="flex gap-0.5 text-[9px] leading-tight text-muted-foreground sm:gap-1 sm:text-[10px]">
         {PIPELINE_STEPS.map((step, index) => {
           const stepNumber = index + 1;
           const isCurrent =
             !progress.isComplete && progress.currentIndex === stepNumber;
+          const segmentLabel =
+            isCurrent && activeLabel ? activeLabel : step.label;
 
           return (
             <span
               key={step.id}
               className={cn(
-                "flex-1 truncate text-left",
+                "min-w-0 flex-1 whitespace-nowrap text-left",
                 isCurrent && "font-medium text-primary",
               )}
             >
-              {step.label}
+              {segmentLabel}
             </span>
           );
         })}

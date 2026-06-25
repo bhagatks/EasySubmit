@@ -21,7 +21,8 @@ export function DashboardStudioSidebarEffect() {
     const isProfileStudioEdit =
       pathname.startsWith("/dashboard/resume-profiles/") && pathname.endsWith("/edit");
     const isReviewStudio = isJobReviewStudioScreen(pathname, fromParam);
-    const isStudioEdit = isProfileStudioEdit || isReviewStudio;
+    const isTestingResume = pathname === "/dashboard/testing-resume";
+    const isStudioEdit = isProfileStudioEdit || isReviewStudio || isTestingResume;
 
     if (lastStudioEdit.current === isStudioEdit) return;
     lastStudioEdit.current = isStudioEdit;
