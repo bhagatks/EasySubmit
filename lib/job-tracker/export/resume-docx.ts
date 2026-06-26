@@ -154,7 +154,7 @@ function bulletParagraph(text: string): Paragraph {
 
 function bodyParagraph(text: string): Paragraph {
   return new Paragraph({
-    spacing: { after: dxa(SPACING.afterSectionRule) },
+    spacing: { after: dxa(SPACING.afterSectionBody) },
     children: [
       new TextRun({
         text,
@@ -276,7 +276,7 @@ export async function buildResumeDocx(
             color: COLOR.darkGray.replace("#", ""),
           },
           paragraph: {
-            spacing: { line: dxa(LINE_HEIGHT_DXA) },
+            spacing: { line: LINE_HEIGHT_DXA },
           },
         },
       },
