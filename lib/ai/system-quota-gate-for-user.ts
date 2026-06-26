@@ -10,7 +10,7 @@ import {
 } from "@/src/lib/ai/engine/system-quota-gate";
 import { resolveAiRoute } from "@/src/lib/ai/engine/router";
 import type { AiEngineConfig } from "@/src/lib/services/ai-engine-config";
-import { getAppConfig } from "@/src/lib/services/config-service";
+import { getAppConfig, isSubscribed } from "@/src/lib/services/config-service";
 
 /** Prisma select shared anywhere system quota is evaluated. */
 export const SYSTEM_QUOTA_USER_SELECT = {
@@ -20,6 +20,8 @@ export const SYSTEM_QUOTA_USER_SELECT = {
   aiEnhancementsToday: true,
   aiCallsToday: true,
   aiQuotaResetAt: true,
+  plan: true,
+  subscriptionStatus: true,
 } as const;
 
 export async function getSystemQuotaGateForUser(
@@ -56,6 +58,10 @@ export async function getSystemQuotaGateForUserRow(
   });
 
   if ("error" in route || route.mode !== "system") {
+    return systemQuotaGateNotApplicable();
+  }
+
+  if (isSubscribed(user.plan ?? "free", user.subscriptionStatus ?? null)) {
     return systemQuotaGateNotApplicable();
   }
 

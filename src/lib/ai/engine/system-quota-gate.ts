@@ -14,6 +14,8 @@ export type SystemQuotaUserRow = {
   aiEnhancementsToday: number;
   aiCallsToday: number;
   aiQuotaResetAt: Date;
+  plan?: string | null;
+  subscriptionStatus?: string | null;
 };
 
 export type SystemQuotaGateOptions = {

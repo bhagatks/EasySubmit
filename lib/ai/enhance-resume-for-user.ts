@@ -36,6 +36,7 @@ import {
 } from "@/src/lib/ai/engine/system-quota-gate";
 import { getAppConfig } from "@/src/lib/services/config-service";
 import { isCustomerQuotaUnlimited } from "@/src/lib/services/ai-engine-config";
+import { isSubscribed } from "@/src/lib/services/config-service";
 import {
   getFeatureFlags,
   isSystemAiEnabled,
@@ -268,8 +269,9 @@ export async function enhanceResumeForUserId(
   }
 
   const quotaMode: AiQuotaMode = route.mode;
+  const userIsSubscribed = isSubscribed(user.plan ?? "free", user.subscriptionStatus ?? null);
 
-  if (route.mode === "customer" && !isCustomerQuotaUnlimited(aiEngine)) {
+  if (route.mode === "customer" && !userIsSubscribed && !isCustomerQuotaUnlimited(aiEngine)) {
     const quotaCheck = checkAiQuota(quotaRow, aiEngine, quotaMode, {
       isEnhancement: true,
       estimatedCalls,
