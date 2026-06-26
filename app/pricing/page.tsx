@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Check, Sparkles } from "lucide-react";
+import { ArrowRight, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/Navbar";
 import { brandCopyright, BRAND } from "@/lib/brand";
@@ -136,7 +136,7 @@ function PlanCard({ plan }: { plan: Plan }) {
   return (
     <div
       className={cn(
-        "relative flex flex-col rounded-2xl border p-6 transition",
+        "relative flex flex-col rounded-2xl border p-4 transition",
         plan.highlight
           ? "border-primary/60 bg-surface shadow-glow"
           : plan.id === "free"
@@ -245,33 +245,29 @@ export default async function PricingPage() {
     <div className="min-h-screen bg-background text-foreground font-sans">
       <Navbar />
       <main>
-        <section className="relative overflow-hidden border-b border-border/60 py-20">
+        <section className="relative overflow-hidden py-6">
           <div className="bg-grid absolute inset-0 opacity-40" />
-          <div className="absolute -top-20 left-1/2 h-60 w-[60%] -translate-x-1/2 rounded-full bg-primary/20 blur-3xl" />
-          <div className="relative mx-auto max-w-3xl px-6 text-center">
-            <div className="inline-flex items-center gap-2 rounded-full border border-border bg-surface/60 px-3 py-1 text-xs text-muted-foreground">
-              <Sparkles className="h-3 w-3 text-primary" /> Simple pricing
+          <div className="absolute -top-10 left-1/2 h-40 w-[60%] -translate-x-1/2 rounded-full bg-primary/20 blur-3xl" />
+          <div className="relative mx-auto max-w-7xl px-6">
+            <div className="mb-6 text-center">
+              <p className="text-xs text-muted-foreground mb-1.5">Simple pricing</p>
+              <h1 className="font-display text-4xl font-semibold tracking-tight md:text-5xl">
+                Free with your key.{" "}
+                <span className="text-gradient">Pay for ours.</span>
+              </h1>
+              <p className="mt-3 text-base text-muted-foreground">
+                Bring your own AI key and everything is free forever. Or subscribe
+                to use our system AI with a daily credit allowance.
+              </p>
             </div>
-            <h1 className="mt-4 font-display text-5xl font-semibold tracking-tight md:text-6xl">
-              Free with your key.{" "}
-              <span className="text-gradient">Pay for ours.</span>
-            </h1>
-            <p className="mt-5 text-lg text-muted-foreground">
-              Bring your own AI key and everything is free forever. Or subscribe
-              to use our system AI with a daily credit allowance.
-            </p>
-          </div>
-        </section>
 
-        <section className="py-20">
-          <div className="mx-auto max-w-5xl px-6">
-            <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               {plans.map((plan) => (
                 <PlanCard key={plan.id} plan={plan} />
               ))}
             </div>
 
-            <p className="mt-8 text-center text-xs text-muted-foreground">
+            <p className="mt-5 text-center text-xs text-muted-foreground">
               Daily limits reset at midnight UTC. Subscriptions unlock higher system AI quotas.
             </p>
           </div>
