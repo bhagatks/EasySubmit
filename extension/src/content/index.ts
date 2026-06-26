@@ -46,6 +46,7 @@ import { BRAND, renderBrandMarkup } from "@shared/brand";
 import { brandExtensionTokens } from "@shared/brand-colors";
 import { extensionButtonStyles } from "@shared/brand-buttons";
 import { SETTINGS_AI_AUTO_HREF } from "@/lib/dashboard/settings-ai-links";
+import { downloadBytes } from "@/lib/job-tracker/export/download-client";
 import {
   resolveExtensionAiHealthBanner,
   shouldHidePipelineErrorInBody,
@@ -234,6 +235,7 @@ let resumeDetailBaseline: ResumeDetailDraft | null = null;
 let resumeDetailDraft: ResumeDetailDraft | null = null;
 let resumeDetailDirty = false;
 let resumeDetailSaving = false;
+let documentDownloadBusy: "pdf" | "doc" | null = null;
 let previewHtmlCache: Partial<Record<"resume" | "cover", string>> = {};
 let previewLoadState: "idle" | "loading" | "error" = "idle";
 let previewError: string | null = null;
@@ -387,6 +389,7 @@ function resetCoverDetailEditState(): void {
   coverDetailDraft = null;
   coverDetailDirty = false;
   coverDetailSaving = false;
+  documentDownloadBusy = null;
 }
 
 function resetResumeDetailEditState(): void {
@@ -396,6 +399,7 @@ function resetResumeDetailEditState(): void {
   resumeDetailDraft = null;
   resumeDetailDirty = false;
   resumeDetailSaving = false;
+  documentDownloadBusy = null;
 }
 
 function resetJobDetailEditState(): void {
@@ -678,6 +682,77 @@ async function saveResumeDetailEdits(root: ShadowRoot): Promise<void> {
     resumeDetailSaving = false;
     if (cardHost) renderCard(cardHost.shadow);
   }
+}
+
+const DOCX_MIME =
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+async function downloadDocumentPreview(
+  kind: "resume" | "cover",
+  format: "pdf" | "doc",
+): Promise<void> {
+  if (!savedStatus.id || documentDownloadBusy) return;
+
+  documentDownloadBusy = format;
+  saveError = null;
+  if (cardHost) renderCard(cardHost.shadow);
+
+  const action =
+    kind === "resume"
+      ? format === "pdf"
+        ? EXTENSION_MESSAGE.GET_RESUME_PDF
+        : EXTENSION_MESSAGE.GET_RESUME_DOCX
+      : format === "pdf"
+        ? EXTENSION_MESSAGE.GET_COVER_LETTER_PDF
+        : EXTENSION_MESSAGE.GET_COVER_LETTER_DOCX;
+
+  try {
+    const res = await sendMessage<{
+      success: boolean;
+      bytes?: number[];
+      filename?: string;
+      error?: string;
+    }>({
+      action,
+      entryId: savedStatus.id,
+    });
+
+    if (!res?.success || !res.bytes?.length) {
+      saveError = res?.error ?? "Could not download this document.";
+      return;
+    }
+
+    downloadBytes({
+      bytes: new Uint8Array(res.bytes),
+      filename: res.filename ?? `${kind}.${format === "pdf" ? "pdf" : "docx"}`,
+      mimeType: format === "pdf" ? "application/pdf" : DOCX_MIME,
+    });
+  } catch (error) {
+    if (isExtensionContextInvalidatedError(error)) {
+      teardownStaleExtensionContext();
+      return;
+    }
+    saveError = error instanceof Error ? error.message : "Could not download this document.";
+  } finally {
+    documentDownloadBusy = null;
+    if (cardHost) renderCard(cardHost.shadow);
+  }
+}
+
+function bindDocumentDownloadHandlers(root: ShadowRoot): void {
+  root.querySelectorAll("[data-document-download]").forEach((node) => {
+    node.addEventListener("click", () => {
+      const button = node as HTMLButtonElement;
+      if (button.disabled) return;
+
+      const format = button.getAttribute("data-document-download");
+      const kind = button.getAttribute("data-document-kind");
+      if (format !== "pdf" && format !== "doc") return;
+      if (kind !== "resume" && kind !== "cover") return;
+
+      void downloadDocumentPreview(kind, format);
+    });
+  });
 }
 
 function resetCardViewState(): void {
@@ -1199,7 +1274,7 @@ async function markCurrentJobApplied(
   if (res?.success) {
     // [ES:LOG] EXT ← DB event APPLIED confirmed by server
     console.log("[EasySubmit] db:event APPLIED confirmed", { status: res.status });
-    savedStatus = { ...savedStatus, status: res.status ?? "APPLIED" };
+    savedStatus = { ...savedStatus, status: res.status ?? "APPLIED", canReapply: true };
     pendingPipelinePhase = null;
     stopConfirmationWatch();
     if (cardHost) renderCard(cardHost.shadow);
@@ -1345,6 +1420,7 @@ function renderExpandedCard(root: ShadowRoot): void {
       editLoading: resumeDetailEditLoading,
       dirty: resumeDetailDirty,
       saving: resumeDetailSaving,
+      downloadBusy: documentDownloadBusy,
       draft,
       saveError: cardSaveError,
       escapeHtml,
@@ -1364,6 +1440,7 @@ function renderExpandedCard(root: ShadowRoot): void {
       editLoading: coverDetailEditLoading,
       dirty: coverDetailDirty,
       saving: coverDetailSaving,
+      downloadBusy: documentDownloadBusy,
       draft,
       saveError: cardSaveError,
       escapeHtml,
@@ -1521,6 +1598,7 @@ function bindCardViewHandlers(root: ShadowRoot): void {
   bindJobDetailHandlers(root);
   bindCoverDetailHandlers(root);
   bindResumeDetailHandlers(root);
+  bindDocumentDownloadHandlers(root);
 }
 
 function bindJobDetailHandlers(root: ShadowRoot): void {
@@ -2914,11 +2992,18 @@ async function refreshMetadataBeforeSave(config: ExtensionRuntimeConfig): Promis
 
 async function refreshRuntimeConfig(): Promise<ExtensionRuntimeConfig> {
   console.log("[EasySubmit] config:refresh — fetching runtime config from background");
-  const res = await sendMessage<{ success: boolean; config?: ExtensionRuntimeConfig }>({
+  let res = await sendMessage<{ success: boolean; config?: ExtensionRuntimeConfig }>({
     action: EXTENSION_MESSAGE.GET_CONFIG,
   });
   if (!res) {
-    console.warn("[EasySubmit] config:refresh failed — background unreachable, using cached or defaults");
+    // MV3 service worker may have just woken — wait briefly and retry once
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    res = await sendMessage<{ success: boolean; config?: ExtensionRuntimeConfig }>({
+      action: EXTENSION_MESSAGE.GET_CONFIG,
+    });
+  }
+  if (!res) {
+    console.log("[EasySubmit] config:refresh — background still waking, using cached or defaults");
     return runtimeConfig ?? mergeExtensionRuntimeConfig(undefined);
   }
   runtimeConfig = mergeExtensionRuntimeConfig(res.config);

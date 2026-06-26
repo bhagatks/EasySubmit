@@ -1,9 +1,11 @@
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
 import { buildDeterministicCoverLetterMarkdown } from "@/lib/job-tracker/build-deterministic-cover-letter";
-import { buildCoverLetterPlainText, buildCoverLetterContext } from "@/lib/job-tracker/cover-letter";
+import { buildCoverLetterHtml, buildCoverLetterPlainText, buildCoverLetterContext } from "@/lib/job-tracker/cover-letter";
 import { reviewExportFilename } from "@/lib/job-tracker/export/export-filename";
+import { buildResumeDocx } from "@/lib/job-tracker/export/resume-docx";
 import { buildResumePdf } from "@/lib/job-tracker/export/resume-pdf";
 import { buildTextPdfFromString } from "@/lib/job-tracker/export/simple-pdf";
+import { buildWordBlobFromHtml } from "@/lib/job-tracker/export/word-html";
 import { getExtensionUserPrefs } from "@/lib/extension/user-prefs";
 import {
   getJobResumeTailorForEntry,
@@ -160,6 +162,96 @@ export async function buildExtensionCoverLetterPdf(
     jobTitle: job.title,
     kind: "cover",
     format: "pdf",
+  });
+
+  return { success: true, bytes, filename };
+}
+
+export async function buildExtensionResumeDocx(
+  userId: string,
+  jobId: string,
+): Promise<ExtensionJobPdfResult> {
+  const [job, prefs] = await Promise.all([
+    loadJobForUser(userId, jobId),
+    getExtensionUserPrefs(userId),
+  ]);
+
+  if (!job) {
+    return { success: false, error: "Job not found.", status: 404 };
+  }
+
+  const resume = await resolveResumeFormForJob(userId, jobId, prefs.customizeResume);
+  if (!resume.success) {
+    return resume;
+  }
+
+  const bytes = await buildResumeDocx(resume.form, resume.targetTitle);
+  const filename = reviewExportFilename({
+    company: job.company,
+    jobTitle: job.title,
+    kind: "resume",
+    format: "word",
+  });
+
+  return { success: true, bytes, filename };
+}
+
+export async function buildExtensionCoverLetterDocx(
+  userId: string,
+  jobId: string,
+): Promise<ExtensionJobPdfResult> {
+  const [job, prefs, tailor] = await Promise.all([
+    loadJobForUser(userId, jobId),
+    getExtensionUserPrefs(userId),
+    getJobResumeTailorForEntry(userId, jobId),
+  ]);
+
+  if (!job) {
+    return { success: false, error: "Job not found.", status: 404 };
+  }
+
+  const resume = await resolveResumeFormForJob(userId, jobId, prefs.customizeResume);
+  if (!resume.success) {
+    return resume;
+  }
+
+  const template = buildDeterministicCoverLetterMarkdown({
+    form: resume.form,
+    targetTitle: resume.targetTitle,
+    company: job.company,
+    jobTitle: job.title,
+    jobDescription: job.description,
+  });
+
+  if (!template.ok) {
+    return { success: false, error: template.error, status: 422 };
+  }
+
+  const body =
+    prefs.customizeResume && shouldUseStoredCoverLetter(tailor, template.markdown)
+      ? tailor!.coverLetter!.trim()
+      : template.markdown;
+
+  const coverContext = buildCoverLetterContext({
+    firstName: resume.form.firstName,
+    lastName: resume.form.lastName,
+    email: resume.form.email,
+    phone: resume.form.phone,
+    company: job.company,
+    jobTitle: job.title,
+    body,
+  });
+
+  const html = buildCoverLetterHtml(coverContext, { includeToolbarSpacer: false });
+  const bodyHtml =
+    html.match(/<body[^>]*>([\s\S]*)<\/body>/i)?.[1]?.trim() ??
+    `<pre>${buildCoverLetterPlainText(coverContext)}</pre>`;
+  const bytes = buildWordBlobFromHtml(`Cover — ${job.title}`, bodyHtml);
+  const filename = reviewExportFilename({
+    company: job.company,
+    jobTitle: job.title,
+    kind: "cover",
+    format: "word",
   });
 
   return { success: true, bytes, filename };

@@ -22,6 +22,10 @@ import {
   CARD_STUDIO_LABEL,
   extensionCardLayoutStyles,
 } from "@shared/extension/card-layout-tokens";
+import {
+  documentPreviewToolbarStyles,
+  renderDocumentPreviewToolbar,
+} from "@shared/extension/document-preview-toolbar";
 
 export { CARD_NAV_LABELS, CARD_STUDIO_LABEL };
 
@@ -378,6 +382,7 @@ export function singleCardLayoutStyles(): string {
   const t = brandExtensionTokens();
   return `
     ${extensionCardLayoutStyles()}
+    ${documentPreviewToolbarStyles()}
     .glossy-shell.is-expanded .white-card { overflow: hidden; }
     .row-left {
       font-size: 13px;
@@ -914,6 +919,7 @@ export type CoverPreviewBodyInput = {
   editLoading: boolean;
   dirty: boolean;
   saving: boolean;
+  downloadBusy: "pdf" | "doc" | null;
   draft: CoverDetailDraft;
   saveError: string | null;
   escapeHtml: (value: string) => string;
@@ -938,14 +944,14 @@ export function renderCoverPreviewBody(input: CoverPreviewBodyInput): string {
   }
 
   return `
-    ${renderExpandHeader("cover")}
-    ${renderDetailToolbar({
+    ${renderDocumentPreviewToolbar({
+      kind: "cover",
       editing: input.editing,
       dirty: input.dirty,
       saving: input.saving,
       editLoading: input.editLoading,
-      editAttr: 'data-cover-detail-edit="1"',
-      saveAttr: 'data-cover-detail-save="1"',
+      downloadsEnabled: !input.editing && input.state === "ready",
+      downloadBusy: input.downloadBusy,
     })}
     ${saveErrorMarkup}
     <div class="${scrollClass}">${scrollContent}</div>
@@ -960,6 +966,7 @@ export type ResumePreviewBodyInput = {
   editLoading: boolean;
   dirty: boolean;
   saving: boolean;
+  downloadBusy: "pdf" | "doc" | null;
   draft: ResumeDetailDraft;
   saveError: string | null;
   escapeHtml: (value: string) => string;
@@ -992,14 +999,14 @@ export function renderResumePreviewBody(input: ResumePreviewBodyInput): string {
   }
 
   return `
-    ${renderExpandHeader("resume")}
-    ${renderDetailToolbar({
+    ${renderDocumentPreviewToolbar({
+      kind: "resume",
       editing: input.editing,
       dirty: input.dirty,
       saving: input.saving,
       editLoading: input.editLoading,
-      editAttr: 'data-resume-detail-edit="1"',
-      saveAttr: 'data-resume-detail-save="1"',
+      downloadsEnabled: !input.editing && input.state === "ready",
+      downloadBusy: input.downloadBusy,
     })}
     ${saveErrorMarkup}
     <div class="${scrollClass}">${scrollContent}</div>

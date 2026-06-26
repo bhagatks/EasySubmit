@@ -493,6 +493,24 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (action === EXTENSION_MESSAGE.GET_RESUME_DOCX && typeof message.entryId === "string") {
+    void apiFetchBinary(
+      `/api/extension/jobs/${encodeURIComponent(message.entryId)}/resume-docx`,
+    )
+      .then((data) => sendResponse(data))
+      .catch(() => sendResponse({ success: false, error: "Network error" }));
+    return true;
+  }
+
+  if (action === EXTENSION_MESSAGE.GET_COVER_LETTER_DOCX && typeof message.entryId === "string") {
+    void apiFetchBinary(
+      `/api/extension/jobs/${encodeURIComponent(message.entryId)}/cover-letter-docx`,
+    )
+      .then((data) => sendResponse(data))
+      .catch(() => sendResponse({ success: false, error: "Network error" }));
+    return true;
+  }
+
   if (
     action === EXTENSION_MESSAGE.GET_DOCUMENT_PREVIEW &&
     typeof message.entryId === "string" &&

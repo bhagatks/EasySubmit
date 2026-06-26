@@ -160,7 +160,7 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 
 | Date | Summary |
 |------|---------|
-| 2026-06-25 | Extension API intercept skipped on EasySubmit app pages — fixes Next.js server action `Failed to fetch` on dashboard |
+| 2026-06-25 | Extension resume/cover detail toolbar — single icon row: back, edit/save/discard, PDF+Word download, Edit in Studio; new extension DOCX export API routes |
 | 2026-06-25 | Extension card layout tokens — `card-layout-tokens.ts` (16px inset, CTA zone divider, shared spacing for summary + detail views) |
 | 2026-06-25 | Extension card detail UX — summary labels Job Info / Resume / Cover Letter; detail headers **Edit in Studio** → Review Screen tab; job/cover/resume inline Edit+Save; cover full textarea + resume lite fields fetched lazily on Edit; preview iframe fills resized panel |
 | 2026-06-25 | Button purposes — `ButtonPurpose` + `webButtonPurposeProps` / `extensionButtonClass`; semantic parity, surface-specific colors; `PurposeButton` on web |
