@@ -41,11 +41,11 @@ export function Navbar() {
           <a href="/#byok" className="transition hover:text-foreground">
             BYOK
           </a>
-          <Link href="/extension" className="transition hover:text-foreground">
-            Extension
-          </Link>
           <Link href="/pricing" className="transition hover:text-foreground">
             Pricing
+          </Link>
+          <Link href="/extension" className="transition hover:text-foreground">
+            Extension
           </Link>
         </nav>
 

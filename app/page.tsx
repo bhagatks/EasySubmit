@@ -234,6 +234,30 @@ function AtsBand() {
 }
 
 function ByokBand() {
+  const tiers = [
+    {
+      name: "Free",
+      price: "$0",
+      period: "forever",
+      body: "5 AI resume tailors / day on our system AI. No card needed.",
+      highlight: false,
+    },
+    {
+      name: "BYOK",
+      price: "$0",
+      period: "forever",
+      body: "50 AI tailors / day with your own key. Your data, your cost — cents per resume.",
+      highlight: true,
+    },
+    {
+      name: "Subscribe",
+      price: "From $2.99",
+      period: "/ week",
+      body: "25 AI tailors / day on our system AI. Weekly, monthly, or yearly.",
+      highlight: false,
+    },
+  ];
+
   return (
     <section id="byok" className="relative border-t border-border/60 py-24">
       <div className="mx-auto max-w-5xl px-6 text-center">
@@ -246,19 +270,15 @@ function ByokBand() {
         </h2>
         <p className="mx-auto mt-5 max-w-2xl text-muted-foreground">
           Plug in your own OpenAI, Anthropic, Gemini, or Groq key. Pay cents per resume
-          directly to the provider. Free daily quota included so you can apply without setup.
+          directly to the provider. Or use our system AI with a free daily allowance.
         </p>
         <div className="mt-10 grid gap-4 md:grid-cols-3">
-          {[
-            { name: "Free forever", price: "$0", body: "20 tailored resumes / day on our keys. No card." },
-            { name: "BYOK", price: "$0", body: "Unlimited usage, your key, your data. Recommended." , highlight: true},
-            { name: "Teams", price: "Soon", body: "Shared resume library + recruiter outreach." },
-          ].map((t) => (
+          {tiers.map((t) => (
             <div
               key={t.name}
               className={`relative rounded-2xl border p-6 text-left ${
                 t.highlight
-                  ? "border-primary/60 bg-surface shadow-glow"
+                  ? "border-mint/50 bg-surface shadow-glow"
                   : "border-border bg-surface/60"
               }`}
             >
@@ -268,11 +288,20 @@ function ByokBand() {
                 </span>
               )}
               <div className="text-sm text-muted-foreground">{t.name}</div>
-              <div className="mt-2 font-display text-4xl font-semibold">{t.price}</div>
+              <div className="mt-2 flex items-baseline gap-1.5">
+                <span className="font-display text-4xl font-semibold">{t.price}</span>
+                <span className="text-sm text-muted-foreground">{t.period}</span>
+              </div>
               <p className="mt-3 text-sm text-muted-foreground">{t.body}</p>
             </div>
           ))}
         </div>
+        <p className="mt-6 text-xs text-muted-foreground">
+          Daily limits reset at midnight UTC.{" "}
+          <Link href="/pricing" className="underline underline-offset-2 hover:text-foreground">
+            See full pricing →
+          </Link>
+        </p>
       </div>
     </section>
   );
