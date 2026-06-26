@@ -2,14 +2,14 @@ import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
 import type { ResolvedAiRoute } from "@/src/lib/ai/engine/router";
 import type { StudioEditorSectionId } from "@/lib/resume/studio-editor-sections";
 import {
-  ENHANCE_PIPELINE_HINTS,
+  pipelineStepHint,
   type EnhancePipelineStep,
 } from "@/src/lib/ai/engine/enhance-pipeline";
 import { DEFAULT_ENHANCE_WITH_AI_TIMEOUT_MS } from "@/src/lib/services/enhance-with-ai-config";
 
 export const ENHANCE_AI_LOG_PREFIX = "[EnhanceAI]";
 
-export type EnhanceLogScope = "client" | "server" | "engine";
+export type EnhanceLogScope = "client" | "server" | "engine" | "pipeline" | "export";
 
 export type EnhanceLogPayload = Record<string, unknown> & {
   traceId?: string;
@@ -30,10 +30,7 @@ export function logEnhance(
   payload: EnhanceLogPayload = {},
 ): void {
   const step = payload.step;
-  const hint =
-    step && step in ENHANCE_PIPELINE_HINTS
-      ? ENHANCE_PIPELINE_HINTS[step as EnhancePipelineStep]
-      : undefined;
+  const hint = pipelineStepHint(typeof step === "string" ? step : undefined);
 
   console.log(ENHANCE_AI_LOG_PREFIX, {
     ts: new Date().toISOString(),
@@ -88,17 +85,17 @@ export function logEnhanceErrorAlert(input: {
 }
 
 export function summarizeFormForLog(form: HubRefineryForm) {
-  const visibleExperience = form.experience.filter((entry) => !entry.hidden);
+  const visibleExperience = (form.experience ?? []).filter((entry) => !entry.hidden);
   return {
     professionalSummaryChars: form.professionalSummary?.length ?? 0,
     skillsTextChars: form.skillsText?.length ?? 0,
-    skillCount: form.skillsText?.split(",").filter(Boolean).length ?? 0,
+    skillCount: countSkillsInText(form.skillsText ?? ""),
     experienceVisible: visibleExperience.length,
-    experienceHidden: form.experience.length - visibleExperience.length,
-    educationEntries: form.education.length,
-    certificationEntries: form.certifications.length,
-    projectEntries: form.projects.length,
-    languageEntries: form.languages.length,
+    experienceHidden: (form.experience ?? []).length - visibleExperience.length,
+    educationEntries: form.education?.length ?? 0,
+    certificationEntries: form.certifications?.length ?? 0,
+    projectEntries: form.projects?.length ?? 0,
+    languageEntries: form.languages?.length ?? 0,
     hasContactFields: Boolean(
       form.firstName ||
         form.lastName ||
@@ -164,6 +161,41 @@ export function summarizeQuotaForLog(row: {
     enhancementsToday: row.aiEnhancementsToday,
     callsToday: row.aiCallsToday,
     quotaResetAt: row.aiQuotaResetAt?.toISOString() ?? null,
+  };
+}
+
+export function countSkillsInText(skillsText: string): number {
+  return skillsText
+    .split(/[,;\n|•·\/]+/)
+    .map((s) => s.trim())
+    .filter(Boolean).length;
+}
+
+export function summarizeExperienceBullets(form: HubRefineryForm) {
+  return (form.experience ?? [])
+    .filter((entry) => !entry.hidden)
+    .map((entry) => ({
+      id: entry.id,
+      company: entry.company,
+      title: entry.title,
+      bulletCount: (entry.bullets ?? "")
+        .split("\n")
+        .map((b) => b.trim())
+        .filter(Boolean).length,
+    }));
+}
+
+export function summarizeFormDelta(before: HubRefineryForm, after: HubRefineryForm) {
+  return {
+    summaryChanged:
+      before.professionalSummary.trim() !== after.professionalSummary.trim(),
+    summaryPreviewBefore: before.professionalSummary.trim().slice(0, 80),
+    summaryPreviewAfter: after.professionalSummary.trim().slice(0, 80),
+    skillsChanged: before.skillsText.trim() !== after.skillsText.trim(),
+    skillsCountBefore: countSkillsInText(before.skillsText ?? ""),
+    skillsCountAfter: countSkillsInText(after.skillsText ?? ""),
+    experienceBulletsBefore: summarizeExperienceBullets(before),
+    experienceBulletsAfter: summarizeExperienceBullets(after),
   };
 }
 

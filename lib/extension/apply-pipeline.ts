@@ -13,6 +13,8 @@ import { isOneClickPlatform } from "@/lib/extension/pipeline-types";
 import { getExtensionUserPrefs } from "@/lib/extension/user-prefs";
 import { hasJobResumeTailor } from "@/lib/profile/job-resume-tailor";
 import { prisma } from "@/lib/prisma";
+import { logEnhance } from "@/src/lib/ai/engine/enhance-logger";
+import { TAILOR_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
 import {
   FEATURE_FLAG_KEYS,
   isFeatureEnabled,
@@ -123,6 +125,12 @@ export async function tailorJobPipeline(
   const prefs = await getExtensionUserPrefs(userId);
 
   if (!prefs.customizeResume) {
+    logEnhance("pipeline", "apply.skip_customize", {
+      step: TAILOR_PIPELINE.APPLY_SKIP_CUSTOMIZE,
+      userId,
+      entryId,
+      customizeResume: false,
+    });
     await advancePipelineAfterAutofill(userId, entryId);
     await mergeJobEntryMetadata(userId, entryId, {
       pipelinePhases: ["capture"],
@@ -134,14 +142,42 @@ export async function tailorJobPipeline(
 
   const existingTailored = await findExistingTailoredState(userId, entryId);
   if (existingTailored) {
+    logEnhance("pipeline", "apply.tailor_cached", {
+      step: TAILOR_PIPELINE.APPLY_TAILOR_RESULT,
+      userId,
+      entryId,
+      status: existingTailored.status,
+      reused: true,
+    });
     const status = await ensureApplyAssistStatus(userId, entryId, existingTailored.status);
     return { success: true, status };
   }
 
+  logEnhance("pipeline", "apply.tailor_dispatch", {
+    step: TAILOR_PIPELINE.APPLY_TAILOR_DISPATCH,
+    userId,
+    entryId,
+    jobTitle: input.title,
+  });
+
   const tailor = await runPipelineTailor(userId, buildTailorInputFromSave(entryId, input));
   if (!tailor.success) {
+    logEnhance("pipeline", "apply.tailor_failed", {
+      step: TAILOR_PIPELINE.APPLY_TAILOR_RESULT,
+      userId,
+      entryId,
+      error: tailor.error,
+      code: tailor.code,
+    });
     return { success: false, status: "CAPTURED", error: tailor.error };
   }
+
+  logEnhance("pipeline", "apply.tailor_ok", {
+    step: TAILOR_PIPELINE.APPLY_TAILOR_RESULT,
+    userId,
+    entryId,
+    sourceProfileId: tailor.sourceProfileId,
+  });
 
   await advancePipelineAfterAutofill(userId, entryId);
   await mergeJobEntryMetadata(userId, entryId, {
@@ -175,7 +211,20 @@ export async function runApplyPipeline(
   const saved = await saveJobTrackerEntry(userId, input);
   const phases: ApplyPipelinePhase[] = ["capture"];
 
+  logEnhance("pipeline", "apply.start", {
+    step: TAILOR_PIPELINE.APPLY_START,
+    userId,
+    entryId: saved.id,
+    customizeResume: prefs.customizeResume,
+    platform,
+  });
+
   if (!prefs.customizeResume) {
+    logEnhance("pipeline", "apply.skip_customize", {
+      step: TAILOR_PIPELINE.APPLY_SKIP_CUSTOMIZE,
+      userId,
+      entryId: saved.id,
+    });
     await advancePipelineAfterAutofill(userId, saved.id);
     await mergeJobEntryMetadata(userId, saved.id, {
       pipelinePhases: ["capture"],

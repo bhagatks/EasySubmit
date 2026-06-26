@@ -19,7 +19,19 @@ import {
   targetTitleFromProfile,
 } from "@/lib/profile/studio-form-db";
 import { sanitizeString } from "@/lib/profile/sanitize";
-import { createEnhanceTraceId } from "@/src/lib/ai/engine/enhance-logger";
+import {
+  createEnhanceTraceId,
+  logEnhance,
+  summarizeFormDelta,
+  summarizeFormForLog,
+} from "@/src/lib/ai/engine/enhance-logger";
+import { TAILOR_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
+import {
+  logEnhance,
+  summarizeFormDelta,
+  summarizeFormForLog,
+} from "@/src/lib/ai/engine/enhance-logger";
+import { TAILOR_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
 
 const MIN_JD_CHARS = 120;
 
@@ -60,16 +72,47 @@ export async function runPipelineTailor(
   userId: string,
   input: PipelineTailorInput,
 ): Promise<PipelineTailorResult> {
+  const traceId = createEnhanceTraceId();
+
+  logEnhance("pipeline", "tailor.start", {
+    traceId,
+    step: TAILOR_PIPELINE.TAILOR_START,
+    userId,
+    entryId: input.entryId,
+    jobTitle: input.jobTitle,
+    company: input.company ?? null,
+    jobDescriptionChars: input.jobDescription?.trim().length ?? 0,
+    sourceProfileId: input.sourceProfileId ?? null,
+  });
+
   if (!isDescriptionPresent(input.jobDescription)) {
     const message =
       "Job description is too short to tailor your resume. Open the posting and try again.";
+    logEnhance("pipeline", "tailor.jd_rejected", {
+      traceId,
+      step: TAILOR_PIPELINE.TAILOR_JD_CHECK,
+      reason: "missing_description",
+      jobDescriptionChars: input.jobDescription?.trim().length ?? 0,
+      minChars: MIN_JD_CHARS,
+    });
     await recordPipelineTailorError(userId, input.entryId, message, "missing_description");
     return { success: false, error: message, code: "missing_description" };
   }
 
+  logEnhance("pipeline", "tailor.jd_ok", {
+    traceId,
+    step: TAILOR_PIPELINE.TAILOR_JD_CHECK,
+    jobDescriptionChars: input.jobDescription!.trim().length,
+  });
+
   const jobTitle = sanitizeString(input.jobTitle, 160);
   if (!jobTitle) {
     const message = "Job title is required to tailor your resume.";
+    logEnhance("pipeline", "tailor.fail", {
+      traceId,
+      step: TAILOR_PIPELINE.TAILOR_FAIL,
+      reason: "invalid_title",
+    });
     await recordPipelineTailorError(userId, input.entryId, message, "invalid_title");
     return { success: false, error: message, code: "invalid_title" };
   }
@@ -77,13 +120,32 @@ export async function runPipelineTailor(
   const source = await resolveSourceProfileForJob(userId, input.sourceProfileId);
   if (!source) {
     const message = "No resume profile to tailor from";
+    logEnhance("pipeline", "tailor.fail", {
+      traceId,
+      step: TAILOR_PIPELINE.TAILOR_FAIL,
+      reason: "no_source_profile",
+    });
     await recordPipelineTailorError(userId, input.entryId, message, "no_source_profile");
     return { success: false, error: message, code: "no_source_profile" };
   }
 
   const baseForm = hubRefineryFormFromProfile(source);
   const baseTargetTitle = targetTitleFromProfile(source);
-  const traceId = createEnhanceTraceId();
+
+  logEnhance("pipeline", "tailor.source_profile", {
+    traceId,
+    step: TAILOR_PIPELINE.TAILOR_SOURCE_PROFILE,
+    sourceProfileId: source.id,
+    baseTargetTitle,
+    form: summarizeFormForLog(baseForm),
+  });
+
+  logEnhance("pipeline", "tailor.enhance_dispatch", {
+    traceId,
+    step: TAILOR_PIPELINE.TAILOR_ENHANCE_DISPATCH,
+    enhanceTraceId: traceId,
+    targetRole: jobTitle,
+  });
 
   const enhanced = await enhanceResumeForUserId(userId, {
     profileId: source.id,
@@ -97,6 +159,12 @@ export async function runPipelineTailor(
   });
 
   if (!enhanced.success) {
+    logEnhance("pipeline", "tailor.enhance_failed", {
+      traceId,
+      step: TAILOR_PIPELINE.TAILOR_FAIL,
+      code: enhanced.code,
+      error: enhanced.error,
+    });
     await recordPipelineTailorError(
       userId,
       input.entryId,
@@ -110,6 +178,18 @@ export async function runPipelineTailor(
     };
   }
 
+  logEnhance("pipeline", "tailor.enhance_result", {
+    traceId,
+    step: TAILOR_PIPELINE.TAILOR_ENHANCE_RESULT,
+    fallbackUsed: enhanced.fallbackUsed ?? false,
+    fallbackSummary: enhanced.fallbackSummary ?? null,
+    partialEnhance: enhanced.partialEnhance ?? false,
+    changedSections: enhanced.changedSections,
+    targetRole: enhanced.targetRole,
+    aiMode: enhanced.aiMode,
+    delta: summarizeFormDelta(baseForm, enhanced.form),
+  });
+
   const mergedForm = {
     ...enhanced.form,
     skillsText: enhanced.form.skillsText,
@@ -122,7 +202,25 @@ export async function runPipelineTailor(
     enhanced.targetRole,
   );
 
+  logEnhance("pipeline", "tailor.overrides", {
+    traceId,
+    step: TAILOR_PIPELINE.TAILOR_OVERRIDES,
+    changedSections,
+    overrideKeys: Object.keys(overrides),
+    targetTitleOverride: overrides.targetTitle ?? null,
+    summaryInOverrides: overrides.professionalSummary !== undefined,
+    skillsInOverrides: overrides.skillsText !== undefined,
+    experienceEntriesInOverrides: overrides.experience?.length ?? 0,
+  });
+
   try {
+    logEnhance("pipeline", "tailor.persist", {
+      traceId,
+      step: TAILOR_PIPELINE.TAILOR_PERSIST,
+      entryId: input.entryId,
+      sourceProfileId: source.id,
+    });
+
     await upsertJobResumeTailor({
       jobTrackerEntryId: input.entryId,
       userId,
@@ -144,6 +242,11 @@ export async function runPipelineTailor(
     }
   } catch {
     const message = "Failed to save tailored resume for this job";
+    logEnhance("pipeline", "tailor.persist_failed", {
+      traceId,
+      step: TAILOR_PIPELINE.TAILOR_FAIL,
+      reason: "persist_failed",
+    });
     await recordPipelineTailorError(userId, input.entryId, message, "persist_failed");
     return { success: false, error: message, code: "persist_failed" };
   }
@@ -155,6 +258,14 @@ export async function runPipelineTailor(
     pipelinePhases: ["capture", "tailor"],
     lastTailoredAt: new Date().toISOString(),
     sourceProfileId: source.id,
+  });
+
+  logEnhance("pipeline", "tailor.success", {
+    traceId,
+    step: TAILOR_PIPELINE.TAILOR_SUCCESS,
+    entryId: input.entryId,
+    sourceProfileId: source.id,
+    changedSections,
   });
 
   return {

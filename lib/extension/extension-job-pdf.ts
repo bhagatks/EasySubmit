@@ -4,9 +4,16 @@ import { buildCoverLetterHtml, buildCoverLetterPlainText, buildCoverLetterContex
 import { reviewExportFilename } from "@/lib/job-tracker/export/export-filename";
 import { buildResumeDocx } from "@/lib/job-tracker/export/resume-docx";
 import { buildResumePdf } from "@/lib/job-tracker/export/resume-pdf";
+import { buildResumeContentFromForm } from "@/lib/job-tracker/export/resume-content-model";
 import { buildTextPdfFromString } from "@/lib/job-tracker/export/simple-pdf";
 import { buildWordBlobFromHtml } from "@/lib/job-tracker/export/word-html";
 import { getExtensionUserPrefs } from "@/lib/extension/user-prefs";
+import {
+  logEnhance,
+  summarizeExperienceBullets,
+  summarizeFormForLog,
+} from "@/src/lib/ai/engine/enhance-logger";
+import { EXPORT_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
 import {
   getJobResumeTailorForEntry,
   getMergedResumeForJob,
@@ -53,22 +60,100 @@ async function resolveResumeFormForJob(
   jobId: string,
   customizeResume: boolean,
 ): Promise<
-  | { success: true; form: HubRefineryForm; targetTitle: string }
+  | { success: true; form: HubRefineryForm; targetTitle: string; source: "tailored" | "default_profile" }
   | { success: false; error: string; status: number }
 > {
+  logEnhance("export", "resolve.start", {
+    step: EXPORT_PIPELINE.RESOLVE_START,
+    userId,
+    jobId,
+    customizeResume,
+  });
+
   if (customizeResume) {
     const merged = await getMergedResumeForJob(userId, jobId);
     if (merged.success) {
+      logEnhance("export", "resolve.tailored", {
+        step: EXPORT_PIPELINE.RESOLVE_FORM,
+        userId,
+        jobId,
+        source: "tailored",
+        sourceProfileId: merged.sourceProfileId,
+        changedSections: merged.tailor.changedSections,
+        enhanceTraceId: merged.tailor.enhanceTraceId,
+        form: summarizeFormForLog(merged.form),
+        experienceBullets: summarizeExperienceBullets(merged.form),
+      });
       return {
         success: true,
         form: merged.form,
         targetTitle: merged.targetTitle,
+        source: "tailored",
       };
     }
+    logEnhance("export", "resolve.tailored_missing", {
+      step: EXPORT_PIPELINE.RESOLVE_FORM,
+      userId,
+      jobId,
+      error: merged.error,
+    });
     return { success: false, error: merged.error, status: 422 };
   }
 
-  return resolveDefaultResumeForm(userId);
+  const defaultResume = await resolveDefaultResumeForm(userId);
+  if (defaultResume.success) {
+    logEnhance("export", "resolve.default_profile", {
+      step: EXPORT_PIPELINE.RESOLVE_FORM,
+      userId,
+      jobId,
+      source: "default_profile",
+      form: summarizeFormForLog(defaultResume.form),
+      experienceBullets: summarizeExperienceBullets(defaultResume.form),
+    });
+  }
+  return defaultResume.success
+    ? { ...defaultResume, source: "default_profile" }
+    : defaultResume;
+}
+
+function logExportContent(
+  userId: string,
+  jobId: string,
+  format: "pdf" | "docx",
+  form: HubRefineryForm,
+  targetTitle: string,
+  filename: string,
+) {
+  try {
+    const content = buildResumeContentFromForm(form, targetTitle);
+    logEnhance("export", "content.built", {
+      step: EXPORT_PIPELINE.CONTENT_BUILD,
+      userId,
+      jobId,
+      format,
+      filename,
+      exportWarnings: content.warnings,
+      experienceExportBullets: content.experience.map((entry) => ({
+        id: entry.id,
+        company: entry.subtitle || entry.title,
+        exportedBulletCount: entry.bullets.length,
+        bulletsTruncated: entry.bulletsTruncated,
+        originalBulletCount: entry.originalBulletCount,
+      })),
+      skillsCount: content.skillsText.split(",").filter((s) => s.trim()).length,
+      summaryChars: content.summary.length,
+    });
+  } catch (error) {
+    logEnhance("export", "content.build_failed", {
+      step: EXPORT_PIPELINE.CONTENT_BUILD,
+      userId,
+      jobId,
+      format,
+      filename,
+      experienceBullets: summarizeExperienceBullets(form),
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 function shouldUseStoredCoverLetter(
@@ -106,6 +191,8 @@ export async function buildExtensionResumePdf(
     kind: "resume",
     format: "pdf",
   });
+
+  logExportContent(userId, jobId, "pdf", resume.form, resume.targetTitle, filename);
 
   return { success: true, bytes, filename };
 }
@@ -195,6 +282,8 @@ export async function buildExtensionResumeDocx(
     kind: "resume",
     format: "word",
   });
+
+  logExportContent(userId, jobId, "docx", resume.form, resume.targetTitle, filename);
 
   return { success: true, bytes, filename };
 }

@@ -50,6 +50,14 @@ export const ENHANCE_PIPELINE = {
   SERVER_SUCCESS: "31_server_success",
   /** Server: structured failure returned to client. */
   SERVER_FAIL: "31_server_fail",
+
+  /** Server: ATS job intelligence computed. */
+  SERVER_JD_INTELLIGENCE: "15_server_jd_intelligence",
+  /** Server: JD Brain directive built. */
+  SERVER_JD_DIRECTIVE: "16_server_jd_directive",
+
+  /** Engine: deterministic fallback enhancer ran. */
+  ENGINE_DETERMINISTIC: "25_engine_deterministic",
 } as const;
 
 export type EnhancePipelineStep =
@@ -82,4 +90,75 @@ export const ENHANCE_PIPELINE_HINTS: Record<EnhancePipelineStep, string> = {
   [ENHANCE_PIPELINE.SERVER_PERSIST]: "Quota increment + usage log",
   [ENHANCE_PIPELINE.SERVER_SUCCESS]: "Server returning success to client",
   [ENHANCE_PIPELINE.SERVER_FAIL]: "Server returning failure to client",
+  [ENHANCE_PIPELINE.SERVER_JD_INTELLIGENCE]: "ATS intelligence computed from JD",
+  [ENHANCE_PIPELINE.SERVER_JD_DIRECTIVE]: "JD Brain directive built for pass 2",
+  [ENHANCE_PIPELINE.ENGINE_DETERMINISTIC]: "Deterministic fallback — no AI rewrite",
 };
+
+/** Extension apply + tailor pipeline steps (40–51). */
+export const TAILOR_PIPELINE = {
+  APPLY_START: "40_apply_start",
+  APPLY_SKIP_CUSTOMIZE: "41_apply_skip_customize",
+  APPLY_TAILOR_DISPATCH: "42_apply_tailor_dispatch",
+  APPLY_TAILOR_RESULT: "43_apply_tailor_result",
+
+  TAILOR_START: "44_tailor_start",
+  TAILOR_JD_CHECK: "45_tailor_jd_check",
+  TAILOR_SOURCE_PROFILE: "46_tailor_source_profile",
+  TAILOR_ENHANCE_DISPATCH: "47_tailor_enhance_dispatch",
+  TAILOR_ENHANCE_RESULT: "48_tailor_enhance_result",
+  TAILOR_OVERRIDES: "49_tailor_overrides",
+  TAILOR_PERSIST: "50_tailor_persist",
+  TAILOR_SUCCESS: "51_tailor_success",
+  TAILOR_FAIL: "51_tailor_fail",
+} as const;
+
+export type TailorPipelineStep = (typeof TAILOR_PIPELINE)[keyof typeof TAILOR_PIPELINE];
+
+export const TAILOR_PIPELINE_HINTS: Record<TailorPipelineStep, string> = {
+  [TAILOR_PIPELINE.APPLY_START]: "Apply pipeline — job capture started",
+  [TAILOR_PIPELINE.APPLY_SKIP_CUSTOMIZE]: "Customize resume off — skipping tailor",
+  [TAILOR_PIPELINE.APPLY_TAILOR_DISPATCH]: "Apply pipeline — dispatching tailor",
+  [TAILOR_PIPELINE.APPLY_TAILOR_RESULT]: "Apply pipeline — tailor finished",
+
+  [TAILOR_PIPELINE.TAILOR_START]: "Pipeline tailor started",
+  [TAILOR_PIPELINE.TAILOR_JD_CHECK]: "Checking job description length",
+  [TAILOR_PIPELINE.TAILOR_SOURCE_PROFILE]: "Resolved source resume profile",
+  [TAILOR_PIPELINE.TAILOR_ENHANCE_DISPATCH]: "Calling enhanceResumeForUserId",
+  [TAILOR_PIPELINE.TAILOR_ENHANCE_RESULT]: "Enhance returned — inspect delta + fallbackUsed",
+  [TAILOR_PIPELINE.TAILOR_OVERRIDES]: "Extracted section overrides for job row",
+  [TAILOR_PIPELINE.TAILOR_PERSIST]: "Persisting jobResumeTailor row",
+  [TAILOR_PIPELINE.TAILOR_SUCCESS]: "Pipeline tailor succeeded",
+  [TAILOR_PIPELINE.TAILOR_FAIL]: "Pipeline tailor failed",
+};
+
+/** PDF/DOCX export resolution steps (60–62). */
+export const EXPORT_PIPELINE = {
+  RESOLVE_START: "60_export_resolve_start",
+  RESOLVE_FORM: "61_export_form_resolved",
+  CONTENT_BUILD: "62_export_content_built",
+} as const;
+
+export type ExportPipelineStep = (typeof EXPORT_PIPELINE)[keyof typeof EXPORT_PIPELINE];
+
+export const EXPORT_PIPELINE_HINTS: Record<ExportPipelineStep, string> = {
+  [EXPORT_PIPELINE.RESOLVE_START]: "Export — resolving resume form for job",
+  [EXPORT_PIPELINE.RESOLVE_FORM]: "Export — form source (tailored vs default profile)",
+  [EXPORT_PIPELINE.CONTENT_BUILD]: "Export — content model built (bullet caps applied)",
+};
+
+export type PipelineLogStep =
+  | EnhancePipelineStep
+  | TailorPipelineStep
+  | ExportPipelineStep;
+
+const ALL_PIPELINE_HINTS: Record<string, string> = {
+  ...ENHANCE_PIPELINE_HINTS,
+  ...TAILOR_PIPELINE_HINTS,
+  ...EXPORT_PIPELINE_HINTS,
+};
+
+export function pipelineStepHint(step: string | undefined): string | undefined {
+  if (!step) return undefined;
+  return ALL_PIPELINE_HINTS[step];
+}

@@ -21,6 +21,7 @@ import type { ResolvedAiRoute } from "@/src/lib/ai/engine/router";
 import {
   logEnhance,
   sanitizeRouteForLog,
+  summarizeFormDelta,
 } from "@/src/lib/ai/engine/enhance-logger";
 import { ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
 import { mapEnhanceProviderError } from "@/src/lib/ai/engine/map-enhance-provider-error";
@@ -496,6 +497,7 @@ export async function runResumeEnhance(
       apiCallCount,
       modelId: lastModelId,
       partialEnhance,
+      delta: summarizeFormDelta(input.form, merged),
     });
 
     return {
@@ -548,9 +550,14 @@ export async function runResumeEnhance(
 
         logEnhance("engine", "run.fallback.success", {
           traceId,
+          step: ENHANCE_PIPELINE.ENGINE_DETERMINISTIC,
           changedSections,
-          skillsAdded: fallback.changes.skillsAdded.length,
+          skillsAdded: fallback.changes.skillsAdded,
+          skillsAddedCount: fallback.changes.skillsAdded.length,
           bulletsRewritten: fallback.changes.bulletsRewritten,
+          structuralIssuesFound: fallback.changes.structuralIssuesFound,
+          delta: summarizeFormDelta(input.form, fallback.form),
+          note: "Summary unchanged — deterministic path does not rewrite professionalSummary",
         });
 
         return {

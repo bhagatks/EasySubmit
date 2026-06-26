@@ -13,6 +13,7 @@ import {
   sanitizeRouteForLog,
   summarizeEnhanceRequest,
   summarizeEnhanceResult,
+  summarizeFormDelta,
   summarizeQuotaForLog,
 } from "@/src/lib/ai/engine/enhance-logger";
 import { ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
@@ -278,6 +279,21 @@ export async function enhanceResumeForUserId(
     ? await analyzeJobIntelligenceWithOnet(input.form, input.targetRole, input.jobDescription)
     : undefined;
 
+  if (jobIntelligence) {
+    logEnhance("server", "action.intelligence", {
+      traceId,
+      step: ENHANCE_PIPELINE.SERVER_JD_INTELLIGENCE,
+      userId,
+      missingKeywords: jobIntelligence.missingKeywords.length,
+      skillsToAdd: jobIntelligence.skillsToAdd,
+      skillsToAddCount: jobIntelligence.skillsToAdd.length,
+      keywordsForContentCount: jobIntelligence.keywordsForContent.length,
+      weakBulletsCount: jobIntelligence.weakBullets.length,
+      coveragePercent: jobIntelligence.coveragePercent,
+      onetMatchedTitle: jobIntelligence.onetMatchedTitle ?? null,
+    });
+  }
+
   // JD Brain — load cached intelligence or run full analysis, then build directive.
   let enhanceDirective: import("@/lib/job-tracker/jd/jd-intelligence").ResumeEnhanceDirective | undefined;
   if (input.jobDescription?.trim()) {
@@ -319,6 +335,19 @@ export async function enhanceResumeForUserId(
       jdResult.intelligence,
       primeData.skills ?? [],
     );
+
+    logEnhance("server", "action.directive", {
+      traceId,
+      step: ENHANCE_PIPELINE.SERVER_JD_DIRECTIVE,
+      userId,
+      cacheHit: jdResult.cacheHit,
+      extractedJobTitle: jdResult.intelligence.extractedJobTitle ?? null,
+      mustAddSkillsCount: enhanceDirective.mustAddSkills.length,
+      mustAddSkills: enhanceDirective.mustAddSkills.slice(0, 12),
+      mustWeaveKeywordsCount: enhanceDirective.mustWeaveKeywords.length,
+      summaryTheme: enhanceDirective.summaryTheme ?? null,
+      roleLevel: enhanceDirective.roleLevel,
+    });
   }
 
   const pricingMap = await getAppConfig("ai_pricing_map");
@@ -350,6 +379,9 @@ export async function enhanceResumeForUserId(
           tokensUsed: result.tokensUsed,
           apiCallCount: result.apiCallCount,
           changedSections: result.changedSections,
+          fallbackUsed: result.fallbackUsed ?? false,
+          partialEnhance: result.partialEnhance ?? false,
+          delta: summarizeFormDelta(input.form, result.form),
         }
       : { code: result.code, error: result.error }),
   });
