@@ -97,7 +97,7 @@ describe("extension job pdf builders", () => {
     const result = await buildExtensionResumePdf("user-1", "job-1");
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.filename).toContain("resume.pdf");
+      expect(result.filename).toBe("Ada_resume_Acme_Engineer.pdf");
       expect(buildResumePdf).toHaveBeenCalledWith(FORM, "Engineer");
     }
   });

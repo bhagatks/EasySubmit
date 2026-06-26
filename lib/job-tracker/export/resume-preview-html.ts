@@ -142,7 +142,10 @@ export function buildResumePreviewHtml(form: HubRefineryForm, targetTitle: strin
       margin: 0 0 ${SPACING.afterSectionRule}pt;
       color: ${COLOR.nearBlack};
     }
-    .summary, .body { margin: 0; white-space: pre-wrap; }
+    .summary, .body {
+      margin: 0 0 ${SPACING.afterSectionBody}pt;
+      white-space: pre-wrap;
+    }
     .entry { margin-bottom: ${SPACING.betweenEntries}pt; }
     .entry-head {
       display: flex;

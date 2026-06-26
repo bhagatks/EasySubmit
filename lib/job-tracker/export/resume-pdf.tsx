@@ -21,11 +21,13 @@ import {
 import {
   COLOR,
   FONT_SIZE,
+  PDF_SPACING,
   SECTION_TITLE,
-  SPACING,
 } from "@/lib/job-tracker/export/resume-style";
 
 Font.registerHyphenationCallback((word) => [word]);
+
+const S = PDF_SPACING;
 
 const s = StyleSheet.create({
   page: {
@@ -33,10 +35,10 @@ const s = StyleSheet.create({
     fontSize: FONT_SIZE.body,
     lineHeight: 1.3,
     color: COLOR.darkGray,
-    paddingTop: SPACING.pageMarginV,
-    paddingBottom: SPACING.pageMarginV,
-    paddingLeft: SPACING.pageMarginH,
-    paddingRight: SPACING.pageMarginH,
+    paddingTop: S.pageMarginV,
+    paddingBottom: S.pageMarginV,
+    paddingLeft: S.pageMarginH,
+    paddingRight: S.pageMarginH,
     backgroundColor: COLOR.white,
   },
   name: {
@@ -44,17 +46,25 @@ const s = StyleSheet.create({
     fontFamily: "Helvetica-Bold",
     color: COLOR.nearBlack,
     textAlign: "center",
-    marginBottom: SPACING.afterName,
+    marginBottom: S.afterName,
   },
   contact: {
     fontSize: FONT_SIZE.contact,
     color: COLOR.midGray,
     textAlign: "center",
-    marginBottom: SPACING.afterContact,
+    marginBottom: S.afterContact,
   },
   sectionWrapper: {
-    marginTop: SPACING.betweenSections,
-    marginBottom: SPACING.afterSectionRule,
+    marginTop: S.betweenSections,
+    marginBottom: S.afterSectionRule,
+    borderBottomWidth: 0.75,
+    borderBottomColor: COLOR.border,
+    borderBottomStyle: "solid",
+    paddingBottom: 2,
+  },
+  sectionWrapperFirst: {
+    marginTop: 0,
+    marginBottom: S.afterSectionRule,
     borderBottomWidth: 0.75,
     borderBottomColor: COLOR.border,
     borderBottomStyle: "solid",
@@ -71,7 +81,7 @@ const s = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "baseline",
-    marginBottom: SPACING.afterEntryHead,
+    marginBottom: S.afterEntryHead,
   },
   entryTitle: {
     fontSize: FONT_SIZE.entryTitle,
@@ -89,18 +99,18 @@ const s = StyleSheet.create({
     fontSize: FONT_SIZE.entrySub,
     fontFamily: "Helvetica-Oblique",
     color: COLOR.midGray,
-    marginBottom: SPACING.afterEntrySub,
+    marginBottom: S.afterEntrySub,
   },
   bulletRow: {
     flexDirection: "row",
-    marginBottom: SPACING.bulletGap,
-    paddingLeft: SPACING.bulletIndent,
+    marginBottom: S.bulletGap,
+    paddingLeft: S.bulletIndent,
   },
   bulletDot: {
     fontSize: FONT_SIZE.body,
     color: COLOR.darkGray,
-    width: SPACING.bulletIndent,
-    marginLeft: -SPACING.bulletIndent,
+    width: S.bulletIndent,
+    marginLeft: -S.bulletIndent,
   },
   bulletText: {
     fontSize: FONT_SIZE.body,
@@ -110,16 +120,16 @@ const s = StyleSheet.create({
   body: {
     fontSize: FONT_SIZE.body,
     color: COLOR.darkGray,
-    marginBottom: 4,
+    marginBottom: S.afterSectionBody,
   },
   entryGroup: {
-    marginBottom: SPACING.betweenEntries,
+    marginBottom: S.betweenEntries,
   },
 });
 
-function SectionHeading({ title }: { title: string }) {
+function SectionHeading({ title, first }: { title: string; first?: boolean }) {
   return (
-    <View style={s.sectionWrapper}>
+    <View style={first ? s.sectionWrapperFirst : s.sectionWrapper}>
       <Text style={s.sectionTitle}>{title}</Text>
     </View>
   );
@@ -135,6 +145,13 @@ function Bullet({ text }: { text: string }) {
 }
 
 function ResumeDocument({ content }: { content: ResumeContentModel }) {
+  const headingState = { first: true };
+  const sectionHeading = (title: string) => {
+    const first = headingState.first;
+    headingState.first = false;
+    return <SectionHeading title={title} first={first} />;
+  };
+
   return (
     <Document title={content.targetTitle || content.name} creator="EasySubmit" producer="EasySubmit">
       <Page size="LETTER" style={s.page}>
@@ -143,21 +160,21 @@ function ResumeDocument({ content }: { content: ResumeContentModel }) {
 
         {content.summary ? (
           <>
-            <SectionHeading title={SECTION_TITLE.summary} />
+            {sectionHeading(SECTION_TITLE.summary)}
             <Text style={s.body}>{content.summary}</Text>
           </>
         ) : null}
 
         {content.skillsText ? (
           <>
-            <SectionHeading title={SECTION_TITLE.skills} />
+            {sectionHeading(SECTION_TITLE.skills)}
             <Text style={s.body}>{content.skillsText}</Text>
           </>
         ) : null}
 
         {content.experience.length > 0 ? (
           <>
-            <SectionHeading title={SECTION_TITLE.experience} />
+            {sectionHeading(SECTION_TITLE.experience)}
             {content.experience.map((entry) => (
               <View key={entry.id} style={s.entryGroup}>
                 <View style={s.entryRow}>
@@ -175,7 +192,7 @@ function ResumeDocument({ content }: { content: ResumeContentModel }) {
 
         {content.education.length > 0 ? (
           <>
-            <SectionHeading title={SECTION_TITLE.education} />
+            {sectionHeading(SECTION_TITLE.education)}
             {content.education.map((entry) => (
               <View key={entry.id} style={s.entryGroup}>
                 <View style={s.entryRow}>
@@ -197,7 +214,7 @@ function ResumeDocument({ content }: { content: ResumeContentModel }) {
         ).map(({ id, title, items }) =>
           items.length > 0 ? (
             <React.Fragment key={id}>
-              <SectionHeading title={title} />
+              {sectionHeading(title)}
               {items.map((item, i) => (
                 <Bullet key={i} text={item} />
               ))}
@@ -207,7 +224,7 @@ function ResumeDocument({ content }: { content: ResumeContentModel }) {
 
         {content.customSections.map((section) => (
           <React.Fragment key={section.id}>
-            <SectionHeading title={section.title} />
+            {sectionHeading(section.title)}
             {section.lines.map((line, i) => (
               <Text key={i} style={s.body}>
                 {line}

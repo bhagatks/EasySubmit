@@ -20,12 +20,14 @@ import {
 } from "@/lib/job-tracker/export/resume-content-model";
 import {
   COLOR,
+  DOCX_SPACING,
   dxa,
   FONT_SIZE,
   SECTION_TITLE,
-  SPACING,
-  TAB_STOP_RIGHT_DXA,
+  tabStopRightDxa,
 } from "@/lib/job-tracker/export/resume-style";
+
+const S = DOCX_SPACING;
 
 export type DocxValidationResult =
   | { valid: true }
@@ -40,7 +42,7 @@ function pt(size: number) {
 function nameParagraph(name: string): Paragraph {
   return new Paragraph({
     alignment: AlignmentType.CENTER,
-    spacing: { after: dxa(SPACING.afterName) },
+    spacing: { after: dxa(S.afterName) },
     children: [
       new TextRun({
         text: name,
@@ -56,7 +58,7 @@ function nameParagraph(name: string): Paragraph {
 function contactParagraph(contact: string): Paragraph {
   return new Paragraph({
     alignment: AlignmentType.CENTER,
-    spacing: { after: dxa(SPACING.afterContact) },
+    spacing: { after: dxa(S.afterContact) },
     children: [
       new TextRun({
         text: contact,
@@ -71,8 +73,8 @@ function contactParagraph(contact: string): Paragraph {
 function sectionHeading(title: string): Paragraph {
   return new Paragraph({
     spacing: {
-      before: dxa(SPACING.betweenSections),
-      after: dxa(SPACING.afterSectionRule),
+      before: dxa(S.betweenSections),
+      after: dxa(S.afterSectionRule),
     },
     border: {
       bottom: {
@@ -97,8 +99,8 @@ function sectionHeading(title: string): Paragraph {
 
 function entryTitleLine(title: string, date: string): Paragraph {
   return new Paragraph({
-    spacing: { after: dxa(SPACING.afterEntryHead) },
-    tabStops: [{ type: TabStopType.RIGHT, position: TAB_STOP_RIGHT_DXA }],
+    spacing: { after: dxa(S.afterEntryHead) },
+    tabStops: [{ type: TabStopType.RIGHT, position: tabStopRightDxa(S) }],
     children: [
       new TextRun({
         text: title,
@@ -124,7 +126,7 @@ function entryTitleLine(title: string, date: string): Paragraph {
 
 function entrySubLine(text: string): Paragraph {
   return new Paragraph({
-    spacing: { after: dxa(SPACING.afterEntrySub) },
+    spacing: { after: dxa(S.afterEntrySub) },
     children: [
       new TextRun({
         text,
@@ -139,7 +141,7 @@ function entrySubLine(text: string): Paragraph {
 
 function bulletParagraph(text: string): Paragraph {
   return new Paragraph({
-    spacing: { after: dxa(SPACING.bulletGap) },
+    spacing: { after: dxa(S.bulletGap) },
     numbering: { reference: "bullet-list", level: 0 },
     children: [
       new TextRun({
@@ -154,7 +156,7 @@ function bulletParagraph(text: string): Paragraph {
 
 function bodyParagraph(text: string): Paragraph {
   return new Paragraph({
-    spacing: { after: dxa(SPACING.afterSectionBody) },
+    spacing: { after: dxa(S.afterSectionBody) },
     children: [
       new TextRun({
         text,
@@ -193,7 +195,7 @@ function buildParagraphsFromContent(content: ResumeContentModel): Paragraph[] {
       paras.push(entryTitleLine(entry.title, entry.dateRange));
       if (entry.subtitle) paras.push(entrySubLine(entry.subtitle));
       for (const bullet of entry.bullets) paras.push(bulletParagraph(bullet));
-      paras.push(emptyLine(SPACING.betweenEntries));
+      paras.push(emptyLine(S.betweenEntries));
     }
   }
 
@@ -202,7 +204,7 @@ function buildParagraphsFromContent(content: ResumeContentModel): Paragraph[] {
     for (const entry of content.education) {
       paras.push(entryTitleLine(entry.title, entry.dateRange));
       if (entry.subtitle) paras.push(entrySubLine(entry.subtitle));
-      paras.push(emptyLine(SPACING.betweenEntries));
+      paras.push(emptyLine(S.betweenEntries));
     }
   }
 
@@ -215,13 +217,13 @@ function buildParagraphsFromContent(content: ResumeContentModel): Paragraph[] {
   for (const [title, items] of listSections) {
     if (items.length === 0) continue;
     paras.push(sectionHeading(title), ...items.map((item) => bulletParagraph(item)));
-    paras.push(emptyLine(SPACING.betweenEntries));
+    paras.push(emptyLine(S.betweenEntries));
   }
 
   for (const section of content.customSections) {
     paras.push(sectionHeading(section.title));
     for (const textLine of section.lines) paras.push(bodyParagraph(textLine));
-    paras.push(emptyLine(SPACING.betweenEntries));
+    paras.push(emptyLine(S.betweenEntries));
   }
 
   return paras;
@@ -240,8 +242,8 @@ const bulletNumberingConfig = {
           style: {
             paragraph: {
               indent: {
-                left: dxa(SPACING.bulletIndent),
-                hanging: dxa(SPACING.bulletIndent),
+                left: dxa(S.bulletIndent),
+                hanging: dxa(S.bulletIndent),
               },
             },
             run: {
@@ -286,10 +288,10 @@ export async function buildResumeDocx(
         properties: {
           page: {
             margin: {
-              top: dxa(SPACING.pageMarginV),
-              bottom: dxa(SPACING.pageMarginV),
-              left: dxa(SPACING.pageMarginH),
-              right: dxa(SPACING.pageMarginH),
+              top: dxa(S.pageMarginV),
+              bottom: dxa(S.pageMarginV),
+              left: dxa(S.pageMarginH),
+              right: dxa(S.pageMarginH),
             },
           },
         },

@@ -61,7 +61,7 @@ describe("buildReviewExport", () => {
 
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.filename).toMatch(/Acme_Corp_Engineer_resume\.pdf$/);
+      expect(result.filename).toMatch(/Ada_resume_Acme_Corp_Engineer\.pdf$/);
       expect(result.mimeType).toBe("application/pdf");
       expect(result.bytes.length).toBeGreaterThan(100);
       const header = new TextDecoder().decode(result.bytes.slice(0, 8));
@@ -83,7 +83,7 @@ describe("buildReviewExport", () => {
 
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.filename).toMatch(/\.doc$/);
+      expect(result.filename).toMatch(/Ada_resume_Company_Engineer\.docx$/);
       expect(result.mimeType).toBe(
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       );

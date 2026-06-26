@@ -1,7 +1,7 @@
 /**
  * Single source of truth for resume visual constants.
- * All three renderers (HTML preview, PDF, Word) pull from here.
- * Rules reference: docs/resume/RULES.md
+ * Word and PDF use separate spacing tables — DOCX renders tighter in Word.
+ * HTML preview follows PDF spacing. Rules: docs/resume/RULES.md
  */
 
 // ─── Typography ──────────────────────────────────────────────────────────────
@@ -32,19 +32,53 @@ export const COLOR = {
 
 // ─── Spacing (pt) ────────────────────────────────────────────────────────────
 
-export const SPACING = {
-  pageMarginV:     36, // 0.5in = 36pt
-  pageMarginH:     48, // 0.67in = 48pt
-  afterName:        8,
-  afterContact:    14,
-  afterSectionRule: 6,
-  betweenSections: 14,
-  betweenEntries:   8,
-  afterEntryHead:   4,
-  afterEntrySub:    6,
-  bulletIndent:    12,
-  bulletGap:        4,
+export type ResumeSpacing = {
+  pageMarginV: number;
+  pageMarginH: number;
+  afterName: number;
+  afterContact: number;
+  afterSectionRule: number;
+  /** Gap after summary/skills body before the next section heading. */
+  afterSectionBody: number;
+  betweenSections: number;
+  betweenEntries: number;
+  afterEntryHead: number;
+  afterEntrySub: number;
+  bulletIndent: number;
+  bulletGap: number;
+};
+
+const SPACING_SHARED = {
+  pageMarginV: 36, // 0.5in = 36pt
+  pageMarginH: 48, // 0.67in = 48pt
+  afterName: 8,
+  betweenEntries: 8,
+  afterEntryHead: 4,
+  afterEntrySub: 6,
+  bulletIndent: 12,
+  bulletGap: 4,
 } as const;
+
+/** Word — ~2× vertical air between header, section bodies, and headings. */
+export const DOCX_SPACING: ResumeSpacing = {
+  ...SPACING_SHARED,
+  afterContact: 28,
+  afterSectionRule: 6,
+  afterSectionBody: 20,
+  betweenSections: 28,
+};
+
+/** PDF — tighter section rhythm than Word (flex layout reads larger). */
+export const PDF_SPACING: ResumeSpacing = {
+  ...SPACING_SHARED,
+  afterContact: 6,
+  afterSectionRule: 4,
+  afterSectionBody: 4,
+  betweenSections: 8,
+};
+
+/** HTML preview — matches PDF rhythm. */
+export const SPACING = PDF_SPACING;
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -74,7 +108,12 @@ export const DXA_PER_PT = 20;
 export const dxa = (pt: number) => Math.round(pt * DXA_PER_PT);
 
 /** Right tab stop at the right body margin — for title ↔ date alignment. */
-export const TAB_STOP_RIGHT_DXA = dxa(PAGE.width - SPACING.pageMarginH * 2);
+export function tabStopRightDxa(spacing: ResumeSpacing = DOCX_SPACING): number {
+  return dxa(PAGE.width - spacing.pageMarginH * 2);
+}
+
+/** @deprecated use tabStopRightDxa(DOCX_SPACING) */
+export const TAB_STOP_RIGHT_DXA = tabStopRightDxa(DOCX_SPACING);
 
 /** Bullet list XML numbering reference id (defined once, referenced per paragraph). */
 export const BULLET_NUMBERING_ID = 1;

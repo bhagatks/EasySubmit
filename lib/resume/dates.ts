@@ -139,6 +139,16 @@ export function extractTrailingDateRange(line: string): {
   const trimmed = line.trim();
   if (!trimmed) return null;
 
+  const mashedMonth = trimmed.match(
+    /^(.+?)(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+((?:19|20)\d{2}\s*[–-]\s*(?:(?:(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+)?(?:19|20)\d{2}|Present))\s*$/i,
+  );
+  if (mashedMonth) {
+    return {
+      title: mashedMonth[1].trim(),
+      date: `${mashedMonth[2]} ${mashedMonth[3]}`.trim(),
+    };
+  }
+
   const endRange = trimmed.match(
     /^(.*?\S)\s+((?:(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+)?(?:19|20)\d{2}\s*[–-]\s*(?:(?:(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+)?(?:19|20)\d{2}|Present))\s*$/i,
   );

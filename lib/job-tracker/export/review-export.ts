@@ -66,6 +66,7 @@ export async function buildReviewExport(
   }
 
   const filename = reviewExportFilename({
+    firstName: input.form?.firstName ?? input.coverContext?.firstName,
     company: input.company,
     jobTitle: input.jobTitle,
     kind: input.kind,

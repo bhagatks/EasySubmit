@@ -50,6 +50,13 @@ describe("dates", () => {
       date: "2024 – 2026",
     });
   });
+
+  it("splits company name mashed against month-year start date", () => {
+    expect(extractTrailingDateRange("CVS HealthSep 2014 – Dec 2023")).toEqual({
+      title: "CVS Health",
+      date: "Sep 2014 – Dec 2023",
+    });
+  });
 });
 
 describe("parseQualificationBullets", () => {

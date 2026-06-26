@@ -4,9 +4,10 @@ import {
   buildResumeContentFromForm,
   MAX_BULLETS_PER_ROLE,
   normalizeRoleBullets,
+  resolveResumeEntryTitleLine,
   validateResumeForm,
 } from "@/lib/job-tracker/export/resume-content-model";
-import { SECTION_TITLE } from "@/lib/job-tracker/export/resume-style";
+import { DOCX_SPACING, PDF_SPACING, SECTION_TITLE } from "@/lib/job-tracker/export/resume-style";
 
 describe("resume-content-model", () => {
   it("builds ordered sections from hub form", () => {
@@ -75,5 +76,47 @@ describe("resume-content-model", () => {
     const content = buildResumeContentFromForm(emptyHubRefineryForm(), "Role");
     expect(SECTION_TITLE.summary).toBe("Professional Summary");
     expect(content.experience).toEqual([]);
+  });
+
+  it("splits mashed company/date in experience title when date fields are empty", () => {
+    const form = {
+      ...emptyHubRefineryForm(),
+      experience: [
+        {
+          id: "1",
+          title: "CVS HealthSep 2014 – Dec 2023",
+          company: "Director | Engineering Manager",
+          location: "",
+          startMonth: "",
+          startYear: "",
+          endMonth: "",
+          endYear: "",
+          bullets: "- Led digital apps",
+          hidden: false,
+        },
+      ],
+    };
+
+    const content = buildResumeContentFromForm(form, "Role");
+    expect(content.experience[0]).toMatchObject({
+      title: "CVS Health",
+      subtitle: "Director | Engineering Manager",
+      dateRange: "Sep 2014 – Dec 2023",
+    });
+  });
+
+  it("keeps structured dates when month-year fields are populated", () => {
+    expect(
+      resolveResumeEntryTitleLine("7-Eleven", "Jan 2024 – Present"),
+    ).toEqual({
+      title: "7-Eleven",
+      dateRange: "Jan 2024 – Present",
+    });
+  });
+
+  it("uses larger DOCX section gaps than PDF", () => {
+    expect(DOCX_SPACING.afterContact).toBeGreaterThan(PDF_SPACING.afterContact);
+    expect(DOCX_SPACING.betweenSections).toBeGreaterThan(PDF_SPACING.betweenSections);
+    expect(DOCX_SPACING.afterSectionBody).toBeGreaterThan(PDF_SPACING.afterSectionBody);
   });
 });

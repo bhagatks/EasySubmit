@@ -6,6 +6,7 @@
 import type { PrimeResumeData } from "@/components/onboarding/PrimeResume";
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
 import { refineryFormToPrimeResume } from "@/lib/onboarding/hubResume";
+import { extractTrailingDateRange } from "@/lib/resume/dates";
 import { SECTION_TITLE } from "@/lib/job-tracker/export/resume-style";
 
 export const MAX_BULLETS_PER_ROLE = 6;
@@ -72,6 +73,33 @@ export function formatResumeDateRange(
   return start || end;
 }
 
+/** Split mashed title/date lines when structured month-year fields are empty. */
+export function resolveResumeEntryTitleLine(
+  title: string,
+  dateRange: string,
+): { title: string; dateRange: string } {
+  const cleanTitle = line(title);
+  const cleanDate = line(dateRange);
+
+  if (cleanDate) {
+    return { title: cleanTitle || "Role", dateRange: cleanDate };
+  }
+
+  if (!cleanTitle) {
+    return { title: "Role", dateRange: "" };
+  }
+
+  const extracted = extractTrailingDateRange(cleanTitle);
+  if (extracted?.date) {
+    return {
+      title: line(extracted.title) || cleanTitle,
+      dateRange: extracted.date,
+    };
+  }
+
+  return { title: cleanTitle, dateRange: "" };
+}
+
 /** Parse bullet lines from a newline-delimited string. */
 export function parseBulletLines(raw: string): string[] {
   return raw
@@ -134,16 +162,20 @@ export function buildResumeContentFromForm(
     .filter((entry) => !entry.hidden && (line(entry.title) || line(entry.company)))
     .map((entry) => {
       const { bullets, truncated, originalCount } = normalizeRoleBullets(entry.bullets);
-      return {
-        id: entry.id,
-        title: line(entry.title) || "Role",
-        subtitle: [line(entry.company), line(entry.location)].filter(Boolean).join(" – "),
-        dateRange: formatResumeDateRange(
+      const titleLine = resolveResumeEntryTitleLine(
+        line(entry.title) || "Role",
+        formatResumeDateRange(
           entry.startMonth,
           entry.startYear,
           entry.endMonth,
           entry.endYear,
         ),
+      );
+      return {
+        id: entry.id,
+        title: titleLine.title,
+        subtitle: [line(entry.company), line(entry.location)].filter(Boolean).join(" – "),
+        dateRange: titleLine.dateRange,
         bullets,
         bulletsTruncated: truncated,
         originalBulletCount: originalCount,

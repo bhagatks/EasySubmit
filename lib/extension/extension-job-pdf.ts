@@ -100,6 +100,7 @@ export async function buildExtensionResumePdf(
 
   const bytes = await buildResumePdf(resume.form, resume.targetTitle);
   const filename = reviewExportFilename({
+    firstName: resume.form.firstName,
     company: job.company,
     jobTitle: job.title,
     kind: "resume",
@@ -158,6 +159,7 @@ export async function buildExtensionCoverLetterPdf(
   const plain = buildCoverLetterPlainText(coverContext);
   const bytes = buildTextPdfFromString(plain, `Cover — ${job.title}`);
   const filename = reviewExportFilename({
+    firstName: resume.form.firstName,
     company: job.company,
     jobTitle: job.title,
     kind: "cover",
@@ -187,6 +189,7 @@ export async function buildExtensionResumeDocx(
 
   const bytes = await buildResumeDocx(resume.form, resume.targetTitle);
   const filename = reviewExportFilename({
+    firstName: resume.form.firstName,
     company: job.company,
     jobTitle: job.title,
     kind: "resume",
@@ -248,6 +251,7 @@ export async function buildExtensionCoverLetterDocx(
     `<pre>${buildCoverLetterPlainText(coverContext)}</pre>`;
   const bytes = buildWordBlobFromHtml(`Cover — ${job.title}`, bodyHtml);
   const filename = reviewExportFilename({
+    firstName: resume.form.firstName,
     company: job.company,
     jobTitle: job.title,
     kind: "cover",

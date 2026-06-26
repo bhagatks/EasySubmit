@@ -1,49 +1,45 @@
-# DOCX Spacing & Alignment Spec
+# Resume export spacing (Word vs PDF)
 
-Consolidates all spacing/style changes needed to bring the Word export visually in line with the PDF renderer. Header block (name + contact) is intentionally excluded — current values are acceptable.
+Word and PDF use **separate spacing tables** in `lib/job-tracker/export/resume-style.ts` (`DOCX_SPACING` vs `PDF_SPACING`). HTML preview follows `PDF_SPACING` via the `SPACING` alias.
 
 ---
 
-## Spacing Constants (`resume-style.ts` → `SPACING`)
+## DOCX (`DOCX_SPACING`) — more vertical air
 
-| Constant | Current (pt) | Proposed (pt) | Reason |
+Word renders tighter than PDF at the same pt values, so section gaps are ~2× PDF.
+
+| Constant | PDF (pt) | DOCX (pt) | Applies to |
 |---|---:|---:|---|
-| `betweenSections` | 12 | 14 | Sections bleed together; needs more air above each heading |
-| `afterSectionRule` | 4 | 6 | Heading rule → first content line is too tight |
-| `afterEntryHead` | 2 | 4 | Job title and company name appear stacked/merged |
-| `afterEntrySub` | 4 | 6 | Company → first bullet needs clearer separation |
-| `bulletGap` | 3 | 4 | Slightly tight in Word due to line height interaction |
-| `betweenEntries` | 10 | 8 | Reduced slightly to compensate for increased section spacing |
+| `afterContact` | 10 | 28 | Contact line → first section heading |
+| `betweenSections` | 10 | 28 | Before each section heading |
+| `afterSectionBody` | 4 | 20 | Summary/skills body → next section heading |
+| `afterSectionRule` | 4 | 6 | Section rule → first content line |
+
+Shared: `afterName`, page margins, entry/bullet spacing.
 
 ---
 
-## DOCX-Specific Fixes (`resume-docx.ts`)
+## PDF (`PDF_SPACING`) — tighter rhythm
 
-| Location | Current | Proposed | Reason |
-|---|---|---|---|
-| `LINE_HEIGHT_DXA` | 240 (1.0×) | 276 (1.15×) | PDF uses 1.25 line height; DOCX renders tighter due to 1.0 — closing the gap |
-| `bodyParagraph` after-spacing | hardcoded `dxa(4)` | `dxa(SPACING.afterSectionRule)` | Inconsistent with all other paragraphs; should use the shared constant |
+React-PDF flex layout reads larger; section gaps stay at 10pt with 4pt body tail.
 
 ---
 
-## Alignment Rules (unchanged, documented for reference)
+## DOCX line height
 
-| Element | Alignment |
-|---|---|
-| Name | Center |
-| Contact line | Center |
-| Section headings | Left |
-| Entry title + date | Left (date right-aligned via tab stop) |
-| Company / institution | Left, italic |
-| Bullets | Left, indented 12pt with hanging indent |
-| Summary / skills body | Left |
+`LINE_HEIGHT_DXA = 276` (1.15× body) in `resume-docx.ts` — not wrapped in `dxa()` (276 is already DXA).
+
+---
+
+## Experience date alignment (Word)
+
+Title line uses a right tab stop (`tabStopRightDxa(DOCX_SPACING)`) so dates align to the right margin. When structured month/year fields are empty and dates are mashed into the title (e.g. `CVS HealthSep 2014 – Dec 2023`), `resolveResumeEntryTitleLine` in `resume-content-model.ts` splits company and date before export.
 
 ---
 
 ## What this does NOT change
 
-- Header spacing (`afterName`, `afterContact`) — current values are fine
-- Page margins (`pageMarginV`, `pageMarginH`)
 - Font sizes, colors, or font family
-- Bullet indent or tab stop positions
-- Section title strings (ATS-critical, never touch)
+- Page margins (`pageMarginV`, `pageMarginH`)
+- Section title strings (ATS-critical)
+- Bullet indent positions
