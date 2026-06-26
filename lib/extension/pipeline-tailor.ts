@@ -26,12 +26,6 @@ import {
   summarizeFormForLog,
 } from "@/src/lib/ai/engine/enhance-logger";
 import { TAILOR_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
-import {
-  logEnhance,
-  summarizeFormDelta,
-  summarizeFormForLog,
-} from "@/src/lib/ai/engine/enhance-logger";
-import { TAILOR_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
 
 const MIN_JD_CHARS = 120;
 
