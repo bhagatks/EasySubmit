@@ -1,4 +1,4 @@
-INSERT INTO "app_config" ("key", "value", "description", "updatedAt")
+INSERT INTO "app_config" ("key", "value", "updatedAt")
 VALUES (
   'subscriptions',
   '{
@@ -22,7 +22,6 @@ VALUES (
       }
     }
   }',
-  'Subscription plan pricing and daily enhancement limits. Set enabled=true and stripePriceId values to go live.',
   CURRENT_TIMESTAMP
 )
 ON CONFLICT ("key") DO NOTHING;
