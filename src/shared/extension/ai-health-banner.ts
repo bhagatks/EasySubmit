@@ -24,9 +24,14 @@ function looksLikeQuotaIssue(message: string): boolean {
   return /quota|limit reached|daily enhancement|daily ai call/i.test(message);
 }
 
+type ExtensionAiHealthConfig = Pick<
+  ExtensionRuntimeConfig,
+  "aiHealthError" | "systemQuotaExceeded" | "byokKeyInvalid"
+>;
+
 /** Resolve extension AI health banner copy from runtime config + optional pipeline error. */
 export function resolveExtensionAiHealthBanner(
-  config: ExtensionRuntimeConfig | null | undefined,
+  config: ExtensionRuntimeConfig | ExtensionAiHealthConfig | null | undefined,
   pipelineError?: string | null,
 ): ExtensionAiHealthBanner | null {
   const fromConfig = config?.aiHealthError?.trim() ?? "";
@@ -55,11 +60,6 @@ export function resolveExtensionAiHealthBanner(
     bannerLabel: keyIssue ? "Key issue" : "AI issue",
   };
 }
-
-type ExtensionAiHealthConfig = Pick<
-  ExtensionRuntimeConfig,
-  "aiHealthError" | "systemQuotaExceeded" | "byokKeyInvalid"
->;
 
 /** True when extension config reports an active AI health block (quota, key, or API error). */
 export function isExtensionApplyBlockedByAiHealth(

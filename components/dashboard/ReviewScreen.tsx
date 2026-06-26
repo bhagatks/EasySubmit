@@ -11,8 +11,12 @@ import {
   Send,
   X,
 } from "lucide-react";
-import { getJobTrackerEntryById } from "@/app/actions/job-tracker";
-import { Button } from "@/components/ui/button";
+import {
+  getJobTrackerEntryById,
+  updateJobTrackerEntryDetails,
+} from "@/app/actions/job-tracker";
+import { PurposeButton } from "@/components/ui/purpose-button";
+import { Input } from "@/components/ui/input";
 import { GlossyModal } from "@/components/ui/glossy-modal";
 import type { JobTrackerDetail } from "@/lib/job-tracker/types";
 import {
@@ -33,6 +37,15 @@ import { ReviewResumePanel } from "@/components/dashboard/ReviewResumePanel";
 import { ReviewCoverPanel } from "@/components/dashboard/review/ReviewCoverPanel";
 import { AtsPanel } from "@/components/dashboard/review/AtsPanel";
 import { cn } from "@/lib/utils";
+import { serverActionClientErrorMessage } from "@/lib/server-action-client";
+import { APPLY_JD_MIN_CHARS, applyCaptureBlockReason, canApplyCapture } from "@/src/shared/extension/apply-gate";
+import {
+  buildJobDetailDraftFromTrackerEntry,
+  jobDetailDraftsEqual,
+  normalizeJobDetailDraft,
+  readJsonLdFieldsFromMetadata,
+  type JobDetailDraft,
+} from "@/src/shared/extension/job-detail-edit";
 
 /** Matches `DashboardWorkspacePage` h1 — use for primary screen titles. */
 export const WORKSPACE_TITLE_CLASS =
@@ -50,6 +63,7 @@ type ReviewScreenProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onPanelChange: (panel: ReviewScreenPanel) => void;
+  onEntrySaved?: () => void;
 };
 
 function reviewJobMetaParts(entry: JobTrackerDetail): {
@@ -100,15 +114,25 @@ function PanelPlaceholder({
   );
 }
 
-function JobPanel({ entry }: { entry: JobTrackerDetail }) {
+function JobPanel({
+  entry,
+  editing,
+  draft,
+  onDraftChange,
+}: {
+  entry: JobTrackerDetail;
+  editing: boolean;
+  draft: JobDetailDraft;
+  onDraftChange: (draft: JobDetailDraft) => void;
+}) {
   const completeness = assessCaptureCompleteness({
     url: entry.canonicalUrl,
-    title: entry.title,
-    company: entry.company,
-    location: entry.location,
-    salaryText: entry.salaryText,
-    description: entry.description,
-    platform: entry.platform,
+    title: editing ? draft.title : entry.title,
+    company: editing ? draft.company || null : entry.company,
+    location: editing ? draft.location || null : entry.location,
+    salaryText: editing ? draft.salaryText || null : entry.salaryText,
+    description: editing ? draft.description || null : entry.description,
+    platform: editing ? draft.platform || null : entry.platform,
     metadata: entry.metadata,
   });
 
@@ -119,8 +143,14 @@ function JobPanel({ entry }: { entry: JobTrackerDetail }) {
         ? "border-primary/25 bg-primary/10 text-foreground"
         : "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300";
 
+  const fieldClass = "rounded-xl border-border/70 bg-background/80";
+
+  const updateDraft = (patch: Partial<JobDetailDraft>) => {
+    onDraftChange({ ...draft, ...patch });
+  };
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 p-4">
       <div className={cn("rounded-xl border px-4 py-3 text-sm", completenessTone)}>
         <p className="font-medium">{captureCompletenessLabel(completeness.level)}</p>
         {completeness.missingBlockingQuality.length > 0 ? (
@@ -141,21 +171,83 @@ function JobPanel({ entry }: { entry: JobTrackerDetail }) {
         ) : null}
       </div>
 
-      <dl className="grid gap-3 sm:grid-cols-2">
-        {[
-          ["Company", entry.company],
-          ["Location", entry.location],
-          ["Salary", entry.salaryText],
-          ["Platform", entry.platform],
-          ["Saved to tracker", formatDateTime(entry.savedAt)],
-          ["Last updated", formatDateTime(entry.updatedAt)],
-        ].map(([label, value]) => (
-          <div key={label} className="rounded-xl border border-border/70 bg-surface/50 px-3 py-2.5">
-            <dt className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</dt>
-            <dd className="mt-1 text-sm text-foreground">{value || "—"}</dd>
+      {editing ? (
+        <div className="space-y-3">
+          <div className="rounded-xl border border-border/70 bg-surface/50 px-3 py-2.5">
+            <label className="text-[10px] uppercase tracking-wider text-muted-foreground" htmlFor="review-job-title">
+              Title
+            </label>
+            <Input
+              id="review-job-title"
+              value={draft.title}
+              onChange={(event) => updateDraft({ title: event.target.value })}
+              className={cn("mt-1.5 h-9", fieldClass)}
+            />
           </div>
-        ))}
-      </dl>
+
+          <dl className="grid gap-3 sm:grid-cols-2">
+            {(
+              [
+                ["Company", "company"],
+                ["Location", "location"],
+                ["Salary", "salaryText"],
+                ["Platform", "platform"],
+                ["Qualifications", "qualifications"],
+                ["Responsibilities", "responsibilities"],
+                ["Benefits", "incentives"],
+              ] as const
+            ).map(([label, key]) => (
+              <div key={key} className="rounded-xl border border-border/70 bg-surface/50 px-3 py-2.5">
+                <label
+                  className="text-[10px] uppercase tracking-wider text-muted-foreground"
+                  htmlFor={`review-job-${key}`}
+                >
+                  {label}
+                </label>
+                <Input
+                  id={`review-job-${key}`}
+                  value={draft[key]}
+                  onChange={(event) => updateDraft({ [key]: event.target.value })}
+                  className={cn("mt-1.5 h-9", fieldClass)}
+                />
+              </div>
+            ))}
+          </dl>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <dl className="grid gap-3 sm:grid-cols-2">
+            {[
+              ["Title", entry.title],
+              ["Company", entry.company],
+              ["Location", entry.location],
+              ["Salary", entry.salaryText],
+              ["Platform", entry.platform],
+              ["Saved to tracker", formatDateTime(entry.savedAt)],
+              ["Last updated", formatDateTime(entry.updatedAt)],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-xl border border-border/70 bg-surface/50 px-3 py-2.5">
+                <dt className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</dt>
+                <dd className="mt-1 text-sm text-foreground">{value || "—"}</dd>
+              </div>
+            ))}
+          </dl>
+          {(
+            [
+              ["Qualifications", readJsonLdFieldsFromMetadata(entry.metadata)?.qualifications],
+              ["Responsibilities", readJsonLdFieldsFromMetadata(entry.metadata)?.responsibilities],
+              ["Benefits", readJsonLdFieldsFromMetadata(entry.metadata)?.incentives],
+            ] as const
+          )
+            .filter(([, value]) => Boolean(value?.trim()))
+            .map(([label, value]) => (
+              <div key={label} className="rounded-xl border border-border/70 bg-surface/50 px-3 py-2.5">
+                <dt className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</dt>
+                <dd className="mt-1 whitespace-pre-wrap text-sm text-foreground">{value}</dd>
+              </div>
+            ))}
+        </div>
+      )}
 
       <div className="rounded-xl border border-border/70 bg-surface/50 px-3 py-2.5">
         <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Posting URL</p>
@@ -183,7 +275,22 @@ function JobPanel({ entry }: { entry: JobTrackerDetail }) {
 
       <div>
         <h3 className="text-sm font-semibold text-foreground">Job description</h3>
-        {entry.description?.trim() ? (
+        {editing ? (
+          <div className="mt-2 space-y-1.5">
+            <textarea
+              id="review-job-description"
+              value={draft.description}
+              onChange={(event) => updateDraft({ description: event.target.value })}
+              className={cn(
+                "min-h-[min(36vh,280px)] w-full resize-y rounded-xl border px-3 py-2.5 text-sm leading-relaxed text-foreground",
+                fieldClass,
+              )}
+            />
+            <p className="text-xs text-muted-foreground">
+              {draft.description.trim().length}/{APPLY_JD_MIN_CHARS} characters
+            </p>
+          </div>
+        ) : entry.description?.trim() ? (
           <div className="mt-2 max-h-[min(36vh,280px)] overflow-y-auto rounded-xl border border-border/70 bg-background/80 p-4">
             <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-foreground">
               {entry.description.trim()}
@@ -204,25 +311,6 @@ function CoverPanel({ entry, onRefresh }: { entry: JobTrackerDetail; onRefresh: 
   return <ReviewCoverPanel entry={entry} onRefresh={onRefresh} />;
 }
 
-function ApplyPanel({ entry }: { entry: JobTrackerDetail }) {
-  return (
-    <div className="space-y-5">
-      <PanelPlaceholder
-        icon={Send}
-        title="Apply on the job site"
-        description="Use Apply on the tracker row to open the posting with the extension, or open it manually here."
-        action={
-          <Button variant="mint" className="rounded-xl" asChild>
-            <Link href={entry.canonicalUrl} target="_blank" rel="noopener noreferrer">
-              Open job posting
-              <ExternalLink className="h-4 w-4" aria-hidden="true" />
-            </Link>
-          </Button>
-        }
-      />
-    </div>
-  );
-}
 
 export function ReviewScreen({
   jobId,
@@ -230,34 +318,130 @@ export function ReviewScreen({
   open,
   onOpenChange,
   onPanelChange,
+  onEntrySaved,
 }: ReviewScreenProps) {
   const [entry, setEntry] = useState<JobTrackerDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [jobEditing, setJobEditing] = useState(false);
+  const [jobBaseline, setJobBaseline] = useState<JobDetailDraft | null>(null);
+  const [jobDraft, setJobDraft] = useState<JobDetailDraft | null>(null);
+  const [jobDirty, setJobDirty] = useState(false);
+  const [jobSaving, setJobSaving] = useState(false);
+  const [jobSaveError, setJobSaveError] = useState<string | null>(null);
+
+  const resetJobEditState = useCallback(() => {
+    setJobEditing(false);
+    setJobBaseline(null);
+    setJobDraft(null);
+    setJobDirty(false);
+    setJobSaving(false);
+    setJobSaveError(null);
+  }, []);
+
+  const syncJobDraftFromEntry = useCallback((nextEntry: JobTrackerDetail) => {
+    const baseline = buildJobDetailDraftFromTrackerEntry(nextEntry);
+    setJobBaseline(baseline);
+    setJobDraft(baseline);
+    setJobDirty(false);
+    setJobEditing(false);
+    setJobSaveError(null);
+  }, []);
 
   const loadEntry = useCallback(async (id: string) => {
     setLoading(true);
     setError(null);
-    const result = await getJobTrackerEntryById(id);
-    setLoading(false);
-    if (!result.success) {
+    try {
+      const result = await getJobTrackerEntryById(id);
+      setLoading(false);
+      if (!result.success) {
+        setEntry(null);
+        resetJobEditState();
+        setError(result.error);
+        return;
+      }
+      setEntry(result.entry);
+      syncJobDraftFromEntry(result.entry);
+    } catch (error) {
+      setLoading(false);
       setEntry(null);
-      setError(result.error);
-      return;
+      resetJobEditState();
+      setError(serverActionClientErrorMessage(error, "Could not load job details."));
     }
-    setEntry(result.entry);
-  }, []);
+  }, [resetJobEditState, syncJobDraftFromEntry]);
 
   useEffect(() => {
     if (!open || !jobId) {
       setEntry(null);
       setError(null);
+      resetJobEditState();
       return;
     }
     void loadEntry(jobId);
-  }, [open, jobId, loadEntry]);
+  }, [open, jobId, loadEntry, resetJobEditState]);
 
-  const jobMeta = entry ? reviewJobMetaParts(entry) : null;
+  useEffect(() => {
+    if (panel !== "job") {
+      setJobEditing(false);
+      setJobSaveError(null);
+    }
+  }, [panel]);
+
+  const handleJobDraftChange = useCallback(
+    (next: JobDetailDraft) => {
+      setJobDraft(next);
+      setJobDirty(jobBaseline ? !jobDetailDraftsEqual(next, jobBaseline) : false);
+    },
+    [jobBaseline],
+  );
+
+  const handleSaveJobDetails = useCallback(async () => {
+    if (!jobId || !jobDraft || !entry) return;
+
+    const normalized = normalizeJobDetailDraft(jobDraft);
+    if (normalized.title.length < 2) {
+      setJobSaveError("Title is required.");
+      return;
+    }
+    if (!canApplyCapture({ url: entry.canonicalUrl, description: normalized.description })) {
+      setJobSaveError(
+        applyCaptureBlockReason({ url: entry.canonicalUrl, description: normalized.description }),
+      );
+      return;
+    }
+
+    setJobSaving(true);
+    setJobSaveError(null);
+    try {
+      const result = await updateJobTrackerEntryDetails(jobId, jobDraft);
+      setJobSaving(false);
+
+      if (!result.success) {
+        setJobSaveError(result.error);
+        return;
+      }
+
+      setEntry(result.entry);
+      syncJobDraftFromEntry(result.entry);
+      onEntrySaved?.();
+    } catch (error) {
+      setJobSaving(false);
+      setJobSaveError(
+        serverActionClientErrorMessage(error, "Could not save job details."),
+      );
+    }
+  }, [entry, jobDraft, jobId, onEntrySaved, syncJobDraftFromEntry]);
+
+  const headerEntry =
+    entry && jobDraft && panel === "job"
+      ? {
+          ...entry,
+          title: jobDraft.title,
+          company: jobDraft.company || null,
+          location: jobDraft.location || null,
+        }
+      : entry;
+  const jobMeta = headerEntry ? reviewJobMetaParts(headerEntry) : null;
 
   return (
     <GlossyModal
@@ -341,6 +525,42 @@ export function ReviewScreen({
 
             <div className="min-w-0 flex-1" aria-hidden="true" />
 
+            {entry && panel === "job" ? (
+              <div className="flex shrink-0 items-center gap-2">
+                {jobDirty ? (
+                  <PurposeButton
+                    purpose="primary"
+                    className="h-8 rounded-xl px-3 text-xs"
+                    disabled={jobSaving}
+                    onClick={() => void handleSaveJobDetails()}
+                  >
+                    {jobSaving ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                        Saving…
+                      </>
+                    ) : (
+                      "Save"
+                    )}
+                  </PurposeButton>
+                ) : null}
+                <PurposeButton
+                  purpose="secondary"
+                  className="h-8 rounded-xl px-3 text-xs"
+                  disabled={jobSaving}
+                  onClick={() => {
+                    if (jobEditing) {
+                      setJobDraft(jobBaseline);
+                      setJobDirty(false);
+                    }
+                    setJobEditing((current) => !current);
+                  }}
+                >
+                  {jobEditing ? "Done" : "Edit"}
+                </PurposeButton>
+              </div>
+            ) : null}
+
             {entry ? (
               <span
                 className={cn(
@@ -353,6 +573,11 @@ export function ReviewScreen({
               </span>
             ) : null}
           </div>
+          {jobSaveError && panel === "job" ? (
+            <p className="mt-1.5 text-xs text-red-600 dark:text-red-300" role="alert">
+              {jobSaveError}
+            </p>
+          ) : null}
         </header>
       }
     >
@@ -381,7 +606,14 @@ export function ReviewScreen({
               : "overflow-y-auto",
           )}
         >
-          {panel === "job" ? <JobPanel entry={entry} /> : null}
+          {panel === "job" && jobDraft ? (
+            <JobPanel
+              entry={entry}
+              editing={jobEditing}
+              draft={jobDraft}
+              onDraftChange={handleJobDraftChange}
+            />
+          ) : null}
           {panel === "resume" ? (
             <ReviewResumePanel entry={entry} onRefresh={() => jobId && void loadEntry(jobId)} />
           ) : null}
@@ -389,7 +621,6 @@ export function ReviewScreen({
             <CoverPanel entry={entry} onRefresh={() => jobId && void loadEntry(jobId)} />
           ) : null}
           {panel === "ats" ? <AtsPanel entry={entry} /> : null}
-          {panel === "apply" ? <ApplyPanel entry={entry} /> : null}
         </div>
       ) : null}
     </GlossyModal>

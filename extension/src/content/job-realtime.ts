@@ -1,94 +1,41 @@
-import { createClient } from "@supabase/supabase-js";
-import {
-  fetchJobTrackerRealtimeCredentials,
-  subscribeJobStatusRealtime,
-  subscribeJobTrackerRealtime,
-  type JobStatusChangeHandler,
-} from "@shared/extension/realtime-sync";
+import type { JobStatusChangeHandler } from "@shared/extension/realtime-sync";
 
 export type ExtensionJobRealtimeOptions = {
   apiBaseUrl: string;
   getAuthToken: () => Promise<string | null>;
+  sendMessage: (msg: Record<string, unknown>) => Promise<unknown>;
   onSync: () => void;
 };
 
-let activeStop: (() => Promise<void>) | null = null;
+type JobRealtimeImpl = typeof import("./job-realtime-impl");
 
-/** Extension content-script Realtime — falls back silently when token API unavailable. */
-export async function startExtensionJobRealtime(
-  options: ExtensionJobRealtimeOptions,
-): Promise<() => Promise<void>> {
-  await stopExtensionJobRealtime();
-
-  const token = await options.getAuthToken();
-  if (!token) {
-    return async () => undefined;
-  }
-
-  const credentials = await fetchJobTrackerRealtimeCredentials(
-    `${options.apiBaseUrl.replace(/\/$/, "")}/api/extension/realtime-token`,
-    { authorization: `Bearer ${token}` },
-  );
-
-  if (!credentials) {
-    return async () => undefined;
-  }
-
-  const supabase = createClient(credentials.supabaseUrl, credentials.supabaseKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-
-  await supabase.realtime.setAuth(credentials.token);
-
-  const subscription = subscribeJobTrackerRealtime(supabase, credentials.userId, {
-    onChange: options.onSync,
-  });
-
-  const stop = async () => {
-    await subscription.unsubscribe();
-  };
-
-  activeStop = stop;
-  return stop;
-}
-
-export async function stopExtensionJobRealtime(): Promise<void> {
-  if (!activeStop) return;
-  const stop = activeStop;
-  activeStop = null;
-  await stop();
-}
+let implModule: JobRealtimeImpl | null = null;
+let implLoad: Promise<JobRealtimeImpl> | null = null;
 
 let activeJobStatusStop: (() => Promise<void>) | null = null;
 
-/**
- * Subscribe to status changes for a specific job entry via Supabase Realtime.
- * Calls onStatus each time the job's status column changes.
- * Replaces polling for pipeline state transitions.
- */
+async function loadJobRealtimeImpl(): Promise<JobRealtimeImpl> {
+  if (implModule) return implModule;
+  if (!implLoad) {
+    const url = chrome.runtime.getURL("job-realtime-impl.js");
+    implLoad = import(/* @vite-ignore */ url) as Promise<JobRealtimeImpl>;
+  }
+  implModule = await implLoad;
+  return implModule;
+}
+
+export function isJobStatusRealtimeActive(): boolean {
+  return activeJobStatusStop !== null;
+}
+
+/** Subscribe to status changes for a specific job entry via Supabase Realtime. */
 export async function startJobStatusRealtime(
   options: ExtensionJobRealtimeOptions & { jobId: string; onStatus: JobStatusChangeHandler },
 ): Promise<() => Promise<void>> {
   await stopJobStatusRealtime();
 
-  const token = await options.getAuthToken();
-  if (!token) return async () => undefined;
-
-  const credentials = await fetchJobTrackerRealtimeCredentials(
-    `${options.apiBaseUrl.replace(/\/$/, "")}/api/extension/realtime-token`,
-    { authorization: `Bearer ${token}` },
-  );
-  if (!credentials) return async () => undefined;
-
-  const supabase = createClient(credentials.supabaseUrl, credentials.supabaseKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  await supabase.realtime.setAuth(credentials.token);
-
-  const subscription = subscribeJobStatusRealtime(supabase, options.jobId, options.onStatus);
-  const stop = async () => {
-    await subscription.unsubscribe();
-  };
+  const impl = await loadJobRealtimeImpl();
+  const stop = await impl.startJobStatusRealtimeImpl(options);
   activeJobStatusStop = stop;
   return stop;
 }

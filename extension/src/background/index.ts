@@ -294,6 +294,25 @@ chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) =>
     return true;
   }
 
+  if (
+    message?.action === EXTENSION_MESSAGE.JOB_ARCHIVED &&
+    typeof message.entryId === "string"
+  ) {
+    console.log("[EasySubmit] bg:job-archived — forwarding to active tabs", { entryId: message.entryId });
+    void chrome.tabs.query({ active: true }).then((tabs) => {
+      for (const tab of tabs) {
+        if (tab.id != null) {
+          void chrome.tabs.sendMessage(tab.id, {
+            action: EXTENSION_MESSAGE.JOB_ARCHIVED,
+            entryId: message.entryId,
+          }).catch(() => undefined);
+        }
+      }
+    });
+    sendResponse({ success: true });
+    return true;
+  }
+
   return false;
 });
 
@@ -371,6 +390,43 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (action === EXTENSION_MESSAGE.GET_REALTIME_TOKEN) {
+    void apiFetch<{
+      success: boolean;
+      token?: string;
+      userId?: string;
+      supabaseUrl?: string;
+      supabaseKey?: string;
+      error?: string;
+    }>("/api/extension/realtime-token")
+      .then((data) => {
+        console.log("[EasySubmit] bg:realtime-token", { success: data?.success, hasToken: Boolean(data?.token) });
+        sendResponse(data);
+      })
+      .catch((err) => {
+        console.warn("[EasySubmit] bg:realtime-token failed", err);
+        sendResponse({ success: false, error: "Network error" });
+      });
+    return true;
+  }
+
+  if (
+    action === EXTENSION_MESSAGE.UPDATE_JOB_FIELDS &&
+    typeof message.entryId === "string" &&
+    message.payload
+  ) {
+    void apiFetch<{ success: boolean; error?: string }>(
+      `/api/extension/jobs/${encodeURIComponent(message.entryId)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ fields: message.payload }),
+      },
+    )
+      .then((data) => sendResponse(data))
+      .catch(() => sendResponse({ success: false, error: "Network error" }));
+    return true;
+  }
+
   if (action === EXTENSION_MESSAGE.RUN_PIPELINE && message.payload) {
     void apiFetch<JobStatusResponse & { phases?: string[]; pendingPhase?: string | null }>(
       "/api/extension/jobs/pipeline",
@@ -444,6 +500,61 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   ) {
     void apiFetch<{ success: boolean; previewHtml?: string; error?: string }>(
       `/api/extension/jobs/${encodeURIComponent(message.entryId)}/preview?kind=${message.kind}`,
+    )
+      .then((data) => sendResponse(data))
+      .catch(() => sendResponse({ success: false, error: "Network error" }));
+    return true;
+  }
+
+  if (
+    action === EXTENSION_MESSAGE.GET_COVER_LETTER_BODY &&
+    typeof message.entryId === "string"
+  ) {
+    void apiFetch<{ success: boolean; body?: string; error?: string }>(
+      `/api/extension/jobs/${encodeURIComponent(message.entryId)}/cover-letter`,
+    )
+      .then((data) => sendResponse(data))
+      .catch(() => sendResponse({ success: false, error: "Network error" }));
+    return true;
+  }
+
+  if (
+    action === EXTENSION_MESSAGE.SAVE_COVER_LETTER &&
+    typeof message.entryId === "string" &&
+    typeof message.body === "string"
+  ) {
+    void apiFetch<{ success: boolean; error?: string }>(
+      `/api/extension/jobs/${encodeURIComponent(message.entryId)}/cover-letter`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ body: message.body }),
+      },
+    )
+      .then((data) => sendResponse(data))
+      .catch(() => sendResponse({ success: false, error: "Network error" }));
+    return true;
+  }
+
+  if (action === EXTENSION_MESSAGE.GET_RESUME_FORM && typeof message.entryId === "string") {
+    void apiFetch<{ success: boolean; draft?: unknown; error?: string }>(
+      `/api/extension/jobs/${encodeURIComponent(message.entryId)}/resume-form`,
+    )
+      .then((data) => sendResponse(data))
+      .catch(() => sendResponse({ success: false, error: "Network error" }));
+    return true;
+  }
+
+  if (
+    action === EXTENSION_MESSAGE.SAVE_RESUME_FORM &&
+    typeof message.entryId === "string" &&
+    message.payload
+  ) {
+    void apiFetch<{ success: boolean; error?: string }>(
+      `/api/extension/jobs/${encodeURIComponent(message.entryId)}/resume-form`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ draft: message.payload }),
+      },
     )
       .then((data) => sendResponse(data))
       .catch(() => sendResponse({ success: false, error: "Network error" }));

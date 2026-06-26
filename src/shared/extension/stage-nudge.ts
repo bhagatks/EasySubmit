@@ -1,4 +1,5 @@
 import { JOB_CARD_WIDTH } from "./card-position";
+import { brandExtensionTokens, brandAlpha, BRAND_COLORS } from "../brand-colors";
 
 export type StageNudgeVariant = "capture" | "captured";
 
@@ -35,11 +36,12 @@ export type StageNudgeRenderOptions = {
 };
 
 /** Transparent glossy shell wrapping the two inner white cards (job + stage nudge). */
-export function glossyShellStyles(): string {
+export function glossyShellStyles(cardWidth = JOB_CARD_WIDTH): string {
+  const t = brandExtensionTokens();
   return `
     .glossy-stack {
       box-sizing: border-box;
-      width: ${JOB_CARD_WIDTH}px;
+      width: ${cardWidth}px;
       position: relative;
     }
     .glossy-shell {
@@ -69,7 +71,7 @@ export function glossyShellStyles(): string {
       inset: 0;
       border-radius: inherit;
       background:
-        radial-gradient(ellipse 95% 60% at 50% -8%, rgba(18, 179, 209, 0.16), transparent 58%),
+        radial-gradient(ellipse 95% 60% at 50% -8%, ${t.a16}, transparent 58%),
         radial-gradient(ellipse 80% 50% at 50% 108%, rgba(255, 255, 255, 0.22), transparent 62%);
     }
     .glossy-shell-shimmer {
@@ -110,13 +112,13 @@ export function glossyShellStyles(): string {
         box-shadow:
           0 10px 36px rgba(15, 23, 42, 0.14),
           inset 0 1px 0 rgba(255, 255, 255, 0.72),
-          0 0 0 rgba(18, 179, 209, 0);
+          0 0 0 ${brandAlpha(BRAND_COLORS.primary.hex, 0)};
       }
       50% {
         box-shadow:
-          0 12px 40px rgba(18, 179, 209, 0.12),
+          0 12px 40px ${t.a12},
           inset 0 1px 0 rgba(255, 255, 255, 0.85),
-          0 0 24px rgba(18, 179, 209, 0.08);
+          0 0 24px ${t.a08};
       }
     }
     @keyframes shell-shimmer {
@@ -127,6 +129,7 @@ export function glossyShellStyles(): string {
 }
 
 export function stageNudgeStyles(): string {
+  const t = brandExtensionTokens();
   return `
     .stage-nudge {
       box-sizing: border-box;
@@ -152,7 +155,7 @@ export function stageNudgeStyles(): string {
       background: linear-gradient(
         105deg,
         transparent 36%,
-        rgba(18, 179, 209, 0.08) 50%,
+        ${t.a08} 50%,
         transparent 64%
       );
       transform: translateX(-120%);
@@ -185,8 +188,8 @@ export function stageNudgeStyles(): string {
       width: 7px;
       height: 7px;
       border-radius: 50%;
-      background: #12B3D1;
-      box-shadow: 0 0 10px rgba(18, 179, 209, 0.85);
+      background: ${t.primaryHex};
+      box-shadow: 0 0 10px ${t.a85};
     }
     .orbit-dot.d1 { top: 2px; left: 50%; transform: translateX(-50%); animation: dot-pulse 1.6s ease-in-out infinite; }
     .orbit-dot.d2 { bottom: 8px; right: 4px; animation: dot-pulse 1.6s ease-in-out 0.35s infinite; }
@@ -195,20 +198,20 @@ export function stageNudgeStyles(): string {
       width: 38px;
       height: 38px;
       border-radius: 10px;
-      background: rgba(18, 179, 209, 0.1);
-      border: 1px solid rgba(18, 179, 209, 0.28);
+      background: ${t.a10};
+      border: 1px solid ${t.a28};
       display: flex;
       align-items: center;
       justify-content: center;
       animation: icon-float 2.8s ease-in-out infinite;
     }
-    .nudge-icon-wrap svg { width: 20px; height: 20px; color: #12B3D1; }
+    .nudge-icon-wrap svg { width: 20px; height: 20px; color: ${t.primary}; }
     .nudge-spark {
       position: absolute;
       top: 6px;
       right: 8px;
       font-size: 14px;
-      color: #12B3D1;
+      color: ${t.primary};
       animation: spark-pop 2.2s ease-in-out infinite;
     }
     .nudge-copy { flex: 1; min-width: 0; }
@@ -220,15 +223,15 @@ export function stageNudgeStyles(): string {
       font-weight: 700;
       letter-spacing: 0.06em;
       text-transform: uppercase;
-      color: #0E7490;
+      color: ${t.primaryMuted};
       margin-bottom: 4px;
     }
     .nudge-eyebrow .live-dot {
       width: 6px;
       height: 6px;
       border-radius: 50%;
-      background: #12B3D1;
-      box-shadow: 0 0 0 0 rgba(18, 179, 209, 0.6);
+      background: ${t.primaryHex};
+      box-shadow: 0 0 0 0 ${t.a60};
       animation: live-pulse 2s ease-out infinite;
     }
     .nudge-title {
@@ -250,7 +253,7 @@ export function stageNudgeStyles(): string {
       gap: 0;
       margin-top: 10px;
       padding-top: 9px;
-      border-top: 1px solid rgba(18, 179, 209, 0.16);
+      border-top: 1px solid ${t.a16};
     }
     .pipe-step {
       display: flex;
@@ -267,9 +270,9 @@ export function stageNudgeStyles(): string {
       border: 1px solid #D1D5DB;
     }
     .pipe-step.active .pipe-dot {
-      background: #12B3D1;
-      border-color: #67E8F9;
-      box-shadow: 0 0 10px rgba(18, 179, 209, 0.55);
+      background: ${t.primaryHex};
+      border-color: #A5B4FC;
+      box-shadow: 0 0 10px ${t.a55};
       animation: pipe-glow 1.8s ease-in-out infinite;
     }
     .pipe-label {
@@ -278,7 +281,7 @@ export function stageNudgeStyles(): string {
       color: #9CA3AF;
       letter-spacing: 0.02em;
     }
-    .pipe-step.active .pipe-label { color: #0E7490; }
+    .pipe-step.active .pipe-label { color: ${t.primaryMuted}; }
     .pipe-line {
       flex: 1;
       height: 2px;
@@ -293,7 +296,7 @@ export function stageNudgeStyles(): string {
       position: absolute;
       inset: 0;
       width: 40%;
-      background: linear-gradient(90deg, transparent, #12B3D1, transparent);
+      background: linear-gradient(90deg, transparent, ${t.primaryHex}, transparent);
       animation: pipe-flow 2.4s ease-in-out infinite;
     }
     .nudge-hint {
@@ -303,7 +306,7 @@ export function stageNudgeStyles(): string {
       gap: 4px;
       font-size: 10px;
       font-weight: 600;
-      color: #12B3D1;
+      color: ${t.primary};
       animation: hint-bounce 2s ease-in-out infinite;
     }
     .nudge-hint svg { width: 12px; height: 12px; }
@@ -342,13 +345,13 @@ export function stageNudgeStyles(): string {
       50% { transform: scale(1.2) rotate(12deg); opacity: 1; }
     }
     @keyframes live-pulse {
-      0% { box-shadow: 0 0 0 0 rgba(18, 179, 209, 0.55); }
-      70% { box-shadow: 0 0 0 7px rgba(18, 179, 209, 0); }
-      100% { box-shadow: 0 0 0 0 rgba(18, 179, 209, 0); }
+      0% { box-shadow: 0 0 0 0 ${t.a55}; }
+      70% { box-shadow: 0 0 0 7px ${brandAlpha(BRAND_COLORS.primary.hex, 0)}; }
+      100% { box-shadow: 0 0 0 0 ${brandAlpha(BRAND_COLORS.primary.hex, 0)}; }
     }
     @keyframes pipe-glow {
-      0%, 100% { box-shadow: 0 0 6px rgba(18, 179, 209, 0.35); }
-      50% { box-shadow: 0 0 12px rgba(18, 179, 209, 0.7); }
+      0%, 100% { box-shadow: 0 0 6px ${t.a35}; }
+      50% { box-shadow: 0 0 12px ${t.a70}; }
     }
     @keyframes pipe-flow {
       0% { transform: translateX(-100%); opacity: 0; }

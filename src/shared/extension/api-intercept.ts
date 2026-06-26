@@ -13,6 +13,7 @@
  */
 
 import { INTERCEPT_MESSAGE_TYPE } from "./api-intercept-constants";
+import { isEasySubmitManagedAppPage } from "./easysubmit-app-page";
 
 export { INTERCEPT_MESSAGE_TYPE };
 
@@ -36,6 +37,7 @@ const PAGE_SCRIPT_ID = "__easysubmit_intercept_script__";
  */
 export function injectApiInterceptScript(): void {
   try {
+    if (isEasySubmitManagedAppPage()) return;
     if (document.getElementById(PAGE_SCRIPT_ID)) return;
     if (typeof chrome === "undefined" || !chrome.runtime?.getURL) return;
 

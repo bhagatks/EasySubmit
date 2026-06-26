@@ -1,15 +1,14 @@
 import type { JobTrackerStatus } from "@/lib/generated/prisma/client";
 
-export type ReviewScreenPanel = "job" | "resume" | "cover" | "ats" | "apply";
+export type ReviewScreenPanel = "job" | "resume" | "cover" | "ats";
 
-export const REVIEW_SCREEN_PANELS: ReviewScreenPanel[] = ["job", "resume", "cover", "ats", "apply"];
+export const REVIEW_SCREEN_PANELS: ReviewScreenPanel[] = ["job", "resume", "cover", "ats"];
 
 export const REVIEW_SCREEN_PANEL_LABELS: Record<ReviewScreenPanel, string> = {
   job: "Job",
   resume: "Resume",
   cover: "Cover letter",
   ats: "ATS Analysis",
-  apply: "Apply",
 };
 
 export function isReviewScreenPanel(value: string | null | undefined): value is ReviewScreenPanel {
@@ -18,8 +17,7 @@ export function isReviewScreenPanel(value: string | null | undefined): value is 
 
 /** Default Review Screen tab when opening from the tracker. */
 export function defaultReviewScreenPanel(status: JobTrackerStatus): ReviewScreenPanel {
-  if (status === "RESUME_READY") return "resume";
-  if (status === "READY_TO_APPLY") return "apply";
+  if (status === "RESUME_READY" || status === "READY_TO_APPLY") return "resume";
   return "job";
 }
 

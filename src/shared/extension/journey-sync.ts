@@ -123,7 +123,11 @@ export function resolveExtensionJourneyDisplay(input: {
 }
 
 export function shouldRunExtensionJourneySyncPoll(saved: JourneySnapshot): boolean {
-  return saved.saved;
+  if (!saved.saved) return false;
+  const status = saved.status as string | undefined;
+  // Terminal states — realtime or user action drives any remaining transitions
+  if (status === "READY_TO_APPLY" || status === "APPLIED") return false;
+  return true;
 }
 
 export function extensionJourneySyncPollIntervalMs(status?: string | null): number {

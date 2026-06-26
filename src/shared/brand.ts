@@ -8,7 +8,8 @@ export const BRAND = {
   suffix: ".ai",
   full: "EasySubmit.ai",
   tagline: "Apply smarter, not harder!",
-  applyCta: "Apply with EasySubmit.ai",
+  applyCta: "Apply with EasySubmit",
+  autoSuggestCta: "Apply with Auto Suggest",
   extension: {
     manifestName: "EasySubmit.ai — Job Tracker",
     manifestDescription:
@@ -25,12 +26,18 @@ export type BrandClassNames = {
   suffix?: string;
 };
 
-/** Shadow-DOM / HTML string for the split wordmark (card grip, etc.). */
-export function renderBrandMarkup(classNames: BrandClassNames = {}): string {
+/** Shadow-DOM / HTML string for the split wordmark with optional app icon. */
+export function renderBrandMarkup(
+  classNames: BrandClassNames = {},
+  iconUrl?: string,
+): string {
   const wrap = classNames.wrap ?? "brand";
   const nameClass = classNames.name ?? "brand-name";
   const suffixClass = classNames.suffix ?? "brand-suffix";
-  return `<span class="${wrap}"><span class="${nameClass}">${BRAND.name}</span><span class="${suffixClass}">${BRAND.suffix}</span></span>`;
+  const icon = iconUrl
+    ? `<img class="brand-icon" src="${iconUrl}" alt="" width="20" height="20" decoding="async" />`
+    : "";
+  return `${icon}<span class="${wrap}"><span class="${nameClass}">${BRAND.name}</span><span class="${suffixClass}">${BRAND.suffix}</span></span>`;
 }
 
 export function brandCopyright(year: number): string {

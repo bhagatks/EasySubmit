@@ -37,13 +37,13 @@ export const SPACING = {
   pageMarginH:     48, // 0.67in = 48pt
   afterName:        8,
   afterContact:    14,
-  afterSectionRule: 4,
-  betweenSections: 12,
-  betweenEntries:  10,
-  afterEntryHead:   2,
-  afterEntrySub:    4,
+  afterSectionRule: 6,
+  betweenSections: 14,
+  betweenEntries:   8,
+  afterEntryHead:   4,
+  afterEntrySub:    6,
   bulletIndent:    12,
-  bulletGap:        3,
+  bulletGap:        4,
 } as const;
 
 // ─── Page ─────────────────────────────────────────────────────────────────────

@@ -53,6 +53,24 @@ describe("job-resume-overrides", () => {
     expect(overrides.experience).toBeUndefined();
   });
 
+  it("extracts header overrides including linkedIn", () => {
+    const before = baseForm();
+    const after = {
+      ...before,
+      linkedIn: "https://linkedin.com/in/ada",
+    };
+
+    const { overrides, changedSections } = extractJobResumeOverrides(
+      before,
+      after,
+      "Engineering Manager",
+      "Engineering Manager",
+    );
+
+    expect(changedSections).toContain("header");
+    expect(overrides.header?.linkedIn).toBe("https://linkedin.com/in/ada");
+  });
+
   it("merges overrides onto base profile", () => {
     const before = baseForm();
     const { overrides } = extractJobResumeOverrides(

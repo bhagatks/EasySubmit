@@ -130,31 +130,32 @@ export function buildResumePreviewHtml(form: HubRefineryForm, targetTitle: strin
       text-align: center;
       color: ${COLOR.midGray};
       font-size: ${FONT_SIZE.contact}pt;
-      margin-bottom: 20px;
+      margin-bottom: ${SPACING.afterContact}pt;
     }
-    .section { margin-bottom: 16px; }
+    .section { margin-bottom: ${SPACING.betweenSections}pt; }
     h2 {
       font-size: ${FONT_SIZE.section}pt;
       text-transform: uppercase;
       letter-spacing: 0.08em;
       border-bottom: 1px solid ${COLOR.border};
-      padding-bottom: 4px;
-      margin: 0 0 8px;
+      padding-bottom: ${SPACING.afterSectionRule}pt;
+      margin: 0 0 ${SPACING.afterSectionRule}pt;
       color: ${COLOR.nearBlack};
     }
     .summary, .body { margin: 0; white-space: pre-wrap; }
-    .entry { margin-bottom: 14px; }
+    .entry { margin-bottom: ${SPACING.betweenEntries}pt; }
     .entry-head {
       display: flex;
       justify-content: space-between;
       gap: 12px;
       align-items: baseline;
+      margin-bottom: ${SPACING.afterEntryHead}pt;
     }
     .entry-title { font-weight: 700; font-size: ${FONT_SIZE.entryTitle}pt; }
     .entry-meta { color: ${COLOR.midGray}; font-size: ${FONT_SIZE.contact}pt; white-space: nowrap; }
-    .entry-sub { margin: 2px 0 6px; font-style: italic; color: ${COLOR.midGray}; font-size: ${FONT_SIZE.entrySub}pt; }
-    ul { margin: 0; padding-left: 18px; }
-    li { margin-bottom: 4px; }
+    .entry-sub { margin: 0 0 ${SPACING.afterEntrySub}pt; font-style: italic; color: ${COLOR.midGray}; font-size: ${FONT_SIZE.entrySub}pt; }
+    ul { margin: 0; padding-left: ${SPACING.bulletIndent}pt; }
+    li { margin-bottom: ${SPACING.bulletGap}pt; }
     .lines { list-style: disc; }
     .whitespace { white-space: pre-wrap; }
   </style>

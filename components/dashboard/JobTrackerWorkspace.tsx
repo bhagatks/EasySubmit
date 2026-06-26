@@ -4,8 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Archive, ArrowUpRight, Briefcase } from "lucide-react";
-import { listArchivedJobTrackerEntries, listJobTrackerEntries } from "@/app/actions/job-tracker";
+import { listArchivedJobTrackerEntries } from "@/app/actions/job-tracker";
 import type { JobTrackerSummary } from "@/lib/job-tracker/types";
+import {
+  fetchJobTrackerEntriesClient,
+  useJobTrackerSync,
+} from "@/lib/hooks/useJobTrackerSync";
 import {
   defaultReviewScreenPanel,
   isReviewScreenPanel,
@@ -13,7 +17,7 @@ import {
 } from "@/lib/job-tracker/review-screen-ui";
 import { JobTrackerPipeline } from "@/components/dashboard/JobTrackerPipeline";
 import { ReviewScreen } from "@/components/dashboard/ReviewScreen";
-import { useJobTrackerSync } from "@/lib/hooks/useJobTrackerSync";
+import { serverActionClientErrorMessage } from "@/lib/server-action-client";
 import { ToastBanner } from "@/components/ui/toast-banner";
 import { Button } from "@/components/ui/button";
 import { BRAND_FULL } from "@/lib/brand";
@@ -98,46 +102,37 @@ export function JobTrackerWorkspace({ entries, autoArchiveAppliedJobs }: JobTrac
 
   const loadArchived = useCallback(async () => {
     setArchiveLoading(true);
-    const result = await listArchivedJobTrackerEntries();
-    setArchiveLoading(false);
-    if (result.success) {
-      setArchivedEntries(result.entries);
+    try {
+      const result = await listArchivedJobTrackerEntries();
+      if (result.success) {
+        setArchivedEntries(result.entries);
+      }
+    } catch (error) {
+      console.warn(
+        "EasySubmit: could not load archived jobs",
+        serverActionClientErrorMessage(error, "Archive load failed"),
+      );
+    } finally {
+      setArchiveLoading(false);
     }
   }, []);
 
   const refreshTrackerEntries = useCallback(async () => {
-    const result = await listJobTrackerEntries();
-    if (result.success) {
-      setActiveEntries(result.entries);
+    if (!archivedView) {
+      const entries = await fetchJobTrackerEntriesClient();
+      if (entries) {
+        setActiveEntries(entries);
+      }
     }
     if (archivedView) {
       await loadArchived();
     }
   }, [archivedView, loadArchived]);
 
-  // Initial server render — Realtime + adaptive poll keep rows fresh.
-  useEffect(() => {
-    void refreshTrackerEntries();
-  }, [refreshTrackerEntries]);
-
   useJobTrackerSync({
     enabled: !archivedView,
     onUpdate: setActiveEntries,
   });
-
-  useEffect(() => {
-    function handleResume() {
-      if (document.visibilityState !== "visible") return;
-      void refreshTrackerEntries();
-    }
-
-    document.addEventListener("visibilitychange", handleResume);
-    window.addEventListener("focus", handleResume);
-    return () => {
-      document.removeEventListener("visibilitychange", handleResume);
-      window.removeEventListener("focus", handleResume);
-    };
-  }, [refreshTrackerEntries]);
 
   useEffect(() => {
     if (archivedView) {
@@ -212,8 +207,7 @@ export function JobTrackerWorkspace({ entries, autoArchiveAppliedJobs }: JobTrac
   const handleMutated = useCallback(() => {
     setRefreshKey((value) => value + 1);
     void refreshTrackerEntries();
-    router.refresh();
-  }, [refreshTrackerEntries, router]);
+  }, [refreshTrackerEntries]);
 
   return (
     <>
@@ -263,6 +257,9 @@ export function JobTrackerWorkspace({ entries, autoArchiveAppliedJobs }: JobTrac
           if (!nextOpen) closeReview();
         }}
         onPanelChange={handlePanelChange}
+        onEntrySaved={() => {
+          void refreshTrackerEntries();
+        }}
       />
     </>
   );

@@ -25,11 +25,15 @@ export async function POST(
     // Empty body is fine.
   }
 
+  // [ES:LOG] SERVER → DB write: status=APPLIED (source: extension_auto or extension_manual)
+  console.log("[EasySubmit] server:mark-applied", { entryId: params.id, userId, source });
   const result = await markJobTrackerApplied(userId, params.id, source);
   if (!result.success) {
     return Response.json(result, { status: result.code === "not_found" ? 404 : 400 });
   }
 
+  // [ES:LOG] SERVER ← DB write APPLIED success — revalidating dashboard, web will pick up
+  console.log("[EasySubmit] server:mark-applied success", { entryId: params.id, result });
   revalidatePath("/dashboard/job-tracker");
   revalidatePath("/dashboard");
 

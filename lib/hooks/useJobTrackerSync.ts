@@ -40,8 +40,8 @@ export type UseJobTrackerSyncOptions = {
   tokenUrl?: string;
 };
 
-async function fetchJobTrackerEntries(
-  entriesUrl: string,
+export async function fetchJobTrackerEntriesClient(
+  entriesUrl = "/api/job-tracker/entries",
 ): Promise<JobTrackerSummary[] | null> {
   try {
     const response = await fetch(entriesUrl, { credentials: "include" });
@@ -83,7 +83,7 @@ export function useJobTrackerSync({
 
     const syncFromPoll = async () => {
       if (cancelled) return;
-      const entries = await fetchJobTrackerEntries(entriesUrl);
+      const entries = await fetchJobTrackerEntriesClient(entriesUrl);
       if (cancelled) return;
       if (entries === null) {
         if (isJourneySyncDebugEnabled()) {

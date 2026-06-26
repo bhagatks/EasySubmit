@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "EasySubmit.ai — Job Tracker",
-  "version": "0.2.2",
+  "version": "0.2.6",
   "description": "Save jobs to EasySubmit.ai Job Tracker from any supported career site.",
   "permissions": ["storage", "tabs", "scripting", "contextMenus"],
   "host_permissions": ["https://*/*", "http://localhost:*/*"],
@@ -41,7 +41,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["api-intercept-page.js", "icons/*"],
+      "resources": ["api-intercept-page.js", "job-realtime-impl.js", "icons/*"],
       "matches": ["<all_urls>"]
     }
   ]

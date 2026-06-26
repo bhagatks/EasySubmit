@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildJobDetailFields,
   dashboardPanelForCardView,
+  isExpandableCardView,
   shouldShowReviewRow,
   shouldShowSavedMetaRow,
 } from "@/src/shared/extension/card-layout";
@@ -55,5 +56,12 @@ describe("card-layout", () => {
     expect(dashboardPanelForCardView("cover-preview")).toBe("cover");
     expect(dashboardPanelForCardView("job-detail")).toBe("job");
     expect(dashboardPanelForCardView("summary")).toBeNull();
+  });
+
+  it("flags inline panel views as expandable", () => {
+    expect(isExpandableCardView("summary")).toBe(false);
+    expect(isExpandableCardView("job-detail")).toBe(true);
+    expect(isExpandableCardView("resume-preview")).toBe(true);
+    expect(isExpandableCardView("cover-preview")).toBe(true);
   });
 });

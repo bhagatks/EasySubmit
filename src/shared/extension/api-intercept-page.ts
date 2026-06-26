@@ -3,6 +3,7 @@
  * `script.src` so strict CSP sites (e.g. Workday) do not block inline scripts.
  */
 import { INTERCEPT_MESSAGE_TYPE } from "./api-intercept-constants";
+import { isEasySubmitManagedAppPage } from "./easysubmit-app-page";
 
 type AtsPlatform = "greenhouse" | "lever" | "ashby" | "smartrecruiters";
 
@@ -172,16 +173,18 @@ function installApiIntercept(): void {
   if (window.__easysubmit_intercept__) return;
   window.__easysubmit_intercept__ = true;
 
-  const origFetch = window.fetch;
+  const origFetch = window.fetch.bind(window);
   window.fetch = function fetchIntercept(...args: Parameters<typeof fetch>) {
     const url =
       typeof args[0] === "string"
         ? args[0]
         : args[0] instanceof Request
           ? args[0].url
-          : "";
+          : args[0] instanceof URL
+            ? args[0].href
+            : "";
     const shouldIntercept = ATS_PATTERNS.some(({ pattern }) => pattern.test(url));
-    const responsePromise = origFetch.apply(this, args);
+    const responsePromise = origFetch(...args);
     if (!shouldIntercept) return responsePromise;
     return responsePromise.then((res) => {
       const clone = res.clone();
@@ -218,4 +221,6 @@ function installApiIntercept(): void {
   };
 }
 
-installApiIntercept();
+if (!isEasySubmitManagedAppPage()) {
+  installApiIntercept();
+}

@@ -1,5 +1,7 @@
 "use client";
 
+import { PurposeButton } from "@/components/ui/purpose-button";
+
 interface OnboardingNextButtonProps {
   disabled?: boolean;
   onClick: () => void;
@@ -13,14 +15,16 @@ export default function OnboardingNextButton({
 }: OnboardingNextButtonProps) {
   return (
     <div className="mt-auto pt-10">
-      <button
+      <PurposeButton
         type="button"
+        purpose="primary"
         disabled={disabled}
         onClick={onClick}
-        className="btn-primary"
+        size="lg"
+        className="w-full"
       >
         {label}
-      </button>
+      </PurposeButton>
     </div>
   );
 }

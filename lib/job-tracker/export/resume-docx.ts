@@ -154,7 +154,7 @@ function bulletParagraph(text: string): Paragraph {
 
 function bodyParagraph(text: string): Paragraph {
   return new Paragraph({
-    spacing: { after: dxa(4) },
+    spacing: { after: dxa(SPACING.afterSectionRule) },
     children: [
       new TextRun({
         text,
@@ -255,7 +255,7 @@ const bulletNumberingConfig = {
   ],
 };
 
-const LINE_HEIGHT_DXA = 240;
+const LINE_HEIGHT_DXA = 276;
 
 export async function buildResumeDocx(
   form: HubRefineryForm,

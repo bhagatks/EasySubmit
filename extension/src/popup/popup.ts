@@ -1,4 +1,5 @@
 import { BRAND } from "@shared/brand";
+import { extensionPopupButtonCss } from "@shared/brand-buttons";
 import { EXTENSION_MESSAGE } from "@shared/extension/constants";
 import type { ExtensionRuntimeConfig } from "@shared/extension/types";
 
@@ -14,6 +15,9 @@ let prefsBusy = false;
 
 function applyBrandToPopup(): void {
   document.title = BRAND.extension.popupTitle;
+  const style = document.createElement("style");
+  style.textContent = extensionPopupButtonCss();
+  document.head.appendChild(style);
   const eyebrow = document.querySelector<HTMLElement>(".eyebrow");
   if (eyebrow) eyebrow.textContent = BRAND.full;
   const title = document.querySelector<HTMLElement>(".title");

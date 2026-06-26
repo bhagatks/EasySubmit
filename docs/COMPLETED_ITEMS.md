@@ -1,5 +1,9 @@
 | Date | Item |
 |------|------|
+| 2026-06-25 | Resume export spacing overhaul — `resume-style.ts` spacing constants updated (betweenSections, afterSectionRule, afterEntryHead, afterEntrySub, bulletGap, betweenEntries); DOCX line height 240→276 DXA + bodyParagraph uses constant; HTML preview fully wired to SPACING constants — all three renderers (PDF/DOCX/HTML) now share single source of truth |
+| 2026-06-25 | Extension state map overhaul — 5-state journey (State 0–4) replacing old 4-state model; `autoSuggestCta` added to BRAND; `journey-display.ts` states corrected (CAPTURED hides CTA, RESUME_READY/READY_TO_APPLY show "Apply with Auto Suggest", APPLIED/archived show no status label); `showUpdateResume` removed entirely; `is-live` shell animation stops at APPLIED |
+| 2026-06-25 | Review Screen — "Apply" tab removed from all surfaces (type, panels array, labels map, default panel logic, component, render line); READY_TO_APPLY now defaults to "resume" tab |
+| 2026-06-25 | Extension card detail UX — Job Info / Resume / Cover Letter summary labels; Edit in Studio → Review Screen tab; cover full inline edit + resume lite fields (lazy fetch on Edit); extension cover-letter + resume-form API routes |
 | 2026-06-25 | Extension single-card layout — expandable job/resume/cover views, preview API, dashboard header deeplink |
 | 2026-06-25 | Extension pipeline hardening — re-capture resets to CAPTURED, mark-applied only from READY_TO_APPLY, content script teardown via window cleanup, AI health BYOK log query fix (`aiMode: customer`) |
 | 2026-06-25 | Global AI health alert (dashboard header + extension card icon) + Settings split into AI Keys / General |

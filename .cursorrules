@@ -1,7 +1,9 @@
 # EasySubmit.ai Project Rules
 
 ## Design System
-- Primary Color: #12B3D1 
+- Primary Color: engine glow — see `src/shared/brand-colors.ts` (synced with `app/globals.css --primary`)
+- Buttons: `src/shared/brand-buttons.ts` — shared **purposes** (primary, secondary, chip, …); colors differ web (dark) vs extension (light) by design
+- Web buttons: `PurposeButton` with `purpose="primary|secondary|…"` from `@/components/ui/purpose-button`
 - Text Color: #1F2937
 - Background: #F9FAFB
 - Border Radius: 12px for all buttons, cards, and inputs.

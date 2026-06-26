@@ -1,14 +1,10 @@
-import { buildDeterministicCoverLetterMarkdown } from "@/lib/job-tracker/build-deterministic-cover-letter";
 import { buildCoverLetterContext, buildCoverLetterHtml } from "@/lib/job-tracker/cover-letter";
 import { buildResumePreviewHtml } from "@/lib/job-tracker/export/resume-preview-html";
-import { getExtensionUserPrefs } from "@/lib/extension/user-prefs";
+import { getExtensionCoverLetterBody } from "@/lib/extension/extension-cover-letter";
 import {
-  getJobResumeTailorForEntry,
   getMergedResumeForJob,
-  type JobResumeTailorRecord,
 } from "@/lib/profile/job-resume-tailor";
 import { prisma } from "@/lib/prisma";
-import { emptyHubRefineryForm } from "@/lib/onboarding/hubResume";
 
 export type ExtensionJobPreviewKind = "resume" | "cover";
 
@@ -26,15 +22,6 @@ async function loadJobForUser(userId: string, jobId: string) {
       description: true,
     },
   });
-}
-
-function shouldUseStoredCoverLetter(
-  tailor: JobResumeTailorRecord | null,
-  deterministicBody: string,
-): boolean {
-  const stored = tailor?.coverLetter?.trim();
-  if (!stored) return false;
-  return stored !== deterministicBody.trim();
 }
 
 function emptyCoverPreviewHtml(): string {
@@ -65,32 +52,21 @@ export async function buildExtensionJobPreviewHtml(
     };
   }
 
-  const [merged, tailor, prefs] = await Promise.all([
+  const [merged, coverResult] = await Promise.all([
     getMergedResumeForJob(userId, jobId),
-    getJobResumeTailorForEntry(userId, jobId),
-    getExtensionUserPrefs(userId),
+    getExtensionCoverLetterBody(userId, jobId),
   ]);
 
-  const form = merged.success ? merged.form : emptyHubRefineryForm();
-  const targetTitle = merged.success ? merged.targetTitle : job.title;
+  if (!coverResult.success) {
+    return { success: false, error: coverResult.error, status: coverResult.status };
+  }
 
-  const template = buildDeterministicCoverLetterMarkdown({
-    form,
-    targetTitle,
-    company: job.company,
-    jobTitle: job.title,
-    jobDescription: job.description,
-  });
-
-  const deterministicBody = template.ok ? template.markdown : "";
-  const coverBody =
-    prefs.customizeResume && shouldUseStoredCoverLetter(tailor, deterministicBody)
-      ? tailor!.coverLetter!.trim()
-      : tailor?.coverLetter?.trim() || deterministicBody;
-
+  const coverBody = coverResult.body;
   if (!coverBody.trim()) {
     return { success: true, previewHtml: emptyCoverPreviewHtml() };
   }
+
+  const form = merged.success ? merged.form : { firstName: "", lastName: "", email: "", phone: "" };
 
   const ctx = buildCoverLetterContext({
     firstName: form.firstName,

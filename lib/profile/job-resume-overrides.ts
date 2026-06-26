@@ -44,19 +44,37 @@ export function extractJobResumeOverrides(
     overrides.targetTitle = targetTitleAfter.trim();
   }
 
+  const headerBefore: JobResumeHeaderOverrides = {
+    firstName: before.firstName,
+    lastName: before.lastName,
+    cityState: before.cityState,
+    phone: before.phone,
+    email: before.email,
+    linkedIn: before.linkedIn,
+  };
+  const headerAfter: JobResumeHeaderOverrides = {
+    firstName: after.firstName,
+    lastName: after.lastName,
+    cityState: after.cityState,
+    phone: after.phone,
+    email: after.email,
+    linkedIn: after.linkedIn,
+  };
+  if (JSON.stringify(headerBefore) !== JSON.stringify(headerAfter)) {
+    overrides.header = headerAfter;
+    if (!changedSections.includes("header")) {
+      changedSections.push("header");
+    }
+  }
+
   for (const sectionId of changedSections) {
     switch (sectionId) {
       case "profileRole":
         break;
       case "header":
-        overrides.header = {
-          firstName: after.firstName,
-          lastName: after.lastName,
-          cityState: after.cityState,
-          phone: after.phone,
-          email: after.email,
-          linkedIn: after.linkedIn,
-        };
+        if (!overrides.header) {
+          overrides.header = headerAfter;
+        }
         break;
       case "professionalSummary":
         overrides.professionalSummary = after.professionalSummary;

@@ -40,6 +40,17 @@ async function main() {
   });
 
   await build({
+    entryPoints: [resolve(extRoot, "src/content/job-realtime-impl.ts")],
+    outfile: resolve(outDir, "job-realtime-impl.js"),
+    bundle: true,
+    format: "esm",
+    platform: "browser",
+    target: "chrome109",
+    alias: sharedAlias,
+    logLevel: "info",
+  });
+
+  await build({
     entryPoints: [resolve(extRoot, "src/content/index.ts")],
     outfile: resolve(outDir, "content.js"),
     bundle: true,

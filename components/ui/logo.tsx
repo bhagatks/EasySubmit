@@ -1,22 +1,45 @@
-import React from 'react';
+import React from "react";
+import { BRAND_COLORS } from "@/src/shared/brand-colors";
 
-export const LogoIcon = ({ className = "w-10 h-10", ...props }: React.SVGProps<SVGSVGElement>) => {
+/** Shared ES ai mark — fill from `BRAND_COLORS.logo` (synced with extension/icons/icon.svg). */
+export const LogoIcon = ({
+  className = "w-10 h-10",
+  ...props
+}: React.SVGProps<SVGSVGElement>) => {
+  const { viewBox, rx, fill } = BRAND_COLORS.logo;
+
   return (
     <svg
-      viewBox="0 0 240 240"
+      viewBox={viewBox}
       xmlns="http://www.w3.org/2000/svg"
       className={className}
+      aria-hidden
       {...props}
     >
-      <defs>
-        <linearGradient id="es-logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#4F46E5" />
-          <stop offset="100%" stopColor="#06B6D4" />
-        </linearGradient>
-      </defs>
-      <rect x="10" y="10" width="220" height="220" rx="40" fill="url(#es-logo-grad)" />
-      <text x="95" y="142" textAnchor="middle" fontFamily="Arial, Helvetica, sans-serif" fontWeight="800" fontSize="98" fill="#FFFFFF">ES</text>
-      <text x="186" y="180" textAnchor="middle" fontFamily="Arial, Helvetica, sans-serif" fontWeight="700" fontSize="30" fill="#FFFFFF" opacity="0.9">ai</text>
+      <rect width="128" height="128" rx={rx} fill={fill} />
+      <text
+        x="50"
+        y="84"
+        textAnchor="middle"
+        fontFamily="Arial, Helvetica, sans-serif"
+        fontWeight="800"
+        fontSize="68"
+        fill="#FFFFFF"
+      >
+        ES
+      </text>
+      <text
+        x="108"
+        y="104"
+        textAnchor="middle"
+        fontFamily="Arial, Helvetica, sans-serif"
+        fontWeight="700"
+        fontSize="28"
+        fill="#FFFFFF"
+        opacity="0.95"
+      >
+        ai
+      </text>
     </svg>
   );
 };

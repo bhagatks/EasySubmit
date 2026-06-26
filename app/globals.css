@@ -92,7 +92,8 @@
 :root {
   --radius: 0.75rem;
 
-  /* EasySubmit — Trust Tech (Navy + Electric + Mint). Dark-first brand. */
+  /* EasySubmit — Trust Tech (Navy + Electric + Mint). Dark-first brand.
+     Color tokens: src/shared/brand-colors.ts (keep --primary in sync). */
   --background: oklch(0.16 0.04 268);
   --foreground: oklch(0.97 0.01 250);
   --surface: oklch(0.22 0.04 268);

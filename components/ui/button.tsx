@@ -22,9 +22,9 @@ const buttonVariants = cva(
         hero:
           "bg-primary text-primary-foreground shadow-glow hover:brightness-110 transition-all duration-300 font-semibold",
         mint:
-          "bg-mint text-mint-foreground shadow-mint-glow hover:brightness-110 hover:-translate-y-0.5 hover:shadow-[0_6px_18px_rgba(18,179,209,0.42)] active:translate-y-0 transition-all duration-300 font-semibold",
+          "bg-mint text-mint-foreground shadow-mint-glow hover:brightness-110 hover:-translate-y-0.5 hover:shadow-[0_6px_18px_oklch(0.62_0.21_265/0.42)] active:translate-y-0 transition-all duration-300 font-semibold",
         mintOutline:
-          "border border-mint/50 bg-transparent text-mint hover:bg-mint/10 hover:border-mint hover:-translate-y-0.5 hover:shadow-[0_4px_14px_rgba(18,179,209,0.28)] active:translate-y-0 transition-all duration-300 font-semibold",
+          "border border-mint/50 bg-transparent text-mint hover:bg-mint/10 hover:border-mint hover:-translate-y-0.5 hover:shadow-[0_4px_14px_oklch(0.62_0.21_265/0.28)] active:translate-y-0 transition-all duration-300 font-semibold",
       },
       size: {
         default: "h-9 px-4 py-2",

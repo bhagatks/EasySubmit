@@ -7,7 +7,8 @@ const root = resolve(__dirname, "..");
 const svgPath = resolve(root, "extension/icons/icon.svg");
 const outDir = resolve(root, "dist/extension/icons");
 
-/** Rasterize extension/icons/icon.svg into 16/48/128 PNGs for Chrome. */
+/** Rasterize extension/icons/icon.svg into 16/48/128 PNGs for Chrome.
+ *  SVG fill must match BRAND_COLORS.logo.fill in src/shared/brand-colors.ts */
 export async function generateExtensionIcons() {
   mkdirSync(outDir, { recursive: true });
 

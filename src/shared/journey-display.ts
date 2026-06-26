@@ -1,6 +1,7 @@
 import type { JobTrackerStatus } from "@/lib/generated/prisma/client";
+import { BRAND } from "./brand";
 
-export type JourneyStage = 0 | 1 | 2 | 3 | "error";
+export type JourneyStage = 0 | 1 | 2 | 3 | 4 | "error";
 
 export type JourneyDisplay = {
   stage: JourneyStage;
@@ -36,8 +37,8 @@ export function resolveJourneyDisplay(
   if (status == null) {
     return {
       stage: 0,
-      label: "Apply",
-      statusLabel: "Apply",
+      label: BRAND.applyCta,
+      statusLabel: "",
       applyButtonState: "hidden",
       showResumeCard: false,
       showAssistCard: false,
@@ -49,17 +50,17 @@ export function resolveJourneyDisplay(
     case "CAPTURED":
       return {
         stage: 1,
-        label: "Apply",
+        label: "",
         statusLabel: "Optimizing resume…",
-        applyButtonState: "disabled",
+        applyButtonState: "hidden",
         showResumeCard: false,
         showAssistCard: false,
         showReviewRow: false,
       };
     case "RESUME_READY":
       return {
-        stage: 1,
-        label: "Apply",
+        stage: 2,
+        label: BRAND.autoSuggestCta,
         statusLabel: "Resume ready",
         applyButtonState: "disabled",
         showResumeCard: true,
@@ -68,9 +69,9 @@ export function resolveJourneyDisplay(
       };
     case "READY_TO_APPLY":
       return {
-        stage: 2,
-        label: "Apply",
-        statusLabel: "Ready to apply",
+        stage: 3,
+        label: BRAND.autoSuggestCta,
+        statusLabel: "",
         applyButtonState: "navigate",
         showResumeCard: true,
         showAssistCard: false,
@@ -78,9 +79,9 @@ export function resolveJourneyDisplay(
       };
     case "APPLIED":
       return {
-        stage: 3,
+        stage: 4,
         label: "Applied",
-        statusLabel: "Applied",
+        statusLabel: "",
         applyButtonState: "completed",
         showResumeCard: false,
         showAssistCard: false,
@@ -89,9 +90,9 @@ export function resolveJourneyDisplay(
     default:
       return {
         stage: 1,
-        label: "Apply",
+        label: "",
         statusLabel: "Optimizing resume…",
-        applyButtonState: "disabled",
+        applyButtonState: "hidden",
         showResumeCard: false,
         showAssistCard: false,
         showReviewRow: false,

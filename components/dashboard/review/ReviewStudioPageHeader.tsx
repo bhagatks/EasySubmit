@@ -22,6 +22,7 @@ import {
   jobTrackerStatusStyle,
 } from "@/lib/job-tracker/status-labels";
 import { cn } from "@/lib/utils";
+import { serverActionClientErrorMessage } from "@/lib/server-action-client";
 
 type ReviewStudioPageHeaderProps = {
   jobId: string;
@@ -42,11 +43,21 @@ export function ReviewStudioPageHeader({ jobId }: ReviewStudioPageHeaderProps) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    void getJobTrackerEntryById(jobId).then((result) => {
-      if (cancelled) return;
-      setEntry(result.success ? result.entry : null);
-      setLoading(false);
-    });
+    void getJobTrackerEntryById(jobId)
+      .then((result) => {
+        if (cancelled) return;
+        setEntry(result.success ? result.entry : null);
+        setLoading(false);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setEntry(null);
+        setLoading(false);
+        console.warn(
+          "EasySubmit: could not load review header job",
+          serverActionClientErrorMessage(error, "Job load failed"),
+        );
+      });
     return () => {
       cancelled = true;
     };

@@ -33,7 +33,7 @@ export const JOB_TRACKER_KANBAN_COLUMNS: JobTrackerKanbanColumn[] = [
   {
     id: "ready-to-apply",
     status: "READY_TO_APPLY",
-    title: "Ready to ApplyAssist",
+    title: "Ready to Apply",
     description: "Autofill complete — review and submit on the job site",
   },
   {

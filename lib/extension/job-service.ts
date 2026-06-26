@@ -276,3 +276,85 @@ export async function updateJobTrackerStatus(
     },
   });
 }
+
+export type UpdateJobTrackerFieldsInput = {
+  title?: string;
+  company?: string | null;
+  location?: string | null;
+  salaryText?: string | null;
+  description?: string | null;
+  platform?: string | null;
+  jsonLdFields?: {
+    qualifications?: string;
+    responsibilities?: string;
+    incentives?: string;
+  };
+};
+
+function mergeJsonLdIntoMetadata(
+  existing: Prisma.InputJsonValue | null | undefined,
+  jsonLdFields: UpdateJobTrackerFieldsInput["jsonLdFields"],
+): Prisma.InputJsonValue | undefined {
+  // undefined = caller did not touch jsonLd fields, leave existing as-is
+  if (jsonLdFields === undefined) return existing ?? undefined;
+
+  const base =
+    existing && typeof existing === "object" && !Array.isArray(existing)
+      ? { ...(existing as Record<string, unknown>) }
+      : {};
+
+  const nextJsonLd = {
+    ...(typeof base.jsonLdFields === "object" && base.jsonLdFields && !Array.isArray(base.jsonLdFields)
+      ? (base.jsonLdFields as Record<string, unknown>)
+      : {}),
+    ...jsonLdFields,
+  };
+
+  for (const key of ["qualifications", "responsibilities", "incentives"] as const) {
+    if (!nextJsonLd[key]?.toString().trim()) {
+      delete nextJsonLd[key];
+    }
+  }
+
+  if (Object.keys(nextJsonLd).length === 0) {
+    delete base.jsonLdFields;
+  } else {
+    base.jsonLdFields = nextJsonLd;
+  }
+
+  return Object.keys(base).length > 0 ? (base as Prisma.InputJsonValue) : undefined;
+}
+
+export async function updateJobTrackerEntryFields(
+  userId: string,
+  entryId: string,
+  input: UpdateJobTrackerFieldsInput,
+) {
+  const existing = await prisma.jobTrackerEntry.findFirst({
+    where: { id: entryId, userId, archivedAt: null },
+    select: { id: true, metadata: true },
+  });
+
+  if (!existing) return null;
+
+  const title = input.title?.trim();
+  if (title !== undefined && title.length < 2) {
+    throw new Error("Title is required.");
+  }
+
+  const metadata = mergeJsonLdIntoMetadata(existing.metadata, input.jsonLdFields);
+
+  return prisma.jobTrackerEntry.update({
+    where: { id: entryId },
+    data: {
+      ...(title !== undefined ? { title } : {}),
+      ...(input.company !== undefined ? { company: input.company?.trim() || null } : {}),
+      ...(input.location !== undefined ? { location: input.location?.trim() || null } : {}),
+      ...(input.salaryText !== undefined ? { salaryText: input.salaryText?.trim() || null } : {}),
+      ...(input.description !== undefined ? { description: input.description?.trim() || null } : {}),
+      ...(input.platform !== undefined ? { platform: input.platform?.trim() || null } : {}),
+      ...(input.jsonLdFields !== undefined ? { metadata } : {}),
+    },
+    select: activeEntrySelect,
+  });
+}

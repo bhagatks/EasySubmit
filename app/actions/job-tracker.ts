@@ -12,12 +12,18 @@ import { buildCoverLetterSeedPatch } from "@/lib/job-tracker/build-deterministic
 import { buildTailoredResumePreview } from "@/lib/job-tracker/build-tailored-resume-preview";
 import { JOB_TRACKER_EDITABLE_STATUSES } from "@/lib/job-tracker/pipeline";
 import type { JobTrackerSummary, JobTrackerDetail } from "@/lib/job-tracker/types";
-import { updateJobTrackerStatus } from "@/lib/extension/job-service";
+import { updateJobTrackerStatus, updateJobTrackerEntryFields } from "@/lib/extension/job-service";
 import { markJobTrackerApplied } from "@/lib/extension/mark-applied";
 import { journeySyncLog } from "@/src/shared/extension/journey-sync-log";
 import { resumeProfileDisplayLabel } from "@/lib/extension/resume-profiles";
 import { getMergedResumeForJob, updateJobReviewDocuments } from "@/lib/profile/job-resume-tailor";
 import { findProfileForUser } from "@/lib/profile/resume-profile-core";
+import {
+  jobDetailDraftToFieldsPayload,
+  normalizeJobDetailDraft,
+  type JobDetailDraft,
+} from "@/src/shared/extension/job-detail-edit";
+import { canApplyCapture } from "@/src/shared/extension/apply-gate";
 
 const AUTO_ARCHIVE_MS = 24 * 60 * 60 * 1000;
 
@@ -269,6 +275,60 @@ export async function getJobTrackerEntryById(entryId: string): Promise<JobTracke
   );
 
   return { success: true, entry: enriched };
+}
+
+export async function updateJobTrackerEntryDetails(
+  entryId: string,
+  draft: JobDetailDraft,
+): Promise<JobTrackerEntryResult> {
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return { success: false, error: "Sign in required" };
+  }
+
+  if (!entryId.trim()) {
+    return { success: false, error: "Job id is required" };
+  }
+
+  const normalized = normalizeJobDetailDraft(draft);
+  if (normalized.title.length < 2) {
+    return { success: false, error: "Title is required." };
+  }
+
+  const existing = await prisma.jobTrackerEntry.findFirst({
+    where: { id: entryId.trim(), userId },
+    select: { canonicalUrl: true },
+  });
+
+  if (!existing) {
+    return { success: false, error: "Job not found" };
+  }
+
+  if (!canApplyCapture({ url: existing.canonicalUrl, description: normalized.description })) {
+    return { success: false, error: "Job description must be at least 120 characters." };
+  }
+
+  try {
+    const updated = await updateJobTrackerEntryFields(
+      userId,
+      entryId.trim(),
+      jobDetailDraftToFieldsPayload(draft),
+    );
+    if (!updated) {
+      return { success: false, error: "Job not found" };
+    }
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Could not save job details.",
+    };
+  }
+
+  revalidatePath("/dashboard/job-tracker");
+  revalidatePath("/dashboard");
+  return getJobTrackerEntryById(entryId.trim());
 }
 
 export async function listJobTrackerEntries(): Promise<JobTrackerListResult> {

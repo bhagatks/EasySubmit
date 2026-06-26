@@ -32,6 +32,8 @@ export async function POST(request: NextRequest) {
     return Response.json({ success: false, error: aiBlock, saved: false }, { status: 403 });
   }
 
+  // [ES:LOG] SERVER → pipeline start: capture + tailor → RESUME_READY → READY_TO_APPLY
+  console.log("[EasySubmit] server:pipeline start", { url: body.url, userId });
   try {
     const result = await runApplyPipeline(userId, body);
     if (!result.success) {
@@ -48,6 +50,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // [ES:LOG] SERVER ← pipeline complete — DB now READY_TO_APPLY, Realtime will notify extension + web
+    console.log("[EasySubmit] server:pipeline complete", { id: result.id, status: result.status, phases: result.phases });
     revalidatePath("/dashboard/job-tracker");
     revalidatePath("/dashboard");
 

@@ -3,6 +3,10 @@ import type { JourneyStage } from "@/src/shared/journey-display";
 
 export type ExtensionCardView = "summary" | "job-detail" | "resume-preview" | "cover-preview";
 
+export function isExpandableCardView(view: ExtensionCardView): boolean {
+  return view !== "summary";
+}
+
 export type JobDetailField = {
   label: string;
   value: string;

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import {
   AlertCircle,
   Archive,
@@ -24,6 +24,7 @@ import { BRAND_FULL } from "@/lib/brand";
 import type { JobTrackerSummary } from "@/lib/job-tracker/types";
 import { resolveJourneyDisplay, type JourneyDisplay } from "@/src/shared/journey-display";
 import {
+  notifyExtensionJobArchived,
   readExtensionIdForDashboard,
   startJobApplyFromDashboard,
 } from "@/lib/extension/start-job-apply-from-dashboard";
@@ -125,7 +126,11 @@ export function JobTrackerPipeline({
   const [archiveTarget, setArchiveTarget] = useState<JobTrackerSummary | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [extensionHint, setExtensionHint] = useState<string | null>(null);
-  const extensionInstalled = useMemo(() => Boolean(readExtensionIdForDashboard()), []);
+  const [extensionInstalled, setExtensionInstalled] = useState(false);
+
+  useEffect(() => {
+    setExtensionInstalled(Boolean(readExtensionIdForDashboard()));
+  }, []);
 
   async function handleArchive() {
     if (!archiveTarget) return false;
@@ -133,6 +138,7 @@ export function JobTrackerPipeline({
     const result = await archiveJobTrackerEntry(archiveTarget.id);
     setBusyId(null);
     if (result.success) {
+      notifyExtensionJobArchived(archiveTarget.id);
       onMutated?.();
       return true;
     }

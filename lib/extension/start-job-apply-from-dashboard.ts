@@ -29,6 +29,7 @@ export function storeExtensionIdForDashboard(extensionId: string): void {
 }
 
 export function readExtensionIdForDashboard(): string | null {
+  if (typeof window === "undefined") return null;
   try {
     const value = window.localStorage.getItem(DASHBOARD_EXTENSION_ID_KEY);
     return value?.trim() ? value.trim() : null;
@@ -40,6 +41,18 @@ export function readExtensionIdForDashboard(): string | null {
 export type StartJobApplyResult =
   | { success: true; usedExtension: boolean }
   | { success: false; error: string };
+
+/** Notify the extension that a job was archived — resets the card to stage 0 on that URL. */
+export function notifyExtensionJobArchived(entryId: string): void {
+  const chromeBridge = getChromeBridge();
+  const extensionId = readExtensionIdForDashboard();
+  if (!chromeBridge?.runtime?.sendMessage || !extensionId) return;
+  chromeBridge.runtime.sendMessage(
+    extensionId,
+    { action: EXTENSION_MESSAGE.JOB_ARCHIVED, entryId },
+    () => void chromeBridge.runtime?.lastError,
+  );
+}
 
 /** Open or focus the job posting and notify the extension to start apply. */
 export async function startJobApplyFromDashboard(input: {

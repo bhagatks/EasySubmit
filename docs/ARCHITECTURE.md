@@ -160,6 +160,12 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 
 | Date | Summary |
 |------|---------|
+| 2026-06-25 | Extension API intercept skipped on EasySubmit app pages — fixes Next.js server action `Failed to fetch` on dashboard |
+| 2026-06-25 | Extension card layout tokens — `card-layout-tokens.ts` (16px inset, CTA zone divider, shared spacing for summary + detail views) |
+| 2026-06-25 | Extension card detail UX — summary labels Job Info / Resume / Cover Letter; detail headers **Edit in Studio** → Review Screen tab; job/cover/resume inline Edit+Save; cover full textarea + resume lite fields fetched lazily on Edit; preview iframe fills resized panel |
+| 2026-06-25 | Button purposes — `ButtonPurpose` + `webButtonPurposeProps` / `extensionButtonClass`; semantic parity, surface-specific colors; `PurposeButton` on web |
+| 2026-06-25 | Extension button system — `src/shared/brand-buttons.ts` (`.es-btn-primary/secondary/chip`); Job info → secondary button; onboarding Continue uses web `Button` |
+| 2026-06-25 | Unified brand colors — `src/shared/brand-colors.ts` (engine glow) drives logo SVG, web `LogoIcon`, extension card/popup/nudge CSS; legacy teal removed from extension |
 | 2026-06-25 | Extension pipeline tailor — uses `enhanceWithAiResumeProfile` (not one-click apply flag); dashboard/PDF no longer show base profile as if tailored when per-job tailor is missing |
 | 2026-06-25 | Extension auto-applied fix — confirmation watch only on apply/thank-you URLs; job posting pages no longer false-positive to APPLIED while READY_TO_APPLY |
 | 2026-06-25 | Extension apply gate — `isExtensionApplyBlockedByAiHealth` disables **Apply with EasySubmit.ai** on AI health errors; capture/tailor/pipeline APIs return 403 until fixed |
@@ -263,6 +269,8 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 | 2026-06-19 | Identity & boot rules: `docs/IDENTITY_AND_BOOT_RULES.md` — login (`users`) vs resume profile (`profiles`) separation, PKs, OAuth gate, app-load resolver; dashboard nav **Resume profiles** at `/dashboard/resume-profiles` |
 | 2026-06-19 | Dashboard BYOK gate: missing local API key after sign-in redirects to `/onboarding?ignition=1` instead of Key Protector overlay; middleware allows `?ignition=1` for completed onboarding users |
 | 2026-06-19 | Onboarding sign out: `SignOutButton` in `OnboardingFlowShell` (full-screen top-right + legacy sidebar footer); `lib/auth/sign-out-client.ts` clears onboarding/ignition client storage then NextAuth `signOut` → `/login` |
+| 2026-06-25 | Resume export spacing — `resume-style.ts` is single source of truth for all three renderers (PDF/DOCX/HTML); DOCX line height corrected to 1.15× (276 DXA); HTML preview spacing wired to SPACING constants (was hardcoded); `docs/resume/DOCX_SPACING_SPEC.md` added |
+| 2026-06-25 | Extension journey state machine — 5 states (0=unsaved, 1=CAPTURED, 2=RESUME_READY, 3=READY_TO_APPLY, 4=APPLIED); `BRAND.autoSuggestCta` added; `resolveJourneyDisplay` updated with correct labels/button states per state; `showUpdateResume` removed; `is-live` animation gated on `!APPLIED`; "Apply" tab removed from Review Screen |
 | 2026-06-19 | Dashboard ignition guard: `restoreIgnitionFromSession` rebuilds model catalog from cache after persist rehydration; guard waits for `_hasHydrated` so valid session keys are not cleared on every `/dashboard` visit |
 | 2026-06-19 | `PROVIDER_REGISTRY` expanded to 6 BYOK providers (OpenAI, Anthropic, Gemini, Groq, DeepSeek, OpenRouter) with `handshakeEndpoint`; Ignition Gate provider dropdown + Lucide icons; discovery handshake routes per provider | `getAppConfig("dataRefresh")` interval + `localStorage.lastDiscovery` skip live handshake when cache is fresh; uses `model-cache` catalog for fast Launch |
 | 2026-06-19 | `app_config` table + `prisma/seed.ts`: upserts `dataRefresh`, `aiConfig`, `ai_pricing_map`, and `enhanceWithAi` on deploy (`prisma db seed`) |

@@ -8,9 +8,13 @@ import { mergeExtensionRuntimeConfig, EXTENSION_RUNTIME_DEFAULTS } from "@shared
 import {
   JOB_CARD_COLLAPSED_SIZE,
   JOB_CARD_WIDTH,
+  clampCardPanelWidth,
+  clampCardPanelHeight,
+  defaultCardPanelBodyMaxHeight,
   clampFixedCardPosition,
   getCollapsedFixedCardPosition,
   getDefaultFixedCardPosition,
+  syncCardPositionForHostWidth,
   type FixedCardPosition,
 } from "@shared/extension/card-position";
 import type {
@@ -29,6 +33,7 @@ import { setupFieldCaptureBridge } from "@shared/extension/field-capture-bridge"
 import type { FieldCapturePayload } from "@shared/extension/field-descriptor";
 import type { ServerLookupMap } from "@shared/extension/field-resolution";
 import { injectApiInterceptScript, onApiIntercept, type InterceptedJobData } from "@shared/extension/api-intercept";
+import { isEasySubmitManagedAppPage } from "@shared/extension/easysubmit-app-page";
 import { isExtensionGlobalSwitchOn } from "@shared/extension/extension-global-switch";
 import type { ApplicationProfile } from "@/lib/profile/application-profile";
 import {
@@ -38,6 +43,8 @@ import {
   syncProfileSetupDraftsFromProfile,
 } from "@/lib/profile/application-profile-setup";
 import { BRAND, renderBrandMarkup } from "@shared/brand";
+import { brandExtensionTokens } from "@shared/brand-colors";
+import { extensionButtonStyles } from "@shared/brand-buttons";
 import { SETTINGS_AI_AUTO_HREF } from "@/lib/dashboard/settings-ai-links";
 import {
   resolveExtensionAiHealthBanner,
@@ -52,6 +59,24 @@ import {
   type CardPresentation,
 } from "@shared/extension/card-presentation";
 import { canApplyCapture, applyCaptureBlockReason } from "@shared/extension/apply-gate";
+import {
+  applyJobDetailDraftToMetadata,
+  buildJobDetailDraft,
+  jobDetailDraftsEqual,
+  jobDetailDraftToFieldsPayload,
+  normalizeJobDetailDraft,
+  type JobDetailDraft,
+} from "@shared/extension/job-detail-edit";
+import {
+  coverDetailDraftsEqual,
+  normalizeCoverDetailDraft,
+  type CoverDetailDraft,
+} from "@shared/extension/cover-detail-edit";
+import {
+  normalizeResumeDetailDraft,
+  resumeDetailDraftsEqual,
+  type ResumeDetailDraft,
+} from "@shared/extension/resume-detail-edit";
 import { resolveJobIdentity } from "@shared/extension/job-identity";
 import { hasStrongJobUrlSignal } from "@shared/extension/job-url-parse";
 import { detectApplicationConfirmation, shouldWatchForApplicationConfirmation } from "@shared/extension/confirmation-detect";
@@ -71,14 +96,22 @@ import { journeySyncDebug, journeySyncLog } from "@shared/extension/journey-sync
 import { canonicalizeJobUrl } from "@shared/extension/job-url";
 import { resolveCardContent as resolveCardContentShared } from "./resolve-card-content";
 import type { ExtensionCardView } from "@shared/extension/card-layout";
-import { buildJobDetailFields } from "@shared/extension/card-layout";
+import { buildJobDetailFields, isExpandableCardView } from "@shared/extension/card-layout";
 import {
   manualCaptureStyles,
   renderLoadingBody,
   renderManualCaptureBody,
   renderSummaryCardBody,
   renderJobDetailBody,
-  renderDocumentPreviewBody,
+  readJobDetailDraftFromDom,
+  renderCoverPreviewBody,
+  renderResumePreviewBody,
+  readCoverDetailDraftFromDom,
+  readResumeDetailDraftFromDom,
+  updateDetailToolbarDirtyState,
+  updateJobDetailDescriptionHint,
+  renderPanelResizeGripMarkup,
+  panelResizeStyles,
   singleCardLayoutStyles,
   renderProfileSetupScreen1,
   renderProfileSetupScreen2,
@@ -92,9 +125,8 @@ import {
   type ProfileSetupScreen2Draft,
 } from "./card-ui";
 import {
-  startExtensionJobRealtime,
+  isJobStatusRealtimeActive,
   startJobStatusRealtime,
-  stopExtensionJobRealtime,
   stopJobStatusRealtime,
 } from "./job-realtime";
 import {
@@ -112,6 +144,7 @@ type EasySubmitContentWindow = Window & {
   ) => boolean | void;
   __easysubmitMessageHooked?: boolean;
   __easysubmitObserversBooted?: boolean;
+  __easysubmitDomObserversBooted?: boolean;
 };
 
 const contentWindow = window as EasySubmitContentWindow;
@@ -120,6 +153,11 @@ contentWindow.__easysubmitTeardownDone = false;
 
 function bootContentScript(): void {
 const HOST_ID = "easysubmit-job-card-host";
+const EXTENSION_ICON_HD = "icons/icon-128.png";
+
+function extensionIconUrl(size: "48" | "128" = "128"): string {
+  return chrome.runtime.getURL(size === "128" ? EXTENSION_ICON_HD : "icons/icon-48.png");
+}
 const CARD_WIDTH = JOB_CARD_WIDTH;
 const COLLAPSED_SIZE = JOB_CARD_COLLAPSED_SIZE;
 
@@ -160,7 +198,6 @@ let profileSetupScreen1Draft: ProfileSetupScreen1Draft = defaultProfileSetupScre
 let profileSetupScreen2Draft: ProfileSetupScreen2Draft = defaultProfileSetupScreen2Draft();
 let cachedApplicationProfile: ApplicationProfile | null = null;
 let cardLaunchMode: "auto" | "manual" = "auto";
-let realtimeStop: (() => Promise<void>) | null = null;
 let assistUploadWarnings: string[] = [];
 let confirmationWatchTimer: ReturnType<typeof setInterval> | null = null;
 let loadingHydrationTimer: ReturnType<typeof setInterval> | null = null;
@@ -177,6 +214,26 @@ let profilePickerOpen = false;
 let settingsMenuOpen = false;
 let headerRefreshBusy = false;
 let cardView: ExtensionCardView = "summary";
+let cardPanelWidth = JOB_CARD_WIDTH;
+let cardPanelBodyMaxHeight: number | null = null;
+let panelResizeActive = false;
+let jobDetailEditing = false;
+let jobDetailBaseline: JobDetailDraft | null = null;
+let jobDetailDraft: JobDetailDraft | null = null;
+let jobDetailDirty = false;
+let jobDetailSaving = false;
+let coverDetailEditing = false;
+let coverDetailEditLoading = false;
+let coverDetailBaseline: CoverDetailDraft | null = null;
+let coverDetailDraft: CoverDetailDraft | null = null;
+let coverDetailDirty = false;
+let coverDetailSaving = false;
+let resumeDetailEditing = false;
+let resumeDetailEditLoading = false;
+let resumeDetailBaseline: ResumeDetailDraft | null = null;
+let resumeDetailDraft: ResumeDetailDraft | null = null;
+let resumeDetailDirty = false;
+let resumeDetailSaving = false;
 let previewHtmlCache: Partial<Record<"resume" | "cover", string>> = {};
 let previewLoadState: "idle" | "loading" | "error" = "idle";
 let previewError: string | null = null;
@@ -217,6 +274,7 @@ function stopUrlWatch(): void {
 }
 
 function stopAllExtensionTimers(): void {
+  console.log("[EasySubmit] lifecycle:stop-all-timers");
   stopStatusPolling();
   stopJourneySyncPoll();
   stopConfirmationWatch();
@@ -231,9 +289,9 @@ function stopAllExtensionTimers(): void {
 function teardownStaleExtensionContext(): void {
   if (contentWindow.__easysubmitTeardownDone) return;
   contentWindow.__easysubmitTeardownDone = true;
+  console.log("[EasySubmit] lifecycle:teardown — stale context, cleaning up", { url: location.href });
   stopAllExtensionTimers();
-  void stopExtensionJobRealtime();
-  realtimeStop = null;
+  void stopJobStatusRealtime();
   removeCard();
 }
 
@@ -256,6 +314,7 @@ function sendMessage<T>(message: Record<string, unknown>): Promise<T | undefined
         if (isExtensionContextInvalidatedMessage(lastError.message)) {
           teardownStaleExtensionContext();
         }
+        console.warn("[EasySubmit] msg:error", { error: lastError.message, action: message.action });
         resolve(undefined);
         return;
       }
@@ -308,12 +367,9 @@ function resolveExtensionJourneyDisplayLocal() {
 
 function getPrimaryCtaLabel(): string {
   const journey = resolveExtensionJourneyDisplayLocal();
-  if (!savedStatus.saved) {
-    return BRAND.applyCta;
-  }
-  if (savedStatus.canReapply) return "Re-apply";
-  if (journey.stage === "error") return "Apply";
-  if (journey.applyButtonState === "completed") return journey.label;
+  if (!savedStatus.saved) return BRAND.applyCta;
+  if (savedStatus.canReapply) return BRAND.autoSuggestCta;
+  if (journey.stage === "error") return BRAND.applyCta;
   return journey.label;
 }
 
@@ -324,11 +380,328 @@ function getJourneyStatusLabel(): string | null {
   return journey.statusLabel;
 }
 
+function resetCoverDetailEditState(): void {
+  coverDetailEditing = false;
+  coverDetailEditLoading = false;
+  coverDetailBaseline = null;
+  coverDetailDraft = null;
+  coverDetailDirty = false;
+  coverDetailSaving = false;
+}
+
+function resetResumeDetailEditState(): void {
+  resumeDetailEditing = false;
+  resumeDetailEditLoading = false;
+  resumeDetailBaseline = null;
+  resumeDetailDraft = null;
+  resumeDetailDirty = false;
+  resumeDetailSaving = false;
+}
+
+function resetJobDetailEditState(): void {
+  jobDetailEditing = false;
+  jobDetailBaseline = null;
+  jobDetailDraft = null;
+  jobDetailDirty = false;
+  jobDetailSaving = false;
+}
+
+function initJobDetailDraft(): void {
+  const capture = getCaptureContext();
+  const meta = currentMetadata;
+  jobDetailBaseline = buildJobDetailDraft({
+    title: capture.title,
+    company: capture.company,
+    location: capture.location,
+    salaryText: capture.salaryText,
+    description: capture.description,
+    platform: capture.platform,
+    jsonLdFields: meta?.jsonLdFields,
+  });
+  jobDetailDraft = { ...jobDetailBaseline };
+  jobDetailDirty = false;
+  jobDetailEditing = false;
+}
+
+function syncJobDetailDraftFromDom(root: ShadowRoot): void {
+  if (!jobDetailBaseline || !jobDetailDraft) return;
+  jobDetailDraft = readJobDetailDraftFromDom(root, jobDetailDraft);
+  jobDetailDirty = !jobDetailDraftsEqual(jobDetailDraft, jobDetailBaseline);
+  updateDetailToolbarDirtyState(root, {
+    saveSelector: "[data-job-detail-save]",
+    dirty: jobDetailDirty,
+    saving: jobDetailSaving,
+  });
+  updateJobDetailDescriptionHint(root, jobDetailDraft.description.trim().length);
+}
+
+function syncCoverDetailDraftFromDom(root: ShadowRoot): void {
+  if (!coverDetailBaseline || !coverDetailDraft) return;
+  coverDetailDraft = readCoverDetailDraftFromDom(root, coverDetailDraft);
+  coverDetailDirty = !coverDetailDraftsEqual(coverDetailDraft, coverDetailBaseline);
+  updateDetailToolbarDirtyState(root, {
+    saveSelector: "[data-cover-detail-save]",
+    dirty: coverDetailDirty,
+    saving: coverDetailSaving,
+  });
+}
+
+function syncResumeDetailDraftFromDom(root: ShadowRoot): void {
+  if (!resumeDetailBaseline || !resumeDetailDraft) return;
+  resumeDetailDraft = readResumeDetailDraftFromDom(root, resumeDetailDraft);
+  resumeDetailDirty = !resumeDetailDraftsEqual(resumeDetailDraft, resumeDetailBaseline);
+  updateDetailToolbarDirtyState(root, {
+    saveSelector: "[data-resume-detail-save]",
+    dirty: resumeDetailDirty,
+    saving: resumeDetailSaving,
+  });
+}
+
+async function saveJobDetailEdits(root: ShadowRoot): Promise<void> {
+  if (!jobDetailBaseline || jobDetailSaving) return;
+
+  const draft = readJobDetailDraftFromDom(root, jobDetailDraft ?? jobDetailBaseline);
+  jobDetailDraft = draft;
+
+  const capture = getCaptureContext();
+  const normalized = normalizeJobDetailDraft(draft);
+  if (normalized.title.length < 2) {
+    saveError = "Title is required.";
+    if (cardHost) renderCard(cardHost.shadow);
+    return;
+  }
+  if (!canApplyCapture({ url: capture.url, description: draft.description })) {
+    saveError = applyCaptureBlockReason({ url: capture.url, description: draft.description });
+    if (cardHost) renderCard(cardHost.shadow);
+    return;
+  }
+
+  jobDetailSaving = true;
+  saveError = null;
+  if (cardHost) renderCard(cardHost.shadow);
+
+  try {
+    if (currentMetadata) {
+      currentMetadata = applyJobDetailDraftToMetadata(currentMetadata, draft);
+    }
+
+    if (savedStatus.saved && savedStatus.id) {
+      const res = await sendMessage<{ success: boolean; error?: string }>({
+        action: EXTENSION_MESSAGE.UPDATE_JOB_FIELDS,
+        entryId: savedStatus.id,
+        payload: jobDetailDraftToFieldsPayload(draft),
+      });
+      if (!res?.success) {
+        throw new Error(res?.error ?? "Could not save job details.");
+      }
+      await refreshSavedStatus();
+    }
+
+    const savedDraft = normalizeJobDetailDraft(draft);
+    jobDetailBaseline = { ...savedDraft };
+    jobDetailDraft = { ...savedDraft };
+    jobDetailDirty = false;
+    jobDetailEditing = false;
+  } catch (error) {
+    if (isExtensionContextInvalidatedError(error)) {
+      teardownStaleExtensionContext();
+      return;
+    }
+    saveError = error instanceof Error ? error.message : "Could not save job details.";
+  } finally {
+    jobDetailSaving = false;
+    if (cardHost) renderCard(cardHost.shadow);
+  }
+}
+
+async function fetchCoverDetailDraft(): Promise<boolean> {
+  if (!savedStatus.id) {
+    saveError = "Save this job first to edit the cover letter.";
+    return false;
+  }
+
+  coverDetailEditLoading = true;
+  saveError = null;
+  if (cardHost) renderCard(cardHost.shadow);
+
+  try {
+    const res = await sendMessage<{ success: boolean; body?: string; error?: string }>({
+      action: EXTENSION_MESSAGE.GET_COVER_LETTER_BODY,
+      entryId: savedStatus.id,
+    });
+    if (!res?.success || typeof res.body !== "string") {
+      throw new Error(res?.error ?? "Could not load cover letter.");
+    }
+    const draft = normalizeCoverDetailDraft({ body: res.body });
+    coverDetailBaseline = { ...draft };
+    coverDetailDraft = { ...draft };
+    coverDetailDirty = false;
+    return true;
+  } catch (error) {
+    if (isExtensionContextInvalidatedError(error)) {
+      teardownStaleExtensionContext();
+      return false;
+    }
+    saveError = error instanceof Error ? error.message : "Could not load cover letter.";
+    return false;
+  } finally {
+    coverDetailEditLoading = false;
+    if (cardHost) renderCard(cardHost.shadow);
+  }
+}
+
+async function fetchResumeDetailDraft(): Promise<boolean> {
+  if (!savedStatus.id) {
+    saveError = "Save this job first to edit the resume.";
+    return false;
+  }
+
+  resumeDetailEditLoading = true;
+  saveError = null;
+  if (cardHost) renderCard(cardHost.shadow);
+
+  try {
+    const res = await sendMessage<{ success: boolean; draft?: ResumeDetailDraft; error?: string }>({
+      action: EXTENSION_MESSAGE.GET_RESUME_FORM,
+      entryId: savedStatus.id,
+    });
+    if (!res?.success || !res.draft) {
+      throw new Error(res?.error ?? "Could not load resume fields.");
+    }
+    const draft = normalizeResumeDetailDraft(res.draft);
+    resumeDetailBaseline = { ...draft };
+    resumeDetailDraft = { ...draft };
+    resumeDetailDirty = false;
+    return true;
+  } catch (error) {
+    if (isExtensionContextInvalidatedError(error)) {
+      teardownStaleExtensionContext();
+      return false;
+    }
+    saveError = error instanceof Error ? error.message : "Could not load resume fields.";
+    return false;
+  } finally {
+    resumeDetailEditLoading = false;
+    if (cardHost) renderCard(cardHost.shadow);
+  }
+}
+
+async function saveCoverDetailEdits(root: ShadowRoot): Promise<void> {
+  if (!coverDetailBaseline || coverDetailSaving) return;
+
+  const draft = readCoverDetailDraftFromDom(root, coverDetailDraft ?? coverDetailBaseline);
+  coverDetailDraft = draft;
+
+  if (!savedStatus.id) {
+    saveError = "Save this job first to edit the cover letter.";
+    if (cardHost) renderCard(cardHost.shadow);
+    return;
+  }
+
+  coverDetailSaving = true;
+  saveError = null;
+  if (cardHost) renderCard(cardHost.shadow);
+
+  try {
+    const normalized = normalizeCoverDetailDraft(draft);
+    const res = await sendMessage<{ success: boolean; error?: string }>({
+      action: EXTENSION_MESSAGE.SAVE_COVER_LETTER,
+      entryId: savedStatus.id,
+      body: normalized.body,
+    });
+    if (!res?.success) {
+      throw new Error(res?.error ?? "Could not save cover letter.");
+    }
+
+    coverDetailBaseline = { ...normalized };
+    coverDetailDraft = { ...normalized };
+    coverDetailDirty = false;
+    coverDetailEditing = false;
+    await refreshDocumentPreview("cover", { silent: true });
+  } catch (error) {
+    if (isExtensionContextInvalidatedError(error)) {
+      teardownStaleExtensionContext();
+      return;
+    }
+    saveError = error instanceof Error ? error.message : "Could not save cover letter.";
+  } finally {
+    coverDetailSaving = false;
+    if (cardHost) renderCard(cardHost.shadow);
+  }
+}
+
+async function saveResumeDetailEdits(root: ShadowRoot): Promise<void> {
+  if (!resumeDetailBaseline || resumeDetailSaving) return;
+
+  const draft = readResumeDetailDraftFromDom(root, resumeDetailDraft ?? resumeDetailBaseline);
+  resumeDetailDraft = draft;
+
+  const normalized = normalizeResumeDetailDraft(draft);
+  if (!normalized.targetTitle) {
+    saveError = "Target title is required.";
+    if (cardHost) renderCard(cardHost.shadow);
+    return;
+  }
+
+  if (!savedStatus.id) {
+    saveError = "Save this job first to edit the resume.";
+    if (cardHost) renderCard(cardHost.shadow);
+    return;
+  }
+
+  resumeDetailSaving = true;
+  saveError = null;
+  if (cardHost) renderCard(cardHost.shadow);
+
+  try {
+    const res = await sendMessage<{ success: boolean; error?: string }>({
+      action: EXTENSION_MESSAGE.SAVE_RESUME_FORM,
+      entryId: savedStatus.id,
+      payload: normalized,
+    });
+    if (!res?.success) {
+      throw new Error(res?.error ?? "Could not save resume.");
+    }
+
+    resumeDetailBaseline = { ...normalized };
+    resumeDetailDraft = { ...normalized };
+    resumeDetailDirty = false;
+    resumeDetailEditing = false;
+    await refreshDocumentPreview("resume", { silent: true });
+  } catch (error) {
+    if (isExtensionContextInvalidatedError(error)) {
+      teardownStaleExtensionContext();
+      return;
+    }
+    saveError = error instanceof Error ? error.message : "Could not save resume.";
+  } finally {
+    resumeDetailSaving = false;
+    if (cardHost) renderCard(cardHost.shadow);
+  }
+}
+
 function resetCardViewState(): void {
+  const previousHostWidth = getHostWidth();
   cardView = "summary";
   previewHtmlCache = {};
   previewLoadState = "idle";
   previewError = null;
+  cardPanelWidth = JOB_CARD_WIDTH;
+  cardPanelBodyMaxHeight = null;
+  resetJobDetailEditState();
+  resetCoverDetailEditState();
+  resetResumeDetailEditState();
+  syncCardHostPosition(previousHostWidth);
+}
+
+function syncCardHostPosition(previousHostWidth?: number): void {
+  if (!cardHost || cardCollapsed) return;
+  cardHost.position = syncCardPositionForHostWidth(
+    cardHost.position,
+    getHostWidth(),
+    previousHostWidth,
+  );
+  applyHostPosition(cardHost.host, cardHost.position);
 }
 
 function statusLabel(saved: boolean, status?: string, presentation: CardPresentation = "job"): string {
@@ -339,10 +712,26 @@ function statusLabel(saved: boolean, status?: string, presentation: CardPresenta
 }
 
 function getHostWidth(): number {
-  return cardCollapsed ? COLLAPSED_SIZE : CARD_WIDTH;
+  if (cardCollapsed) return COLLAPSED_SIZE;
+  if (isExpandableCardView(cardView)) return cardPanelWidth;
+  return CARD_WIDTH;
+}
+
+function isPanelWide(): boolean {
+  return cardPanelWidth > CARD_WIDTH + 8;
+}
+
+function isPanelTall(): boolean {
+  const height = cardPanelBodyMaxHeight ?? defaultCardPanelBodyMaxHeight();
+  return height > defaultCardPanelBodyMaxHeight() + 24;
+}
+
+function getPanelBodyMaxHeight(): number {
+  return cardPanelBodyMaxHeight ?? defaultCardPanelBodyMaxHeight();
 }
 
 function cardStyles(): string {
+  const t = brandExtensionTokens();
   return `
     :host { all: initial; }
     .card {
@@ -361,9 +750,17 @@ function cardStyles(): string {
       z-index: 5;
     }
     .grip.dragging { cursor: grabbing; }
-    .grip-left { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #6B7280; font-weight: 600; min-width: 0; flex: 1; }
+    .grip-left { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #6B7280; font-weight: 600; min-width: 0; flex: 1; }
+    .brand-icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 5px;
+      flex-shrink: 0;
+      display: block;
+      object-fit: cover;
+    }
     .brand { font-size: 12px; font-weight: 700; letter-spacing: -0.02em; color: #1F2937; line-height: 1; white-space: nowrap; }
-    .brand-suffix { color: #12B3D1; }
+    .brand-suffix { color: ${t.primary}; }
     .grip-actions {
       display: flex;
       align-items: center;
@@ -374,7 +771,7 @@ function cardStyles(): string {
     }
     .dots { letter-spacing: 1px; color: #9CA3AF; font-size: 14px; line-height: 1; }
     .badge { font-size: 10px; padding: 2px 8px; border-radius: 999px; background: #F3F4F6; color: #6B7280; white-space: nowrap; flex-shrink: 0; }
-    .badge.saved { background: rgba(18,179,209,0.12); color: #0E7490; }
+    .badge.saved { background: ${t.a12}; color: ${t.primaryMuted}; }
     .header-btn {
       display: inline-flex; align-items: center; justify-content: center;
       width: 24px; height: 24px; padding: 0; border: none; border-radius: 8px;
@@ -383,8 +780,8 @@ function cardStyles(): string {
     }
     .header-btn:hover { background: #F3F4F6; color: #374151; }
     .header-btn svg { width: 14px; height: 14px; display: block; pointer-events: none; }
-    .header-btn.is-active { color: #0E7490; background: rgba(18, 179, 209, 0.12); }
-    .header-btn.is-spinning { color: #0E7490; pointer-events: none; }
+    .header-btn.is-active { color: ${t.primaryMuted}; background: ${t.a12}; }
+    .header-btn.is-spinning { color: ${t.primaryMuted}; pointer-events: none; }
     .header-btn.is-spinning svg { animation: es-refresh-spin 0.8s linear infinite; }
     @keyframes es-refresh-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     .ai-health-banner {
@@ -502,7 +899,7 @@ function cardStyles(): string {
       box-sizing: border-box;
     }
     .profile-picker-item:hover { background: #F3F4F6; }
-    .profile-picker-item.is-selected { background: rgba(18, 179, 209, 0.1); color: #0E7490; }
+    .profile-picker-item.is-selected { background: ${t.a10}; color: ${t.primaryMuted}; }
     .profile-picker-item-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .profile-picker-badge {
       flex-shrink: 0;
@@ -557,11 +954,9 @@ function cardStyles(): string {
     }
     .settings-menu-item:hover { background: #F3F4F6; }
     .settings-menu-item svg { width: 14px; height: 14px; flex-shrink: 0; color: #6B7280; }
-    .body { padding: 14px 14px 14px; position: relative; z-index: 1; }
-    .title { font-size: 15px; font-weight: 700; line-height: 1.35; margin: 0 0 8px; }
+    .body { position: relative; z-index: 1; }
     .meta { font-size: 13px; color: #6B7280; line-height: 1.45; margin: 0 0 4px; }
     .salary { font-size: 12px; color: #374151; margin: 0 0 12px; }
-    .actions { margin-top: 2px; display: flex; flex-direction: column; gap: 8px; }
     .save-error {
       margin: 0;
       padding: 8px 10px 8px 9px;
@@ -585,58 +980,37 @@ function cardStyles(): string {
       line-height: 1.45;
       color: #6B7280;
     }
-    .cta {
-      display: flex; align-items: center; justify-content: center; gap: 8px;
-      width: 100%; box-sizing: border-box;
-      border: none; border-radius: 12px;
-      padding: 10px 14px;
-      font-size: 13px; font-weight: 600; line-height: 1.2;
-      cursor: pointer;
-      transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease, color 0.15s ease;
-    }
-    .cta svg { width: 15px; height: 15px; flex-shrink: 0; pointer-events: none; }
-    .cta-primary {
-      background: linear-gradient(135deg, #12B3D1 0%, #0E9CB6 100%);
-      color: #fff;
-      box-shadow: 0 4px 14px rgba(18, 179, 209, 0.32);
-    }
-    .cta-primary:hover:not(:disabled) {
-      box-shadow: 0 6px 18px rgba(18, 179, 209, 0.42);
-      transform: translateY(-1px);
-    }
-    .cta-primary:active:not(:disabled) { transform: translateY(0); }
-    .cta-saved {
-      background: #F9FAFB;
-      color: #0E7490;
-      border: 1px solid rgba(18, 179, 209, 0.28);
-      box-shadow: none;
-    }
-    .cta-saved:hover:not(:disabled) { background: rgba(18, 179, 209, 0.08); }
+    ${extensionButtonStyles()}
     .cta:disabled { opacity: 0.65; cursor: wait; transform: none; box-shadow: none; }
     .launcher {
       box-sizing: border-box;
-      display: flex; align-items: center; justify-content: center;
+      display: block;
       width: ${COLLAPSED_SIZE}px; height: ${COLLAPSED_SIZE}px;
       margin: 0; padding: 0;
-      border: 1px solid rgba(18, 179, 209, 0.35);
-      border-radius: 12px;
-      background: linear-gradient(135deg, #12B3D1 0%, #0E9CB6 100%);
-      box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18);
+      border: none;
+      border-radius: 14px;
+      background: transparent;
+      box-shadow: 0 8px 22px rgba(15, 23, 42, 0.2);
       cursor: grab; user-select: none; touch-action: none;
+      overflow: hidden;
       transition: box-shadow 0.2s ease, transform 0.2s ease;
     }
-    .launcher:hover { box-shadow: 0 8px 22px rgba(18, 179, 209, 0.35); transform: translateY(-1px); }
+    .launcher:hover { box-shadow: 0 10px 26px ${t.a35}; transform: translateY(-1px); }
     .launcher.dragging { cursor: grabbing; transform: scale(1.04); }
-    .launcher img { width: 30px; height: 30px; display: block; pointer-events: none; }
+    .launcher img {
+      width: 100%; height: 100%;
+      display: block; pointer-events: none;
+      border-radius: 14px;
+    }
   `;
 }
 
 function renderCollapsedLauncher(root: ShadowRoot): void {
-  const iconUrl = chrome.runtime.getURL("icons/icon-48.png");
+  const iconUrl = extensionIconUrl("128");
   root.innerHTML = `
     <style>${cardStyles()}</style>
     <button type="button" class="launcher" data-launcher="1" aria-label="Open ${BRAND.full} job card">
-      <img src="${iconUrl}" alt="" />
+      <img src="${iconUrl}" alt="" width="${COLLAPSED_SIZE}" height="${COLLAPSED_SIZE}" decoding="async" />
     </button>
   `;
 
@@ -743,28 +1117,6 @@ function isApplyEnabled(): boolean {
   return canApplyCapture({ url: capture.url, description: capture.description });
 }
 
-async function syncRealtimeSubscription(): Promise<void> {
-  if (!savedStatus.saved || !savedStatus.id) {
-    if (realtimeStop) {
-      await realtimeStop();
-      realtimeStop = null;
-    }
-    return;
-  }
-
-  const config = runtimeConfig ?? (await ensureRuntimeConfig());
-  const stop = await startExtensionJobRealtime({
-    apiBaseUrl: config.apiBaseUrl,
-    getAuthToken: async () => {
-      const res = await sendMessage<{ token: string | null }>({ action: EXTENSION_MESSAGE.GET_AUTH });
-      return res.token;
-    },
-    onSync: () => {
-      void applyServerJourneyRefresh("realtime").catch(swallowContextInvalidation);
-    },
-  });
-  realtimeStop = stop;
-}
 
 function stopLoadingHydrationWatch(): void {
   if (loadingHydrationTimer) {
@@ -785,6 +1137,7 @@ function startLoadingHydrationWatch(): void {
       return;
     }
     if (Date.now() - started > 12_000) {
+      console.log("[EasySubmit] hydration:timeout — falling back to manual capture", { url: location.href });
       stopLoadingHydrationWatch();
       if (hasStrongJobUrlSignal(location.href)) {
         cardPresentation = "manual_capture";
@@ -806,8 +1159,9 @@ function stopConfirmationWatch(): void {
 }
 
 function startConfirmationWatch(): void {
-  stopConfirmationWatch();
+  if (confirmationWatchTimer) return; // already watching
   if (!savedStatus.id || savedStatus.status !== "READY_TO_APPLY") return;
+  console.log("[EasySubmit] confirm-watch:start", { entryId: savedStatus.id, platform: currentMetadata?.platform ?? "unknown" });
 
   const platform = currentMetadata?.platform ?? "generic";
   if (!shouldWatchForApplicationConfirmation(platform, location.href, document)) return;
@@ -827,6 +1181,7 @@ function maybeMarkAppliedFromConfirmation(): void {
   const platform = currentMetadata?.platform ?? "generic";
   if (!shouldWatchForApplicationConfirmation(platform, location.href, document)) return;
   if (!detectApplicationConfirmation(platform)) return;
+  console.log("[EasySubmit] confirm-watch:detected application confirmation", { platform, url: location.href });
   void markCurrentJobApplied("extension_auto").catch(swallowContextInvalidation);
 }
 
@@ -834,17 +1189,22 @@ async function markCurrentJobApplied(
   source: "extension_auto" | "extension_manual",
 ): Promise<void> {
   if (!savedStatus.id) return;
+  // [ES:LOG] EXT → DB event firing: APPLIED (source: auto-detect or manual)
+  console.log("[EasySubmit] db:event APPLIED firing", { source, entryId: savedStatus.id });
   const res = await sendMessage<{ success: boolean; status?: string; error?: string }>({
     action: EXTENSION_MESSAGE.MARK_APPLIED,
     entryId: savedStatus.id,
     source,
   });
   if (res?.success) {
+    // [ES:LOG] EXT ← DB event APPLIED confirmed by server
+    console.log("[EasySubmit] db:event APPLIED confirmed", { status: res.status });
     savedStatus = { ...savedStatus, status: res.status ?? "APPLIED" };
     pendingPipelinePhase = null;
     stopConfirmationWatch();
     if (cardHost) renderCard(cardHost.shadow);
   } else if (res?.error) {
+    console.warn("[EasySubmit] db:event APPLIED failed", { error: res.error, entryId: savedStatus.id });
     saveError = res.error;
     if (cardHost) renderCard(cardHost.shadow);
   }
@@ -877,7 +1237,6 @@ function renderExpandedCard(root: ShadowRoot): void {
   const applyEnabled = isApplyEnabled();
   const uiMode = getPipelineUiMode(runtimeConfig);
   const manualStep = getManualPipelineStep();
-  const showUpdateResume = uiMode === "manual" && savedStatus.saved && manualStep === 2;
   const showPrimaryCta =
     profileSetupScreen === 0 &&
     !showAppliedLayout &&
@@ -923,30 +1282,57 @@ function renderExpandedCard(root: ShadowRoot): void {
       ctaLabel,
       ctaDisabled: true,
       ctaIcon,
-      showUpdateResume: false,
       applyHint: null,
       saveError: cardSaveError,
       escapeHtml,
     });
   } else if (cardView === "job-detail") {
+    if (!jobDetailDraft || !jobDetailBaseline) {
+      initJobDetailDraft();
+    }
+    const draft = jobDetailDraft ?? jobDetailBaseline!;
     const detail = buildJobDetailFields({
-      company: capture.company,
-      location: capture.location,
-      salaryText: capture.salaryText,
-      description: capture.description,
-      platform: (capture.platform ?? meta.platform ?? "generic") as ScrapedJobMetadata["platform"],
-      jsonLdFields: meta.jsonLdFields,
+      company: draft.company || null,
+      location: draft.location || null,
+      salaryText: draft.salaryText || null,
+      description: draft.description || null,
+      platform: (draft.platform ?? meta.platform ?? "generic") as ScrapedJobMetadata["platform"],
+      jsonLdFields: {
+        ...(draft.qualifications ? { qualifications: draft.qualifications } : {}),
+        ...(draft.responsibilities ? { responsibilities: draft.responsibilities } : {}),
+        ...(draft.incentives ? { incentives: draft.incentives } : {}),
+      },
     });
+    const showDetailStatusCta =
+      profileSetupScreen === 0 && !showAppliedLayout && cardPresentation !== "no_job";
     bodyMarkup = renderJobDetailBody({
-      title: capture.title,
+      draft,
       fields: detail.fields,
       description: detail.description,
+      editing: jobDetailEditing,
+      dirty: jobDetailDirty,
+      saving: jobDetailSaving,
+      showStatusCta: showDetailStatusCta,
+      statusCtaClass: ctaClass,
+      statusCtaLabel: ctaLabel,
+      statusCtaDisabled: !applyEnabled || pipelineBusy,
+      statusCtaIcon: ctaIcon,
+      saveError: cardSaveError,
       escapeHtml,
     });
   } else if (cardView === "resume-preview") {
-    bodyMarkup = renderDocumentPreviewBody({
-      title: "Resume",
-      panel: "resume",
+    const draft = resumeDetailDraft ?? resumeDetailBaseline ?? {
+      targetTitle: "",
+      firstName: "",
+      lastName: "",
+      email: "",
+      phone: "",
+      cityState: "",
+      linkedIn: "",
+      professionalSummary: "",
+      skillsText: "",
+    };
+    bodyMarkup = renderResumePreviewBody({
       state:
         previewLoadState === "loading"
           ? "loading"
@@ -955,12 +1341,17 @@ function renderExpandedCard(root: ShadowRoot): void {
             : "ready",
       previewHtml: previewHtmlCache.resume,
       error: previewError ?? undefined,
+      editing: resumeDetailEditing,
+      editLoading: resumeDetailEditLoading,
+      dirty: resumeDetailDirty,
+      saving: resumeDetailSaving,
+      draft,
+      saveError: cardSaveError,
       escapeHtml,
     });
   } else if (cardView === "cover-preview") {
-    bodyMarkup = renderDocumentPreviewBody({
-      title: "Cover letter",
-      panel: "cover",
+    const draft = coverDetailDraft ?? coverDetailBaseline ?? { body: "" };
+    bodyMarkup = renderCoverPreviewBody({
       state:
         previewLoadState === "loading"
           ? "loading"
@@ -969,6 +1360,12 @@ function renderExpandedCard(root: ShadowRoot): void {
             : "ready",
       previewHtml: previewHtmlCache.cover,
       error: previewError ?? undefined,
+      editing: coverDetailEditing,
+      editLoading: coverDetailEditLoading,
+      dirty: coverDetailDirty,
+      saving: coverDetailSaving,
+      draft,
+      saveError: cardSaveError,
       escapeHtml,
     });
   } else {
@@ -984,7 +1381,6 @@ function renderExpandedCard(root: ShadowRoot): void {
       ctaLabel,
       ctaDisabled: !applyEnabled || pipelineBusy,
       ctaIcon,
-      showUpdateResume,
       applyHint,
       saveError: cardSaveError,
       escapeHtml,
@@ -992,11 +1388,25 @@ function renderExpandedCard(root: ShadowRoot): void {
   }
 
   const bodyClass = isExpandedView ? "body body-expanded" : "body body-summary";
+  const hostWidth = getHostWidth();
+  const panelResizable = isExpandedView;
+  const stackClasses = [
+    "glossy-stack",
+    panelResizable ? "is-panel-resizable" : "",
+    panelResizable && isPanelWide() ? "is-panel-wide" : "",
+    panelResizable && isPanelTall() ? "is-panel-tall" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const stackStyle = panelResizable
+    ? ` style="--es-panel-body-height: ${getPanelBodyMaxHeight()}px"`
+    : "";
 
   root.innerHTML = `
-    <style>${cardStyles()}${glossyShellStyles()}${manualCaptureStyles()}${profileSetupStyles()}${singleCardLayoutStyles()}</style>
-    <div class="glossy-stack">
-      <div class="glossy-shell${savedStatus.saved ? "" : " is-live"}${isExpandedView ? " is-expanded" : ""}">
+    <style>${cardStyles()}${glossyShellStyles(hostWidth)}${manualCaptureStyles()}${profileSetupStyles()}${singleCardLayoutStyles()}${panelResizeStyles()}</style>
+    <div class="${stackClasses}" data-glossy-stack="1"${stackStyle}>
+      ${panelResizable ? renderPanelResizeGripMarkup() : ""}
+      <div class="glossy-shell${!savedStatus.saved || savedStatus.status === "APPLIED" ? "" : " is-live"}${isExpandedView ? " is-expanded" : ""}">
         <div class="glossy-shell-sheen" aria-hidden="true"></div>
         <div class="glossy-shell-shimmer" aria-hidden="true"></div>
         <div class="glossy-cards">
@@ -1004,7 +1414,7 @@ function renderExpandedCard(root: ShadowRoot): void {
             <div class="grip" data-grip="1">
               <div class="grip-left">
                 <span class="dots">⋮⋮</span>
-                ${renderBrandMarkup()}
+                ${renderBrandMarkup({}, extensionIconUrl("128"))}
               </div>
               <div class="grip-actions">
                 ${renderProfilePickerMarkup()}
@@ -1039,6 +1449,7 @@ function renderExpandedCard(root: ShadowRoot): void {
   });
 
   bindCardViewHandlers(root);
+  bindPanelResizeGrip(root);
   applyPreviewFrameSrcdoc(root);
 
   root.querySelector("[data-profile-continue]")?.addEventListener("click", () => {
@@ -1080,6 +1491,7 @@ function renderExpandedCard(root: ShadowRoot): void {
 
 function bindCardViewHandlers(root: ShadowRoot): void {
   root.querySelector("[data-open-job-detail]")?.addEventListener("click", () => {
+    initJobDetailDraft();
     cardView = "job-detail";
     if (cardHost) renderCard(cardHost.shadow);
   });
@@ -1105,6 +1517,339 @@ function bindCardViewHandlers(root: ShadowRoot): void {
       panel: panel === "resume" || panel === "cover" || panel === "job" ? panel : undefined,
     });
   });
+
+  bindJobDetailHandlers(root);
+  bindCoverDetailHandlers(root);
+  bindResumeDetailHandlers(root);
+}
+
+function bindJobDetailHandlers(root: ShadowRoot): void {
+  root.querySelector("[data-job-detail-edit]")?.addEventListener("click", () => {
+    if (jobDetailEditing) {
+      if (jobDetailBaseline) {
+        jobDetailDraft = { ...jobDetailBaseline };
+        jobDetailDirty = false;
+      }
+      jobDetailEditing = false;
+      if (cardHost) renderCard(cardHost.shadow);
+      return;
+    }
+    jobDetailEditing = true;
+    if (cardHost) renderCard(cardHost.shadow);
+  });
+
+  root.querySelector("[data-job-detail-save]")?.addEventListener("click", () => {
+    void saveJobDetailEdits(root);
+  });
+
+  root.querySelector("[data-job-detail-status]")?.addEventListener("click", () => {
+    void onPrimaryClick();
+  });
+
+  if (!jobDetailEditing) return;
+
+  for (const selector of [
+    "[data-job-detail-title]",
+    "[data-job-detail-description]",
+    '[data-job-detail-field="company"]',
+    '[data-job-detail-field="location"]',
+    '[data-job-detail-field="salaryText"]',
+    '[data-job-detail-field="platform"]',
+    '[data-job-detail-field="qualifications"]',
+    '[data-job-detail-field="responsibilities"]',
+    '[data-job-detail-field="incentives"]',
+  ]) {
+    root.querySelector(selector)?.addEventListener("input", () => {
+      syncJobDetailDraftFromDom(root);
+    });
+  }
+}
+
+function bindCoverDetailHandlers(root: ShadowRoot): void {
+  root.querySelector("[data-cover-detail-edit]")?.addEventListener("click", () => {
+    void (async () => {
+      if (coverDetailEditLoading || coverDetailSaving) return;
+
+      if (coverDetailEditing) {
+        if (coverDetailBaseline) {
+          coverDetailDraft = { ...coverDetailBaseline };
+          coverDetailDirty = false;
+        }
+        coverDetailEditing = false;
+        if (cardHost) renderCard(cardHost.shadow);
+        return;
+      }
+
+      const loaded = await fetchCoverDetailDraft();
+      if (loaded) {
+        coverDetailEditing = true;
+        if (cardHost) renderCard(cardHost.shadow);
+      }
+    })();
+  });
+
+  root.querySelector("[data-cover-detail-save]")?.addEventListener("click", () => {
+    void saveCoverDetailEdits(root);
+  });
+
+  if (!coverDetailEditing) return;
+
+  root.querySelector("[data-cover-detail-body]")?.addEventListener("input", () => {
+    syncCoverDetailDraftFromDom(root);
+  });
+}
+
+function bindResumeDetailHandlers(root: ShadowRoot): void {
+  root.querySelector("[data-resume-detail-edit]")?.addEventListener("click", () => {
+    void (async () => {
+      if (resumeDetailEditLoading || resumeDetailSaving) return;
+
+      if (resumeDetailEditing) {
+        if (resumeDetailBaseline) {
+          resumeDetailDraft = { ...resumeDetailBaseline };
+          resumeDetailDirty = false;
+        }
+        resumeDetailEditing = false;
+        if (cardHost) renderCard(cardHost.shadow);
+        return;
+      }
+
+      const loaded = await fetchResumeDetailDraft();
+      if (loaded) {
+        resumeDetailEditing = true;
+        if (cardHost) renderCard(cardHost.shadow);
+      }
+    })();
+  });
+
+  root.querySelector("[data-resume-detail-save]")?.addEventListener("click", () => {
+    void saveResumeDetailEdits(root);
+  });
+
+  if (!resumeDetailEditing) return;
+
+  for (const selector of [
+    '[data-resume-detail-field="targetTitle"]',
+    '[data-resume-detail-field="firstName"]',
+    '[data-resume-detail-field="lastName"]',
+    '[data-resume-detail-field="email"]',
+    '[data-resume-detail-field="phone"]',
+    '[data-resume-detail-field="cityState"]',
+    '[data-resume-detail-field="linkedIn"]',
+    '[data-resume-detail-field="professionalSummary"]',
+    '[data-resume-detail-field="skillsText"]',
+  ]) {
+    root.querySelector(selector)?.addEventListener("input", () => {
+      syncResumeDetailDraftFromDom(root);
+    });
+  }
+}
+
+type PanelResizeSession = {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  startWidth: number;
+  startHeight: number;
+  rightEdge: number;
+  grip: HTMLElement;
+  stack: HTMLElement;
+  body: HTMLElement;
+  pendingX: number;
+  pendingY: number;
+  onMove: (ev: PointerEvent) => void;
+  onEnd: (ev: PointerEvent) => void;
+};
+
+let activePanelResize: PanelResizeSession | null = null;
+let panelResizeRafId: number | null = null;
+
+function cancelPanelResizeFrame(): void {
+  if (panelResizeRafId !== null) {
+    cancelAnimationFrame(panelResizeRafId);
+    panelResizeRafId = null;
+  }
+}
+
+function applyPanelResizeStyles(width: number, height: number, rightEdge: number): void {
+  if (!cardHost || !activePanelResize) return;
+  activePanelResize.stack.style.width = `${width}px`;
+  activePanelResize.stack.style.setProperty("--es-panel-body-height", `${height}px`);
+  cardHost.host.style.left = `${rightEdge - width}px`;
+}
+
+function flushPanelResizeFrame(): void {
+  panelResizeRafId = null;
+  const session = activePanelResize;
+  if (!session || !cardHost) return;
+
+  const deltaX = session.startX - session.pendingX;
+  const deltaY = session.pendingY - session.startY;
+  const nextWidth = clampCardPanelWidth(session.startWidth + deltaX);
+  const nextHeight = clampCardPanelHeight(session.startHeight + deltaY);
+  applyPanelResizeStyles(nextWidth, nextHeight, session.rightEdge);
+}
+
+function schedulePanelResizeFrame(): void {
+  if (panelResizeRafId !== null) return;
+  panelResizeRafId = requestAnimationFrame(flushPanelResizeFrame);
+}
+
+function detachPanelResizeListeners(session: PanelResizeSession): void {
+  window.removeEventListener("pointermove", session.onMove);
+  window.removeEventListener("pointerup", session.onEnd);
+  window.removeEventListener("pointercancel", session.onEnd);
+}
+
+function stopPanelResize(): void {
+  cancelPanelResizeFrame();
+  const session = activePanelResize;
+  if (session) {
+    detachPanelResizeListeners(session);
+    try {
+      session.grip.releasePointerCapture(session.pointerId);
+    } catch {
+      // ignore
+    }
+    session.grip.classList.remove("dragging");
+    session.stack.classList.remove("is-panel-resizing");
+    activePanelResize = null;
+  }
+  document.body.style.removeProperty("user-select");
+  document.body.style.removeProperty("overflow");
+  panelResizeActive = false;
+}
+
+function finishPanelResize(ev: PointerEvent): void {
+  const session = activePanelResize;
+  if (!session || !cardHost || ev.pointerId !== session.pointerId) return;
+
+  cancelPanelResizeFrame();
+  session.pendingX = ev.clientX;
+  session.pendingY = ev.clientY;
+  flushPanelResizeFrame();
+
+  const deltaX = session.startX - ev.clientX;
+  const deltaY = ev.clientY - session.startY;
+  cardPanelWidth = clampCardPanelWidth(session.startWidth + deltaX);
+  cardPanelBodyMaxHeight = clampCardPanelHeight(session.startHeight + deltaY);
+  cardHost.position = clampFixedCardPosition(
+    {
+      mode: "fixed",
+      x: session.rightEdge - cardPanelWidth,
+      y: cardHost.position.y,
+      custom: true,
+      anchorRight: true,
+    },
+    cardPanelWidth,
+  );
+  stopPanelResize();
+  applyHostPosition(cardHost.host, cardHost.position);
+  renderCard(cardHost.shadow);
+}
+
+let panelResizeDelegationReady = false;
+
+function setupPanelResizeDelegation(shadow: ShadowRoot): void {
+  if (panelResizeDelegationReady) return;
+  panelResizeDelegationReady = true;
+
+  shadow.addEventListener("pointerdown", (event) => {
+    if (!(event.target instanceof Element)) return;
+    const grip = event.target.closest("[data-panel-resize-grip]") as HTMLElement | null;
+    if (!grip || !cardHost) return;
+    if (event.button !== 0 || isDragging() || panelResizeActive) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    const stack = shadow.querySelector("[data-glossy-stack]") as HTMLElement | null;
+    const body = shadow.querySelector(".body-expanded") as HTMLElement | null;
+    if (!stack || !body) return;
+
+    const hostWidth = getHostWidth();
+    const rightEdge = cardHost.position.x + hostWidth;
+    const startHeight = body.getBoundingClientRect().height;
+
+    stack.classList.add("is-panel-resizing");
+    document.body.style.userSelect = "none";
+    document.body.style.overflow = "hidden";
+
+    const onMove = (ev: PointerEvent) => {
+      if (!activePanelResize || ev.pointerId !== activePanelResize.pointerId || !cardHost) return;
+      ev.preventDefault();
+      activePanelResize.pendingX = ev.clientX;
+      activePanelResize.pendingY = ev.clientY;
+      schedulePanelResizeFrame();
+    };
+
+    const onEnd = (ev: PointerEvent) => {
+      finishPanelResize(ev);
+    };
+
+    activePanelResize = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startWidth: hostWidth,
+      startHeight,
+      rightEdge,
+      grip,
+      stack,
+      body,
+      pendingX: event.clientX,
+      pendingY: event.clientY,
+      onMove,
+      onEnd,
+    };
+    panelResizeActive = true;
+    grip.classList.add("dragging");
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onEnd);
+    window.addEventListener("pointercancel", onEnd);
+
+    grip.addEventListener(
+      "lostpointercapture",
+      () => {
+        if (!activePanelResize || activePanelResize.pointerId !== event.pointerId) return;
+        finishPanelResize(
+          new PointerEvent("pointerup", {
+            pointerId: event.pointerId,
+            clientX: activePanelResize.pendingX,
+            clientY: activePanelResize.pendingY,
+          }),
+        );
+      },
+      { once: true },
+    );
+
+    try {
+      grip.setPointerCapture(event.pointerId);
+    } catch {
+      // ignore
+    }
+  });
+
+  window.addEventListener("blur", () => {
+    if (!panelResizeActive || !activePanelResize) return;
+    finishPanelResize(
+      new PointerEvent("pointerup", {
+        pointerId: activePanelResize.pointerId,
+        clientX: activePanelResize.pendingX,
+        clientY: activePanelResize.pendingY,
+      }),
+    );
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "hidden" || !panelResizeActive) return;
+    stopPanelResize();
+    if (cardHost) renderCard(cardHost.shadow);
+  });
+}
+
+function bindPanelResizeGrip(_root: ShadowRoot): void {
+  // Delegated on shadow root — see setupPanelResizeDelegation().
 }
 
 function applyPreviewFrameSrcdoc(root: ShadowRoot): void {
@@ -1119,9 +1864,47 @@ function applyPreviewFrameSrcdoc(root: ShadowRoot): void {
   if (html) frame.srcdoc = html;
 }
 
+async function refreshDocumentPreview(
+  kind: "resume" | "cover",
+  options?: { silent?: boolean },
+): Promise<void> {
+  if (!savedStatus.id) return;
+
+  const silent = options?.silent === true && Boolean(previewHtmlCache[kind]);
+
+  if (!silent) {
+    delete previewHtmlCache[kind];
+    previewLoadState = "loading";
+    previewError = null;
+    if (cardHost) renderCard(cardHost.shadow);
+  }
+
+  const res = await sendMessage<{ success: boolean; previewHtml?: string; error?: string }>({
+    action: EXTENSION_MESSAGE.GET_DOCUMENT_PREVIEW,
+    entryId: savedStatus.id,
+    kind,
+  });
+
+  if (res?.success && res.previewHtml) {
+    previewHtmlCache[kind] = res.previewHtml;
+    previewLoadState = "idle";
+    previewError = null;
+  } else if (!silent) {
+    previewLoadState = "error";
+    previewError = res?.error ?? "Could not load preview.";
+  }
+
+  if (cardHost) renderCard(cardHost.shadow);
+}
+
 async function openDocumentPreview(kind: "resume" | "cover"): Promise<void> {
   cardView = kind === "resume" ? "resume-preview" : "cover-preview";
   previewError = null;
+  if (kind === "resume") {
+    resetResumeDetailEditState();
+  } else {
+    resetCoverDetailEditState();
+  }
 
   if (previewHtmlCache[kind]) {
     previewLoadState = "idle";
@@ -1175,12 +1958,15 @@ function isInteractiveGripTarget(target: EventTarget | null): boolean {
 }
 
 function renderCard(root: ShadowRoot): void {
-  if (!currentMetadata || isDragging()) return;
+  if (!currentMetadata || isDragging() || panelResizeActive) return;
   if (cardCollapsed) {
     renderCollapsedLauncher(root);
     return;
   }
   renderExpandedCard(root);
+  if (cardHost) {
+    applyHostPosition(cardHost.host, cardHost.position);
+  }
 }
 
 function escapeHtml(value: string): string {
@@ -1205,9 +1991,18 @@ function renderRefreshButtonMarkup(): string {
   </button>`;
 }
 
+function resetCardPanelSize(): void {
+  const previousHostWidth = getHostWidth();
+  stopPanelResize();
+  cardPanelWidth = JOB_CARD_WIDTH;
+  cardPanelBodyMaxHeight = null;
+  syncCardHostPosition(previousHostWidth);
+}
+
 async function refreshCardFromHeader(): Promise<void> {
   if (headerRefreshBusy) return;
   headerRefreshBusy = true;
+  resetCardPanelSize();
   if (cardHost) renderCard(cardHost.shadow);
   lastAiHealthConfigRefreshAt = Date.now();
   try {
@@ -1570,13 +2365,14 @@ function applyHostPosition(host: HTMLDivElement, position: FixedCardPosition): v
 }
 
 function saveCardPosition(_hostKey: string, _position: FixedCardPosition): void {
-  // Position is session-only; a full page refresh restores the default upper-left anchor.
+  // Position is session-only; a full page refresh restores the default upper-right anchor.
 }
 
 function minimizeCard(): void {
   if (!cardHost) return;
   resetCardViewState();
   stopDrag();
+  stopPanelResize();
   cardCollapsed = true;
   cardHost.position = getCollapsedFixedCardPosition(window.innerWidth, cardHost.position.y);
   applyHostPosition(cardHost.host, cardHost.position);
@@ -1586,25 +2382,21 @@ function minimizeCard(): void {
 function expandCard(): void {
   if (!cardHost) return;
   stopDrag();
+  stopPanelResize();
+  const previousHostWidth = getHostWidth();
   cardCollapsed = false;
-  cardHost.position = cardHost.position.custom
-    ? clampFixedCardPosition(cardHost.position, CARD_WIDTH)
-    : getDefaultFixedCardPosition();
-  applyHostPosition(cardHost.host, cardHost.position);
+  syncCardHostPosition(previousHostWidth);
   renderCard(cardHost.shadow);
 }
 
 function onViewportChange(): void {
-  if (!cardHost || isDragging()) return;
-  const hostWidth = getHostWidth();
-  if (cardHost.position.custom) {
-    cardHost.position = clampFixedCardPosition(cardHost.position, hostWidth);
-  } else if (cardCollapsed) {
+  if (!cardHost || isDragging() || panelResizeActive) return;
+  if (cardCollapsed) {
     cardHost.position = getCollapsedFixedCardPosition(window.innerWidth, cardHost.position.y);
-  } else {
-    cardHost.position = getDefaultFixedCardPosition();
+    applyHostPosition(cardHost.host, cardHost.position);
+    return;
   }
-  applyHostPosition(cardHost.host, cardHost.position);
+  syncCardHostPosition();
 }
 
 function onGripDown(e: PointerEvent): void {
@@ -1612,7 +2404,7 @@ function onGripDown(e: PointerEvent): void {
   if (isInteractiveGripTarget(e.target)) return;
   e.preventDefault();
   e.stopPropagation();
-  bindDragTarget(e, e.currentTarget as HTMLElement, CARD_WIDTH);
+  bindDragTarget(e, e.currentTarget as HTMLElement, getHostWidth());
 }
 
 function onLauncherPointerDown(e: PointerEvent): void {
@@ -1661,7 +2453,10 @@ function bindDragTarget(
         8,
         Math.min(activeDrag.originY + dy, window.innerHeight - Math.max(hostWidth, 80)),
       );
-      cardHost.position = clampFixedCardPosition({ mode: "fixed", x, y, custom: true }, hostWidth);
+      cardHost.position = clampFixedCardPosition(
+        { mode: "fixed", x, y, custom: true, anchorRight: false },
+        hostWidth,
+      );
       applyHostPosition(cardHost.host, cardHost.position);
     },
     onEnd: (ev: PointerEvent) => {
@@ -1669,7 +2464,7 @@ function bindDragTarget(
       target.classList.remove("dragging");
       stopDrag();
       if (cardHost) {
-        cardHost.position = { ...cardHost.position, custom: true };
+        cardHost.position = { ...cardHost.position, custom: true, anchorRight: false };
         void saveCardPosition(hostKey, cardHost.position);
       }
       if (!moved) onTap?.();
@@ -1689,6 +2484,7 @@ function bindDragTarget(
 }
 
 function resetExtensionJourneyToStage0(reason: string): void {
+  console.log("[EasySubmit] journey:reset to stage 0", { reason, prev: savedStatus.status, url: location.href });
   journeySyncLog("extension", "journey_reset_stage_0", {
     reason,
     url: location.href,
@@ -1707,14 +2503,14 @@ function resetExtensionJourneyToStage0(reason: string): void {
   stopStatusPolling();
   stopJourneySyncPoll();
   stopConfirmationWatch();
-  void stopExtensionJobRealtime();
-  realtimeStop = null;
+  void stopJobStatusRealtime();
   void chrome.storage.local.remove(STORAGE_KEYS.pendingApplyJobId);
   if (cardHost) renderCard(cardHost.shadow);
 }
 
 function stopJourneySyncPoll(): void {
   if (journeySyncTimer) {
+    console.log("[EasySubmit] poll:journey-sync stop", { status: savedStatus.status });
     clearInterval(journeySyncTimer);
     journeySyncTimer = null;
   }
@@ -1739,6 +2535,8 @@ function startJourneySyncPoll(): void {
 }
 
 async function applyServerJourneyRefresh(reason: string): Promise<void> {
+  if (isEasySubmitAppPage()) return;
+
   const before = snapshotFromServerStatus(savedStatus);
   const sync = await refreshSavedStatus();
   const after = snapshotFromServerStatus(savedStatus);
@@ -1752,10 +2550,13 @@ async function applyServerJourneyRefresh(reason: string): Promise<void> {
     before,
     after,
   });
+  // [ES:LOG] EXT ← journey sync result (poll or realtime trigger)
+  console.log("[EasySubmit] journey:sync", { reason, transition, before: before.status, after: after.status });
 
   lastJourneySnapshot = after;
 
   if (shouldResetExtensionAfterSync(transition)) {
+    console.log("[EasySubmit] journey:sync — resetting to stage 0 after sync", { transition, reason });
     resetExtensionJourneyToStage0(reason);
     return;
   }
@@ -1778,11 +2579,19 @@ async function applyServerJourneyRefresh(reason: string): Promise<void> {
       startJourneySyncPoll();
     }
   } else {
+    console.log("[EasySubmit] poll:journey-sync — terminal state, stopping poll", { status: after.status });
     stopJourneySyncPoll();
   }
 
   if (after.saved) {
-    await syncRealtimeSubscription().catch(() => undefined);
+    if ((after.status === "CAPTURED" || after.status === "RESUME_READY") && after.id) {
+      console.log("[EasySubmit] journey:sync pipeline in-flight detected", { status: after.status, reason, hasRealtime: isJobStatusRealtimeActive() });
+      if (!journeySyncTimer) startJourneySyncPoll();
+      if (!isJobStatusRealtimeActive()) {
+        console.log("[EasySubmit] realtime:starting job subscription from sync (previous session)", { jobId: after.id });
+        void startJobStatusRealtimeForJob(after.id).catch(() => undefined);
+      }
+    }
     if (after.status === "READY_TO_APPLY") {
       startConfirmationWatch();
     } else {
@@ -1795,6 +2604,7 @@ async function refreshSavedStatus(): Promise<{
   issueMessage: string | null | undefined;
 } | null> {
   const lookupUrl = canonicalizeJobUrl(location.href);
+  console.log("[EasySubmit] status:lookup", { lookupUrl, currentSaved: savedStatus.saved, currentStatus: savedStatus.status });
   const res = await sendMessage<{
     saved: boolean;
     status?: string;
@@ -1807,8 +2617,10 @@ async function refreshSavedStatus(): Promise<{
   });
   if (!res) {
     journeySyncWarn("extension", "job_status_unreachable", { lookupUrl, pageUrl: location.href });
+    console.warn("[EasySubmit] status:lookup unreachable — background may be asleep", { lookupUrl });
     return null;
   }
+  console.log("[EasySubmit] status:lookup result", { saved: res.saved, status: res.status, id: res.id, canReapply: res.canReapply, issueMessage: res.issueMessage ?? null });
   savedStatus = {
     saved: Boolean(res.saved),
     status: res.status,
@@ -1827,6 +2639,7 @@ function stopStatusPolling(): void {
 
 function startStatusPolling(intervalMs = 2000): void {
   stopStatusPolling();
+  console.log("[EasySubmit] poll:pipeline-status start", { intervalMs, status: savedStatus.status });
   statusPollTimer = setInterval(() => {
     if (!guardExtensionContext()) return;
     void applyServerJourneyRefresh("pipeline_poll")
@@ -1836,6 +2649,7 @@ function startStatusPolling(intervalMs = 2000): void {
           savedStatus.status === "APPLIED" ||
           (!pipelineBusy && pendingPipelinePhase !== "autofill")
         ) {
+          console.log("[EasySubmit] poll:pipeline-status stop — terminal or idle", { status: savedStatus.status });
           stopStatusPolling();
         }
       })
@@ -2075,6 +2889,7 @@ async function waitForJobDescriptionBeforeSave(maxMs = 4500): Promise<void> {
 }
 
 async function refreshMetadataBeforeSave(config: ExtensionRuntimeConfig): Promise<void> {
+  console.log("[EasySubmit] scrape:refresh-metadata start", { url: location.href, hasIntercepted: Boolean(interceptedMetadata) });
   await waitForJobDescriptionBeforeSave();
   const detectedDirect = detectJobPage(document, location.href, config);
   const detected =
@@ -2094,13 +2909,16 @@ async function refreshMetadataBeforeSave(config: ExtensionRuntimeConfig): Promis
   };
   // Prefer API-intercepted data — richer and more reliable than DOM scrape
   currentMetadata = interceptedMetadata ?? detected.metadata;
+  console.log("[EasySubmit] scrape:refresh-metadata result", { path: lastScrapeContext?.path, title: currentMetadata?.title, platform: currentMetadata?.platform, confidence: currentMetadata?.confidence });
 }
 
 async function refreshRuntimeConfig(): Promise<ExtensionRuntimeConfig> {
+  console.log("[EasySubmit] config:refresh — fetching runtime config from background");
   const res = await sendMessage<{ success: boolean; config?: ExtensionRuntimeConfig }>({
     action: EXTENSION_MESSAGE.GET_CONFIG,
   });
   if (!res) {
+    console.warn("[EasySubmit] config:refresh failed — background unreachable, using cached or defaults");
     return runtimeConfig ?? mergeExtensionRuntimeConfig(undefined);
   }
   runtimeConfig = mergeExtensionRuntimeConfig(res.config);
@@ -2179,6 +2997,46 @@ async function onProfileSetupFinish(root: ShadowRoot, skipAll: boolean): Promise
   if (cardHost) renderCard(cardHost.shadow);
 }
 
+const STATUS_ORDER: Record<string, number> = {
+  CAPTURED: 1,
+  RESUME_READY: 2,
+  READY_TO_APPLY: 3,
+  APPLIED: 4,
+};
+
+function isStatusForward(from: string | undefined, to: string): boolean {
+  return (STATUS_ORDER[to] ?? 0) > (STATUS_ORDER[from ?? ""] ?? 0);
+}
+
+async function startJobStatusRealtimeForJob(jobId: string): Promise<void> {
+  const config = runtimeConfig ?? (await ensureRuntimeConfig());
+  void startJobStatusRealtime({
+    jobId,
+    apiBaseUrl: config.apiBaseUrl,
+    sendMessage: (msg) => sendMessage(msg),
+    getAuthToken: async () => {
+      const t = await sendMessage<{ token: string | null }>({ action: EXTENSION_MESSAGE.GET_AUTH });
+      return t?.token ?? null;
+    },
+    onSync: () => undefined,
+    onStatus: (status) => {
+      const prev = savedStatus.status;
+      if (!isStatusForward(prev, status)) {
+        console.log("[EasySubmit] realtime:status ignored — backward transition", { from: prev, to: status, jobId });
+        return;
+      }
+      console.log("[EasySubmit] realtime:status received", { status, jobId, prev });
+      savedStatus = { ...savedStatus, status };
+      void applyServerJourneyRefresh("realtime_status").catch(() => undefined);
+      if (cardHost) renderCard(cardHost.shadow);
+      if (status === "READY_TO_APPLY" || status === "APPLIED") {
+        console.log("[EasySubmit] realtime:stopping subscription — terminal status reached", { status });
+        void stopJobStatusRealtime();
+      }
+    },
+  });
+}
+
 async function startApplyPipeline(): Promise<void> {
   if (pipelineBusy) return;
 
@@ -2234,6 +3092,8 @@ async function startApplyPipeline(): Promise<void> {
     },
   };
 
+  // [ES:LOG] EXT → pipeline start — user clicked "Apply with EasySubmit"
+  console.log("[EasySubmit] pipeline:start", { url: capture.url, platform: capture.platform });
   pipelineBusy = true;
   pipelineBusyLabel = "Optimizing resume…";
   saveError = null;
@@ -2256,6 +3116,8 @@ async function startApplyPipeline(): Promise<void> {
       return;
     }
 
+    // [ES:LOG] EXT → DB event fired: CAPTURED (job saved, pipeline starting)
+    console.log("[EasySubmit] db:event CAPTURED", { jobId: captureRes.id, status: captureRes.status });
     const jobId = captureRes.id;
     savedStatus = {
       saved: true,
@@ -2267,27 +3129,15 @@ async function startApplyPipeline(): Promise<void> {
     pipelineBusyLabel = null;
     if (cardHost) renderCard(cardHost.shadow);
 
+    // [ES:LOG] EXT — starting poll fallback immediately after capture (catches realtime failures)
+    console.log("[EasySubmit] pipeline:poll fallback starting", { jobId });
+    startJourneySyncPoll();
+
     // Subscribe to per-job Realtime — each DB status write pushes here instantly
-    const config = runtimeConfig ?? (await ensureRuntimeConfig());
-    void startJobStatusRealtime({
-      jobId,
-      apiBaseUrl: config.apiBaseUrl,
-      getAuthToken: async () => {
-        const t = await sendMessage<{ token: string | null }>({ action: EXTENSION_MESSAGE.GET_AUTH });
-        return t?.token ?? null;
-      },
-      onSync: () => undefined,
-      onStatus: (status) => {
-        savedStatus = { ...savedStatus, status };
-        void applyServerJourneyRefresh("realtime_status").catch(() => undefined);
-        if (cardHost) renderCard(cardHost.shadow);
-        if (status === "READY_TO_APPLY" || status === "APPLIED") {
-          void stopJobStatusRealtime();
-        }
-      },
-    });
+    void startJobStatusRealtimeForJob(jobId);
 
     // Stage 1→2: fire tailor async — Realtime delivers each state change
+    console.log("[EasySubmit] pipeline:tailor-async fired", { jobId, url: payload.url });
     void sendMessage({
       action: EXTENSION_MESSAGE.TAILOR_JOB_ASYNC,
       payload: { ...payload, entryId: jobId },
@@ -2297,6 +3147,7 @@ async function startApplyPipeline(): Promise<void> {
       teardownStaleExtensionContext();
       return;
     }
+    console.error("[EasySubmit] pipeline:error", error);
     saveError =
       error instanceof Error
         ? error.message
@@ -2308,6 +3159,7 @@ async function startApplyPipeline(): Promise<void> {
 }
 
 async function onPrimaryClick(): Promise<void> {
+  console.log("[EasySubmit] user:primary-click", { saved: savedStatus.saved, status: savedStatus.status, canReapply: savedStatus.canReapply, presentation: cardPresentation });
   if (!currentMetadata || pipelineBusy) return;
   if (cardPresentation === "no_job") return;
 
@@ -2391,6 +3243,7 @@ async function mountCard(
   metadata: ScrapedJobMetadata,
   options?: { useDefaultPosition?: boolean },
 ): Promise<void> {
+  console.log("[EasySubmit] card:mount", { title: metadata.title, platform: metadata.platform, presentation: cardPresentation, url: location.href });
   await refreshRuntimeConfig().catch(() => ensureRuntimeConfig());
 
   const sameTitle = currentMetadata?.title === metadata.title;
@@ -2426,6 +3279,7 @@ async function mountCard(
     cardHost = { host, shadow, position };
     setupProfilePickerDelegation(shadow);
     setupSettingsMenuDelegation(shadow);
+    setupPanelResizeDelegation(shadow);
   } else if (!isDragging() || options?.useDefaultPosition) {
     cardHost.position = position;
   }
@@ -2448,49 +3302,48 @@ async function mountCard(
 }
 
 function removeCard(): void {
+  console.log("[EasySubmit] card:remove", { hadCard: Boolean(cardHost), url: location.href });
   stopDrag();
+  stopPanelResize();
   stopAllExtensionTimers();
   closeProfilePickerMenu();
   closeSettingsMenu();
   profilePickerDelegationReady = false;
   settingsMenuDelegationReady = false;
-  void stopExtensionJobRealtime();
-  realtimeStop = null;
+  panelResizeDelegationReady = false;
+  void stopJobStatusRealtime();
   cardHost?.host.remove();
   cardHost = null;
   currentMetadata = null;
   cardPresentation = "job";
   manualCaptureDraft = null;
   cardCollapsed = false;
+  cardPanelWidth = JOB_CARD_WIDTH;
+  cardPanelBodyMaxHeight = null;
+}
+
+function idleExtensionOnAppPage(): void {
+  stopJourneySyncPoll();
+  stopStatusPolling();
+  stopConfirmationWatch();
+  stopLoadingHydrationWatch();
+  void stopJobStatusRealtime();
+  removeCard();
 }
 
 let updateTimer: ReturnType<typeof setTimeout> | null = null;
 
 function isEasySubmitAppPage(): boolean {
-  const host = location.hostname;
-  const onAppHost =
-    host === "localhost" ||
-    host === "127.0.0.1" ||
-    host === "easysubmit.ai" ||
-    host.endsWith(".easysubmit.ai");
-
-  if (!onAppHost) return false;
-
-  const path = location.pathname;
-  return (
-    path.startsWith("/dashboard") ||
-    path.startsWith("/onboarding") ||
-    path === "/login" ||
-    path.startsWith("/extension") && !path.startsWith("/extension/bridge")
-  );
+  return isEasySubmitManagedAppPage(location.hostname, location.pathname);
 }
 
 async function updateCard(): Promise<void> {
   if (!isContextValid() || window.top !== window.self) return;
   if (isDragging()) return;
+  console.log("[EasySubmit] card:update triggered", { url: location.href, isAppPage: isEasySubmitAppPage(), hasSaved: savedStatus.saved });
 
   if (isEasySubmitAppPage()) {
-    removeCard();
+    idleExtensionOnAppPage();
     return;
   }
 
@@ -2552,6 +3405,10 @@ async function updateCard(): Promise<void> {
 
 function scheduleUpdate(delayMs = 350): void {
   if (!isContextValid()) return;
+  if (isEasySubmitAppPage()) {
+    idleExtensionOnAppPage();
+    return;
+  }
   if (updateTimer) clearTimeout(updateTimer);
   const delay = pinnedUrl === location.href ? Math.max(delayMs, 2000) : delayMs;
   updateTimer = setTimeout(() => {
@@ -2594,7 +3451,21 @@ function bootJobPageObservers(): void {
   contentWindow.__easysubmitObserversBooted = true;
 
   handleAssistOpenOnLoad();
-  injectApiInterceptScript();
+
+  if (!isEasySubmitAppPage()) {
+    injectApiInterceptScript();
+
+    onApiIntercept((data) => {
+      if (!data.title) return;
+      console.log("[EasySubmit] intercept:job-data received", { title: data.title, company: data.company, platform: data.platform });
+      interceptedMetadata = interceptedToMetadata(data);
+      // If card is already showing, upgrade it with the richer API data immediately
+      if (currentMetadata && cardHost) {
+        currentMetadata = interceptedMetadata;
+        renderCard(cardHost.shadow);
+      }
+    });
+  }
 
   window.addEventListener("unhandledrejection", (event) => {
     if (isExtensionContextInvalidatedError(event.reason)) {
@@ -2603,25 +3474,22 @@ function bootJobPageObservers(): void {
     }
   });
 
-  setupFieldCaptureBridge({
-    getJobEntryId: () => savedStatus.id,
-    onCapture: (payload: FieldCapturePayload, jobEntryId?: string) => {
-      void postFieldCapture(payload, jobEntryId ?? savedStatus.id).catch(() => undefined);
-    },
-  });
-
-  onApiIntercept((data) => {
-    if (!data.title) return;
-    interceptedMetadata = interceptedToMetadata(data);
-    // If card is already showing, upgrade it with the richer API data immediately
-    if (currentMetadata && cardHost) {
-      currentMetadata = interceptedMetadata;
-      renderCard(cardHost.shadow);
-    }
-  });
+  if (!isEasySubmitAppPage()) {
+    setupFieldCaptureBridge({
+      getJobEntryId: () => savedStatus.id,
+      onCapture: (payload: FieldCapturePayload, jobEntryId?: string) => {
+        void postFieldCapture(payload, jobEntryId ?? savedStatus.id).catch(() => undefined);
+      },
+    });
+  }
 
   window.addEventListener("focus", () => {
     if (document.visibilityState !== "visible") return;
+    if (isEasySubmitAppPage()) {
+      idleExtensionOnAppPage();
+      return;
+    }
+    console.log("[EasySubmit] lifecycle:tab-focus — syncing journey", { url: location.href, savedStatus: savedStatus.status ?? "unsaved" });
     if (!cardHost) scheduleUpdate();
     refreshRuntimeConfigOnTabResume();
     void applyServerJourneyRefresh("tab_focus").catch(swallowContextInvalidation);
@@ -2630,14 +3498,32 @@ function bootJobPageObservers(): void {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState !== "visible") return;
     tabReturnedAt = Date.now();
+    if (isEasySubmitAppPage()) {
+      idleExtensionOnAppPage();
+      return;
+    }
+    console.log("[EasySubmit] lifecycle:tab-visible — syncing journey", { url: location.href, savedStatus: savedStatus.status ?? "unsaved" });
     if (!cardHost) scheduleUpdate();
     refreshRuntimeConfigOnTabResume();
     void applyServerJourneyRefresh("tab_visible").catch(swallowContextInvalidation);
   });
 
-  scheduleUpdate();
+  if (isEasySubmitAppPage()) {
+    idleExtensionOnAppPage();
+  } else {
+    scheduleUpdate();
+    ensureJobSiteDomObservers();
+  }
+
+  startUrlWatch();
+}
+
+function ensureJobSiteDomObservers(): void {
+  if (contentWindow.__easysubmitDomObserversBooted) return;
+  contentWindow.__easysubmitDomObserversBooted = true;
 
   const domObserver = new MutationObserver((mutations) => {
+    if (isEasySubmitAppPage()) return;
     if (!mutationTouchesCardHost(mutations)) {
       scheduleUpdate();
     }
@@ -2651,16 +3537,24 @@ function bootJobPageObservers(): void {
   window.addEventListener("resize", onViewportChange);
   window.addEventListener("popstate", () => scheduleUpdate());
   window.addEventListener("hashchange", () => scheduleUpdate());
+}
 
+function startUrlWatch(): void {
   let lastUrl = location.href;
   stopUrlWatch();
   urlWatchTimer = setInterval(() => {
     if (!guardExtensionContext()) return;
     if (location.href !== lastUrl) {
+      console.log("[EasySubmit] lifecycle:url-change", { from: lastUrl, to: location.href });
       lastUrl = location.href;
       pinnedUrl = null;
       runtimeConfig = null;
       interceptedMetadata = null;
+      if (isEasySubmitAppPage()) {
+        idleExtensionOnAppPage();
+        return;
+      }
+      ensureJobSiteDomObservers();
       removeCard();
       scheduleUpdate();
     }
@@ -2675,8 +3569,10 @@ if (window.top === window.self) {
     console.log("EasySubmit: bridge relay ready");
   } else {
     const bootWhenGloballyEnabled = (): void => {
+      console.log("[EasySubmit] lifecycle:boot", { readyState: document.readyState, url: location.href });
       void refreshRuntimeConfig()
         .then((config) => {
+          console.log("[EasySubmit] lifecycle:boot config", { globalEnabled: isExtensionGlobalSwitchOn(config), hasAiHealth: Boolean(config.aiHealthError) });
           if (!isExtensionGlobalSwitchOn(config)) return;
           bootJobPageObservers();
         })
@@ -2736,6 +3632,18 @@ if (window.top === window.self) {
         return true;
       }
 
+      if (
+        message?.action === EXTENSION_MESSAGE.JOB_ARCHIVED &&
+        typeof message.entryId === "string"
+      ) {
+        if (savedStatus.saved && savedStatus.id === message.entryId) {
+          console.log("[EasySubmit] ext:job-archived — resetting to stage 0", { entryId: message.entryId });
+          resetExtensionJourneyToStage0("job_archived");
+        }
+        sendResponse({ success: true });
+        return true;
+      }
+
       return false;
     };
 
@@ -2750,6 +3658,7 @@ if (window.top === window.self) {
 
     contentWindow.__easysubmitCleanup = () => {
       contentWindow.__easysubmitObserversBooted = false;
+      contentWindow.__easysubmitDomObserversBooted = false;
       contentWindow.__easysubmitTeardownDone = false;
       domContentObserver?.disconnect();
       domContentObserver = null;
