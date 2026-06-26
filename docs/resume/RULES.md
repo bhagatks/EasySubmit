@@ -72,7 +72,7 @@ Never reorder. Never rename sections creatively ("My Journey" instead of "Profes
 
 **Professional Summary** — 2–3 sentences, no bullets, no "I"/"my." Include: target role, years of experience, 2–3 core skills, one differentiator.
 
-**Skills** — 6–12 items for a 1-page resume (scale up per the page budget in §6). No star ratings, progress bars, or skill-level graphics. List every relevant tool/technology/methodology truthfully — this section now carries significant ATS scoring weight (see §7).
+**Skills** — 6–20 items for manual editing (target 10–15); AI/deterministic target 15–20 (hard max 20). ≥70% hard skills / named methodologies, ≤30% named soft skills. Comma- or pipe-separated tools, technologies, platforms, and methodologies — no prose sentences (>4 words or action verbs). Never list banned slot-wasters: Communication, Teamwork, Hard Worker, Attention to Detail, Time Management, Adaptability, Creativity, Positive Attitude, Fast Learner, Multitasking, Problem Solving, Leadership, Collaboration, Motivated, Organized, Flexible, Detail-Oriented, People Skills, Interpersonal Skills, Work Ethic. No star ratings, progress bars, or skill-level graphics.
 
 **Professional Experience** (per role)
 - Line 1: **Job Title** (bold), tab-aligned right with **Date Range** (`MMM YYYY – MMM YYYY` or `MMM YYYY – Present`). Real tab stop, never spaces/tables. 
@@ -116,10 +116,10 @@ Default for most users: **1–2 pages.** Don't default anyone into 3+ pages with
 
 | Pages | Roles shown in detail | Bullets per role | Skills total |
 |---|---|---|---|
-| 1 | 2–3 | 4–5 | ~10–15 |
-| 2 | 3–4 | 5–6 | ~15–25 |
-| 3 | 4–5 | 6–7 | ~25–35 |
-| 4 | 5+ | 6–7 | ~35–45 |
+| 1 | 2–3 | 4–5 | 10–15 (hard max 20) |
+| 2 | 3–4 | 5–6 | 15–20 |
+| 3 | 4–5 | 6–7 | 15–20 |
+| 4 | 5+ | 6–7 | 15–20 |
 | 5–6 | as needed | as needed | grouped, ~10–15 per group |
 
 If content overflows at minimum font/margin sizes, cut bullets from the **oldest/least relevant roles first** — never shrink below the type/margin floors in §1 to force a fit.

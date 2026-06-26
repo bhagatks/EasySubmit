@@ -16,7 +16,12 @@ import {
   SYSTEM_QUOTA_DEFAULT_ESTIMATED_CALLS,
 } from "@/src/lib/ai/engine/system-quota-gate";
 import { checkAiQuota, incrementQuotaPatch, type QuotaCheckResult } from "@/src/lib/ai/engine/quota";
-import { resolveAiRoute } from "@/src/lib/ai/engine/router";
+import {
+  resolveAiRoute,
+  SYSTEM_POOL_EXHAUSTED_BYOK_BODY,
+  SYSTEM_POOL_EXHAUSTED_HEADLINE,
+  SYSTEM_POOL_EXHAUSTED_NO_BYOK_BODY,
+} from "@/src/lib/ai/engine/router";
 import { runCoverLetterEnhance } from "@/src/lib/ai/engine/run-cover-letter-enhance";
 import { isCustomerQuotaUnlimited } from "@/src/lib/services/ai-engine-config";
 import { getAppConfig } from "@/src/lib/services/config-service";
@@ -30,6 +35,7 @@ export type EnhanceCoverLetterInput = {
   jobDescription?: string | null;
   existing?: string | null;
   forceSystem?: boolean;
+  useCustomerKey?: boolean;
   traceId?: string;
   variant?: "dashboard" | "pipeline";
 };
@@ -45,12 +51,14 @@ export type EnhanceCoverLetterSuccess = {
 export type EnhanceCoverLetterFailure = {
   success: false;
   error: string;
+  byokAvailable?: boolean;
   code?:
     | "unauthorized"
     | "quota_enhancement"
     | "quota_calls"
     | "no_system_key"
     | "no_customer_key"
+    | "system_pool_exhausted"
     | "provider_error"
     | "rate_limited"
     | "insufficient_quota"
@@ -148,6 +156,7 @@ export async function enhanceCoverLetterForUserId(
     vaultKeyId: user.vaultKeyId,
     activeProvider: user.activeProvider,
     forceSystem: input.forceSystem ?? false,
+    allowByokFallback: input.useCustomerKey ?? false,
     aiEngine,
   });
 
@@ -157,6 +166,16 @@ export async function enhanceCoverLetterForUserId(
         success: false,
         error: "EasySubmit AI is not configured. Add your own API key in AI Keys.",
         code: "no_system_key",
+      };
+    }
+    if (route.error === "system_pool_exhausted") {
+      return {
+        success: false,
+        code: "system_pool_exhausted",
+        byokAvailable: route.byokAvailable,
+        error: route.byokAvailable
+          ? `${SYSTEM_POOL_EXHAUSTED_HEADLINE} ${SYSTEM_POOL_EXHAUSTED_BYOK_BODY}`
+          : `${SYSTEM_POOL_EXHAUSTED_HEADLINE} ${SYSTEM_POOL_EXHAUSTED_NO_BYOK_BODY}`,
       };
     }
     return {

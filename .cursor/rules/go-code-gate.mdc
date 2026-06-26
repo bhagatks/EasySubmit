@@ -1,0 +1,39 @@
+---
+description: Wait for "go code" before any file edits, commands that change code, or implementation
+alwaysApply: true
+---
+
+# Go Code Gate
+
+The user controls when implementation starts. **Do not make changes until they say the exact trigger phrase: `go code`.**
+
+## Before `go code`
+
+- **No implementation** — no file edits, creates, deletes, refactors, or config changes (even one line)
+- **No execution that changes the project** — no installs, migrations, commits, pushes, or builds run to implement a task
+- **Allowed** — read/search the codebase, answer questions, plan, review, queue tasks, clarify requirements
+- **Multi-prompt batches** — collect all prompts the user sends; execute them **in order** only after `go code`
+- **Start of each session** — briefly confirm the gate is active (one line is enough): e.g. *"Holding until you say go code."*
+
+## When the user says `go code`
+
+- Execute queued work **one prompt after another**, in the order received
+- Apply the same gate to **every** change, including single-line fixes — no exceptions unless the user explicitly says otherwise in that message
+
+## After work completes
+
+- Resume holding until the next `go code` for any further implementation
+
+## Examples
+
+**User:** "Fix the typo in `brain.ts` line 13."  
+→ Acknowledge and hold. Do not edit.
+
+**User:** "Also add a test."  
+→ Add to queue. Still hold.
+
+**User:** "go code"  
+→ Fix typo, then add test, in order.
+
+**User:** "go code — just the typo"  
+→ Only the typo; ignore earlier queued items unless they restate them.

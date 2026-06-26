@@ -3,6 +3,8 @@ import { emptyHubRefineryForm } from "@/lib/onboarding/hubResume";
 import {
   coalesceBulletsField,
   normalizeEnhancedBody,
+  postProcessProfessionalSummary,
+  postProcessSkillsText,
 } from "@/src/lib/ai/engine/post-process";
 
 describe("coalesceBulletsField", () => {
@@ -54,5 +56,21 @@ describe("normalizeEnhancedBody", () => {
     );
     expect(normalized.experience[0]?.title).toBe("Senior Engineer");
     expect(normalized.experience[0]?.startMonth).toBe("Jan");
+  });
+});
+
+describe("postProcessProfessionalSummary", () => {
+  it("replaces banned words with review placeholders", () => {
+    expect(
+      postProcessProfessionalSummary("A passionate engineer who will leverage APIs."),
+    ).toBe("A [review] engineer who will [review] APIs.");
+  });
+});
+
+describe("postProcessSkillsText", () => {
+  it("removes banned and prose skills and trims to 20", () => {
+    const input =
+      "Communication, Kubernetes, Build cloud systems, TypeScript, Teamwork";
+    expect(postProcessSkillsText(input)).toBe("Kubernetes, TypeScript");
   });
 });

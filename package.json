@@ -21,7 +21,9 @@
     "extension:detect-eval": "npx tsx scripts/extension-detect-eval.ts",
     "db:migrate": "prisma migrate deploy",
     "db:import-system-keys": "npx --yes tsx scripts/import-system-keys-to-vault.ts",
-    "pool:status": "npx --yes tsx scripts/pool-status.ts"
+    "pool:status": "npx --yes tsx scripts/pool-status.ts",
+    "pool:reset": "npx --yes tsx scripts/pool-reset-dev.ts",
+    "ai:usage": "npx --yes tsx scripts/ai-usage-stats.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.85",

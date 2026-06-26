@@ -1,7 +1,11 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import {
+  type DashboardGateUser,
+  isDashboardSessionReady,
+} from "@/lib/auth/dashboard-session-gate";
 
-const COMPLETED_ONBOARDING_STEP = 4;
+export { COMPLETED_ONBOARDING_STEP, isDashboardSessionReady } from "@/lib/auth/dashboard-session-gate";
 
 export type DashboardSessionUser = {
   id: string;
@@ -10,18 +14,16 @@ export type DashboardSessionUser = {
   activeProvider: string | null;
 };
 
-/**
- * Validates the signed-in user still exists in Postgres and meets dashboard gates.
- * Stale JWTs after a DB reset are cleared via NextAuth sign-out.
- */
-export async function requireDashboardSession(
-  sessionUserId: string | undefined,
-): Promise<DashboardSessionUser> {
-  if (!sessionUserId) {
-    redirect("/login");
-  }
+type DashboardGateRecord = DashboardGateUser & {
+  id: string;
+  vaultKeyId: string | null;
+  activeProvider: string | null;
+};
 
-  const user = await prisma.user.findUnique({
+async function fetchDashboardGateUser(
+  sessionUserId: string,
+): Promise<DashboardGateRecord | null> {
+  return prisma.user.findUnique({
     where: { id: sessionUserId },
     select: {
       id: true,
@@ -35,6 +37,34 @@ export async function requireDashboardSession(
       },
     },
   });
+}
+
+/**
+ * DB-backed dashboard gate — used by layouts so JWT onboardingStep cannot fight Postgres.
+ */
+export async function checkDashboardSessionReady(
+  sessionUserId: string | undefined,
+): Promise<boolean> {
+  if (!sessionUserId) {
+    return false;
+  }
+
+  const user = await fetchDashboardGateUser(sessionUserId);
+  return Boolean(user && isDashboardSessionReady(user));
+}
+
+/**
+ * Validates the signed-in user still exists in Postgres and meets dashboard gates.
+ * Stale JWTs after a DB reset are cleared via NextAuth sign-out.
+ */
+export async function requireDashboardSession(
+  sessionUserId: string | undefined,
+): Promise<DashboardSessionUser> {
+  if (!sessionUserId) {
+    redirect("/login");
+  }
+
+  const user = await fetchDashboardGateUser(sessionUserId);
 
   if (!user) {
     redirect(
@@ -42,11 +72,7 @@ export async function requireDashboardSession(
     );
   }
 
-  if (user.onboardingStep < COMPLETED_ONBOARDING_STEP) {
-    redirect("/onboarding");
-  }
-
-  if (user.profiles.length === 0) {
+  if (!isDashboardSessionReady(user)) {
     redirect("/onboarding");
   }
 

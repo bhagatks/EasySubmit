@@ -19,7 +19,7 @@
 | `/dashboard/keys` | **Ignition Chamber** — post-onboarding BYOK vault (Power Cells, IGNITE handshake) | NextAuth required |
 | `/dashboard/settings` | Account settings — login identity (`users`), connected OAuth providers, engine status stub, sign out | NextAuth required |
 
-Middleware (`middleware.ts`) and `app/onboarding/layout.tsx` both redirect unauthenticated users to `/login`. **Sign out** — `SignOutButton` clears client state, ends the NextAuth session, and returns everyone to `/login?signedOut=1` (same flow for Google and LinkedIn).
+Middleware (`middleware.ts`) and `app/onboarding/layout.tsx` both redirect unauthenticated users to `/login`. Incomplete onboarding redirects to `/onboarding` except API routes under `/api/auth`, `/api/resume`, `/api/profile`, and `/api/extension` (avatar upload, resume import, finalize). **Sign out** — `SignOutButton` clears client state, ends the NextAuth session, and returns everyone to `/login?signedOut=1` (same flow for Google and LinkedIn).
 
 ## Unified Workbench (`/onboarding`)
 
@@ -27,7 +27,7 @@ Primary onboarding path — client state in `app/onboarding/page.tsx` (not Zusta
 
 | Phase | Panel | Data captured | Navigation |
 |-------|-------|---------------|------------|
-| 1 · Identity | `CoordinatesPanel` | `firstName`, `lastName`, `cityState` (Nominatim debounce + locate via `CityStateField`), `phone` with country-code selector (default US +1), `email` | Continue → Import; `completeStep(1)` |
+| 1 · Identity | `CoordinatesPanel` | `firstName`, `lastName`, optional profile photo (`uploadProfileAvatar` server action), `cityState` (Nominatim debounce + locate via `CityStateField`), `phone` with country-code selector (default US +1), `email` | Continue → Import; `completeStep(1)` |
 | 2 · Import | `FuelPanel` | Resume PDF/DOCX → `parseResumeFile` (browser Open-Resume pipeline) | **No back to Phase 1** (`minNavigablePhase=2` on breadcrumb); auto-advance to Studio after parse |
 | 3 · Studio | `RefineryPanel` | ATS section order (Header → Summary → Skills → Experience → Education → optional Certifications/Projects/Languages); `mergeParsedWithCoordinates` prefills contact from Phase 1 | **Import** back → re-upload; **Finalize & continue** → see bridge below |
 

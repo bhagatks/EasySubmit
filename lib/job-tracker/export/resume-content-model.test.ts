@@ -114,9 +114,7 @@ describe("resume-content-model", () => {
     });
   });
 
-  it("uses larger DOCX section gaps than PDF", () => {
-    expect(DOCX_SPACING.afterContact).toBeGreaterThan(PDF_SPACING.afterContact);
-    expect(DOCX_SPACING.betweenSections).toBeGreaterThan(PDF_SPACING.betweenSections);
-    expect(DOCX_SPACING.afterSectionBody).toBeGreaterThan(PDF_SPACING.afterSectionBody);
+  it("uses the same section rhythm for Word and PDF exports", () => {
+    expect(DOCX_SPACING).toEqual(PDF_SPACING);
   });
 });

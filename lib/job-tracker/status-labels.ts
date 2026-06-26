@@ -1,9 +1,11 @@
 import type { JobTrackerStatus } from "@/lib/generated/prisma/client";
+import { BRAND } from "@/src/shared/brand";
 
+/** User-facing journey labels — aligned with tracker bar + extension state map. */
 const STATUS_LABELS: Record<JobTrackerStatus, string> = {
-  CAPTURED: "Job captured",
-  RESUME_READY: "Resume prepared",
-  READY_TO_APPLY: "Ready to apply",
+  CAPTURED: "Optimizing resume",
+  RESUME_READY: "Resume ready",
+  READY_TO_APPLY: BRAND.autoSuggestCta,
   APPLIED: "Applied",
   INTERVIEW: "Interview",
   OFFER: "Offer",

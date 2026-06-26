@@ -43,10 +43,19 @@ function isExtensionApiPath(pathname: string): boolean {
   return pathname.startsWith("/api/extension");
 }
 
+function isProfileApiPath(pathname: string): boolean {
+  return pathname.startsWith("/api/profile");
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (isAuthApiPath(pathname) || isResumeApiPath(pathname) || isExtensionApiPath(pathname)) {
+  if (
+    isAuthApiPath(pathname) ||
+    isResumeApiPath(pathname) ||
+    isExtensionApiPath(pathname) ||
+    isProfileApiPath(pathname)
+  ) {
     return NextResponse.next();
   }
 
@@ -75,22 +84,27 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  const onboardingStep =
-    typeof token?.onboardingStep === "number" ? token.onboardingStep : 0;
-
   const onOnboarding = matchesPath(pathname, ONBOARDING_PATH);
   const onDashboard = matchesPath(pathname, DASHBOARD_PATH);
+
+  // Hub routes use DB-backed gates in layouts (requireDashboardSession / onboarding layout).
+  // JWT onboardingStep alone caused /dashboard <-> /onboarding redirect loops.
+  if (onOnboarding || onDashboard) {
+    const requestHeaders = new Headers(request.headers);
+    if (onOnboarding && request.nextUrl.searchParams.get("ignition") === "1") {
+      requestHeaders.set("x-easysubmit-onboarding-ignition", "1");
+    }
+
+    return NextResponse.next({
+      request: { headers: requestHeaders },
+    });
+  }
+
+  const onboardingStep =
+    typeof token?.onboardingStep === "number" ? token.onboardingStep : 0;
   const onboardingComplete = onboardingStep >= COMPLETED_ONBOARDING_STEP;
 
   if (onboardingComplete) {
-    if (onOnboarding) {
-      const ignitionResume = request.nextUrl.searchParams.get("ignition") === "1";
-      if (!ignitionResume) {
-        return NextResponse.redirect(new URL(DASHBOARD_PATH, request.url));
-      }
-      return NextResponse.next();
-    }
-
     if (pathname === "/login") {
       const callbackUrl = resolveSafeCallbackUrl(
         request.nextUrl.searchParams.get("callbackUrl"),
@@ -104,14 +118,6 @@ export async function middleware(request: NextRequest) {
 
   if (pathname.startsWith("/extension/bridge")) {
     return NextResponse.next();
-  }
-
-  if (onOnboarding) {
-    return NextResponse.next();
-  }
-
-  if (onDashboard) {
-    return NextResponse.redirect(new URL(ONBOARDING_PATH, request.url));
   }
 
   if (pathname === "/login") {

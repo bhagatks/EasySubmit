@@ -63,7 +63,7 @@ export const OPTIONAL_RESUME_SECTIONS = [
 export const CONTACT_LINE_SEPARATOR = " | ";
 
 export const SUMMARY_PLACEHOLDER =
-  "2–3 sentences: target role, years of experience, core skills, differentiator.";
+  "Exactly 4 sentences, 70–80 words: role + years, method, specialization, quantified impact.";
 
 export const SKILLS_PLACEHOLDER = "Skill One, Skill Two, Skill Three…";
 

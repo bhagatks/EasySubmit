@@ -1,5 +1,5 @@
 import { setupBridgeRelay } from "./bridge-relay";
-import { EXTENSION_MESSAGE, STORAGE_KEYS } from "@shared/extension/constants";
+import { EXTENSION_MESSAGE, STORAGE_KEYS, EXTENSION_ENHANCE_TIMEOUT_MS } from "@shared/extension/constants";
 import { detectJobPage } from "@shared/extension/detect-job-page";
 import { buildFallbackJobMetadata } from "@shared/extension/force-metadata";
 import { isJobPage } from "@shared/extension/is-job-page";
@@ -46,7 +46,31 @@ import { BRAND, renderBrandMarkup } from "@shared/brand";
 import { brandExtensionTokens } from "@shared/brand-colors";
 import { extensionButtonStyles } from "@shared/brand-buttons";
 import { SETTINGS_AI_AUTO_HREF } from "@/lib/dashboard/settings-ai-links";
-import { downloadBytes } from "@/lib/job-tracker/export/download-client";
+import { prepareExtensionEmbedPreview } from "@/lib/extension/extension-preview-html";
+import {
+  exposeEasySubmitAnimationGlobals,
+  stopEasySubmitAnimation,
+  triggerEasySubmitAnimation,
+  type EasySubmitAnimationController,
+} from "@shared/extension/easysubmit-brand-canvas-animation";
+import { ENHANCE_PROGRESS_CAPTION } from "@shared/extension/enhance-progress-overlay";
+import {
+  DOCUMENT_PREVIEW_AI_SETTINGS_LABEL,
+  DOCUMENT_PREVIEW_FIX_KEY_LABEL,
+  formatDocumentPreviewErrorMessage,
+  resolveEnhanceFallbackSettingsPath,
+  resolveEnhanceFallbackWarning,
+} from "@shared/extension/document-preview-alert";
+import {
+  isEnhanceTimeoutError,
+  raceWithEnhanceTimeout,
+} from "@/src/lib/ai/engine/enhance-timeout";
+import { createEnhanceTraceId } from "@/src/lib/ai/engine/enhance-logger";
+import {
+  escapeHintAttr,
+  floatingHintStyles,
+  FLOATING_HINT_BUTTON_CLASS,
+} from "@shared/extension/floating-hint-styles";
 import {
   resolveExtensionAiHealthBanner,
   shouldHidePipelineErrorInBody,
@@ -236,6 +260,62 @@ let resumeDetailDraft: ResumeDetailDraft | null = null;
 let resumeDetailDirty = false;
 let resumeDetailSaving = false;
 let documentDownloadBusy: "pdf" | "doc" | null = null;
+let documentEnhanceBusy = false;
+let documentEnhanceByokOffer: "resume" | "cover" | null = null;
+let documentEnhanceFallbackFix: { path: string; label: string } | null = null;
+
+type DocumentEnhanceRun = {
+  id: number;
+  cancelled: boolean;
+  kind: "resume" | "cover";
+};
+
+let documentEnhanceRun: DocumentEnhanceRun | null = null;
+let documentEnhanceRunSeq = 0;
+let enhanceAnimationController: EasySubmitAnimationController | null = null;
+let enhanceAnimationCanvas: HTMLCanvasElement | null = null;
+let enhanceAnimationUntil: Promise<void> | null = null;
+let resolveEnhanceAnimationUntil: (() => void) | null = null;
+
+function resetEnhanceAnimationUntil(): void {
+  enhanceAnimationUntil = null;
+  resolveEnhanceAnimationUntil = null;
+}
+
+function beginEnhanceAnimationUntil(): Promise<void> {
+  resetEnhanceAnimationUntil();
+  enhanceAnimationUntil = new Promise<void>((resolve) => {
+    resolveEnhanceAnimationUntil = resolve;
+  });
+  return enhanceAnimationUntil;
+}
+
+function releaseEnhanceAnimationUntil(): void {
+  resolveEnhanceAnimationUntil?.();
+  resetEnhanceAnimationUntil();
+}
+
+function syncEnhanceBrandAnimation(root: ShadowRoot): void {
+  if (!documentEnhanceBusy) {
+    stopEasySubmitAnimation();
+    enhanceAnimationController = null;
+    enhanceAnimationCanvas = null;
+    return;
+  }
+
+  const canvas = root.querySelector("#brand-canvas") as HTMLCanvasElement | null;
+  if (!canvas) return;
+
+  if (enhanceAnimationController && enhanceAnimationCanvas === canvas) return;
+
+  stopEasySubmitAnimation();
+  enhanceAnimationController = triggerEasySubmitAnimation({
+    root,
+    subtext: ENHANCE_PROGRESS_CAPTION,
+    until: enhanceAnimationUntil ?? undefined,
+  });
+  enhanceAnimationCanvas = canvas;
+}
 let previewHtmlCache: Partial<Record<"resume" | "cover", string>> = {};
 let previewLoadState: "idle" | "loading" | "error" = "idle";
 let previewError: string | null = null;
@@ -390,6 +470,7 @@ function resetCoverDetailEditState(): void {
   coverDetailDirty = false;
   coverDetailSaving = false;
   documentDownloadBusy = null;
+  documentEnhanceBusy = false;
 }
 
 function resetResumeDetailEditState(): void {
@@ -400,6 +481,7 @@ function resetResumeDetailEditState(): void {
   resumeDetailDirty = false;
   resumeDetailSaving = false;
   documentDownloadBusy = null;
+  documentEnhanceBusy = false;
 }
 
 function resetJobDetailEditState(): void {
@@ -718,7 +800,9 @@ async function downloadDocumentPreview(
     });
 
     if (!res?.success || !res.bytes?.length) {
-      saveError = res?.error ?? "Could not download this document.";
+      saveError = formatDocumentPreviewErrorMessage(
+        res?.error ?? "Could not download this document.",
+      );
       return;
     }
 
@@ -732,11 +816,201 @@ async function downloadDocumentPreview(
       teardownStaleExtensionContext();
       return;
     }
-    saveError = error instanceof Error ? error.message : "Could not download this document.";
+    saveError = formatDocumentPreviewErrorMessage(
+      error instanceof Error ? error.message : "Could not download this document.",
+    );
   } finally {
     documentDownloadBusy = null;
     if (cardHost) renderCard(cardHost.shadow);
   }
+}
+
+function isDocumentEnhanceRunCancelled(run: DocumentEnhanceRun): boolean {
+  return run.cancelled || documentEnhanceRun?.id !== run.id;
+}
+
+function cancelDocumentEnhance(): void {
+  if (!documentEnhanceRun || !documentEnhanceBusy) return;
+
+  const run = documentEnhanceRun;
+  run.cancelled = true;
+  documentEnhanceBusy = false;
+  documentEnhanceByokOffer = null;
+  documentEnhanceFallbackFix = null;
+  releaseEnhanceAnimationUntil();
+  stopEasySubmitAnimation();
+  enhanceAnimationController = null;
+  enhanceAnimationCanvas = null;
+
+  if (previewLoadState === "loading" && !previewHtmlCache[run.kind]) {
+    previewLoadState = "idle";
+    previewError = null;
+    void refreshDocumentPreview(run.kind, { silent: true }).catch(() => {
+      if (isDocumentEnhanceRunCancelled(run)) return;
+      previewLoadState = "error";
+      previewError = "Could not load preview.";
+      if (cardHost) renderCard(cardHost.shadow);
+    });
+  }
+
+  if (cardHost) renderCard(cardHost.shadow);
+}
+
+async function enhanceDocumentPreview(
+  kind: "resume" | "cover",
+  options: { useCustomerKey?: boolean } = {},
+): Promise<void> {
+  if (!savedStatus.id || documentEnhanceBusy || documentDownloadBusy) return;
+
+  const run: DocumentEnhanceRun = {
+    id: ++documentEnhanceRunSeq,
+    cancelled: false,
+    kind,
+  };
+  documentEnhanceRun = run;
+  const animationUntil = beginEnhanceAnimationUntil();
+  documentEnhanceBusy = true;
+  documentEnhanceByokOffer = null;
+  documentEnhanceFallbackFix = null;
+  saveError = null;
+  if (cardHost) {
+    renderCard(cardHost.shadow);
+    syncEnhanceBrandAnimation(cardHost.shadow);
+  }
+  void animationUntil;
+
+  try {
+    const traceId = createEnhanceTraceId();
+    const res = await raceWithEnhanceTimeout(
+      sendMessage<{
+        success: boolean;
+        error?: string;
+        code?: string;
+        byokAvailable?: boolean;
+        enhanceSummary?: string;
+        fallbackSummary?: string;
+        fallbackUsed?: boolean;
+        aiMode?: "customer" | "system";
+      }>({
+        action: EXTENSION_MESSAGE.ENHANCE_DOCUMENT,
+        entryId: savedStatus.id,
+        kind,
+        useCustomerKey: options.useCustomerKey === true,
+      }),
+      EXTENSION_ENHANCE_TIMEOUT_MS,
+      traceId,
+    );
+
+    if (isDocumentEnhanceRunCancelled(run)) return;
+
+    if (!res?.success) {
+      if (res?.code === "system_pool_exhausted" && res.byokAvailable) {
+        documentEnhanceByokOffer = kind;
+      }
+      documentEnhanceFallbackFix = null;
+      saveError = formatDocumentPreviewErrorMessage(
+        res?.error ?? "Could not enhance this document.",
+      );
+      return;
+    }
+
+    documentEnhanceByokOffer = null;
+
+    if (res.fallbackUsed) {
+      saveError = resolveEnhanceFallbackWarning(res.aiMode);
+      documentEnhanceFallbackFix = {
+        path: resolveEnhanceFallbackSettingsPath(res.aiMode),
+        label:
+          res.aiMode === "customer"
+            ? DOCUMENT_PREVIEW_FIX_KEY_LABEL
+            : DOCUMENT_PREVIEW_AI_SETTINGS_LABEL,
+      };
+    } else {
+      documentEnhanceFallbackFix = null;
+    }
+
+    delete previewHtmlCache[kind];
+    previewLoadState = "loading";
+    previewError = null;
+    if (cardHost) renderCard(cardHost.shadow);
+
+    const previewRes = await sendMessage<{ success: boolean; previewHtml?: string; error?: string }>({
+      action: EXTENSION_MESSAGE.GET_DOCUMENT_PREVIEW,
+      entryId: savedStatus.id,
+      kind,
+    });
+
+    if (isDocumentEnhanceRunCancelled(run)) return;
+
+    if (previewRes?.success && previewRes.previewHtml) {
+      previewHtmlCache[kind] = previewRes.previewHtml;
+      previewLoadState = "idle";
+      previewError = null;
+    } else {
+      previewLoadState = "error";
+      previewError = previewRes?.error ?? "Could not refresh preview.";
+    }
+  } catch (error) {
+    if (isDocumentEnhanceRunCancelled(run)) return;
+    if (isExtensionContextInvalidatedError(error)) {
+      teardownStaleExtensionContext();
+      return;
+    }
+    if (isEnhanceTimeoutError(error)) {
+      saveError =
+        "Enhance timed out. Check your API key in AI Settings, or try again in a minute.";
+      return;
+    }
+    saveError = formatDocumentPreviewErrorMessage(
+      error instanceof Error ? error.message : "Could not enhance this document.",
+    );
+  } finally {
+    if (documentEnhanceRun?.id === run.id) {
+      documentEnhanceRun = null;
+    }
+    if (run.cancelled) {
+      return;
+    }
+
+    releaseEnhanceAnimationUntil();
+    stopEasySubmitAnimation();
+    enhanceAnimationController = null;
+    enhanceAnimationCanvas = null;
+    documentEnhanceBusy = false;
+    if (cardHost) renderCard(cardHost.shadow);
+  }
+}
+
+function bindDocumentEnhanceHandlers(root: ShadowRoot): void {
+  root.querySelectorAll("[data-document-enhance-cancel]").forEach((node) => {
+    node.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      cancelDocumentEnhance();
+    });
+  });
+
+  root.querySelectorAll("[data-document-enhance]").forEach((node) => {
+    node.addEventListener("click", () => {
+      const button = node as HTMLButtonElement;
+      if (button.disabled) return;
+
+      const kind = button.getAttribute("data-document-kind");
+      if (kind !== "resume" && kind !== "cover") return;
+
+      void enhanceDocumentPreview(kind);
+    });
+  });
+
+  root.querySelectorAll("[data-enhance-use-my-key]").forEach((node) => {
+    node.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const kind = (event.currentTarget as HTMLElement).getAttribute("data-document-kind");
+      if (kind !== "resume" && kind !== "cover") return;
+      void enhanceDocumentPreview(kind, { useCustomerKey: true });
+    });
+  });
 }
 
 function bindDocumentDownloadHandlers(root: ShadowRoot): void {
@@ -761,6 +1035,14 @@ function resetCardViewState(): void {
   previewHtmlCache = {};
   previewLoadState = "idle";
   previewError = null;
+  saveError = null;
+  documentEnhanceByokOffer = null;
+  documentEnhanceFallbackFix = null;
+  documentEnhanceBusy = false;
+  documentEnhanceRun = null;
+  releaseEnhanceAnimationUntil();
+  stopEasySubmitAnimation();
+  enhanceAnimationController = null;
   cardPanelWidth = JOB_CARD_WIDTH;
   cardPanelBodyMaxHeight = null;
   resetJobDetailEditState();
@@ -818,7 +1100,10 @@ function cardStyles(): string {
     }
     .grip {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 8px 10px 8px 12px; background: #F9FAFB; border-bottom: 1px solid #E5E7EB;
+      padding: 8px 10px 8px 12px;
+      background: rgba(99, 102, 241, 0.05);
+      border-bottom: 1px solid rgba(99, 102, 241, 0.12);
+      border-radius: 12px 12px 0 0;
       cursor: grab; user-select: none; touch-action: none;
       overflow: visible;
       position: relative;
@@ -844,6 +1129,7 @@ function cardStyles(): string {
       position: relative;
       flex-shrink: 0;
     }
+    ${floatingHintStyles()}
     .dots { letter-spacing: 1px; color: #9CA3AF; font-size: 14px; line-height: 1; }
     .badge { font-size: 10px; padding: 2px 8px; border-radius: 999px; background: #F3F4F6; color: #6B7280; white-space: nowrap; flex-shrink: 0; }
     .badge.saved { background: ${t.a12}; color: ${t.primaryMuted}; }
@@ -855,6 +1141,48 @@ function cardStyles(): string {
     }
     .header-btn:hover { background: #F3F4F6; color: #374151; }
     .header-btn svg { width: 14px; height: 14px; display: block; pointer-events: none; }
+    .header-btn:hover:not(:disabled):not(.is-spinning) svg.hdr-icon-resume .hdr-line-1,
+    .header-btn:hover:not(:disabled):not(.is-spinning) svg.hdr-icon-resume .hdr-line-2 {
+      animation: es-hdr-resume-scan 0.75s ease;
+    }
+    .header-btn:hover:not(:disabled):not(.is-spinning) svg.hdr-icon-refresh {
+      animation: es-hdr-refresh-nudge 0.55s ease;
+      transform-origin: center;
+    }
+    .header-btn:hover:not(:disabled):not(.is-spinning) svg.hdr-icon-settings {
+      animation: es-hdr-gear-turn 0.65s ease;
+    }
+    .header-btn[data-minimize="1"]:hover {
+      animation: es-hdr-close-pop 0.4s ease;
+    }
+    @keyframes es-hdr-resume-scan {
+      0% { opacity: 0.35; stroke-dasharray: 2 10; stroke-dashoffset: 6; }
+      50% { opacity: 1; stroke-dasharray: 10 2; stroke-dashoffset: 0; }
+      100% { opacity: 0.55; stroke-dasharray: 2 10; stroke-dashoffset: -6; }
+    }
+    @keyframes es-hdr-refresh-nudge {
+      0%, 100% { transform: rotate(0deg); }
+      40% { transform: rotate(-28deg); }
+      70% { transform: rotate(8deg); }
+    }
+    @keyframes es-hdr-gear-turn {
+      0%, 100% { transform: rotate(0deg); }
+      100% { transform: rotate(90deg); }
+    }
+    @keyframes es-hdr-close-pop {
+      0%, 100% { transform: scale(1); }
+      45% { transform: scale(1.12); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .header-btn:hover:not(:disabled):not(.is-spinning) svg.hdr-icon-resume .hdr-line-1,
+      .header-btn:hover:not(:disabled):not(.is-spinning) svg.hdr-icon-resume .hdr-line-2,
+      .header-btn:hover:not(:disabled):not(.is-spinning) svg.hdr-icon-refresh .hdr-refresh-a,
+      .header-btn:hover:not(:disabled):not(.is-spinning) svg.hdr-icon-refresh,
+      .header-btn:hover:not(:disabled):not(.is-spinning) svg.hdr-icon-settings,
+      .header-btn[data-minimize="1"]:hover {
+        animation: none;
+      }
+    }
     .header-btn.is-active { color: ${t.primaryMuted}; background: ${t.a12}; }
     .header-btn.is-spinning { color: ${t.primaryMuted}; pointer-events: none; }
     .header-btn.is-spinning svg { animation: es-refresh-spin 0.8s linear infinite; }
@@ -1421,6 +1749,14 @@ function renderExpandedCard(root: ShadowRoot): void {
       dirty: resumeDetailDirty,
       saving: resumeDetailSaving,
       downloadBusy: documentDownloadBusy,
+      enhanceEnabled:
+        !resumeDetailEditing &&
+        previewLoadState === "idle" &&
+        Boolean(previewHtmlCache.resume),
+      enhanceBusy: documentEnhanceBusy,
+      enhanceByokOffer: documentEnhanceByokOffer === "resume",
+      enhanceFallbackFixPath: documentEnhanceFallbackFix?.path ?? null,
+      enhanceFallbackFixLabel: documentEnhanceFallbackFix?.label,
       draft,
       saveError: cardSaveError,
       escapeHtml,
@@ -1441,6 +1777,14 @@ function renderExpandedCard(root: ShadowRoot): void {
       dirty: coverDetailDirty,
       saving: coverDetailSaving,
       downloadBusy: documentDownloadBusy,
+      enhanceEnabled:
+        !coverDetailEditing &&
+        previewLoadState === "idle" &&
+        Boolean(previewHtmlCache.cover),
+      enhanceBusy: documentEnhanceBusy,
+      enhanceByokOffer: documentEnhanceByokOffer === "cover",
+      enhanceFallbackFixPath: documentEnhanceFallbackFix?.path ?? null,
+      enhanceFallbackFixLabel: documentEnhanceFallbackFix?.label,
       draft,
       saveError: cardSaveError,
       escapeHtml,
@@ -1497,7 +1841,7 @@ function renderExpandedCard(root: ShadowRoot): void {
                 ${renderProfilePickerMarkup()}
                 ${renderRefreshButtonMarkup()}
                 ${renderSettingsMenuMarkup()}
-                <button type="button" class="header-btn" data-minimize="1" aria-label="Minimize">×</button>
+                <button type="button" class="header-btn ${FLOATING_HINT_BUTTON_CLASS}" data-minimize="1" data-hint="Minimize" title="Minimize" aria-label="Minimize">×</button>
               </div>
             </div>
             ${renderAiHealthBannerMarkup(aiHealthBanner)}
@@ -1528,6 +1872,7 @@ function renderExpandedCard(root: ShadowRoot): void {
   bindCardViewHandlers(root);
   bindPanelResizeGrip(root);
   applyPreviewFrameSrcdoc(root);
+  syncEnhanceBrandAnimation(root);
 
   root.querySelector("[data-profile-continue]")?.addEventListener("click", () => {
     void onProfileSetupContinue(root);
@@ -1599,6 +1944,7 @@ function bindCardViewHandlers(root: ShadowRoot): void {
   bindCoverDetailHandlers(root);
   bindResumeDetailHandlers(root);
   bindDocumentDownloadHandlers(root);
+  bindDocumentEnhanceHandlers(root);
 }
 
 function bindJobDetailHandlers(root: ShadowRoot): void {
@@ -1930,6 +2276,19 @@ function bindPanelResizeGrip(_root: ShadowRoot): void {
   // Delegated on shadow root — see setupPanelResizeDelegation().
 }
 
+function syncPreviewFrameHeight(frame: HTMLIFrameElement): void {
+  const doc = frame.contentDocument;
+  if (!doc) return;
+  const height = Math.max(
+    doc.documentElement?.scrollHeight ?? 0,
+    doc.documentElement?.offsetHeight ?? 0,
+    doc.body?.scrollHeight ?? 0,
+    doc.body?.offsetHeight ?? 0,
+    240,
+  );
+  frame.style.height = `${height}px`;
+}
+
 function applyPreviewFrameSrcdoc(root: ShadowRoot): void {
   const frame = root.querySelector("[data-preview-frame]") as HTMLIFrameElement | null;
   if (!frame) return;
@@ -1939,7 +2298,13 @@ function applyPreviewFrameSrcdoc(root: ShadowRoot): void {
       : cardView === "cover-preview"
         ? previewHtmlCache.cover
         : undefined;
-  if (html) frame.srcdoc = html;
+  if (!html) return;
+
+  const prepared = prepareExtensionEmbedPreview(html);
+  const onLoad = () => syncPreviewFrameHeight(frame);
+  frame.addEventListener("load", onLoad, { once: true });
+  frame.srcdoc = prepared;
+  requestAnimationFrame(onLoad);
 }
 
 async function refreshDocumentPreview(
@@ -2055,16 +2420,24 @@ function escapeHtml(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
-const SETTINGS_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>`;
+const SETTINGS_ICON_SVG = `<svg class="hdr-icon-settings" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>`;
 
 const DASHBOARD_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>`;
 
-const RESUME_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/></svg>`;
+const RESUME_ICON_SVG = `<svg class="hdr-icon-resume" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line class="hdr-line-1" x1="16" x2="8" y1="13" y2="13"/><line class="hdr-line-2" x1="16" x2="8" y1="17" y2="17"/></svg>`;
 
-const REFRESH_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>`;
+const REFRESH_ICON_SVG = `<svg class="hdr-icon-refresh" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="hdr-refresh-a" d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>`;
+
+const HEADER_HINTS = {
+  profile: "Resume profile",
+  refresh: "Reload extension",
+  settings: "Settings",
+  minimize: "Minimize",
+} as const;
 
 function renderRefreshButtonMarkup(): string {
-  return `<button type="button" class="header-btn${headerRefreshBusy ? " is-spinning" : ""}" data-refresh-card="1" aria-label="Refresh card" title="Refresh status"${headerRefreshBusy ? " disabled" : ""}>
+  const hint = escapeHintAttr(HEADER_HINTS.refresh);
+  return `<button type="button" class="header-btn ${FLOATING_HINT_BUTTON_CLASS}${headerRefreshBusy ? " is-spinning" : ""}" data-refresh-card="1" data-hint="${hint}" title="${hint}" aria-label="${HEADER_HINTS.refresh}"${headerRefreshBusy ? " disabled" : ""}>
     ${REFRESH_ICON_SVG}
   </button>`;
 }
@@ -2168,9 +2541,10 @@ function renderSettingsMenuMarkup(): string {
       </div>`
     : "";
 
+  const settingsHint = escapeHintAttr(HEADER_HINTS.settings);
   return `
     <div class="settings-menu-wrap">
-      <button type="button" class="header-btn${settingsMenuOpen ? " is-active" : ""}" data-settings="1" aria-label="Dashboard settings${email ? `: ${email}` : ""}" title="${email ? escapeHtml(email) : "Dashboard settings"}">
+      <button type="button" class="header-btn ${FLOATING_HINT_BUTTON_CLASS}${settingsMenuOpen ? " is-active" : ""}" data-settings="1" data-hint="${settingsHint}" title="${settingsHint}" aria-label="Dashboard settings${email ? `: ${email}` : ""}">
         ${SETTINGS_ICON_SVG}
       </button>
       ${menu}
@@ -2234,9 +2608,10 @@ function renderProfilePickerMarkup(): string {
       </div>`
     : "";
 
+  const profileHint = escapeHintAttr(HEADER_HINTS.profile);
   return `
     <div class="profile-picker-wrap">
-      <button type="button" class="header-btn${selectedProfileId ? " is-active" : ""}" data-profile-picker="1" aria-label="Resume profile: ${label}" title="${label}">
+      <button type="button" class="header-btn ${FLOATING_HINT_BUTTON_CLASS}${selectedProfileId ? " is-active" : ""}" data-profile-picker="1" data-hint="${profileHint}" title="${profileHint}" aria-label="Resume profile: ${label}">
         ${RESUME_ICON_SVG}
       </button>
       ${menu}
@@ -3654,6 +4029,7 @@ if (window.top === window.self) {
     console.log("EasySubmit: bridge relay ready");
   } else {
     const bootWhenGloballyEnabled = (): void => {
+      exposeEasySubmitAnimationGlobals();
       console.log("[EasySubmit] lifecycle:boot", { readyState: document.readyState, url: location.href });
       void refreshRuntimeConfig()
         .then((config) => {

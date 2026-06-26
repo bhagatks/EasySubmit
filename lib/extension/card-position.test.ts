@@ -6,6 +6,7 @@ import {
   JOB_CARD_PANEL_MIN_HEIGHT,
   JOB_CARD_TOP_OFFSET,
   JOB_CARD_WIDTH,
+  extensionCardMinWidthForDocumentToolbar,
   clampCardPanelHeight,
   clampCardPanelWidth,
   defaultCardPanelBodyMaxHeight,
@@ -13,6 +14,13 @@ import {
   normalizeStoredCardPosition,
   syncCardPositionForHostWidth,
 } from "@/src/shared/extension/card-position";
+
+describe("extension card width", () => {
+  it("derives default width from the document toolbar layout", () => {
+    expect(extensionCardMinWidthForDocumentToolbar()).toBe(320);
+    expect(JOB_CARD_WIDTH).toBe(320);
+  });
+});
 
 describe("getDefaultFixedCardPosition", () => {
   it("anchors the card to the upper-right by default", () => {

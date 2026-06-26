@@ -61,6 +61,7 @@ export function EnhanceWithAiDialog({
       onOpenChange={handleOpenChange}
       busy={isLoading}
       title="Enhance with AI"
+      bodyClassName={showLoadingPanel ? "py-3" : undefined}
       description={
         isLoading
           ? undefined
@@ -90,7 +91,7 @@ export function EnhanceWithAiDialog({
     >
       {showLoadingPanel ? (
         <div
-          className="space-y-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3"
+          className="w-full space-y-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-4"
           role="status"
           aria-live="polite"
           aria-busy="true"
@@ -132,7 +133,7 @@ export function EnhanceWithAiDialog({
             value={jobDescription}
             onChange={(event) => setJobDescription(event.target.value)}
             placeholder="Paste the job posting here to tailor your resume to a specific role…"
-            rows={6}
+            rows={4}
             className={cn(
               "w-full resize-y rounded-xl border border-border bg-background px-3 py-2.5 text-sm",
               "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
@@ -168,13 +169,13 @@ export function EnhanceWithAiButton({
       disabled={disabled || isLoading}
       onClick={onClick}
       className={cn(
-        "rounded-xl gap-2",
+        "gap-2 rounded-xl font-semibold",
         isOnboarding
-          ? "border border-white/15 bg-white/10 text-[oklch(0.97_0.01_250)] hover:bg-white/15"
+          ? "border-0 bg-primary text-primary-foreground shadow-[0_0_28px_-10px_oklch(0.62_0.21_265_/_0.7)] hover:bg-primary/90 hover:brightness-110"
           : "bg-primary text-primary-foreground hover:bg-primary/90",
         className,
       )}
-      variant={isOnboarding ? "ghost" : "default"}
+      variant="default"
     >
       <Sparkles className="h-4 w-4 shrink-0" aria-hidden="true" />
       {isLoading ? "Enhancing…" : "Enhance with AI"}

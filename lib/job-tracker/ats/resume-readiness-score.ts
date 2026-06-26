@@ -15,6 +15,8 @@ import { simulateAtsParse } from "@/lib/job-tracker/ats/ats-parse-simulator";
 import { analyzeKeywordGap, analyzeKeywordGapFromIntelligence } from "@/lib/job-tracker/ats/keyword-gap";
 import { analyzeBulletQuality } from "@/lib/job-tracker/ats/bullet-quality";
 import type { JDIntelligence } from "@/lib/job-tracker/jd/jd-intelligence";
+import { validateSummary } from "@/lib/resume/summary-rules";
+import { findBannedSkills, validateSkillsManual } from "@/lib/resume/skills-rules";
 
 export type ReadinessPillar = {
   label: string;
@@ -48,8 +50,68 @@ function scoreCompleteness(data: PrimeResumeData, targetTitle: string): Readines
   check(Boolean(data.fullName?.trim()), 5, "Add your full name.");
   check(Boolean(data.email?.trim()), 4, "Add your email address.");
   check(Boolean(data.phone?.trim()), 3, "Add your phone number.");
-  check(Boolean(targetTitle?.trim() || data.summary?.trim()), 4, "Add a Professional Summary.");
-  check((data.skills?.length ?? 0) >= 4, 4, "Add at least 4 skills — Skills section is heavily weighted.");
+
+  const summaryText = data.summary?.trim() ?? "";
+  let summaryPts = 0;
+  if (summaryText) {
+    summaryPts = 2;
+    const validation = validateSummary(summaryText);
+    if (!validation.sentenceError) {
+      summaryPts += 1;
+    } else {
+      details.push(validation.sentenceError);
+    }
+    if (!validation.wordError) {
+      summaryPts += 1;
+    } else {
+      details.push(validation.wordError);
+    }
+    if (validation.bannedWords.length > 0) {
+      summaryPts = Math.max(0, summaryPts - 1);
+      details.push(
+        `Professional Summary contains overused phrases: ${validation.bannedWords.join(", ")}.`,
+      );
+    }
+  } else {
+    details.push("Add a Professional Summary.");
+  }
+  pts -= 4 - summaryPts;
+
+  const skills = (data.skills ?? []).map((skill) => skill.trim()).filter(Boolean);
+  let skillsPts = 0;
+
+  if (skills.length === 0) {
+    details.push("Add skills — the Skills section is heavily weighted.");
+  } else {
+    if (skills.length >= 6) {
+      skillsPts = 2;
+    } else {
+      details.push("Add at least 6 skills.");
+    }
+
+    if (skills.length >= 10 && skills.length <= 20) {
+      skillsPts += 1;
+    } else if (skills.length >= 6) {
+      details.push("Aim for 10–20 skills for strong ATS coverage.");
+    }
+
+    const bannedSkills = findBannedSkills(skills);
+    if (bannedSkills.length === 0) {
+      skillsPts += 1;
+    } else {
+      details.push(
+        `Skills section contains generic terms: ${bannedSkills.join(", ")}. Replace with specific tools or technologies.`,
+      );
+    }
+
+    if (skills.length > 20) {
+      skillsPts = Math.max(0, skillsPts - 1);
+      details.push("Too many skills — keep it to 20 or fewer.");
+    }
+  }
+
+  pts -= 4 - skillsPts;
+
   check(
     (data.experience?.filter((e) => e.title?.trim())?.length ?? 0) >= 1,
     5,

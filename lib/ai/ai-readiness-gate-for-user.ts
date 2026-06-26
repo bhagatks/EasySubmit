@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getByokKeyGateForUserRow } from "@/lib/ai/byok-key-gate-for-user";
 import { getSystemQuotaGateForUserRow, SYSTEM_QUOTA_USER_SELECT } from "@/lib/ai/system-quota-gate-for-user";
+import { byokKeyGateNotApplicable } from "@/src/lib/ai/engine/byok-key-gate";
 import type { ByokKeyGateResult } from "@/src/lib/ai/engine/byok-key-gate";
 import type { SystemQuotaGateResult } from "@/src/lib/ai/engine/system-quota-gate";
 import { SYSTEM_QUOTA_PIPELINE_ESTIMATED_CALLS } from "@/src/lib/ai/engine/system-quota-gate";
@@ -84,17 +85,17 @@ export async function getAiReadinessForUser(
 
   const { getAppConfig } = await import("@/src/lib/services/config-service");
   const aiEngine = await getAppConfig("aiEngine");
+  const forceSystem = options.forceSystem ?? false;
 
-  const [byokKey, systemQuota] = await Promise.all([
-    getByokKeyGateForUserRow(userId, user, aiEngine, {
-      forceSystem: options.forceSystem,
-    }),
-    getSystemQuotaGateForUserRow(user, aiEngine, {
-      forceSystem: options.forceSystem,
-      isEnhancement: true,
-      estimatedCalls,
-    }),
-  ]);
+  const systemQuota = await getSystemQuotaGateForUserRow(user, aiEngine, {
+    forceSystem,
+    isEnhancement: true,
+    estimatedCalls,
+  });
+
+  const byokKey = forceSystem
+    ? byokKeyGateNotApplicable()
+    : await getByokKeyGateForUserRow(userId, user, aiEngine, { forceSystem });
 
   if (byokKey.applies && !byokKey.valid && byokKey.message && byokKey.code) {
     return blocked(

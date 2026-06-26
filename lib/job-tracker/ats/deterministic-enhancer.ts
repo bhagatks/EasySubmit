@@ -13,6 +13,15 @@
 
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
 import type { JobIntelligence } from "@/lib/job-tracker/ats/job-intelligence";
+import { findBannedWords, validateSummary } from "@/lib/resume/summary-rules";
+import {
+  findBannedSkills,
+  isBannedSkill,
+  isProseSkill,
+  parseSkillsText,
+  SKILLS_HARD_MAX,
+  validateSkillsSystem,
+} from "@/lib/resume/skills-rules";
 
 // ─── Action verb replacement map ─────────────────────────────────────────────
 // Weak phrase → best replacement verb by context.
@@ -120,20 +129,22 @@ function rewriteBullet(
 function mergeSkills(existing: string, toAdd: string[]): string {
   if (toAdd.length === 0) return existing;
 
-  const existingSkills = existing
-    .split(/[,;\n|•·\/]+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-
+  const existingSkills = parseSkillsText(existing);
   const existingLower = new Set(existingSkills.map((s) => s.toLowerCase()));
 
   const newSkills = toAdd
     .map((s) => s.trim())
-    .filter((s) => s && !existingLower.has(s.toLowerCase()));
+    .filter(
+      (s) =>
+        s &&
+        !existingLower.has(s.toLowerCase()) &&
+        !isBannedSkill(s) &&
+        !isProseSkill(s),
+    );
 
   if (newSkills.length === 0) return existing;
 
-  const combined = [...existingSkills, ...newSkills];
+  const combined = [...existingSkills, ...newSkills].slice(0, SKILLS_HARD_MAX);
   return combined.join(", ");
 }
 
@@ -162,6 +173,7 @@ export function deterministicEnhance(
   let bulletsRewritten = 0;
 
   // 1. Inject missing skills (JD keywords + O*NET implicit skills)
+  const preInjectionSkills = parseSkillsText(updatedForm.skillsText ?? "");
   const allSkillsToAdd = [...intelligence.skillsToAdd, ...intelligence.implicitSkillsToAdd];
   if (allSkillsToAdd.length > 0) {
     const newSkillsText = mergeSkills(
@@ -169,12 +181,7 @@ export function deterministicEnhance(
       allSkillsToAdd,
     );
     if (newSkillsText !== (updatedForm.skillsText ?? "")) {
-      const before = new Set(
-        (updatedForm.skillsText ?? "")
-          .split(/[,;\n|•·\/]+/)
-          .map((s) => s.trim().toLowerCase())
-          .filter(Boolean),
-      );
+      const before = new Set(preInjectionSkills.map((s) => s.toLowerCase()));
       skillsAdded.push(
         ...allSkillsToAdd.filter((s) => !before.has(s.toLowerCase())),
       );
@@ -217,6 +224,23 @@ export function deterministicEnhance(
       `Added ${skillsAdded.length} missing keyword${skillsAdded.length > 1 ? "s" : ""} to your Skills section (${skillsAdded.slice(0, 3).join(", ")}${skillsAdded.length > 3 ? "…" : ""})`,
     );
   }
+
+  const finalSkills = parseSkillsText(updatedForm.skillsText ?? "");
+  const preInjectionBanned = findBannedSkills(preInjectionSkills);
+  if (preInjectionBanned.length > 0) {
+    summaryParts.push(
+      `Skills section contains generic terms that reduce ATS score: ${preInjectionBanned.join(", ")}. Replace with specific tools or technologies.`,
+    );
+  }
+
+  const skillsValidation = validateSkillsSystem(finalSkills);
+  if (skillsValidation.countWarning) {
+    summaryParts.push(skillsValidation.countWarning);
+  }
+  if (skillsValidation.compositionWarning) {
+    summaryParts.push(skillsValidation.compositionWarning);
+  }
+
   if (bulletsRewritten > 0) {
     summaryParts.push(
       `Strengthened ${bulletsRewritten} weak bullet${bulletsRewritten > 1 ? "s" : ""} with action verbs`,
@@ -226,6 +250,27 @@ export function deterministicEnhance(
     summaryParts.push(
       `${intelligence.structuralWarnings.length} structural issue${intelligence.structuralWarnings.length > 1 ? "s" : ""} detected — review the ATS tab`,
     );
+  }
+
+  const summaryText = updatedForm.professionalSummary?.trim() ?? "";
+  if (summaryText) {
+    const validation = validateSummary(summaryText);
+    if (validation.sentenceError) {
+      summaryParts.push(
+        `Summary should be exactly 4 sentences (currently ${validation.sentenceCount}).`,
+      );
+    }
+    if (validation.wordError) {
+      summaryParts.push(
+        `Summary should be 70–80 words (currently ${validation.wordCount} words).`,
+      );
+    }
+    const bannedWords = findBannedWords(summaryText);
+    if (bannedWords.length > 0) {
+      summaryParts.push(
+        `Summary contains overused phrases: ${bannedWords.join(", ")}. Replace with specific, quantified language.`,
+      );
+    }
   }
 
   const summary =

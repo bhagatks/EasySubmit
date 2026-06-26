@@ -4,7 +4,8 @@ import {
   jobTrackerReviewScreenUrl,
   jobTrackerReviewStudioUrl,
 } from "@/lib/job-tracker/review-screen-ui";
-import { canStartApply, pipelineProgressForStatus } from "@/lib/job-tracker/pipeline-progress";
+import { canStartApply, pipelineActiveSegmentLabel, pipelineProgressForStatus } from "@/lib/job-tracker/pipeline-progress";
+import { BRAND } from "@/src/shared/brand";
 
 describe("review-screen-ui", () => {
   it("maps status to default panel", () => {
@@ -30,13 +31,19 @@ describe("pipeline-progress", () => {
       currentIndex: 2,
       isComplete: false,
     });
+    expect(pipelineProgressForStatus("RESUME_READY")).toEqual({
+      filledThrough: 2,
+      currentIndex: 3,
+      isComplete: false,
+    });
     expect(pipelineProgressForStatus("READY_TO_APPLY")).toEqual({
-      filledThrough: 3,
-      currentIndex: 4,
+      filledThrough: 2,
+      currentIndex: 3,
       isComplete: false,
     });
     expect(pipelineProgressForStatus("APPLIED").isComplete).toBe(true);
     expect(pipelineProgressForStatus("APPLIED").filledThrough).toBe(4);
+    expect(pipelineProgressForStatus("APPLIED").currentIndex).toBeNull();
   });
 
   it("gates Apply by ready-to-apply status", () => {
@@ -44,5 +51,12 @@ describe("pipeline-progress", () => {
     expect(canStartApply("RESUME_READY")).toBe(false);
     expect(canStartApply("READY_TO_APPLY")).toBe(true);
     expect(canStartApply("APPLIED")).toBe(false);
+  });
+
+  it("labels the active segment for resume-ready and apply-assist states", () => {
+    expect(pipelineActiveSegmentLabel("CAPTURED")).toBe("Optimizing resume");
+    expect(pipelineActiveSegmentLabel("RESUME_READY")).toBe(BRAND.autoSuggestCta);
+    expect(pipelineActiveSegmentLabel("READY_TO_APPLY")).toBe(BRAND.autoSuggestCta);
+    expect(pipelineActiveSegmentLabel("APPLIED")).toBeNull();
   });
 });

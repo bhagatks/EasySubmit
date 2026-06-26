@@ -22,7 +22,7 @@ Postgres (Prisma) + Supabase Vault BYOK + client Zustand stores. Login identity 
 
 ## Auth & route protection
 
-- **`middleware.ts`** — Auth gate: anonymous → `/` + `/login` only; logged-in `onboardingStep < 4` → `/onboarding`; `onboardingStep >= 4` → `/dashboard` allowed (JWT via NextAuth)
+- **`middleware.ts`** — Auth gate: anonymous → `/` + `/login` only; logged-in `onboardingStep < 4` → `/onboarding` (except `/api/auth/*`, `/api/resume/*`, `/api/profile/*`, `/api/extension/*`); hub `/onboarding` + `/dashboard` use DB-backed layout gates
 - **`lib/supabase/`** — `client.ts`, `server.ts`; keys via `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` or `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - **`app/onboarding/layout.tsx`** — server session check + `OnboardingFlowShell`
 - **`lib/auth.ts`** — NextAuth options; post-login redirect → `/onboarding`
@@ -160,6 +160,11 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 
 | Date | Summary |
 |------|---------|
+| 2026-06-26 | Skills quality rules — shared `lib/resume/skills-rules.ts` (count gates, banned slot-wasters, prose detection); enforced in AI post-process, deterministic enhancer, readiness score, and StudioSkillsField |
+| 2026-06-26 | Professional Summary quality rules — shared `lib/resume/summary-rules.ts` (4 sentences, 70–80 words, banned phrases); enforced in AI enhance post-process, deterministic enhancer feedback, readiness score, and RefineryPanel live hints |
+| 2026-06-26 | Extension resume/cover detail toolbar — Studio Edition on second row, sparkles Enhance with AI (edit → enhance → DOC → PDF), preview panel widens to 400px and resets on Back |
+| 2026-06-26 | Onboarding avatar upload fix — `/api/profile/*` exempt from middleware onboarding redirect (POST was redirected to `/onboarding` → 500) |
+| 2026-06-26 | Dashboard/onboarding redirect loop fix — middleware defers hub gates to DB-backed layouts (`dashboard-session-gate`); JWT `onboardingStep` alone no longer bounces `/dashboard` ↔ `/onboarding` |
 | 2026-06-25 | Extension resume/cover detail toolbar — single icon row: back, edit/save/discard, PDF+Word download, Edit in Studio; new extension DOCX export API routes |
 | 2026-06-25 | Extension card layout tokens — `card-layout-tokens.ts` (16px inset, CTA zone divider, shared spacing for summary + detail views) |
 | 2026-06-25 | Extension card detail UX — summary labels Job Info / Resume / Cover Letter; detail headers **Edit in Studio** → Review Screen tab; job/cover/resume inline Edit+Save; cover full textarea + resume lite fields fetched lazily on Edit; preview iframe fills resized panel |

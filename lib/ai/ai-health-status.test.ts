@@ -108,4 +108,61 @@ describe("getAiHealthStatusForUser", () => {
     expect(status).toMatchObject({ ok: false, code: "key_invalid" });
     expect(status.ok === false && status.message).toContain("Your last job");
   });
+
+  it("maps recent pool_exhausted logs to shared quota message on system route", async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      vaultKeyId: null,
+      aiSourcePreference: "system",
+      activeProvider: null,
+    } as never);
+    vi.mocked(getAiReadinessForUser).mockResolvedValue({
+      ...healthyReadiness,
+      systemQuota: {
+        applies: true,
+        exceeded: false,
+        reason: null,
+        message: null,
+        code: null,
+        snapshot: null,
+      },
+    });
+
+    vi.mocked(prisma.apiCallLog.count).mockImplementation(async (args) => {
+      const where = args?.where as { errorCode?: { in?: string[] }; aiMode?: string } | undefined;
+      if (where?.aiMode !== "system") return 0;
+      const codes = where?.errorCode?.in ?? [];
+      if (codes.includes("pool_exhausted")) return 2;
+      return 0;
+    });
+
+    const status = await getAiHealthStatusForUser("user-1");
+    expect(status).toEqual({
+      ok: false,
+      code: "quota_exhausted",
+      message:
+        "EasySubmit's shared AI hit quota limits. Add your own API key for unlimited use.",
+    });
+  });
+
+  it("ignores stale system pool errors when user routes to My key (BYOK)", async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      vaultKeyId: "vault-1",
+      aiSourcePreference: "customer",
+      activeProvider: "gemini",
+    } as never);
+    vi.mocked(getAiReadinessForUser).mockResolvedValue({
+      ...healthyReadiness,
+      byokKey: { ...healthyReadiness.byokKey, applies: true, valid: true },
+    });
+
+    vi.mocked(prisma.apiCallLog.count).mockImplementation(async (args) => {
+      const where = args?.where as { aiMode?: string; status?: string } | undefined;
+      if (where?.aiMode === "customer") return 0;
+      if (where?.aiMode === "system" && where?.status === "error") return 5;
+      return 0;
+    });
+
+    const status = await getAiHealthStatusForUser("user-1");
+    expect(status).toEqual({ ok: true });
+  });
 });

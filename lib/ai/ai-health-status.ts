@@ -3,6 +3,8 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getAiReadinessForUser } from "@/lib/ai/ai-readiness-gate-for-user";
 import { logAiHealth, redactUserId } from "@/lib/ai/ai-health-debug";
+import type { AiRouteMode, AiSourcePreference } from "@/src/lib/ai/engine/constants";
+import { resolveEffectiveAiSource } from "@/src/lib/ai/engine/router";
 
 export type AiHealthErrorCode =
   | "quota_exhausted"
@@ -36,7 +38,7 @@ export type AiHealthCheckResult = {
   debug: AiHealthDebugSnapshot;
 };
 
-const QUOTA_ERROR_CODES = ["insufficient_quota", "capacity_exhausted"] as const;
+const QUOTA_ERROR_CODES = ["insufficient_quota", "capacity_exhausted", "pool_exhausted"] as const;
 
 const KEY_ERROR_CODES = [
   "vault_decrypt_failed",
@@ -63,6 +65,10 @@ function finishCheck(
     message: status.ok ? null : status.message,
   });
   return { status, debug };
+}
+
+function apiLogScopeForRoute(routeMode: AiRouteMode): { aiMode: AiRouteMode } {
+  return { aiMode: routeMode };
 }
 
 async function _checkForUser(userId: string): Promise<AiHealthCheckResult> {
@@ -103,6 +109,10 @@ async function _checkForUser(userId: string): Promise<AiHealthCheckResult> {
   debug.hasVaultKey = Boolean(user.vaultKeyId);
   debug.aiSourcePreference = user.aiSourcePreference;
 
+  const preference = (user.aiSourcePreference ?? "auto") as AiSourcePreference;
+  const routeMode = resolveEffectiveAiSource(preference, Boolean(user.vaultKeyId));
+  debug.routeMode = routeMode;
+
   const readiness = await getAiReadinessForUser(userId);
   debug.byokApplies = readiness.byokKey.applies;
   debug.byokValid = readiness.byokKey.valid;
@@ -110,12 +120,6 @@ async function _checkForUser(userId: string): Promise<AiHealthCheckResult> {
   debug.quotaExceeded = readiness.systemQuota.applies && readiness.systemQuota.exceeded;
   debug.quotaBlockReason = readiness.systemQuota.reason;
   debug.lastJobKeyFailure = readiness.byokKey.lastJobFailure?.title ?? null;
-
-  if (readiness.systemQuota.applies) {
-    debug.routeMode = "system";
-  } else if (readiness.byokKey.applies) {
-    debug.routeMode = "customer";
-  }
 
   logAiHealth("check.readiness", {
     userId: redactUserId(userId),
@@ -133,6 +137,7 @@ async function _checkForUser(userId: string): Promise<AiHealthCheckResult> {
 
   const since60 = new Date(Date.now() - 60 * 60 * 1000);
   const since30 = new Date(Date.now() - 30 * 60 * 1000);
+  const logScope = apiLogScopeForRoute(routeMode);
 
   const recentQuotaErrors = await prisma.apiCallLog.count({
     where: {
@@ -140,11 +145,12 @@ async function _checkForUser(userId: string): Promise<AiHealthCheckResult> {
       status: "error",
       errorCode: { in: [...QUOTA_ERROR_CODES] },
       createdAt: { gte: since60 },
+      ...logScope,
     },
   });
   debug.recentQuotaErrors60m = recentQuotaErrors;
 
-  if (recentQuotaErrors >= 1 && debug.routeMode === "system") {
+  if (recentQuotaErrors >= 1 && routeMode === "system") {
     debug.reason = "recent_quota_api_errors";
     return finishCheck(userId, debug, {
       ok: false,
@@ -161,13 +167,14 @@ async function _checkForUser(userId: string): Promise<AiHealthCheckResult> {
         status: "error",
         errorCode: { in: KEY_ERROR_CODES },
         createdAt: { gte: since30 },
+        ...logScope,
       },
     }),
     prisma.apiCallLog.count({
-      where: { userId, status: "error", createdAt: { gte: since30 } },
+      where: { userId, status: "error", createdAt: { gte: since30 }, ...logScope },
     }),
     prisma.apiCallLog.count({
-      where: { userId, status: "success", createdAt: { gte: since30 } },
+      where: { userId, status: "success", createdAt: { gte: since30 }, ...logScope },
     }),
   ]);
 
@@ -175,7 +182,7 @@ async function _checkForUser(userId: string): Promise<AiHealthCheckResult> {
   debug.recentErrors30m = recentErrors;
   debug.recentSuccesses30m = recentSuccesses;
 
-  if (recentKeyErrors >= 1 && recentSuccesses === 0 && debug.routeMode === "customer") {
+  if (recentKeyErrors >= 1 && recentSuccesses === 0 && routeMode === "customer") {
     debug.reason = "key_errors_no_success";
     return finishCheck(userId, debug, {
       ok: false,

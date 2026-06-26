@@ -234,15 +234,6 @@ export function ReviewResumePanel({ entry, onRefresh }: ReviewResumePanelProps) 
       },
     },
     {
-      id: "pdf",
-      label: "PDF",
-      icon: "pdf",
-      variant: "mint",
-      disabled: !canExport,
-      busy: busy === "pdf",
-      onClick: () => void runExport("pdf"),
-    },
-    {
       id: "word",
       label: "Word",
       icon: "word",
@@ -250,6 +241,15 @@ export function ReviewResumePanel({ entry, onRefresh }: ReviewResumePanelProps) 
       disabled: !canExport,
       busy: busy === "word",
       onClick: () => void runExport("word"),
+    },
+    {
+      id: "pdf",
+      label: "PDF",
+      icon: "pdf",
+      variant: "mint",
+      disabled: !canExport,
+      busy: busy === "pdf",
+      onClick: () => void runExport("pdf"),
     },
     {
       id: "latex",

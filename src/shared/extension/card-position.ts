@@ -1,4 +1,28 @@
-export const JOB_CARD_WIDTH = 320;
+/** Document preview toolbar layout — used to derive default extension card width. */
+export const EXTENSION_DOCUMENT_TOOLBAR = {
+  buttonSize: 34,
+  buttonGap: 6,
+  /** Back, edit/save, enhance, Word, PDF, studio (edit mode may show save + discard). */
+  maxButtons: 7,
+  /** glossy-shell (7×2) + card body horizontal padding (16×2). */
+  chromeHorizontal: 46,
+} as const;
+
+export function extensionDocumentToolbarWidth(
+  buttonCount = EXTENSION_DOCUMENT_TOOLBAR.maxButtons,
+): number {
+  const { buttonSize, buttonGap } = EXTENSION_DOCUMENT_TOOLBAR;
+  return buttonCount * buttonSize + Math.max(0, buttonCount - 1) * buttonGap;
+}
+
+/** Minimum glossy-stack width that fits the full document toolbar with card chrome. */
+export function extensionCardMinWidthForDocumentToolbar(
+  buttonCount = EXTENSION_DOCUMENT_TOOLBAR.maxButtons,
+): number {
+  return extensionDocumentToolbarWidth(buttonCount) + EXTENSION_DOCUMENT_TOOLBAR.chromeHorizontal;
+}
+
+export const JOB_CARD_WIDTH = extensionCardMinWidthForDocumentToolbar();
 export const JOB_CARD_PANEL_MAX_WIDTH = 560;
 export const JOB_CARD_PANEL_MIN_HEIGHT = 200;
 export const JOB_CARD_PANEL_DEFAULT_MAX_HEIGHT = 520;
@@ -20,10 +44,7 @@ export type FixedCardPosition = {
   anchorRight?: boolean;
 };
 
-function anchorRightX(
-  viewportWidth: number,
-  hostWidth: number,
-): number {
+function anchorRightX(viewportWidth: number, hostWidth: number): number {
   return Math.max(8, viewportWidth - hostWidth - JOB_CARD_EDGE_MARGIN);
 }
 

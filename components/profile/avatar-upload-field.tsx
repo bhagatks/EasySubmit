@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { Camera, Loader2, Trash2 } from "lucide-react";
 import { useSession } from "next-auth/react";
+import { removeProfileAvatar, uploadProfileAvatar } from "@/app/actions/avatar";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -40,6 +41,10 @@ export function AvatarUploadField({
   async function handleFile(file: File | null) {
     if (!file) return;
 
+    const previousImage = image;
+    const previewUrl = URL.createObjectURL(file);
+    onImageChange(previewUrl);
+
     setBusy(true);
     setError(null);
 
@@ -47,21 +52,18 @@ export function AvatarUploadField({
       const formData = new FormData();
       formData.set("file", file);
 
-      const response = await fetch("/api/profile/avatar", {
-        method: "POST",
-        body: formData,
-      });
-      const data = (await response.json()) as { success?: boolean; image?: string; error?: string };
-
-      if (!response.ok || !data.success || !data.image) {
+      const data = await uploadProfileAvatar(formData);
+      if (!data.success || !data.image) {
         throw new Error(data.error ?? "Could not upload photo.");
       }
 
       onImageChange(data.image);
       await updateSession({ image: data.image });
     } catch (uploadError) {
+      onImageChange(previousImage);
       setError(uploadError instanceof Error ? uploadError.message : "Could not upload photo.");
     } finally {
+      URL.revokeObjectURL(previewUrl);
       setBusy(false);
       if (inputRef.current) {
         inputRef.current.value = "";
@@ -74,10 +76,8 @@ export function AvatarUploadField({
     setError(null);
 
     try {
-      const response = await fetch("/api/profile/avatar", { method: "DELETE" });
-      const data = (await response.json()) as { success?: boolean; error?: string };
-
-      if (!response.ok || !data.success) {
+      const data = await removeProfileAvatar();
+      if (!data.success) {
         throw new Error(data.error ?? "Could not remove photo.");
       }
 

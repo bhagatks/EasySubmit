@@ -11,14 +11,33 @@ import { useCallback, useMemo, useState } from "react";
 import { fuzzySearchMasterSkills } from "@/src/lib/constants/skills";
 import { normalizeSkillList } from "@/lib/onboarding/normalizeSkills";
 import { MIN_STUDIO_SKILLS } from "@/lib/onboarding/studio";
+import {
+  findBannedSkills,
+  isBannedSkill,
+  isProseSkill,
+  SKILLS_HARD_MAX,
+  SKILLS_HARD_MIN_MANUAL,
+  SKILLS_SOFT_MAX,
+  SKILLS_TARGET_MAX,
+  SKILLS_TARGET_MIN,
+} from "@/lib/resume/skills-rules";
 import { useOnboardingStore } from "@/src/stores/onboarding-store";
 import { cn } from "@/lib/utils";
 
 const CANVAS = "oklch(0.16 0.04 268)";
 const PRIMARY = "oklch(0.62 0.21 265)";
 const MINT = "oklch(0.82 0.16 165)";
+const AMBER = "oklch(0.75 0.18 75)";
+const RED = "oklch(0.55 0.22 25)";
 const MUTED = "oklch(0.45 0.02 268)";
 const INK = "oklch(0.98 0.01 268)";
+
+function skillCountColor(count: number): string {
+  if (count < SKILLS_HARD_MIN_MANUAL) return RED;
+  if (count > SKILLS_SOFT_MAX) return AMBER;
+  if (count >= SKILLS_TARGET_MIN && count <= SKILLS_TARGET_MAX) return MINT;
+  return INK;
+}
 
 const FOCUS_RING =
   "focus:border-[oklch(0.62_0.21_265_/_0.55)] focus:outline-none focus:ring-2 focus:ring-[oklch(0.62_0.21_265_/_0.35)]";
@@ -39,10 +58,17 @@ export function StudioSkillsField({
   const toggleSkill = useOnboardingStore((state) => state.toggleSkill);
   const skills = controlledSkills ?? storeSkills;
   const [query, setQuery] = useState("");
+  const [proseError, setProseError] = useState<string | null>(null);
+  const [maxSkillsNotice, setMaxSkillsNotice] = useState<string | null>(null);
 
   const selectedSkills = normalizeSkillList(skills);
   const trimmedQuery = query.trim();
   const requirementMet = selectedSkills.length >= MIN_STUDIO_SKILLS;
+  const bannedSkills = useMemo(() => findBannedSkills(selectedSkills), [selectedSkills]);
+  const bannedSkillSet = useMemo(
+    () => new Set(bannedSkills.map((skill) => skill.toLowerCase())),
+    [bannedSkills],
+  );
 
   const isSelected = useCallback(
     (skill: string) =>
@@ -59,6 +85,18 @@ export function StudioSkillsField({
   function addSkill(skill: string) {
     const next = skill.trim();
     if (!next || isSelected(next)) return;
+
+    setProseError(null);
+    setMaxSkillsNotice(null);
+
+    if (isProseSkill(next)) {
+      setProseError("Skills must be a tool, technology, or method — not a sentence.");
+      return;
+    }
+
+    if (selectedSkills.length >= SKILLS_HARD_MAX) {
+      setMaxSkillsNotice("Maximum 20 skills reached. Remove one before adding another.");
+    }
 
     if (onSkillsChange) {
       const normalized = normalizeSkillList(skills);
@@ -127,7 +165,9 @@ export function StudioSkillsField({
             className="grid grid-cols-1 gap-2 sm:grid-cols-2"
             aria-label="Selected skills"
           >
-            {selectedSkills.map((skill) => (
+            {selectedSkills.map((skill) => {
+              const isBanned = bannedSkillSet.has(skill.toLowerCase()) || isBannedSkill(skill);
+              return (
               <li key={skill} className="min-w-0">
                 <button
                   type="button"
@@ -137,17 +177,28 @@ export function StudioSkillsField({
                     "flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-[11px] font-medium tracking-[0.02em] transition-opacity hover:opacity-90",
                   )}
                   style={{
-                    color: MINT,
+                    color: isBanned ? AMBER : MINT,
                     backgroundColor: CANVAS,
-                    boxShadow: "inset 0 0 0 1px oklch(0.82 0.16 165 / 0.35)",
+                    boxShadow: isBanned
+                      ? "inset 0 0 0 1px oklch(0.75 0.18 75 / 0.45)"
+                      : "inset 0 0 0 1px oklch(0.82 0.16 165 / 0.35)",
                   }}
                   aria-label={`Remove ${skill}`}
+                  title={
+                    isBanned
+                      ? "Generic soft skills don't help ATS scoring. Replace with a specific tool or method."
+                      : undefined
+                  }
                 >
-                  <span className="min-w-0 flex-1 break-words">{skill}</span>
+                  <span className="min-w-0 flex-1 break-words">
+                    {skill}
+                    {isBanned ? " ⚠" : ""}
+                  </span>
                   <X className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 </button>
               </li>
-            ))}
+            );
+            })}
           </ul>
         ) : (
           <p className="text-xs leading-relaxed" style={{ color: MUTED }}>
@@ -155,6 +206,45 @@ export function StudioSkillsField({
           </p>
         )}
       </div>
+
+      {selectedSkills.length > 0 ? (
+        <div
+          className="mt-3 flex flex-wrap items-center gap-2 font-sans text-xs"
+          aria-live="polite"
+        >
+          <span
+            className="rounded-lg px-2.5 py-1 font-medium"
+            style={{
+              color: skillCountColor(selectedSkills.length),
+              backgroundColor: CANVAS,
+            }}
+          >
+            {selectedSkills.length} skills
+          </span>
+          {bannedSkills.map((skill) => (
+            <span
+              key={skill}
+              className="rounded-lg px-2.5 py-1"
+              style={{ color: AMBER, backgroundColor: CANVAS }}
+              title="Generic soft skills don't help ATS scoring. Replace with a specific tool or method."
+            >
+              {skill} ⚠
+            </span>
+          ))}
+        </div>
+      ) : null}
+
+      {proseError ? (
+        <p className="mt-2 font-sans text-xs" style={{ color: RED }}>
+          {proseError}
+        </p>
+      ) : null}
+
+      {maxSkillsNotice ? (
+        <p className="mt-2 font-sans text-xs" style={{ color: AMBER }}>
+          {maxSkillsNotice}
+        </p>
+      ) : null}
 
       <Combobox value={null} onChange={(value: string | null) => value && addSkill(value)}>
         <div className="relative mt-4">

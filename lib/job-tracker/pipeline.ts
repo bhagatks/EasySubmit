@@ -1,5 +1,6 @@
 import type { JobTrackerStatus } from "@/lib/generated/prisma/client";
 import type { JobTrackerSummary } from "@/lib/job-tracker/types";
+import { BRAND } from "@/src/shared/brand";
 
 /** Kanban column definition for Job Tracker board (v1.1 UI). */
 export type JobTrackerKanbanColumn = {
@@ -33,8 +34,8 @@ export const JOB_TRACKER_KANBAN_COLUMNS: JobTrackerKanbanColumn[] = [
   {
     id: "ready-to-apply",
     status: "READY_TO_APPLY",
-    title: "Ready to Apply",
-    description: "Autofill complete — review and submit on the job site",
+    title: BRAND.autoSuggestCta,
+    description: "Resume ready — open apply assist and submit on the job site",
   },
   {
     id: "applied",

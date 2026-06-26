@@ -1,16 +1,26 @@
 import type { CandidateContext } from "@/src/lib/ai/engine/candidate-context";
 import type { JobIntelligence } from "@/lib/job-tracker/ats/job-intelligence";
 import type { ResumeEnhanceDirective } from "@/lib/job-tracker/jd/jd-intelligence";
+import {
+  SKILLS_HARD_MIN_SYSTEM,
+  SKILLS_HARD_MAX,
+  SKILLS_TARGET_MIN,
+} from "@/lib/resume/skills-rules";
+import {
+  SUMMARY_SENTENCE_COUNT,
+  SUMMARY_WORD_MAX,
+  SUMMARY_WORD_MIN,
+} from "@/lib/resume/summary-rules";
 
 const ATS_RULES_EXCERPT = `
 ATS RULES (non-negotiable):
 - Fixed section order: Summary → Skills → Experience → Education → optional Certifications/Projects/Languages.
 - Single-column plain text semantics; standard section titles only.
 - Experience bullets: action verb + task + quantified result where truthful (~70% with a metric).
-- Skills: 6–12 items; only include tools, technologies, methodologies, and platforms the candidate has actually used. Never include plain English words, soft-skill adjectives, company names, HR jargon, or generic nouns (e.g. "planning", "people", "compliance", "area", "attention").
+- Skills: ${SKILLS_TARGET_MIN}–${SKILLS_HARD_MAX} items (target ${SKILLS_HARD_MIN_SYSTEM}–${SKILLS_HARD_MAX}, best-effort truthful — never fabricate); ≥70% hard skills / named methodologies, ≤30% named soft skills; comma-separated tools, technologies, platforms, and methodologies only — no prose sentences (>4 words or action verbs like build/manage/lead). Never inject banned slot-wasters (Communication, Teamwork, Leadership, Problem Solving, Time Management, etc.). Spell out acronyms on first use (e.g. "Search Engine Optimization (SEO)").
 - First use of acronyms: spell out then abbreviate (e.g. "Search Engine Optimization (SEO)").
 - Never include "ATS", match scores, or keyword dumps in resume text.
-- Summary must be clean prose — no redundant phrases like "over X+ years" (use either "over X years" or "X+ years", never both); ensure spaces between words.
+- Summary must be clean prose — exactly ${SUMMARY_SENTENCE_COUNT} sentences, ${SUMMARY_WORD_MIN}–${SUMMARY_WORD_MAX} words; no redundant phrases like "over X+ years" (use either "over X years" or "X+ years", never both); ensure spaces between words.
 - Never invent employers, dates, degrees, or metrics — only amplify what the profile supports.
 `.trim();
 
@@ -18,9 +28,9 @@ function buildPageBudgetBlock(ctx: CandidateContext): string {
   const b = ctx.pageBudget;
   return `
 PAGE BUDGET (${b.pages} page(s)):
-- Summary: up to ${b.summarySentencesMax} sentences.
+- Professional Summary — exactly ${SUMMARY_SENTENCE_COUNT} sentences, ${SUMMARY_WORD_MIN}–${SUMMARY_WORD_MAX} words, plain paragraph, no bullets, no "I"/"my." Structure: [Role + years + domain scope] → [Core method/approach] → [Deep specialization + named technologies] → [Signature outcome or organizational impact]. Include at least one quantified claim. Tone: peer-to-practitioner — declarative, precise. Banned words: leverage, spearhead, passionate, dynamic, robust, innovative, cutting-edge, synergy, utilize, facilitate, foster, delve, comprehensive, results-driven, thought leader, proven track record, detail-oriented, self-starter, extensive experience, diverse range of, seasoned professional, highly motivated, visionary, mission-critical.
 - Experience: up to ${b.maxRolesDetailed} roles, max ${b.maxBulletsPerRole} bullets each.
-- Skills: up to ${b.maxSkills} items.
+- Skills: ${SKILLS_HARD_MIN_SYSTEM}–${SKILLS_HARD_MAX} items (target range).
 `.trim();
 }
 
@@ -64,7 +74,7 @@ export function buildEnhanceUserPrompt(
       bodyJson,
       "",
       "Tasks:",
-      "1. Rewrite professional summary: align title and narrative to the target role. If the JD is for a non-engineering role (e.g. People, Operations, Product, Finance), reframe the candidate's experience in terms of that domain — do not keep an engineering-specific title or framing.",
+      `1. Rewrite professional summary to the standard: exactly ${SUMMARY_SENTENCE_COUNT} sentences, ${SUMMARY_WORD_MIN}–${SUMMARY_WORD_MAX} words; Role → Method → Specialization → Impact; at least one quantified claim; peer-to-practitioner tone; no banned words. Align title and narrative to the target role. If the JD is for a non-engineering role (e.g. People, Operations, Product, Finance), reframe the candidate's experience in terms of that domain — do not keep an engineering-specific title or framing.`,
       "2. Rebuild the skills list from scratch based on what the TARGET ROLE actually needs. Remove skills irrelevant to the role and replace with role-specific competencies, tools, and methodologies the candidate genuinely has (e.g. for a People/HR role: 'Program Management, Workforce Planning, Organizational Design, People Analytics, Change Management, Agile, AI & Digital Transformation'). Do not carry over the original skills list blindly.",
       "3. Rewrite each experience bullet as a single clean sentence starting with ONE past-tense action verb. Never start a bullet with two consecutive verbs (e.g. 'Led lead', 'Built define', 'Executed provided' are all wrong — pick one verb). Emphasize outcomes measurable by the target role.",
       "4. Tighten education, certifications, projects, languages, custom sections.",

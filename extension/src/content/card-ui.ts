@@ -23,9 +23,21 @@ import {
   extensionCardLayoutStyles,
 } from "@shared/extension/card-layout-tokens";
 import {
+  cardNavButtonStyles,
+  renderCardNavRow,
+} from "@shared/extension/card-nav-buttons";
+import {
   documentPreviewToolbarStyles,
   renderDocumentPreviewToolbar,
 } from "@shared/extension/document-preview-toolbar";
+import {
+  documentPreviewStackStyles,
+  renderDocumentPreviewAlert,
+} from "@shared/extension/document-preview-alert";
+import {
+  enhanceProgressOverlayStyles,
+  renderEnhanceProgressOverlay,
+} from "@shared/extension/enhance-progress-overlay";
 
 export { CARD_NAV_LABELS, CARD_STUDIO_LABEL };
 
@@ -383,7 +395,11 @@ export function singleCardLayoutStyles(): string {
   return `
     ${extensionCardLayoutStyles()}
     ${documentPreviewToolbarStyles()}
-    .glossy-shell.is-expanded .white-card { overflow: hidden; }
+    ${documentPreviewStackStyles()}
+    ${cardNavButtonStyles()}
+    ${enhanceProgressOverlayStyles()}
+    .glossy-shell.is-expanded .white-card { overflow: visible; }
+    .body-expanded { overflow: visible; }
     .row-left {
       font-size: 13px;
       color: #6B7280;
@@ -473,7 +489,10 @@ export function singleCardLayoutStyles(): string {
     .expand-scroll-preview {
       display: flex;
       flex-direction: column;
-      overflow: hidden;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-x: hidden;
+      overflow-y: auto;
       overscroll-behavior: contain;
       padding: 0;
     }
@@ -536,9 +555,9 @@ export function singleCardLayoutStyles(): string {
       background: #fff;
     }
     .expand-scroll-preview .preview-frame {
-      flex: 1 1 auto;
+      flex: 0 0 auto;
       min-height: 240px;
-      height: 100%;
+      height: auto;
     }
     .preview-placeholder {
       padding: 20px 14px;
@@ -574,18 +593,14 @@ export type SummaryCardInput = {
 
 export function renderSummaryCardBody(input: SummaryCardInput): string {
   const companyRow = input.showMetaRow
-    ? `<div class="row-split">
-        <span class="row-left">${input.company ? input.escapeHtml(input.company) : "Company unknown"}</span>
-        ${renderSecondaryEditButton('data-open-job-detail="1"', CARD_NAV_LABELS.jobInfo)}
-      </div>`
+    ? `<p class="company-name">${input.company ? input.escapeHtml(input.company) : "Company unknown"}</p>`
     : "";
 
-  const reviewRow = input.showReviewRow
-    ? `<div class="review-row">
-        ${renderSecondaryEditButton('data-open-resume-preview="1"', CARD_NAV_LABELS.resume)}
-        ${renderSecondaryEditButton('data-open-cover-preview="1"', CARD_NAV_LABELS.coverLetter)}
-      </div>`
-    : "";
+  const navRow = renderCardNavRow({
+    showJobInfo: input.showMetaRow,
+    showResume: input.showReviewRow,
+    showCover: input.showReviewRow,
+  });
 
   const statusMarkup =
     input.statusLabel && input.statusLabel !== input.ctaLabel
@@ -615,7 +630,7 @@ export function renderSummaryCardBody(input: SummaryCardInput): string {
     <div class="card-hero">
       <h2 class="title">${input.escapeHtml(input.title)}</h2>
       ${companyRow}
-      ${reviewRow}
+      ${navRow}
       ${statusInHero}
       ${!input.showPrimaryCta && !input.showAppliedActions ? errors : ""}
     </div>`;
@@ -920,20 +935,62 @@ export type CoverPreviewBodyInput = {
   dirty: boolean;
   saving: boolean;
   downloadBusy: "pdf" | "doc" | null;
+  enhanceEnabled: boolean;
+  enhanceBusy: boolean;
+  enhanceByokOffer?: boolean;
+  enhanceFallbackFixPath?: string | null;
+  enhanceFallbackFixLabel?: string;
   draft: CoverDetailDraft;
   saveError: string | null;
   escapeHtml: (value: string) => string;
 };
 
+function renderEnhancePreviewScroll(input: {
+  enhanceBusy: boolean;
+  editing: boolean;
+  state: "loading" | "error" | "ready";
+  previewHtml?: string;
+  frameTitle: string;
+}): { scrollClass: string; scrollContent: string } | null {
+  if (!input.enhanceBusy || input.editing) return null;
+
+  const frame =
+    input.state === "ready" && input.previewHtml
+      ? `<iframe class="preview-frame preview-frame-dimmed" data-preview-frame="1" title="${input.frameTitle}"></iframe>`
+      : "";
+
+  return {
+    scrollClass: "expand-scroll expand-scroll-preview expand-scroll-enhancing",
+    scrollContent: `${frame}${renderEnhanceProgressOverlay()}`,
+  };
+}
+
 export function renderCoverPreviewBody(input: CoverPreviewBodyInput): string {
-  const saveErrorMarkup = input.saveError
-    ? `<p class="save-error" role="alert">${input.escapeHtml(input.saveError)}</p>`
+  const alertMarkup = input.saveError
+    ? renderDocumentPreviewAlert(input.saveError, input.escapeHtml, {
+        showUseMyKey: Boolean(input.enhanceByokOffer),
+        documentKind: input.enhanceByokOffer ? "cover" : undefined,
+        showAiSettingsFix: Boolean(input.enhanceFallbackFixPath),
+        aiSettingsFixPath: input.enhanceFallbackFixPath ?? undefined,
+        aiSettingsFixLabel: input.enhanceFallbackFixLabel,
+      })
     : "";
+
+  const enhancing = renderEnhancePreviewScroll({
+    enhanceBusy: input.enhanceBusy,
+    editing: input.editing,
+    state: input.state,
+    previewHtml: input.previewHtml,
+    frameTitle: "Cover letter preview",
+  });
 
   let scrollClass = "expand-scroll";
   let scrollContent = `<p class="preview-placeholder">Loading preview…</p>`;
 
-  if (input.state === "error") {
+  if (enhancing) {
+    scrollClass = enhancing.scrollClass;
+    scrollContent = enhancing.scrollContent;
+  } else if (input.state === "error") {
     scrollContent = `<p class="preview-error">${input.escapeHtml(input.error ?? "Could not load preview.")}</p>`;
   } else if (input.editing) {
     scrollClass = "expand-scroll expand-scroll-edit";
@@ -944,17 +1001,21 @@ export function renderCoverPreviewBody(input: CoverPreviewBodyInput): string {
   }
 
   return `
-    ${renderDocumentPreviewToolbar({
-      kind: "cover",
-      editing: input.editing,
-      dirty: input.dirty,
-      saving: input.saving,
-      editLoading: input.editLoading,
-      downloadsEnabled: !input.editing && input.state === "ready",
-      downloadBusy: input.downloadBusy,
-    })}
-    ${saveErrorMarkup}
-    <div class="${scrollClass}">${scrollContent}</div>
+    <div class="document-preview-stack">
+      ${renderDocumentPreviewToolbar({
+        kind: "cover",
+        editing: input.editing,
+        dirty: input.dirty,
+        saving: input.saving,
+        editLoading: input.editLoading,
+        downloadsEnabled: !input.editing && input.state === "ready",
+        downloadBusy: input.downloadBusy,
+        enhanceEnabled: !input.editing && input.state === "ready",
+        enhanceBusy: input.enhanceBusy,
+      })}
+      ${alertMarkup}
+      <div class="${scrollClass}">${scrollContent}</div>
+    </div>
   `;
 }
 
@@ -967,20 +1028,42 @@ export type ResumePreviewBodyInput = {
   dirty: boolean;
   saving: boolean;
   downloadBusy: "pdf" | "doc" | null;
+  enhanceEnabled: boolean;
+  enhanceBusy: boolean;
+  enhanceByokOffer?: boolean;
+  enhanceFallbackFixPath?: string | null;
+  enhanceFallbackFixLabel?: string;
   draft: ResumeDetailDraft;
   saveError: string | null;
   escapeHtml: (value: string) => string;
 };
 
 export function renderResumePreviewBody(input: ResumePreviewBodyInput): string {
-  const saveErrorMarkup = input.saveError
-    ? `<p class="save-error" role="alert">${input.escapeHtml(input.saveError)}</p>`
+  const alertMarkup = input.saveError
+    ? renderDocumentPreviewAlert(input.saveError, input.escapeHtml, {
+        showUseMyKey: Boolean(input.enhanceByokOffer),
+        documentKind: input.enhanceByokOffer ? "resume" : undefined,
+        showAiSettingsFix: Boolean(input.enhanceFallbackFixPath),
+        aiSettingsFixPath: input.enhanceFallbackFixPath ?? undefined,
+        aiSettingsFixLabel: input.enhanceFallbackFixLabel,
+      })
     : "";
+
+  const enhancing = renderEnhancePreviewScroll({
+    enhanceBusy: input.enhanceBusy,
+    editing: input.editing,
+    state: input.state,
+    previewHtml: input.previewHtml,
+    frameTitle: "Resume preview",
+  });
 
   let scrollClass = "expand-scroll";
   let scrollContent = `<p class="preview-placeholder">Loading preview…</p>`;
 
-  if (input.state === "error") {
+  if (enhancing) {
+    scrollClass = enhancing.scrollClass;
+    scrollContent = enhancing.scrollContent;
+  } else if (input.state === "error") {
     scrollContent = `<p class="preview-error">${input.escapeHtml(input.error ?? "Could not load preview.")}</p>`;
   } else if (input.editing) {
     scrollClass = "expand-scroll expand-scroll-fields";
@@ -999,16 +1082,20 @@ export function renderResumePreviewBody(input: ResumePreviewBodyInput): string {
   }
 
   return `
-    ${renderDocumentPreviewToolbar({
-      kind: "resume",
-      editing: input.editing,
-      dirty: input.dirty,
-      saving: input.saving,
-      editLoading: input.editLoading,
-      downloadsEnabled: !input.editing && input.state === "ready",
-      downloadBusy: input.downloadBusy,
-    })}
-    ${saveErrorMarkup}
-    <div class="${scrollClass}">${scrollContent}</div>
+    <div class="document-preview-stack">
+      ${renderDocumentPreviewToolbar({
+        kind: "resume",
+        editing: input.editing,
+        dirty: input.dirty,
+        saving: input.saving,
+        editLoading: input.editLoading,
+        downloadsEnabled: !input.editing && input.state === "ready",
+        downloadBusy: input.downloadBusy,
+        enhanceEnabled: !input.editing && input.state === "ready",
+        enhanceBusy: input.enhanceBusy,
+      })}
+      ${alertMarkup}
+      <div class="${scrollClass}">${scrollContent}</div>
+    </div>
   `;
 }

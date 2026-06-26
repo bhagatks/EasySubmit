@@ -186,20 +186,20 @@ export function ReviewCoverPanel({ entry, onRefresh }: ReviewCoverPanelProps) {
         },
       },
       {
-        id: "pdf",
-        label: "PDF",
-        icon: "pdf",
-        disabled: !canExport,
-        busy: busy === "pdf",
-        onClick: () => void runExport("pdf"),
-      },
-      {
         id: "word",
         label: "Word",
         icon: "word",
         disabled: !canExport,
         busy: busy === "word",
         onClick: () => void runExport("word"),
+      },
+      {
+        id: "pdf",
+        label: "PDF",
+        icon: "pdf",
+        disabled: !canExport,
+        busy: busy === "pdf",
+        onClick: () => void runExport("pdf"),
       },
       {
         id: "latex",

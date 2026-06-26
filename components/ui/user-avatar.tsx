@@ -46,14 +46,19 @@ export function UserAvatar({
       aria-hidden={!image}
     >
       {image ? (
-        <Image
-          src={image}
-          alt=""
-          fill
-          className="object-cover"
-          sizes={`${px}px`}
-          unoptimized={image.startsWith("/avatars/")}
-        />
+        image.startsWith("blob:") ? (
+          <img src={image} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <Image
+            key={image}
+            src={image}
+            alt=""
+            fill
+            className="object-cover"
+            sizes={`${px}px`}
+            unoptimized={image.startsWith("/avatars/")}
+          />
+        )
       ) : (
         <div
           className="flex h-full w-full items-center justify-center font-display font-semibold text-white"

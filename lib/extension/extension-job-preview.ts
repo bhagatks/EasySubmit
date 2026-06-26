@@ -1,4 +1,5 @@
 import { buildCoverLetterContext, buildCoverLetterHtml } from "@/lib/job-tracker/cover-letter";
+import { prepareExtensionEmbedPreview } from "@/lib/extension/extension-preview-html";
 import { buildResumePreviewHtml } from "@/lib/job-tracker/export/resume-preview-html";
 import { getExtensionCoverLetterBody } from "@/lib/extension/extension-cover-letter";
 import {
@@ -48,7 +49,9 @@ export async function buildExtensionJobPreviewHtml(
     }
     return {
       success: true,
-      previewHtml: buildResumePreviewHtml(merged.form, merged.targetTitle),
+      previewHtml: prepareExtensionEmbedPreview(
+        buildResumePreviewHtml(merged.form, merged.targetTitle),
+      ),
     };
   }
 
@@ -80,6 +83,8 @@ export async function buildExtensionJobPreviewHtml(
 
   return {
     success: true,
-    previewHtml: buildCoverLetterHtml(ctx),
+    previewHtml: prepareExtensionEmbedPreview(
+      buildCoverLetterHtml(ctx, { includeToolbarSpacer: false }),
+    ),
   };
 }

@@ -14,6 +14,7 @@ const MIN_TIMEOUT_MS = 1_000;
 const MAX_TIMEOUT_MS = 600_000;
 
 function readEnvTimeoutMs(): number | null {
+  if (typeof process === "undefined" || !process.env) return null;
   const raw = process.env.EASYSUBMIT_ENHANCE_WITH_AI_TIMEOUT_MS?.trim();
   if (!raw) return null;
   const parsed = Number.parseInt(raw, 10);

@@ -265,9 +265,9 @@ export function JobTrackerPipeline({
                           href={`/dashboard/job-tracker/${entry.id}/resume`}
                           onClick={stopRowAction}
                           className={rowLinkActionClass()}
-                          title="Open tailored resume in Studio"
+                          title="Open tailored resume in Studio Edition"
                         >
-                          Studio
+                          Studio Edition
                           <ExternalLink className="h-3 w-3" aria-hidden="true" />
                         </Link>
                       ) : null}

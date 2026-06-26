@@ -1,4 +1,5 @@
 import type { JobTrackerStatus } from "@/lib/generated/prisma/client";
+import { BRAND } from "@/src/shared/brand";
 import { JOB_TRACKER_KANBAN_COLUMNS } from "@/lib/job-tracker/pipeline";
 
 export type PipelineStep = {
@@ -13,22 +14,6 @@ export const PIPELINE_STEPS: PipelineStep[] = JOB_TRACKER_KANBAN_COLUMNS.map((co
   status: column.status,
 }));
 
-const PIPELINE_STATUS_ORDER: JobTrackerStatus[] = [
-  "CAPTURED",
-  "RESUME_READY",
-  "READY_TO_APPLY",
-  "APPLIED",
-];
-
-function pipelineIndex(status: JobTrackerStatus): number {
-  if (status === "ARCHIVED") return 3;
-  const idx = PIPELINE_STATUS_ORDER.indexOf(status);
-  if (idx >= 0) return idx;
-  // Legacy outcomes map to applied column.
-  if (status === "INTERVIEW" || status === "OFFER" || status === "REJECTED") return 3;
-  return 0;
-}
-
 export type PipelineProgress = {
   /** 1–4 segments filled through this step */
   filledThrough: number;
@@ -39,10 +24,7 @@ export type PipelineProgress = {
 
 /** Map tracker status to pizza-bar segment fill state. */
 export function pipelineProgressForStatus(status: JobTrackerStatus): PipelineProgress {
-  const idx = pipelineIndex(status);
-  const isComplete = idx >= PIPELINE_STATUS_ORDER.length - 1;
-
-  if (isComplete) {
+  if (isAppliedStatus(status) || status === "ARCHIVED") {
     return {
       filledThrough: PIPELINE_STEPS.length,
       currentIndex: null,
@@ -50,11 +32,15 @@ export function pipelineProgressForStatus(status: JobTrackerStatus): PipelinePro
     };
   }
 
-  return {
-    filledThrough: idx + 1,
-    currentIndex: idx + 2,
-    isComplete: false,
-  };
+  switch (status) {
+    case "CAPTURED":
+      return { filledThrough: 1, currentIndex: 2, isComplete: false };
+    case "RESUME_READY":
+    case "READY_TO_APPLY":
+      return { filledThrough: 2, currentIndex: 3, isComplete: false };
+    default:
+      return { filledThrough: 0, currentIndex: 1, isComplete: false };
+  }
 }
 
 export function canStartApply(status: JobTrackerStatus): boolean {
@@ -76,7 +62,8 @@ export function pipelineActiveSegmentLabel(status: JobTrackerStatus): string | n
     case "CAPTURED":
       return "Optimizing resume";
     case "RESUME_READY":
-      return "Resume ready";
+    case "READY_TO_APPLY":
+      return BRAND.autoSuggestCta;
     default:
       return null;
   }

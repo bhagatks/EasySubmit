@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { fetchEnhanceWithAiConfig } from "@/app/actions/config";
 import {
@@ -92,6 +92,8 @@ export function useResumeEnhanceFlow({
   const [timeoutMs, setTimeoutMs] = useState(DEFAULT_ENHANCE_WITH_AI_TIMEOUT_MS);
   const [activeTraceId, setActiveTraceId] = useState<string | null>(null);
   const [activeJobDescription, setActiveJobDescription] = useState("");
+  const [isSwitchingToSystem, setIsSwitchingToSystem] = useState(false);
+  const pendingJobDescriptionRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!enabled) return;
@@ -179,6 +181,7 @@ export function useResumeEnhanceFlow({
 
       setActiveTraceId(traceId);
       setActiveJobDescription(jobDescription);
+      pendingJobDescriptionRef.current = jobDescription;
       setIsLoading(true);
       setError(null);
       setErrorCode(undefined);
@@ -333,6 +336,7 @@ export function useResumeEnhanceFlow({
         step: ENHANCE_PIPELINE.CLIENT_APPLY,
         reason: "success",
       });
+      pendingJobDescriptionRef.current = null;
       setDialogOpen(false);
     },
     [
@@ -402,22 +406,100 @@ export function useResumeEnhanceFlow({
   }, [forceSystem, isLoading, isPreflightChecking, profileId, targetRole, timeoutMs, variant]);
 
   const handleSwitchToSystem = useCallback(async () => {
-    logEnhance("client", "error.switch_to_system", {});
-    await updateAiSourcePreference("system");
-    logEnhance("client", "error.switch_to_system.done", {});
+    if (isSwitchingToSystem || isLoading) return;
+
+    const pendingJob = pendingJobDescriptionRef.current;
+    logEnhance("client", "error.switch_to_system", { hasPendingJob: Boolean(pendingJob) });
+    setIsSwitchingToSystem(true);
+
+    try {
+      const preferenceResult = await updateAiSourcePreference("system");
+      if (!preferenceResult.success) {
+        setError(preferenceResult.error);
+        setErrorCode("provider_error");
+        return;
+      }
+
+      setError(null);
+      setErrorCode(undefined);
+      setRequiresByokOnly(false);
+
+      const preflight = await checkEnhanceWithAiPreflight({
+        variant,
+        forceSystem: true,
+      });
+
+      if (!preflight.ok) {
+        logEnhance("client", "error.switch_to_system.preflight_blocked", {
+          code: preflight.code,
+          error: preflight.error,
+        });
+        setError(preflight.error);
+        setErrorCode(preflight.code);
+        setRequiresByokOnly(Boolean(preflight.requiresByokOnly));
+        return;
+      }
+
+      logEnhance("client", "error.switch_to_system.done", {
+        hasPendingJob: Boolean(pendingJob),
+      });
+
+      setDialogOpen(true);
+
+      if (pendingJob !== null) {
+        await runEnhance(pendingJob);
+      }
+    } catch (err) {
+      logEnhance("client", "error.switch_to_system.failed", {
+        message: err instanceof Error ? err.message : String(err),
+      });
+      setError("Could not switch to EasySubmit AI. Try again.");
+      setErrorCode("provider_error");
+    } finally {
+      setIsSwitchingToSystem(false);
+    }
+  }, [isLoading, isSwitchingToSystem, runEnhance, variant]);
+
+  const handleRetryEnhance = useCallback(() => {
+    const pendingJob = pendingJobDescriptionRef.current;
     setError(null);
     setErrorCode(undefined);
-  }, []);
+
+    if (pendingJob !== null) {
+      setDialogOpen(true);
+      void runEnhance(pendingJob);
+      return;
+    }
+
+    void handleOpenDialog();
+  }, [handleOpenDialog, runEnhance]);
+
+  const showAddApiKeyAction =
+    variant !== "onboarding" &&
+    (errorCode === "no_system_key" ||
+      errorCode === "quota_enhancement" ||
+      errorCode === "quota_calls" ||
+      errorCode === "capacity_exhausted" ||
+      errorCode === "insufficient_quota" ||
+      errorCode === "provider_error");
+
+  const showRetryAction =
+    variant === "onboarding" &&
+    (errorCode === "capacity_exhausted" ||
+      errorCode === "rate_limited" ||
+      errorCode === "timeout" ||
+      errorCode === "provider_error" ||
+      errorCode === "insufficient_quota");
 
   const headerButton = useMemo(
     () => (
       <EnhanceWithAiButton
         variant={variant}
-        isLoading={isLoading || isPreflightChecking}
+        isLoading={isLoading || isPreflightChecking || isSwitchingToSystem}
         onClick={handleOpenDialog}
       />
     ),
-    [handleOpenDialog, isLoading, isPreflightChecking, variant],
+    [handleOpenDialog, isLoading, isPreflightChecking, isSwitchingToSystem, variant],
   );
 
   useRegisterStudioHeaderCenter(enabled && registerHeader ? headerButton : null);
@@ -437,6 +519,20 @@ export function useResumeEnhanceFlow({
             ? "API key required"
             : "Enhancement failed";
 
+  const errorDescription =
+    error && variant === "onboarding" ? (
+      <>
+        {error}
+        <span className="mt-2 block text-xs leading-relaxed text-muted-foreground">
+          You are still in onboarding — add your own API key later from Dashboard → AI Keys. Use{" "}
+          <strong className="font-medium text-foreground">Switch to EasySubmit AI</strong> or{" "}
+          <strong className="font-medium text-foreground">Try again</strong> to stay on Studio.
+        </span>
+      </>
+    ) : (
+      error
+    );
+
   const flowUi = (
     <>
       <EnhanceWithAiDialog
@@ -450,13 +546,14 @@ export function useResumeEnhanceFlow({
       <AppAlertDialog
         open={Boolean(error)}
         onOpenChange={(open) => {
-          if (!open) {
+          if (!open && !isSwitchingToSystem) {
             logEnhance("client", "error.dismiss", { errorCode });
             setError(null);
           }
         }}
+        busy={isSwitchingToSystem}
         title={errorTitle}
-        description={error}
+        description={errorDescription}
         footer={
           <>
             {(errorCode === "no_customer_key" || errorCode === "provider_error") &&
@@ -465,21 +562,27 @@ export function useResumeEnhanceFlow({
                 type="button"
                 variant="outline"
                 className="rounded-xl"
+                disabled={isSwitchingToSystem}
                 onClick={() => void handleSwitchToSystem()}
               >
-                Switch to EasySubmit AI
+                {isSwitchingToSystem ? "Switching…" : "Switch to EasySubmit AI"}
               </Button>
             ) : null}
-            {(errorCode === "no_system_key" ||
-              errorCode === "quota_enhancement" ||
-              errorCode === "quota_calls" ||
-              errorCode === "capacity_exhausted" ||
-              errorCode === "insufficient_quota" ||
-              errorCode === "provider_error") && (
+            {showAddApiKeyAction ? (
               <Button type="button" className="rounded-xl" asChild>
                 <Link href="/dashboard/keys">Add or update API key</Link>
               </Button>
-            )}
+            ) : null}
+            {showRetryAction ? (
+              <Button
+                type="button"
+                className="rounded-xl"
+                disabled={isSwitchingToSystem || isLoading}
+                onClick={handleRetryEnhance}
+              >
+                Try again
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="ghost"
@@ -516,7 +619,7 @@ export function useResumeEnhanceFlow({
     headerButton: enabled ? headerButton : null,
     flowUi: enabled ? flowUi : null,
     openDialog: enabled ? handleOpenDialog : () => {},
-    isLoading: enabled ? isLoading || isPreflightChecking : false,
+    isLoading: enabled ? isLoading || isPreflightChecking || isSwitchingToSystem : false,
     timeoutMs,
   };
 }

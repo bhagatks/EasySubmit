@@ -24,7 +24,7 @@ import {
   type AiQuotaMode,
   type QuotaCheckResult,
 } from "@/src/lib/ai/engine/quota";
-import { resolveAiRoute } from "@/src/lib/ai/engine/router";
+import { resolveAiRoute, SYSTEM_POOL_EXHAUSTED_BYOK_BODY, SYSTEM_POOL_EXHAUSTED_HEADLINE, SYSTEM_POOL_EXHAUSTED_NO_BYOK_BODY } from "@/src/lib/ai/engine/router";
 import { runResumeEnhance } from "@/src/lib/ai/engine/run-enhance";
 import { getAiReadinessForUser } from "@/lib/ai/ai-readiness-gate-for-user";
 import type { AiReadinessErrorCode } from "@/lib/ai/ai-readiness-gate-for-user";
@@ -47,6 +47,8 @@ export type EnhanceResumeProfileInput = {
   jobDescription?: string;
   rawResumeText?: string | null;
   forceSystem?: boolean;
+  /** User opted in to BYOK for this request (shared pool unavailable). */
+  useCustomerKey?: boolean;
   traceId?: string;
   variant?: "dashboard" | "onboarding" | "pipeline";
 };
@@ -73,12 +75,14 @@ export type EnhanceResumeProfileSuccess = {
 export type EnhanceResumeProfileFailure = {
   success: false;
   error: string;
+  byokAvailable?: boolean;
   code?:
     | "unauthorized"
     | "quota_enhancement"
     | "quota_calls"
     | "no_system_key"
     | "no_customer_key"
+    | "system_pool_exhausted"
     | "provider_error"
     | "rate_limited"
     | "insufficient_quota"
@@ -215,6 +219,7 @@ export async function enhanceResumeForUserId(
     vaultKeyId: user.vaultKeyId,
     activeProvider: user.activeProvider,
     forceSystem: input.forceSystem ?? false,
+    allowByokFallback: input.useCustomerKey ?? false,
     aiEngine,
   });
 
@@ -237,6 +242,16 @@ export async function enhanceResumeForUserId(
         success: false,
         error: "EasySubmit AI is not configured. Add your own API key in AI Keys.",
         code: "no_system_key",
+      };
+    }
+    if (route.error === "system_pool_exhausted") {
+      return {
+        success: false,
+        code: "system_pool_exhausted",
+        byokAvailable: route.byokAvailable,
+        error: route.byokAvailable
+          ? `${SYSTEM_POOL_EXHAUSTED_HEADLINE} ${SYSTEM_POOL_EXHAUSTED_BYOK_BODY}`
+          : `${SYSTEM_POOL_EXHAUSTED_HEADLINE} ${SYSTEM_POOL_EXHAUSTED_NO_BYOK_BODY}`,
       };
     }
     return {

@@ -1,8 +1,6 @@
 import { getServerSession } from "next-auth";
-import { revalidatePath } from "next/cache";
 import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { deleteUserAvatarFile, saveUserAvatar } from "@/lib/profile/avatar-storage";
+import { removeUserAvatar, uploadUserAvatar } from "@/lib/profile/avatar-mutations";
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
@@ -22,34 +20,15 @@ export async function POST(request: Request) {
     return Response.json({ success: false, error: "Choose an image file." }, { status: 400 });
   }
 
-  const userId = session.user.id;
-  const existing = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { image: true, imageIsCustom: true },
-  });
-
-  const saved = await saveUserAvatar(userId, file);
-  if (!saved.ok) {
-    return Response.json({ success: false, error: saved.error }, { status: 400 });
+  try {
+    const result = await uploadUserAvatar(session.user.id, file);
+    if (!result.success) {
+      return Response.json(result, { status: 400 });
+    }
+    return Response.json(result);
+  } catch {
+    return Response.json({ success: false, error: "Could not upload photo." }, { status: 500 });
   }
-
-  if (existing?.imageIsCustom && existing.image && existing.image !== saved.url) {
-    await deleteUserAvatarFile(userId, existing.image);
-  }
-
-  await prisma.user.update({
-    where: { id: userId },
-    data: {
-      image: saved.url,
-      imageIsCustom: true,
-    },
-  });
-
-  revalidatePath("/dashboard/settings");
-  revalidatePath("/dashboard");
-  revalidatePath("/onboarding");
-
-  return Response.json({ success: true, image: saved.url });
 }
 
 export async function DELETE() {
@@ -58,27 +37,13 @@ export async function DELETE() {
     return Response.json({ success: false, error: "Sign in required." }, { status: 401 });
   }
 
-  const userId = session.user.id;
-  const existing = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { image: true, imageIsCustom: true },
-  });
-
-  if (existing?.imageIsCustom && existing.image) {
-    await deleteUserAvatarFile(userId, existing.image);
+  try {
+    const result = await removeUserAvatar(session.user.id);
+    if (!result.success) {
+      return Response.json(result, { status: 400 });
+    }
+    return Response.json(result);
+  } catch {
+    return Response.json({ success: false, error: "Could not remove photo." }, { status: 500 });
   }
-
-  await prisma.user.update({
-    where: { id: userId },
-    data: {
-      image: null,
-      imageIsCustom: false,
-    },
-  });
-
-  revalidatePath("/dashboard/settings");
-  revalidatePath("/dashboard");
-  revalidatePath("/onboarding");
-
-  return Response.json({ success: true });
 }

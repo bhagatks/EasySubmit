@@ -157,7 +157,7 @@ export function GlossyModal({
             {children ? (
               <div
                 className={cn(
-                  "relative z-10 min-h-0 flex-1 basis-0 overflow-y-auto overscroll-contain px-5 py-4",
+                  "relative z-10 overflow-y-auto overscroll-contain px-5 py-4",
                   bodyClassName,
                 )}
               >

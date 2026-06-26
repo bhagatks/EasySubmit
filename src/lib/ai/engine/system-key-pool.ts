@@ -392,6 +392,15 @@ export async function hasSystemGeminiKeys(config?: AiEngineConfig): Promise<bool
   return parseEnvSystemGeminiKeys().length > 0;
 }
 
+/** True when at least one system slot can accept a call right now. */
+export async function hasHealthySystemPoolSlot(
+  config?: AiEngineConfig,
+): Promise<boolean> {
+  const slots = await loadSystemSlots(config);
+  const now = new Date();
+  return slots.some((slot) => isSlotHealthy(slot, now));
+}
+
 export type ExecuteWithPoolRetryOptions = {
   preferredSlot?: number;
   config?: AiEngineConfig;

@@ -1,5 +1,17 @@
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
 import type { StudioEditorSectionId } from "@/lib/resume/studio-editor-sections";
+import {
+  findBannedWords,
+  stripBannedSummaryWords,
+  validateSummary,
+} from "@/lib/resume/summary-rules";
+import {
+  isBannedSkill,
+  isProseSkill,
+  joinSkillsText,
+  parseSkillsText,
+  validateSkillsSystem,
+} from "@/lib/resume/skills-rules";
 import { stripContactFromForm, type ResumeBodyForm } from "@/src/lib/ai/engine/candidate-context";
 import { sanitizeEnhancedTextFields } from "@/src/lib/ai/engine/format-rules";
 
@@ -162,6 +174,60 @@ export function parseEnhancedResumeBody(text: string): Partial<ResumeBodyForm> |
   return null;
 }
 
+export function postProcessProfessionalSummary(summary: string): string {
+  const trimmed = summary.trim();
+  if (!trimmed) return summary;
+
+  const validation = validateSummary(trimmed);
+  if (validation.sentenceError || validation.wordError || validation.bannedWords.length > 0) {
+    console.warn("[enhance] professional summary quality:", {
+      sentenceCount: validation.sentenceCount,
+      wordCount: validation.wordCount,
+      sentenceError: validation.sentenceError,
+      wordError: validation.wordError,
+      bannedWords: validation.bannedWords,
+    });
+  }
+
+  if (findBannedWords(trimmed).length === 0) {
+    return summary;
+  }
+
+  return stripBannedSummaryWords(trimmed);
+}
+
+export function postProcessSkillsText(skillsText: string): string {
+  const parsed = parseSkillsText(skillsText);
+  if (parsed.length === 0) return skillsText;
+
+  const filtered: string[] = [];
+
+  for (const skill of parsed) {
+    if (isBannedSkill(skill)) {
+      console.warn("[enhance] removed banned skill:", skill);
+      continue;
+    }
+    if (isProseSkill(skill)) {
+      console.warn("[enhance] removed prose skill:", skill);
+      continue;
+    }
+    filtered.push(skill);
+  }
+
+  const trimmed = filtered.slice(0, 20);
+  const validation = validateSkillsSystem(trimmed);
+  if (validation.countWarning || validation.compositionWarning) {
+    console.warn("[enhance] skills quality:", {
+      count: validation.count,
+      countWarning: validation.countWarning,
+      compositionWarning: validation.compositionWarning,
+      banned: validation.banned,
+    });
+  }
+
+  return joinSkillsText(trimmed);
+}
+
 export function normalizeEnhancedBody(
   raw: Partial<ResumeBodyForm>,
   original: HubRefineryForm,
@@ -171,9 +237,12 @@ export function normalizeEnhancedBody(
   return {
     professionalSummary:
       typeof raw.professionalSummary === "string"
-        ? raw.professionalSummary
+        ? postProcessProfessionalSummary(raw.professionalSummary)
         : base.professionalSummary,
-    skillsText: typeof raw.skillsText === "string" ? raw.skillsText : base.skillsText,
+    skillsText:
+      typeof raw.skillsText === "string"
+        ? postProcessSkillsText(raw.skillsText)
+        : base.skillsText,
     experience: normalizeExperienceList(raw.experience, base.experience),
     education: Array.isArray(raw.education) ? raw.education : base.education,
     certifications: Array.isArray(raw.certifications)

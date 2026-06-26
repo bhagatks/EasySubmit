@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Download, FileCode2, Loader2, Pencil, Sparkles } from "lucide-react";
+import { FileCode2, Loader2, Pencil, Sparkles } from "lucide-react";
+import { PdfDownloadIcon, WordDownloadIcon } from "@/components/dashboard/review/format-download-icons";
 import { ReviewPreviewChromeButton } from "@/components/dashboard/review/ReviewPreviewChromeButton";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -22,8 +23,8 @@ const ICONS = {
   studio: Pencil,
   edit: Pencil,
   enhance: Sparkles,
-  pdf: Download,
-  word: Download,
+  pdf: PdfDownloadIcon,
+  word: WordDownloadIcon,
   latex: FileCode2,
 } as const;
 

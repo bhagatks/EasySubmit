@@ -82,8 +82,8 @@ export function resolvePageBudget(years: number, targetRole: string): CandidateC
       pages: 2,
       maxRolesDetailed: 4,
       maxBulletsPerRole: 6,
-      maxSkills: 25,
-      summarySentencesMax: 3,
+      maxSkills: 20,
+      summarySentencesMax: 4,
     };
   }
 
@@ -91,8 +91,8 @@ export function resolvePageBudget(years: number, targetRole: string): CandidateC
     pages: 1,
     maxRolesDetailed: 3,
     maxBulletsPerRole: 5,
-    maxSkills: 15,
-    summarySentencesMax: 3,
+    maxSkills: 20,
+    summarySentencesMax: 4,
   };
 }
 

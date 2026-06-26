@@ -9,7 +9,7 @@ export const CARD_NAV_LABELS = {
   coverLetter: "Cover Letter",
 } as const;
 
-export const CARD_STUDIO_LABEL = "Edit in Studio";
+export const CARD_STUDIO_LABEL = "Studio Edition";
 
 export const EXTENSION_CARD_LAYOUT = {
   /** Horizontal inset for all card bodies */
@@ -122,13 +122,6 @@ export function extensionCardLayoutStyles(): string {
       gap: var(--es-section-gap);
       margin: 0;
     }
-    .review-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: var(--es-actions-gap);
-      margin: 0;
-    }
-    .review-row .es-btn-secondary { width: 100%; }
     .journey-status {
       margin: 0;
       text-align: center;

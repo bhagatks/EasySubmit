@@ -1,0 +1,64 @@
+import { describe, expect, it } from "vitest";
+import {
+  countSummarySentences,
+  countSummaryWords,
+  findBannedWords,
+  stripBannedSummaryWords,
+  validateSummary,
+} from "@/lib/resume/summary-rules";
+
+const VALID_SUMMARY =
+  "Senior platform engineer with nine years building cloud-native systems for high-traffic SaaS products across regulated industries worldwide. " +
+  "Designs resilient services using TypeScript, Kubernetes, Terraform, and observability tooling deployed on AWS and GCP infrastructure at scale. " +
+  "Specializes in API reliability, cost optimization, and cross-team delivery for distributed platform teams supporting enterprise customers daily. " +
+  "Reduced incident volume 35% while supporting 12 million monthly active users across three product lines and mentoring six engineers.";
+
+describe("countSummaryWords", () => {
+  it("counts whitespace-separated words", () => {
+    expect(countSummaryWords("one two three")).toBe(3);
+    expect(countSummaryWords("  one   two  ")).toBe(2);
+  });
+});
+
+describe("countSummarySentences", () => {
+  it("counts four terminated sentences", () => {
+    expect(countSummarySentences(VALID_SUMMARY)).toBe(4);
+  });
+
+  it("returns zero for empty text", () => {
+    expect(countSummarySentences("   ")).toBe(0);
+  });
+});
+
+describe("findBannedWords", () => {
+  it("finds banned phrases case-insensitively", () => {
+    expect(findBannedWords("A passionate leader who will leverage synergy.")).toEqual(
+      expect.arrayContaining(["passionate", "leverage", "synergy"]),
+    );
+    expect(findBannedWords("A passionate leader who will leverage synergy.")).toHaveLength(3);
+  });
+});
+
+describe("validateSummary", () => {
+  it("passes a compliant summary", () => {
+    const result = validateSummary(VALID_SUMMARY);
+    expect(result.sentenceError).toBeNull();
+    expect(result.wordCount).toBeGreaterThanOrEqual(70);
+    expect(result.wordCount).toBeLessThanOrEqual(80);
+    expect(result.bannedWords).toEqual([]);
+  });
+
+  it("reports sentence and word errors", () => {
+    const result = validateSummary("Too short.");
+    expect(result.sentenceError).toBe("Summary must be exactly 4 sentences.");
+    expect(result.wordError).toMatch(/currently 2 words/);
+  });
+});
+
+describe("stripBannedSummaryWords", () => {
+  it("replaces banned phrases with review placeholder", () => {
+    expect(stripBannedSummaryWords("A passionate engineer who will leverage APIs.")).toBe(
+      "A [review] engineer who will [review] APIs.",
+    );
+  });
+});

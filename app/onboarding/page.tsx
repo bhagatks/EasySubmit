@@ -10,7 +10,6 @@ import {
   EyeOff,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { completeOnboarding, completeStep } from "@/app/actions/onboarding";
 import { fetchEnhanceOnboardingAvailable } from "@/app/actions/feature-flags";
@@ -59,6 +58,11 @@ import { cn } from "@/lib/utils";
 import { useOnboardingStore } from "@/src/stores/onboarding-store";
 import { isIdentityPhaseComplete } from "@/lib/onboarding/identity";
 import { getWorkbenchPhase } from "@/lib/onboarding/workbenchPhases";
+import {
+  clearWorkbenchSession,
+  readWorkbenchSession,
+  writeWorkbenchSession,
+} from "@/lib/onboarding/workbench-session";
 import { formatLanguagesForResume } from "@/lib/onboarding/languages";
 import { parseProfileName } from "@/lib/profile/name";
 import {
@@ -121,7 +125,6 @@ function parseSkillsText(skillsText: string): string[] {
 }
 
 export default function OnboardingPage() {
-  const router = useRouter();
   const { data: session, status, update: updateSession } = useSession();
 
   const [phase, setPhase] = useState(1);
@@ -157,6 +160,7 @@ export default function OnboardingPage() {
     RefineryStudioToolbarPayload["actions"] | null
   >(null);
   const calibrationRanRef = useRef(false);
+  const [workbenchReady, setWorkbenchReady] = useState(false);
 
   const sessionNameParts = parseProfileName(session?.user?.name);
   const sessionFirstName =
@@ -200,14 +204,62 @@ export default function OnboardingPage() {
   }, []);
 
   useEffect(() => {
-    if (status === "loading") return;
+    const saved = readWorkbenchSession();
+    if (saved) {
+      setPhase(saved.phase);
+      setDirection(1);
+      setCoordinates(saved.coordinates);
+      setRefineryInitial(saved.refineryInitial);
+      setRefineryForm(saved.refineryForm);
+      setRefineryRevision(saved.refineryRevision);
+      setSectionExpansion(saved.sectionExpansion);
+      setParsedStructured(saved.parsedStructured);
+      setRawResumeText(saved.rawResumeText);
+      setResumeData(saved.resumeData);
 
-    const sessionStep = session?.user?.onboardingStep ?? 0;
+      const skills = parseSkillsText(saved.refineryForm.skillsText);
+      if (skills.length > 0) {
+        setStudioSkills(skills);
+      }
 
-    if (sessionStep >= 4) {
-      router.replace("/dashboard");
+      if (saved.phase >= 2 && isIdentityPhaseComplete(useOnboardingStore.getState().identity)) {
+        useOnboardingStore.getState().markIdentityPhaseComplete();
+      }
     }
-  }, [router, session?.user?.onboardingStep, status]);
+
+    setWorkbenchReady(true);
+  }, [setStudioSkills]);
+
+  useEffect(() => {
+    if (!workbenchReady || isSynthesizing) {
+      return;
+    }
+
+    writeWorkbenchSession({
+      version: 1,
+      phase,
+      coordinates,
+      refineryForm,
+      refineryInitial,
+      refineryRevision,
+      rawResumeText,
+      parsedStructured,
+      resumeData,
+      sectionExpansion,
+    });
+  }, [
+    workbenchReady,
+    isSynthesizing,
+    phase,
+    coordinates,
+    refineryForm,
+    refineryInitial,
+    refineryRevision,
+    rawResumeText,
+    parsedStructured,
+    resumeData,
+    sectionExpansion,
+  ]);
 
   const goToPhase = useCallback((next: number, dir: 1 | -1 = 1) => {
     setDirection(dir);
@@ -432,6 +484,7 @@ export default function OnboardingPage() {
           });
 
           await updateSession({ onboardingStep: 4 });
+          clearWorkbenchSession();
         } catch (err) {
           calibrationRanRef.current = false;
           setIsSynthesizing(false);
@@ -646,7 +699,7 @@ export default function OnboardingPage() {
     }
   };
 
-  if (status === "loading") {
+  if (status === "loading" || !workbenchReady) {
     return (
       <div
         className="flex h-screen items-center justify-center"

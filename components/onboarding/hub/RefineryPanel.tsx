@@ -38,6 +38,7 @@ import {
   RESUME_SECTION_TITLES,
   SUMMARY_PLACEHOLDER,
 } from "@/lib/resume/resumeSpec";
+import { validateSummary } from "@/lib/resume/summary-rules";
 import {
   buildInitialStudioSectionState,
   STUDIO_EDITOR_SECTION_LABELS,
@@ -60,6 +61,9 @@ const MUTED = "oklch(0.45 0.02 268)";
 
 const INPUT_CLASS =
   "w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm text-[oklch(0.98_0.01_268)] placeholder:text-[oklch(0.45_0.02_268)] transition-colors focus:border-[oklch(0.62_0.21_265_/_0.5)] focus:outline-none focus:ring-1 focus:ring-[oklch(0.62_0.21_265_/_0.35)]";
+
+const RAW_TEXT_PANEL_CLASS =
+  "max-h-[80vh] w-full shrink-0 overflow-y-auto rounded-xl border border-white/10 bg-[oklch(0.12_0.03_268)] p-4 text-xs leading-relaxed text-[oklch(0.75_0.02_268)]";
 
 type RefineryPanelProps = {
   initialValues: HubRefineryForm;
@@ -372,6 +376,12 @@ export function RefineryPanel({
     phoneParts.nationalNumber,
   );
   const linkedInValue = watched.linkedIn?.trim() ?? "";
+  const summaryValue = watched.professionalSummary ?? "";
+  const summaryValidation = useMemo(
+    () => validateSummary(summaryValue),
+    [summaryValue],
+  );
+  const showSummaryHints = summaryValue.trim().length > 0;
 
   const isValid =
     watched.firstName?.trim().length > 0 &&
@@ -463,18 +473,14 @@ export function RefineryPanel({
           }
           footer={
             showRawText && rawText?.trim() ? (
-              <pre className="max-h-28 w-full overflow-y-auto rounded-xl border border-white/10 bg-[oklch(0.12_0.03_268)] p-3 text-[10px] leading-relaxed text-[oklch(0.75_0.02_268)]">
-                {rawText}
-              </pre>
+              <pre className={RAW_TEXT_PANEL_CLASS}>{rawText}</pre>
             ) : null
           }
         />
       ) : null}
 
       {!isProfileMode && hidePhaseIntro && showRawText && rawText?.trim() ? (
-        <pre className="mb-3 max-h-28 w-full shrink-0 overflow-y-auto rounded-xl border border-white/10 bg-[oklch(0.12_0.03_268)] p-3 text-[10px] leading-relaxed text-[oklch(0.75_0.02_268)]">
-          {rawText}
-        </pre>
+        <pre className={cn(RAW_TEXT_PANEL_CLASS, "mb-3")}>{rawText}</pre>
       ) : null}
 
       <form
@@ -614,6 +620,25 @@ export function RefineryPanel({
             className={cn(INPUT_CLASS, "resize-y")}
             placeholder={SUMMARY_PLACEHOLDER}
           />
+          {showSummaryHints ? (
+            <div className="mt-2 space-y-1 text-xs" style={{ color: MUTED }}>
+              <p>
+                {summaryValidation.wordCount} words · {summaryValidation.sentenceCount} sentences
+                (target: 70–80 words, 4 sentences)
+              </p>
+              {summaryValidation.sentenceError ? (
+                <p style={{ color: "oklch(0.75 0.14 85)" }}>{summaryValidation.sentenceError}</p>
+              ) : null}
+              {summaryValidation.wordError ? (
+                <p style={{ color: "oklch(0.75 0.14 85)" }}>{summaryValidation.wordError}</p>
+              ) : null}
+              {summaryValidation.bannedWords.length > 0 ? (
+                <p style={{ color: "oklch(0.75 0.14 85)" }}>
+                  Overused phrases: {summaryValidation.bannedWords.join(", ")}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
         </StudioCollapsibleSection>
 
         <StudioCollapsibleSection

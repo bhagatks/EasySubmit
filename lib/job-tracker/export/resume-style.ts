@@ -1,7 +1,7 @@
 /**
  * Single source of truth for resume visual constants.
- * Word and PDF use separate spacing tables — DOCX renders tighter in Word.
- * HTML preview follows PDF spacing. Rules: docs/resume/RULES.md
+ * Word, PDF, and HTML preview share the same spacing rhythm.
+ * Rules: docs/resume/RULES.md
  */
 
 // ─── Typography ──────────────────────────────────────────────────────────────
@@ -59,16 +59,16 @@ const SPACING_SHARED = {
   bulletGap: 4,
 } as const;
 
-/** Word — ~2× vertical air between header, section bodies, and headings. */
+/** Word — matches PDF rhythm (Word adds its own line box; avoid extra spacer paragraphs). */
 export const DOCX_SPACING: ResumeSpacing = {
   ...SPACING_SHARED,
-  afterContact: 28,
-  afterSectionRule: 6,
-  afterSectionBody: 20,
-  betweenSections: 28,
+  afterContact: 6,
+  afterSectionRule: 4,
+  afterSectionBody: 4,
+  betweenSections: 8,
 };
 
-/** PDF — tighter section rhythm than Word (flex layout reads larger). */
+/** PDF — flex layout uses the same spacing table as Word. */
 export const PDF_SPACING: ResumeSpacing = {
   ...SPACING_SHARED,
   afterContact: 6,

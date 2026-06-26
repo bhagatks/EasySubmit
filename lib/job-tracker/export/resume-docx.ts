@@ -22,7 +22,9 @@ import {
   COLOR,
   DOCX_SPACING,
   dxa,
+  DXA_PER_PT,
   FONT_SIZE,
+  LINE_HEIGHT,
   SECTION_TITLE,
   tabStopRightDxa,
 } from "@/lib/job-tracker/export/resume-style";
@@ -70,10 +72,10 @@ function contactParagraph(contact: string): Paragraph {
   });
 }
 
-function sectionHeading(title: string): Paragraph {
+function sectionHeading(title: string, first = false): Paragraph {
   return new Paragraph({
     spacing: {
-      before: dxa(S.betweenSections),
+      ...(first ? {} : { before: dxa(S.betweenSections) }),
       after: dxa(S.afterSectionRule),
     },
     border: {
@@ -97,9 +99,9 @@ function sectionHeading(title: string): Paragraph {
   });
 }
 
-function entryTitleLine(title: string, date: string): Paragraph {
+function entryTitleLine(title: string, date: string, spacingAfter = S.afterEntryHead): Paragraph {
   return new Paragraph({
-    spacing: { after: dxa(S.afterEntryHead) },
+    spacing: { after: dxa(spacingAfter) },
     tabStops: [{ type: TabStopType.RIGHT, position: tabStopRightDxa(S) }],
     children: [
       new TextRun({
@@ -124,9 +126,9 @@ function entryTitleLine(title: string, date: string): Paragraph {
   });
 }
 
-function entrySubLine(text: string): Paragraph {
+function entrySubLine(text: string, spacingAfter = S.afterEntrySub): Paragraph {
   return new Paragraph({
-    spacing: { after: dxa(S.afterEntrySub) },
+    spacing: { after: dxa(spacingAfter) },
     children: [
       new TextRun({
         text,
@@ -139,9 +141,9 @@ function entrySubLine(text: string): Paragraph {
   });
 }
 
-function bulletParagraph(text: string): Paragraph {
+function bulletParagraph(text: string, spacingAfter = S.bulletGap): Paragraph {
   return new Paragraph({
-    spacing: { after: dxa(S.bulletGap) },
+    spacing: { after: dxa(spacingAfter) },
     numbering: { reference: "bullet-list", level: 0 },
     children: [
       new TextRun({
@@ -154,9 +156,9 @@ function bulletParagraph(text: string): Paragraph {
   });
 }
 
-function bodyParagraph(text: string): Paragraph {
+function bodyParagraph(text: string, spacingAfter = S.afterSectionBody): Paragraph {
   return new Paragraph({
-    spacing: { after: dxa(S.afterSectionBody) },
+    spacing: { after: dxa(spacingAfter) },
     children: [
       new TextRun({
         text,
@@ -168,43 +170,63 @@ function bodyParagraph(text: string): Paragraph {
   });
 }
 
-function emptyLine(afterPt = 4): Paragraph {
-  return new Paragraph({
-    spacing: { after: dxa(afterPt) },
-    children: [new TextRun({ text: "" })],
-  });
-}
-
 function buildParagraphsFromContent(content: ResumeContentModel): Paragraph[] {
   const paras: Paragraph[] = [
     nameParagraph(content.name),
     ...(content.contact ? [contactParagraph(content.contact)] : []),
   ];
 
+  let firstSection = true;
+  const pushSectionHeading = (title: string) => {
+    paras.push(sectionHeading(title, firstSection));
+    firstSection = false;
+  };
+
   if (content.summary) {
-    paras.push(sectionHeading(SECTION_TITLE.summary), bodyParagraph(content.summary));
+    pushSectionHeading(SECTION_TITLE.summary);
+    paras.push(bodyParagraph(content.summary));
   }
 
   if (content.skillsText) {
-    paras.push(sectionHeading(SECTION_TITLE.skills), bodyParagraph(content.skillsText));
+    pushSectionHeading(SECTION_TITLE.skills);
+    paras.push(bodyParagraph(content.skillsText));
   }
 
   if (content.experience.length > 0) {
-    paras.push(sectionHeading(SECTION_TITLE.experience));
+    pushSectionHeading(SECTION_TITLE.experience);
     for (const entry of content.experience) {
-      paras.push(entryTitleLine(entry.title, entry.dateRange));
-      if (entry.subtitle) paras.push(entrySubLine(entry.subtitle));
-      for (const bullet of entry.bullets) paras.push(bulletParagraph(bullet));
-      paras.push(emptyLine(S.betweenEntries));
+      const hasBullets = entry.bullets.length > 0;
+      paras.push(
+        entryTitleLine(
+          entry.title,
+          entry.dateRange,
+          !entry.subtitle && !hasBullets ? S.betweenEntries : S.afterEntryHead,
+        ),
+      );
+      if (entry.subtitle) {
+        paras.push(
+          entrySubLine(entry.subtitle, !hasBullets ? S.betweenEntries : S.afterEntrySub),
+        );
+      }
+      for (let i = 0; i < entry.bullets.length; i++) {
+        const after = i === entry.bullets.length - 1 ? S.betweenEntries : S.bulletGap;
+        paras.push(bulletParagraph(entry.bullets[i], after));
+      }
     }
   }
 
   if (content.education.length > 0) {
-    paras.push(sectionHeading(SECTION_TITLE.education));
+    pushSectionHeading(SECTION_TITLE.education);
     for (const entry of content.education) {
-      paras.push(entryTitleLine(entry.title, entry.dateRange));
-      if (entry.subtitle) paras.push(entrySubLine(entry.subtitle));
-      paras.push(emptyLine(S.betweenEntries));
+      const hasSubtitle = Boolean(entry.subtitle);
+      paras.push(
+        entryTitleLine(
+          entry.title,
+          entry.dateRange,
+          !hasSubtitle ? S.betweenEntries : S.afterEntryHead,
+        ),
+      );
+      if (entry.subtitle) paras.push(entrySubLine(entry.subtitle, S.betweenEntries));
     }
   }
 
@@ -216,14 +238,19 @@ function buildParagraphsFromContent(content: ResumeContentModel): Paragraph[] {
 
   for (const [title, items] of listSections) {
     if (items.length === 0) continue;
-    paras.push(sectionHeading(title), ...items.map((item) => bulletParagraph(item)));
-    paras.push(emptyLine(S.betweenEntries));
+    pushSectionHeading(title);
+    for (let i = 0; i < items.length; i++) {
+      const after = i === items.length - 1 ? S.betweenEntries : S.bulletGap;
+      paras.push(bulletParagraph(items[i], after));
+    }
   }
 
   for (const section of content.customSections) {
-    paras.push(sectionHeading(section.title));
-    for (const textLine of section.lines) paras.push(bodyParagraph(textLine));
-    paras.push(emptyLine(S.betweenEntries));
+    pushSectionHeading(section.title);
+    for (let i = 0; i < section.lines.length; i++) {
+      const after = i === section.lines.length - 1 ? S.betweenEntries : S.afterSectionBody;
+      paras.push(bodyParagraph(section.lines[i], after));
+    }
   }
 
   return paras;
@@ -257,7 +284,7 @@ const bulletNumberingConfig = {
   ],
 };
 
-const LINE_HEIGHT_DXA = 276;
+const LINE_HEIGHT_DXA = Math.round(FONT_SIZE.body * LINE_HEIGHT * DXA_PER_PT);
 
 export async function buildResumeDocx(
   form: HubRefineryForm,

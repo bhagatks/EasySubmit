@@ -1,5 +1,6 @@
 import {
   DEFAULT_API_BASE,
+  EXTENSION_ENHANCE_TIMEOUT_MS,
   EXTENSION_MESSAGE,
   STORAGE_KEYS,
 } from "@shared/extension/constants";
@@ -38,14 +39,31 @@ async function getAuthToken(): Promise<string | null> {
   return typeof token === "string" && token.length > 0 ? token : null;
 }
 
-async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+async function apiFetch<T>(
+  path: string,
+  init?: RequestInit & { timeoutMs?: number },
+): Promise<T> {
   const base = await getApiBase();
   const token = await getAuthToken();
   const headers = new Headers(init?.headers);
   headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
-  const res = await fetch(`${base}${path}`, { ...init, headers });
+  const { timeoutMs, ...fetchInit } = init ?? {};
+  const signal =
+    timeoutMs != null && timeoutMs > 0
+      ? AbortSignal.timeout(timeoutMs)
+      : fetchInit.signal;
+
+  let res: Response;
+  try {
+    res = await fetch(`${base}${path}`, { ...fetchInit, headers, signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "TimeoutError") {
+      return { success: false, error: "Request timed out" } as T;
+    }
+    throw error;
+  }
   let data: unknown;
   try {
     data = await res.json();
@@ -518,6 +536,27 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   ) {
     void apiFetch<{ success: boolean; previewHtml?: string; error?: string }>(
       `/api/extension/jobs/${encodeURIComponent(message.entryId)}/preview?kind=${message.kind}`,
+    )
+      .then((data) => sendResponse(data))
+      .catch(() => sendResponse({ success: false, error: "Network error" }));
+    return true;
+  }
+
+  if (
+    action === EXTENSION_MESSAGE.ENHANCE_DOCUMENT &&
+    typeof message.entryId === "string" &&
+    (message.kind === "resume" || message.kind === "cover")
+  ) {
+    void apiFetch<{ success: boolean; error?: string; code?: string; byokAvailable?: boolean }>(
+      `/api/extension/jobs/${encodeURIComponent(message.entryId)}/enhance`,
+      {
+        method: "POST",
+        timeoutMs: EXTENSION_ENHANCE_TIMEOUT_MS,
+        body: JSON.stringify({
+          kind: message.kind,
+          useCustomerKey: message.useCustomerKey === true,
+        }),
+      },
     )
       .then((data) => sendResponse(data))
       .catch(() => sendResponse({ success: false, error: "Network error" }));
