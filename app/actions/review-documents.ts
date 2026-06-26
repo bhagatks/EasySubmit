@@ -22,6 +22,7 @@ import {
   getJobResumeTailorForEntry,
   updateJobReviewDocuments,
 } from "@/lib/profile/job-resume-tailor";
+import { buildCoverLetterDocumentPatch } from "@/lib/job-tracker/persist-cover-letter";
 import { prisma } from "@/lib/prisma";
 import { resumeProfileDisplayLabel } from "@/lib/extension/resume-profiles";
 import {

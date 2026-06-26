@@ -220,6 +220,10 @@ export function StudioSkillsField({
             }}
           >
             {selectedSkills.length} skills
+            <span className="font-normal" style={{ color: MUTED }}>
+              {" "}
+              (target: {SKILLS_HARD_MIN_MANUAL}–{SKILLS_HARD_MAX})
+            </span>
           </span>
           {bannedSkills.map((skill) => (
             <span

@@ -1,5 +1,5 @@
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
-import type { ResolvedAiRoute } from "@/src/lib/ai/engine/router";
+import type { AiRouteResolution } from "@/src/lib/ai/engine/router";
 import type { StudioEditorSectionId } from "@/lib/resume/studio-editor-sections";
 import {
   pipelineStepHint,
@@ -130,11 +130,11 @@ export function summarizeEnhanceRequest(input: {
   };
 }
 
-export function sanitizeRouteForLog(
-  route: ResolvedAiRoute | { error: "no_customer_key" | "no_system_key" },
-) {
+export function sanitizeRouteForLog(route: AiRouteResolution) {
   if ("error" in route) {
-    return { error: route.error };
+    return "byokAvailable" in route
+      ? { error: route.error, byokAvailable: route.byokAvailable }
+      : { error: route.error };
   }
 
   if (route.mode === "system") {

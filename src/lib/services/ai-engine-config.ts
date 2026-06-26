@@ -132,10 +132,6 @@ export function resolveAiEngineConfig(value: unknown): AiEngineConfig {
   return parseAiEngineConfig(value) ?? AI_ENGINE_DEFAULTS;
 }
 
-export function isSystemAiEnabled(config: AiEngineConfig): boolean {
-  return config.quotas.system.enable;
-}
-
 export function isCustomerQuotaUnlimited(config: AiEngineConfig): boolean {
   return config.quotas.customer.aiDailyUnlimited;
 }

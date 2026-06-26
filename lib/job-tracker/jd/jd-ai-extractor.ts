@@ -6,7 +6,7 @@ import { generateText } from "ai";
 import { createAiSdkLanguageModel } from "@/src/lib/ai/ai-sdk-provider";
 import { acquireSystemGeminiKey } from "@/src/lib/ai/engine/system-key-pool";
 import { getAppConfig } from "@/src/lib/services/config-service";
-import { isSystemAiEnabled } from "@/src/lib/services/ai-engine-config";
+import { getFeatureFlags, isSystemAiEnabled } from "@/src/lib/services/feature-flags-service";
 import type { JDSegments, JDIntelligence, JDImpactDimension } from "@/lib/job-tracker/jd/jd-intelligence";
 
 const VALID_IMPACT_DIMS = new Set<JDImpactDimension>([
@@ -127,8 +127,11 @@ export async function extractJDIntelligenceWithAI(
   base: JDIntelligence,
 ): Promise<JDAiExtractResult> {
   try {
-    const aiEngine = await getAppConfig("aiEngine");
-    if (!isSystemAiEnabled(aiEngine)) {
+    const [aiEngine, featureFlags] = await Promise.all([
+      getAppConfig("aiEngine"),
+      getFeatureFlags(),
+    ]);
+    if (!isSystemAiEnabled(featureFlags)) {
       return { ok: false, reason: "unavailable" };
     }
 

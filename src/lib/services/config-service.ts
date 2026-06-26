@@ -34,6 +34,12 @@ import {
   parseResumeProfilesConfig,
   type ResumeProfilesConfig,
 } from "@/src/lib/services/resume-profiles-config";
+import {
+  SUBSCRIPTION_CONFIG_KEY,
+  SUBSCRIPTION_CONFIG_DEFAULTS,
+  parseSubscriptionConfig,
+  type SubscriptionConfig,
+} from "@/src/lib/services/subscription-config";
 
 export type { AiPricingMap } from "@/src/lib/services/ai-pricing-map";
 export type { DataRefreshConfig, RefreshIntervalMinutes };
@@ -59,6 +65,17 @@ export {
   RESUME_PROFILES_CONFIG_KEY,
   RESUME_PROFILES_DEFAULTS,
 } from "@/src/lib/services/resume-profiles-config";
+export {
+  SUBSCRIPTION_CONFIG_KEY,
+  SUBSCRIPTION_CONFIG_DEFAULTS,
+  SUBSCRIPTION_PLAN_IDS,
+  SUBSCRIPTION_STATUSES,
+  isSubscribed,
+  type SubscriptionConfig,
+  type SubscriptionPlanId,
+  type SubscriptionPlanConfig,
+  type SubscriptionStatus,
+} from "@/src/lib/services/subscription-config";
 
 export interface AiConfigRecord {
   defaultProvider: string;
@@ -75,6 +92,7 @@ export interface AppConfigSnapshot {
   aiEngine: AiEngineConfig;
   resumeProfiles: ResumeProfilesConfig;
   legalDocuments: LegalDocumentsConfig;
+  subscriptions: SubscriptionConfig;
 }
 
 const DATA_REFRESH_KEY = "dataRefresh";
@@ -152,6 +170,7 @@ export async function getAppConfig(key: "enhanceWithAi"): Promise<EnhanceWithAiC
 export async function getAppConfig(key: "aiEngine"): Promise<AiEngineConfig>;
 export async function getAppConfig(key: "resumeProfiles"): Promise<ResumeProfilesConfig>;
 export async function getAppConfig(key: "legalDocuments"): Promise<LegalDocumentsConfig>;
+export async function getAppConfig(key: "subscriptions"): Promise<SubscriptionConfig>;
 export async function getAppConfig(
   key?:
     | "dataRefresh"
@@ -160,7 +179,8 @@ export async function getAppConfig(
     | "enhanceWithAi"
     | "aiEngine"
     | "resumeProfiles"
-    | "legalDocuments",
+    | "legalDocuments"
+    | "subscriptions",
 ): Promise<
   | AppConfigSnapshot
   | DataRefreshConfig
@@ -171,6 +191,7 @@ export async function getAppConfig(
   | AiEngineConfig
   | ResumeProfilesConfig
   | LegalDocumentsConfig
+  | SubscriptionConfig
 > {
   const snapshot = await loadAppConfigSnapshot();
 
@@ -202,6 +223,10 @@ export async function getAppConfig(
     return snapshot.legalDocuments;
   }
 
+  if (key === "subscriptions") {
+    return snapshot.subscriptions;
+  }
+
   return snapshot;
 }
 
@@ -217,6 +242,7 @@ async function loadAppConfigSnapshot(): Promise<AppConfigSnapshot> {
           AI_ENGINE_CONFIG_KEY,
           RESUME_PROFILES_CONFIG_KEY,
           LEGAL_DOCUMENTS_CONFIG_KEY,
+          SUBSCRIPTION_CONFIG_KEY,
         ],
       },
     },
@@ -250,6 +276,8 @@ async function loadAppConfigSnapshot(): Promise<AppConfigSnapshot> {
     parseLegalDocumentsConfig(byKey.get(LEGAL_DOCUMENTS_CONFIG_KEY)) ??
     LEGAL_DOCUMENTS_DEFAULTS;
 
+  const subscriptions = parseSubscriptionConfig(byKey.get(SUBSCRIPTION_CONFIG_KEY));
+
   return {
     dataRefresh,
     aiConfig,
@@ -258,5 +286,6 @@ async function loadAppConfigSnapshot(): Promise<AppConfigSnapshot> {
     aiEngine,
     resumeProfiles,
     legalDocuments,
+    subscriptions,
   };
 }

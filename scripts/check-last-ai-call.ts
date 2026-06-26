@@ -9,6 +9,9 @@ async function main() {
   const { getAiHealthCheckForUser } = await import("../lib/ai/ai-health-status");
   const { getAiReadinessForUser } = await import("../lib/ai/ai-readiness-gate-for-user");
   const { resolveEffectiveAiSource } = await import("../src/lib/ai/engine/router");
+  const { getFeatureFlags, isSystemAiEnabled } = await import(
+    "../src/lib/services/feature-flags-service"
+  );
 
   const user = await prisma.user.findFirst({
     where: { email: "bhagathsiddi@gmail.com" },
@@ -29,9 +32,11 @@ async function main() {
     return;
   }
 
+  const featureFlags = await getFeatureFlags();
   const routeMode = resolveEffectiveAiSource(
     (user.aiSourcePreference ?? "auto") as "auto" | "system" | "customer",
     Boolean(user.vaultKeyId),
+    isSystemAiEnabled(featureFlags),
   );
 
   const [health, readiness, lastLogs, lastEnhanceTrace] = await Promise.all([

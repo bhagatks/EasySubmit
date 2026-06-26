@@ -376,9 +376,10 @@ One row per flag key — scales to many toggles without schema changes.
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `enhance_with_ai_onboarding` | `true` | Show **Enhance with AI** in onboarding Studio top bar (phase 3) — also requires `app_config.aiEngine.quotas.system.enable` |
+| `enhance_with_ai_onboarding` | `true` | Show **Enhance with AI** in onboarding Studio top bar (phase 3) — also requires `system_ai_enabled` |
 | `enhance_with_ai_resume_profile` | `true` | Show **Enhance with AI** in dashboard resume profile studio header |
 | `extension_global_switch` | `true` | Global extension kill switch — when off, extension does nothing for all users (no card, no save APIs) |
+| `system_ai_enabled` | `true` | Global system AI kill switch — when off, all routes use BYOK only (`isSystemAiEnabled(flags)`) |
 | `extension_auto_apply` | `true` | One-click Workday apply pipeline. **Off** → manual Save → Update resume → Apply only |
 
 Registry + defaults: `src/lib/services/feature-flags-service.ts` (`FEATURE_FLAG_REGISTRY`). Loader: `getFeatureFlags()` / `isFeatureEnabled(key)`. Client: `fetchFeatureFlags()`. New flags: add registry entry + seed row + migration `INSERT`.

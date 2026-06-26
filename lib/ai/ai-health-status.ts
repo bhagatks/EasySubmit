@@ -5,6 +5,7 @@ import { getAiReadinessForUser } from "@/lib/ai/ai-readiness-gate-for-user";
 import { logAiHealth, redactUserId } from "@/lib/ai/ai-health-debug";
 import type { AiRouteMode, AiSourcePreference } from "@/src/lib/ai/engine/constants";
 import { resolveEffectiveAiSource } from "@/src/lib/ai/engine/router";
+import { getFeatureFlags, isSystemAiEnabled } from "@/src/lib/services/feature-flags-service";
 
 export type AiHealthErrorCode =
   | "quota_exhausted"
@@ -110,7 +111,12 @@ async function _checkForUser(userId: string): Promise<AiHealthCheckResult> {
   debug.aiSourcePreference = user.aiSourcePreference;
 
   const preference = (user.aiSourcePreference ?? "auto") as AiSourcePreference;
-  const routeMode = resolveEffectiveAiSource(preference, Boolean(user.vaultKeyId));
+  const featureFlags = await getFeatureFlags();
+  const routeMode = resolveEffectiveAiSource(
+    preference,
+    Boolean(user.vaultKeyId),
+    isSystemAiEnabled(featureFlags),
+  );
   debug.routeMode = routeMode;
 
   const readiness = await getAiReadinessForUser(userId);

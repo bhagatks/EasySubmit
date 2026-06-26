@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AI_ENGINE_DEFAULTS, parseAiEngineConfig } from "@/src/lib/services/ai-engine-config";
+import { AI_ENGINE_DEFAULTS } from "@/src/lib/services/ai-engine-config";
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -22,21 +22,17 @@ import {
 } from "@/src/lib/ai/engine/system-key-pool";
 
 describe("resolveEffectiveAiSource", () => {
-  const systemDisabled = parseAiEngineConfig({
-    quotas: { system: { enable: false, dailyEnhancements: 5, dailyCalls: 20 } },
-  })!;
-
   it("always routes to customer when system AI is disabled", () => {
-    expect(resolveEffectiveAiSource("system", false, systemDisabled)).toBe("customer");
-    expect(resolveEffectiveAiSource("auto", false, systemDisabled, true)).toBe("customer");
+    expect(resolveEffectiveAiSource("system", false, false)).toBe("customer");
+    expect(resolveEffectiveAiSource("auto", false, false, true)).toBe("customer");
   });
 
   it("uses system when enabled and forceSystem is true", () => {
-    expect(resolveEffectiveAiSource("auto", false, AI_ENGINE_DEFAULTS, true)).toBe("system");
+    expect(resolveEffectiveAiSource("auto", false, true, true)).toBe("system");
   });
 
   it("prefers customer on auto when a vault key exists", () => {
-    expect(resolveEffectiveAiSource("auto", true, AI_ENGINE_DEFAULTS)).toBe("customer");
+    expect(resolveEffectiveAiSource("auto", true, true)).toBe("customer");
   });
 });
 

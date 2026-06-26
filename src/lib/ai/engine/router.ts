@@ -2,7 +2,7 @@ import type { AiProvider } from "@/src/lib/config/app.config";
 import { getTargetAiModel } from "@/src/lib/config/app.config";
 import { isHandshakeProvider, type HandshakeProvider } from "@/src/lib/config/career-grade-models";
 import type { AiEngineConfig } from "@/src/lib/services/ai-engine-config";
-import { AI_ENGINE_DEFAULTS, isSystemAiEnabled } from "@/src/lib/services/ai-engine-config";
+import { AI_ENGINE_DEFAULTS } from "@/src/lib/services/ai-engine-config";
 import type { AiRouteMode, AiSourcePreference } from "@/src/lib/ai/engine/constants";
 import { hasHealthySystemPoolSlot, hasSystemGeminiKeys } from "@/src/lib/ai/engine/system-key-pool";
 
@@ -36,10 +36,10 @@ export const SYSTEM_POOL_EXHAUSTED_NO_BYOK_BODY =
 export function resolveEffectiveAiSource(
   preference: AiSourcePreference,
   hasVaultKey: boolean,
-  aiEngine: AiEngineConfig = AI_ENGINE_DEFAULTS,
+  systemAiEnabled: boolean,
   forceSystem = false,
 ): AiRouteMode {
-  if (!isSystemAiEnabled(aiEngine)) {
+  if (!systemAiEnabled) {
     return "customer";
   }
 
@@ -82,12 +82,15 @@ export async function resolveAiRoute(input: {
   /** When true, user explicitly chose to use their vault key (e.g. enhance retry). */
   allowByokFallback?: boolean;
   aiEngine?: AiEngineConfig;
+  /** From `feature_flags.system_ai_enabled` — when false, routes to BYOK only. */
+  systemAiEnabled?: boolean;
 }): Promise<AiRouteResolution> {
   const engine = input.aiEngine ?? AI_ENGINE_DEFAULTS;
+  const systemAiEnabled = input.systemAiEnabled ?? true;
   const mode = resolveEffectiveAiSource(
     input.aiSourcePreference,
     Boolean(input.vaultKeyId),
-    engine,
+    systemAiEnabled,
     input.forceSystem,
   );
 

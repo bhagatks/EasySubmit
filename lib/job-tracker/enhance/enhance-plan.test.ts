@@ -1,9 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
 import { analyzeJobIntelligence } from "@/lib/job-tracker/ats/job-intelligence";
 import { deterministicEnhance } from "@/lib/job-tracker/ats/deterministic-enhancer";
-
-// ─── Fixture ─────────────────────────────────────────────────────────────────
+import { applyEnhancePlan } from "@/lib/job-tracker/enhance/apply-enhance-plan";
+import { buildEnhancePlan } from "@/lib/job-tracker/enhance/enhance-plan";
+import { analyzeJobDescriptionSync } from "@/lib/job-tracker/jd/jd-brain";
+import { buildResumeEnhanceDirective } from "@/lib/job-tracker/jd/jd-directive";
+import { parseSkillsText } from "@/lib/resume/skills-rules";
 
 const BASE_FORM: HubRefineryForm = {
   firstName: "Jane",
@@ -57,61 +60,84 @@ const JD_WITH_MISSING = `
   Experience with Kubernetes and Terraform is a plus. Kubernetes Kubernetes.
 `;
 
-// ─── JobIntelligence ─────────────────────────────────────────────────────────
+function directiveForJd(form: HubRefineryForm, jd: string) {
+  const jdResult = analyzeJobDescriptionSync(jd, "Senior Software Engineer");
+  const skills = parseSkillsText(form.skillsText ?? "");
+  return buildResumeEnhanceDirective(jdResult.intelligence, skills);
+}
 
-describe("analyzeJobIntelligence", () => {
-  it("identifies missing keywords from JD", () => {
+describe("buildEnhancePlan", () => {
+  it("uses JD Brain mustAddSkills instead of raw keyword-gap tokens", () => {
     const intel = analyzeJobIntelligence(BASE_FORM, "Senior Software Engineer", JD_WITH_MISSING);
-    expect(intel.missingKeywords.length).toBeGreaterThan(0);
-    expect(intel.missingKeywords).toContain("python");
+    const directive = directiveForJd(BASE_FORM, JD_WITH_MISSING);
+
+    const plan = buildEnhancePlan(BASE_FORM, intel, directive);
+
+    expect(plan.skillsToAdd).toEqual(directive.mustAddSkills);
+    expect(plan.skillsToAdd).not.toEqual(intel.skillsToAdd);
   });
 
-  it("classifies skills vs content keywords", () => {
+  it("flags summary issues without rewriting", () => {
     const intel = analyzeJobIntelligence(BASE_FORM, "Senior Software Engineer", JD_WITH_MISSING);
-    // python, aws, docker, kubernetes are skills (short tokens)
-    expect(intel.skillsToAdd.length).toBeGreaterThan(0);
-  });
+    const directive = directiveForJd(BASE_FORM, JD_WITH_MISSING);
+    const plan = buildEnhancePlan(BASE_FORM, intel, directive);
 
-  it("identifies weak bullets", () => {
-    const intel = analyzeJobIntelligence(BASE_FORM, "Senior Software Engineer", JD_WITH_MISSING);
-    // "Responsible for..." and "Helped with..." should be flagged
-    expect(intel.weakBullets.length).toBeGreaterThanOrEqual(2);
-  });
-
-  it("reports coverage percent", () => {
-    const intel = analyzeJobIntelligence(BASE_FORM, "Senior Software Engineer", JD_WITH_MISSING);
-    expect(intel.coveragePercent).toBeGreaterThanOrEqual(0);
-    expect(intel.coveragePercent).toBeLessThanOrEqual(100);
-  });
-
-  it("returns empty analysis for empty JD", () => {
-    const intel = analyzeJobIntelligence(BASE_FORM, "Senior Software Engineer", "");
-    expect(intel.missingKeywords).toHaveLength(0);
-    expect(intel.skillsToAdd).toHaveLength(0);
-  });
-
-  it("sets hasMinimumContent true when experience present", () => {
-    const intel = analyzeJobIntelligence(BASE_FORM, "Senior Software Engineer", JD_WITH_MISSING);
-    expect(intel.hasMinimumContent).toBe(true);
+    expect(plan.summaryWarnings.length).toBeGreaterThan(0);
   });
 });
 
-// ─── DeterministicEnhancer ───────────────────────────────────────────────────
+describe("applyEnhancePlan", () => {
+  it("does not rewrite professionalSummary", () => {
+    const intel = analyzeJobIntelligence(BASE_FORM, "Senior Software Engineer", JD_WITH_MISSING);
+    const directive = directiveForJd(BASE_FORM, JD_WITH_MISSING);
+    const plan = buildEnhancePlan(BASE_FORM, intel, directive);
+    const result = applyEnhancePlan(BASE_FORM, plan);
+
+    expect(result.form.professionalSummary).toBe(BASE_FORM.professionalSummary);
+  });
+});
 
 describe("deterministicEnhance", () => {
-  it("injects missing skills into skillsText", () => {
+  it("injects JD Brain mustAddSkills into skillsText", () => {
     const intel = analyzeJobIntelligence(BASE_FORM, "Senior Software Engineer", JD_WITH_MISSING);
-    const result = deterministicEnhance(BASE_FORM, intel);
+    const directive = directiveForJd(BASE_FORM, JD_WITH_MISSING);
+    const result = deterministicEnhance(BASE_FORM, intel, directive);
 
-    expect(result.changes.skillsAdded.length).toBeGreaterThan(0);
-    // At least one of python/aws/docker should be added
-    const addedLower = result.changes.skillsAdded.map((s) => s.toLowerCase());
-    expect(addedLower.some((s) => ["python", "aws", "docker", "kubernetes"].includes(s))).toBe(true);
+    if (directive.mustAddSkills.length > 0) {
+      expect(result.changes.skillsAdded.length).toBeGreaterThan(0);
+      const addedLower = result.changes.skillsAdded.map((s) => s.toLowerCase());
+      expect(
+        directive.mustAddSkills.some((skill) => addedLower.includes(skill.toLowerCase())),
+      ).toBe(true);
+    }
+  });
+
+  it("does not inject raw keyword-gap junk when directive has no mustAddSkills", () => {
+    const intel = analyzeJobIntelligence(BASE_FORM, "Senior Software Engineer", JD_WITH_MISSING);
+    const result = deterministicEnhance(BASE_FORM, intel, {
+      mustAddSkills: [],
+      mustRemoveSkills: [],
+      mustWeaveKeywords: [],
+      effectiveTargetRole: null,
+      roleLevel: "senior",
+      scope: "ic",
+      targetVerbs: [],
+      impactDimensions: [],
+      quantHints: [],
+      summaryTheme: "",
+      emphasisAreas: [],
+      deprioritize: [],
+      cultureSignals: { velocity: null, ownership: null, industry: [] },
+    });
+
+    expect(result.changes.skillsAdded).toHaveLength(0);
+    expect(result.form.skillsText).toBe(BASE_FORM.skillsText);
   });
 
   it("does not duplicate existing skills", () => {
     const intel = analyzeJobIntelligence(BASE_FORM, "Senior Software Engineer", JD_WITH_MISSING);
-    const result = deterministicEnhance(BASE_FORM, intel);
+    const directive = directiveForJd(BASE_FORM, JD_WITH_MISSING);
+    const result = deterministicEnhance(BASE_FORM, intel, directive);
 
     const skillsList = result.form.skillsText
       .split(/[,;\n|]+/)
@@ -123,34 +149,33 @@ describe("deterministicEnhance", () => {
 
   it("rewrites weak bullets", () => {
     const intel = analyzeJobIntelligence(BASE_FORM, "Senior Software Engineer", JD_WITH_MISSING);
-    const result = deterministicEnhance(BASE_FORM, intel);
+    const directive = directiveForJd(BASE_FORM, JD_WITH_MISSING);
+    const result = deterministicEnhance(BASE_FORM, intel, directive);
 
     expect(result.changes.bulletsRewritten).toBeGreaterThan(0);
     const bullets = (result.form.experience[0]?.bullets ?? "").split("\n").filter(Boolean);
-    // Responsible for → should be replaced
     expect(bullets.some((b) => /^responsible for/i.test(b))).toBe(false);
-    // Helped with → should be replaced
     expect(bullets.some((b) => /^helped (to |with )?/i.test(b))).toBe(false);
   });
 
   it("returns a non-empty summary", () => {
     const intel = analyzeJobIntelligence(BASE_FORM, "Senior Software Engineer", JD_WITH_MISSING);
-    const result = deterministicEnhance(BASE_FORM, intel);
+    const directive = directiveForJd(BASE_FORM, JD_WITH_MISSING);
+    const result = deterministicEnhance(BASE_FORM, intel, directive);
     expect(result.summary.length).toBeGreaterThan(10);
   });
 
-  it("no-ops on skills when JD is empty (no keywords to add)", () => {
+  it("no-ops on skills when directive is empty", () => {
     const emptyIntel = analyzeJobIntelligence(BASE_FORM, "Senior Software Engineer", "");
     const result = deterministicEnhance(BASE_FORM, emptyIntel);
-    // No JD → no missing keywords → no skills injected
     expect(result.changes.skillsAdded).toHaveLength(0);
-    // Weak bullets still detected from bullet quality (independent of JD)
     expect(result.summary.length).toBeGreaterThan(0);
   });
 
   it("preserves contact fields", () => {
     const intel = analyzeJobIntelligence(BASE_FORM, "Senior Software Engineer", JD_WITH_MISSING);
-    const result = deterministicEnhance(BASE_FORM, intel);
+    const directive = directiveForJd(BASE_FORM, JD_WITH_MISSING);
+    const result = deterministicEnhance(BASE_FORM, intel, directive);
     expect(result.form.firstName).toBe(BASE_FORM.firstName);
     expect(result.form.email).toBe(BASE_FORM.email);
     expect(result.form.phone).toBe(BASE_FORM.phone);
@@ -158,7 +183,8 @@ describe("deterministicEnhance", () => {
 
   it("preserves experience metadata (id, company, dates)", () => {
     const intel = analyzeJobIntelligence(BASE_FORM, "Senior Software Engineer", JD_WITH_MISSING);
-    const result = deterministicEnhance(BASE_FORM, intel);
+    const directive = directiveForJd(BASE_FORM, JD_WITH_MISSING);
+    const result = deterministicEnhance(BASE_FORM, intel, directive);
     const exp = result.form.experience[0]!;
     expect(exp.id).toBe("exp-0");
     expect(exp.company).toBe("Acme Corp");

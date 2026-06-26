@@ -35,8 +35,11 @@ import {
   SYSTEM_QUOTA_PIPELINE_ESTIMATED_CALLS,
 } from "@/src/lib/ai/engine/system-quota-gate";
 import { getAppConfig } from "@/src/lib/services/config-service";
-import { isCustomerQuotaUnlimited, isSystemAiEnabled } from "@/src/lib/services/ai-engine-config";
-import { getFeatureFlags } from "@/src/lib/services/feature-flags-service";
+import { isCustomerQuotaUnlimited } from "@/src/lib/services/ai-engine-config";
+import {
+  getFeatureFlags,
+  isSystemAiEnabled,
+} from "@/src/lib/services/feature-flags-service";
 
 export type EnhanceResumeProfileInput = {
   profileId?: string;
@@ -221,6 +224,7 @@ export async function enhanceResumeForUserId(
     forceSystem: input.forceSystem ?? false,
     allowByokFallback: input.useCustomerKey ?? false,
     aiEngine,
+    systemAiEnabled: featureFlags.systemAiEnabled,
   });
 
   logEnhance("server", "action.route", {
@@ -256,7 +260,7 @@ export async function enhanceResumeForUserId(
     }
     return {
       success: false,
-      error: isSystemAiEnabled(aiEngine)
+      error: isSystemAiEnabled(featureFlags)
         ? "Add an API key in AI Keys or switch to EasySubmit AI in Settings."
         : "Add an API key in AI Keys to use Enhance with AI.",
       code: "no_customer_key",

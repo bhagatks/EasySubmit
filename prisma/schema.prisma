@@ -46,6 +46,16 @@ model User {
   /// Work auth, preferences, address, EEO — see `docs/APPLICATION_PROFILE.md`.
   applicationProfile  Json?
   termsAcceptedAt     DateTime?
+  /// `free` | `weekly` | `monthly` | `yearly`
+  plan                String         @default("free")
+  /// `active` | `canceled` | `past_due` | `trialing` — null for free users
+  subscriptionStatus  String?
+  /// Stripe subscription ID — used to manage/cancel via Stripe API
+  stripeSubscriptionId String?       @unique
+  /// Stripe customer ID — created on first checkout
+  stripeCustomerId    String?        @unique
+  /// When the current billing period ends (or when a canceled sub expires)
+  subscriptionEndsAt  DateTime?
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
   accounts         Account[]

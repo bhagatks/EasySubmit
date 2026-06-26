@@ -44,9 +44,9 @@ export function Navbar() {
           <Link href="/extension" className="transition hover:text-foreground">
             Extension
           </Link>
-          <a href="/#pricing" className="transition hover:text-foreground">
+          <Link href="/pricing" className="transition hover:text-foreground">
             Pricing
-          </a>
+          </Link>
         </nav>
 
         <div className="flex items-center gap-2">

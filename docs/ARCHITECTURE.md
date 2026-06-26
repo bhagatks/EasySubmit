@@ -160,6 +160,8 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 
 | Date | Summary |
 |------|---------|
+| 2026-06-26 | Deterministic fallback (Option 1) — `EnhancePlan` + `applyEnhancePlan` use JD Brain `mustAddSkills` (not raw keyword-gap tokens); summary flagged, not rewritten on fallback |
+| 2026-06-26 | System AI kill switch — `feature_flags.system_ai_enabled` replaces `app_config` enable gate; user Settings unchanged (AI source, one-click, resume picker) |
 | 2026-06-26 | Skills quality rules — shared `lib/resume/skills-rules.ts` (count gates, banned slot-wasters, prose detection); enforced in AI post-process, deterministic enhancer, readiness score, and StudioSkillsField |
 | 2026-06-26 | Professional Summary quality rules — shared `lib/resume/summary-rules.ts` (4 sentences, 70–80 words, banned phrases); enforced in AI enhance post-process, deterministic enhancer feedback, readiness score, and RefineryPanel live hints |
 | 2026-06-26 | Extension resume/cover detail toolbar — Studio Edition on second row, sparkles Enhance with AI (edit → enhance → DOC → PDF), preview panel widens to 400px and resets on Back |

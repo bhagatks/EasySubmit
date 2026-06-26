@@ -13,13 +13,12 @@ import {
 import { getAiReadinessForUser } from "@/lib/ai/ai-readiness-gate-for-user";
 import type { AiReadinessErrorCode } from "@/lib/ai/ai-readiness-gate-for-user";
 import { getAppConfig } from "@/src/lib/services/config-service";
-import { getFeatureFlags } from "@/src/lib/services/feature-flags-service";
 import type { AiSourcePreference } from "@/src/lib/ai/engine/constants";
 import {
   buildQuotaSnapshot,
   quotaResetPatchIfNeeded,
 } from "@/src/lib/ai/engine/quota";
-import { isSystemAiEnabled } from "@/src/lib/services/ai-engine-config";
+import { getFeatureFlags, isSystemAiEnabled } from "@/src/lib/services/feature-flags-service";
 import { resolveEffectiveAiSource } from "@/src/lib/ai/engine/router";
 import { SYSTEM_QUOTA_USER_SELECT } from "@/lib/ai/system-quota-gate-for-user";
 
@@ -89,7 +88,7 @@ export async function checkEnhanceWithAiPreflight(
     return { ok: false, error: "Account not found.", code: "unauthorized" };
   }
 
-  const systemAiEnabled = isSystemAiEnabled(aiEngine);
+  const systemAiEnabled = isSystemAiEnabled(featureFlags);
 
   const enhanceEnabled =
     variant === "onboarding"
@@ -157,7 +156,10 @@ export async function getAiQuotaSummary(): Promise<AiQuotaSummary | null> {
 
   if (!user) return null;
 
-  const aiEngine = await getAppConfig("aiEngine");
+  const [aiEngine, featureFlags] = await Promise.all([
+    getAppConfig("aiEngine"),
+    getFeatureFlags(),
+  ]);
   const reset = quotaResetPatchIfNeeded(user);
   const row = reset ? { ...user, ...reset } : user;
 
@@ -165,7 +167,7 @@ export async function getAiQuotaSummary(): Promise<AiQuotaSummary | null> {
   const effectiveMode = resolveEffectiveAiSource(
     pref,
     Boolean(user.vaultKeyId),
-    aiEngine,
+    isSystemAiEnabled(featureFlags),
     false,
   );
 

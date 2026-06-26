@@ -53,7 +53,7 @@ export function AvatarUploadField({
       formData.set("file", file);
 
       const data = await uploadProfileAvatar(formData);
-      if (!data.success || !data.image) {
+      if (!data.success) {
         throw new Error(data.error ?? "Could not upload photo.");
       }
 
@@ -78,7 +78,7 @@ export function AvatarUploadField({
     try {
       const data = await removeProfileAvatar();
       if (!data.success) {
-        throw new Error(data.error ?? "Could not remove photo.");
+        throw new Error(data.error);
       }
 
       onImageChange(null);

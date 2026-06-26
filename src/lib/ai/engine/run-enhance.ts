@@ -545,7 +545,11 @@ export async function runResumeEnhance(
       });
 
       try {
-        const fallback = deterministicEnhance(input.form, input.jobIntelligence);
+        const fallback = deterministicEnhance(
+          input.form,
+          input.jobIntelligence,
+          input.enhanceDirective,
+        );
         const changedSections = diffChangedSections(input.form, fallback.form, false);
 
         logEnhance("engine", "run.fallback.success", {
@@ -557,7 +561,8 @@ export async function runResumeEnhance(
           bulletsRewritten: fallback.changes.bulletsRewritten,
           structuralIssuesFound: fallback.changes.structuralIssuesFound,
           delta: summarizeFormDelta(input.form, fallback.form),
-          note: "Summary unchanged — deterministic path does not rewrite professionalSummary",
+          mustAddSkillsSource: "jd_brain_directive",
+          note: "Summary unchanged — deterministic path flags summary issues only",
         });
 
         return {

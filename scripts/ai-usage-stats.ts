@@ -28,11 +28,14 @@ async function main() {
     field: K,
     where: Record<string, unknown> = {},
   ) {
-    const rows = await prisma.apiCallLog.groupBy({
+    type GroupRow = { _count: { _all: number } } & Record<K, string | null>;
+
+    const rows = (await prisma.apiCallLog.groupBy({
       by: [field],
       where,
       _count: { _all: true },
-    });
+    } as Parameters<typeof prisma.apiCallLog.groupBy>[0])) as unknown as GroupRow[];
+
     return rows
       .map((r) => ({
         [field]: r[field] ?? "(null)",

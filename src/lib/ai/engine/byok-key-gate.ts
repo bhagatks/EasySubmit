@@ -1,5 +1,5 @@
 import type { AiSourcePreference } from "@/src/lib/ai/engine/constants";
-import type { ResolvedAiRoute } from "@/src/lib/ai/engine/router";
+import type { AiRouteResolution } from "@/src/lib/ai/engine/router";
 
 export const BYOK_PIPELINE_FAILURE_CODES = [
   "no_customer_key",
@@ -50,7 +50,7 @@ export type ByokKeyGateSignals = {
   preference: AiSourcePreference;
   vaultKeyId: string | null;
   activeProvider: string | null;
-  route: ResolvedAiRoute | { error: "no_customer_key" | "no_system_key" };
+  route: AiRouteResolution;
   unvaultOk: boolean | null;
   recentApiFailures60m: number;
   lastJobFailure: LastJobKeyFailure | null;

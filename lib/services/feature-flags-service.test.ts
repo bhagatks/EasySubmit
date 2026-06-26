@@ -57,6 +57,7 @@ describe("getFeatureFlags", () => {
       enhanceWithAiResumeProfile: true,
       extensionGlobalSwitch: true,
       extensionAutoApply: true,
+      systemAiEnabled: true,
     });
   });
 });
@@ -148,39 +149,33 @@ describe("isFeatureEnabled", () => {
 describe("isEnhanceOnboardingVisible", () => {
   it("requires feature flag and system AI enabled", () => {
     expect(
-      isEnhanceOnboardingVisible(
-        {
-          enhanceWithAiOnboarding: true,
-          enhanceWithAiResumeProfile: true,
-          extensionGlobalSwitch: true,
-          extensionAutoApply: true,
-        },
-        true,
-      ),
+      isEnhanceOnboardingVisible({
+        enhanceWithAiOnboarding: true,
+        enhanceWithAiResumeProfile: true,
+        extensionGlobalSwitch: true,
+        extensionAutoApply: true,
+        systemAiEnabled: true,
+      }),
     ).toBe(true);
 
     expect(
-      isEnhanceOnboardingVisible(
-        {
-          enhanceWithAiOnboarding: true,
-          enhanceWithAiResumeProfile: true,
-          extensionGlobalSwitch: true,
-          extensionAutoApply: true,
-        },
-        false,
-      ),
+      isEnhanceOnboardingVisible({
+        enhanceWithAiOnboarding: true,
+        enhanceWithAiResumeProfile: true,
+        extensionGlobalSwitch: true,
+        extensionAutoApply: true,
+        systemAiEnabled: false,
+      }),
     ).toBe(false);
 
     expect(
-      isEnhanceOnboardingVisible(
-        {
-          enhanceWithAiOnboarding: false,
-          enhanceWithAiResumeProfile: true,
-          extensionGlobalSwitch: true,
-          extensionAutoApply: true,
-        },
-        true,
-      ),
+      isEnhanceOnboardingVisible({
+        enhanceWithAiOnboarding: false,
+        enhanceWithAiResumeProfile: true,
+        extensionGlobalSwitch: true,
+        extensionAutoApply: true,
+        systemAiEnabled: true,
+      }),
     ).toBe(false);
   });
 });

@@ -14,9 +14,13 @@ vi.mock("@/src/lib/services/config-service", () => ({
   getAppConfig: vi.fn(),
 }));
 
-vi.mock("@/src/lib/services/feature-flags-service", () => ({
-  getFeatureFlags: vi.fn(),
-}));
+vi.mock("@/src/lib/services/feature-flags-service", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/src/lib/services/feature-flags-service")>();
+  return {
+    ...actual,
+    getFeatureFlags: vi.fn(),
+  };
+});
 
 vi.mock("@/src/lib/ai/engine/router", () => ({
   resolveAiRoute: vi.fn(),
@@ -48,6 +52,7 @@ const baseForm = {
   phone: "",
   cityState: "",
   professionalSummary: "",
+  skillsText: "",
   skills: [],
   experience: [],
   education: [],
@@ -55,6 +60,14 @@ const baseForm = {
   projects: [],
   languages: [],
   customSections: [],
+};
+
+const defaultFlags = {
+  enhanceWithAiOnboarding: true,
+  enhanceWithAiResumeProfile: true,
+  extensionGlobalSwitch: true,
+  extensionAutoApply: true,
+  systemAiEnabled: true,
 };
 
 describe("enhanceResumeForUserId", () => {
@@ -66,11 +79,7 @@ describe("enhanceResumeForUserId", () => {
       }
       return {};
     });
-    vi.mocked(getFeatureFlags).mockResolvedValue({
-      enhanceWithAiResumeProfile: true,
-      enhanceWithAiOnboarding: true,
-      extensionAutoApply: true,
-    } as never);
+    vi.mocked(getFeatureFlags).mockResolvedValue(defaultFlags);
     vi.mocked(prisma.user.findUnique).mockResolvedValue({
       vaultKeyId: "vault-1",
       activeProvider: "google",
@@ -137,10 +146,9 @@ describe("enhanceResumeForUserId", () => {
 
   it("blocks pipeline variant when resume-profile enhance is off", async () => {
     vi.mocked(getFeatureFlags).mockResolvedValue({
+      ...defaultFlags,
       enhanceWithAiResumeProfile: false,
-      enhanceWithAiOnboarding: true,
-      extensionAutoApply: true,
-    } as never);
+    });
 
     const result = await enhanceResumeForUserId("user-1", {
       form: baseForm,
@@ -158,10 +166,9 @@ describe("enhanceResumeForUserId", () => {
 
   it("allows pipeline variant when resume-profile enhance is on", async () => {
     vi.mocked(getFeatureFlags).mockResolvedValue({
-      enhanceWithAiResumeProfile: true,
-      enhanceWithAiOnboarding: true,
+      ...defaultFlags,
       extensionAutoApply: false,
-    } as never);
+    });
 
     const result = await enhanceResumeForUserId("user-1", {
       form: baseForm,

@@ -6,6 +6,7 @@ export const FEATURE_FLAG_KEYS = {
   enhanceWithAiResumeProfile: "enhance_with_ai_resume_profile",
   extensionGlobalSwitch: "extension_global_switch",
   extensionAutoApply: "extension_auto_apply",
+  systemAiEnabled: "system_ai_enabled",
 } as const;
 
 export type FeatureFlagKey = (typeof FEATURE_FLAG_KEYS)[keyof typeof FEATURE_FLAG_KEYS];
@@ -51,6 +52,11 @@ export const FEATURE_FLAG_REGISTRY: Record<
       "Extension one-click apply pipeline (Workday). Off = manual Save → Update resume → Apply",
     defaultEnabled: true,
   },
+  systemAiEnabled: {
+    key: FEATURE_FLAG_KEYS.systemAiEnabled,
+    description: "Global kill switch for EasySubmit system AI pool (BYOK unaffected)",
+    defaultEnabled: true,
+  },
 };
 
 export type FeatureFlagsSnapshot = {
@@ -58,6 +64,7 @@ export type FeatureFlagsSnapshot = {
   enhanceWithAiResumeProfile: boolean;
   extensionGlobalSwitch: boolean;
   extensionAutoApply: boolean;
+  systemAiEnabled: boolean;
 };
 
 export const FEATURE_FLAGS_DEFAULTS: FeatureFlagsSnapshot = {
@@ -65,6 +72,7 @@ export const FEATURE_FLAGS_DEFAULTS: FeatureFlagsSnapshot = {
   enhanceWithAiResumeProfile: FEATURE_FLAG_REGISTRY.enhanceWithAiResumeProfile.defaultEnabled,
   extensionGlobalSwitch: FEATURE_FLAG_REGISTRY.extensionGlobalSwitch.defaultEnabled,
   extensionAutoApply: FEATURE_FLAG_REGISTRY.extensionAutoApply.defaultEnabled,
+  systemAiEnabled: FEATURE_FLAG_REGISTRY.systemAiEnabled.defaultEnabled,
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -147,6 +155,11 @@ export async function getFeatureFlags(): Promise<FeatureFlagsSnapshot> {
       FEATURE_FLAG_REGISTRY.extensionAutoApply.defaultEnabled,
       byKey,
     ),
+    systemAiEnabled: resolveEnabled(
+      FEATURE_FLAG_REGISTRY.systemAiEnabled.key,
+      FEATURE_FLAG_REGISTRY.systemAiEnabled.defaultEnabled,
+      byKey,
+    ),
   };
 }
 
@@ -183,10 +196,14 @@ export function getFeatureFlagSeedRows(): FeatureFlagDefinition[] {
   return Object.values(FEATURE_FLAG_REGISTRY);
 }
 
-/** Onboarding studio — requires feature flag and system AI (onboarding uses `forceSystem`). */
+/** Global system AI kill switch — ops toggles `feature_flags.system_ai_enabled`. */
+export function isSystemAiEnabled(flags: Pick<FeatureFlagsSnapshot, "systemAiEnabled">): boolean {
+  return flags.systemAiEnabled;
+}
+
+/** Onboarding studio — requires feature flag and system AI enabled. */
 export function isEnhanceOnboardingVisible(
   flags: FeatureFlagsSnapshot,
-  systemAiEnabled: boolean,
 ): boolean {
-  return flags.enhanceWithAiOnboarding && systemAiEnabled;
+  return flags.enhanceWithAiOnboarding && isSystemAiEnabled(flags);
 }
