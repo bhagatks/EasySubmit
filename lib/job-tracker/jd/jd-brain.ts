@@ -12,7 +12,10 @@ import type {
   JDSegments,
   JSONLDJobFields,
 } from "@/lib/job-tracker/jd/jd-intelligence";
+import type { ResolvedAiRoute } from "@/src/lib/ai/engine/router";
 import { makeEmptyIntelligence } from "@/lib/job-tracker/jd/jd-intelligence";
+import { logEnhance } from "@/src/lib/ai/engine/enhance-logger";
+import { ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
 
 export type JDAnalysisInput = {
   rawDescription: string;
@@ -21,6 +24,10 @@ export type JDAnalysisInput = {
   cachedIntelligence?: JDIntelligence | null;
   cachedHash?: string | null;
   useAi?: boolean;
+  /** Shared enhance route — BYOK when vault key exists, else system pool. */
+  aiRoute?: ResolvedAiRoute | null;
+  traceId?: string;
+  userId?: string | null;
 };
 
 export type JDAnalysisResult = {
@@ -118,13 +125,32 @@ export async function analyzeJobDescription(
 
     // Run AI enrichment if enabled and system AI is available.
     // Dynamic import keeps the prisma/system-key-pool chain out of the sync module graph.
-    if (useAi) {
+    if (useAi && input.aiRoute) {
       const { extractJDIntelligenceWithAI, mergeAIIntoIntelligence } = await import(
         "@/lib/job-tracker/jd/jd-ai-extractor"
       );
-      const aiResult = await extractJDIntelligenceWithAI(segments, targetRole, intelligence);
+      const aiResult = await extractJDIntelligenceWithAI(
+        segments,
+        targetRole,
+        input.aiRoute,
+        input.traceId ?? "no-trace",
+        input.userId,
+      );
       if (aiResult.ok) {
         intelligence = mergeAIIntoIntelligence(intelligence, aiResult.intelligence);
+        logEnhance("server", "jd.brain.merge", {
+          traceId: input.traceId ?? "no-trace",
+          userId: input.userId,
+          step: ENHANCE_PIPELINE.PRE_JD_BRAIN,
+          descriptionHash,
+          source: intelligence.source,
+          confidence: intelligence.confidence,
+          velocitySignal: intelligence.velocitySignal,
+          ownershipLevel: intelligence.ownershipLevel,
+          industryDomain: intelligence.industryDomain.slice(0, 3),
+          mustHaveSkills: intelligence.mustHaveSkills.slice(0, 12),
+          summaryTheme: intelligence.summaryTheme || null,
+        });
       }
     }
 

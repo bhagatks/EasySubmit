@@ -9,12 +9,34 @@ describe("extension-install-prompt-config", () => {
   it("parses refreshIntervalMinutes", () => {
     expect(parseExtensionInstallPromptConfig({ refreshIntervalMinutes: 15 })).toEqual({
       refreshIntervalMinutes: 15,
+      dashboardVisit: false,
+      tabFocusReturn: false,
+      periodicRefresh: false,
     });
   });
 
   it("accepts legacy extensionInstallPromptRefreshTime key", () => {
     expect(parseExtensionInstallPromptConfig({ extensionInstallPromptRefreshTime: 45 })).toEqual({
       refreshIntervalMinutes: 45,
+      dashboardVisit: false,
+      tabFocusReturn: false,
+      periodicRefresh: false,
+    });
+  });
+
+  it("parses trigger flags", () => {
+    expect(
+      parseExtensionInstallPromptConfig({
+        refreshIntervalMinutes: 10,
+        dashboardVisit: true,
+        tabFocusReturn: true,
+        periodicRefresh: true,
+      }),
+    ).toEqual({
+      refreshIntervalMinutes: 10,
+      dashboardVisit: true,
+      tabFocusReturn: true,
+      periodicRefresh: true,
     });
   });
 

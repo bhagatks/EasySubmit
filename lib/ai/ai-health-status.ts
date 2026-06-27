@@ -238,15 +238,6 @@ async function _checkForUser(userId: string): Promise<AiHealthCheckResult> {
     });
   }
 
-  if (!user.vaultKeyId) {
-    debug.reason = "no_byok_key";
-    return finishCheck(userId, debug, {
-      ok: false,
-      code: "key_missing",
-      message: "Add your API key in AI Keys to unlock AI enhancements.",
-    });
-  }
-
   debug.reason = "healthy";
   return finishCheck(userId, debug, { ok: true });
 }

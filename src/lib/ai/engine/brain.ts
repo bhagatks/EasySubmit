@@ -1,6 +1,7 @@
 import type { CandidateContext } from "@/src/lib/ai/engine/candidate-context";
 import type { JobIntelligence } from "@/lib/job-tracker/ats/job-intelligence";
-import type { ResumeEnhanceDirective } from "@/lib/job-tracker/jd/jd-intelligence";
+import type { JDSegments, ResumeEnhanceDirective } from "@/lib/job-tracker/jd/jd-intelligence";
+import { buildJdDraftPromptBlock } from "@/lib/job-tracker/jd/jd-prompt-segments";
 import { buildExperienceBulletBudgetPrompt } from "@/lib/resume/experience-bullet-rules";
 import {
   SKILLS_HARD_MIN_SYSTEM,
@@ -47,6 +48,77 @@ export function buildEnhanceSystemPrompt(ctx: CandidateContext): string {
   ].join("\n\n");
 }
 
+function buildJdBlockForPass(
+  pass: "generate" | "optimize",
+  ctx: CandidateContext,
+  segments?: JDSegments,
+): string {
+  if (!ctx.jobDescription?.trim()) return "";
+
+  if (pass === "generate" && segments) {
+    const draft = buildJdDraftPromptBlock(segments);
+    if (draft) {
+      return `\nJOB DESCRIPTION TO TARGET (requirements + responsibilities):\n"""\n${draft}\n"""\n`;
+    }
+  }
+
+  return `\nJOB DESCRIPTION TO TARGET:\n"""\n${ctx.jobDescription.slice(0, 12000)}\n"""\n`;
+}
+
+function buildCultureBlock(culture: ResumeEnhanceDirective["cultureSignals"]): string | null {
+  const parts: string[] = [];
+
+  if (culture.velocity) {
+    const hints: Record<NonNullable<typeof culture.velocity>, string> = {
+      fast: "startup pace, ship quickly",
+      moderate: "balanced shipping cadence",
+      structured: "process-heavy, enterprise cadence",
+    };
+    parts.push(`pace: ${culture.velocity} (${hints[culture.velocity]})`);
+  }
+
+  if (culture.ownership) {
+    const hints: Record<NonNullable<typeof culture.ownership>, string> = {
+      high: "autonomous, end-to-end ownership",
+      medium: "collaborative delivery",
+      low: "support and execution focus",
+    };
+    parts.push(`ownership: ${culture.ownership} (${hints[culture.ownership]})`);
+  }
+
+  if (culture.industry.length > 0) {
+    parts.push(`industry: ${culture.industry.join(", ")}`);
+  }
+
+  if (parts.length === 0) return null;
+
+  return `CULTURE / TONE — align narrative (do not invent facts):\n  ${parts.join("\n  ")}`;
+}
+
+function buildGapsBlock(
+  gaps: Array<{ atom: { label: string } }>,
+  resumeSkills: string[],
+): string | null {
+  if (gaps.length === 0) return null;
+
+  const gapLines = gaps
+    .slice(0, 8)
+    .map((g) => `  - ${g.atom.label}`)
+    .join("\n");
+
+  const adjacent =
+    resumeSkills.length > 0
+      ? resumeSkills.slice(0, 15).join(", ")
+      : "related skills from the candidate's experience";
+
+  return [
+    "GAPS (required by JD but missing from resume — DO NOT fabricate):",
+    gapLines,
+    "DO NOT add these to the Skills section or claim hands-on experience.",
+    `Instead, emphasize adjacent strengths the candidate genuinely has (e.g. ${adjacent}) in bullets and summary to show related expertise without lying.`,
+  ].join("\n");
+}
+
 export function buildEnhanceUserPrompt(
   ctx: CandidateContext,
   pass: "generate" | "optimize",
@@ -54,17 +126,13 @@ export function buildEnhanceUserPrompt(
   directive?: ResumeEnhanceDirective,
   brief?: import("@/lib/job-tracker/enhance/enhance-brief").ResumeEnhanceBrief,
 ): string {
-  const jdBlock = ctx.jobDescription
-    ? `\nJOB DESCRIPTION TO TARGET:\n"""\n${ctx.jobDescription.slice(0, 12000)}\n"""\n`
-    : "";
+  const jdBlock = buildJdBlockForPass(pass, ctx, brief?.jd?.segments);
 
   const rawSnippet = ctx.rawResumeSnippet
     ? `\nSOURCE RESUME SNIPPET (ground truth):\n"""\n${ctx.rawResumeSnippet}\n"""\n`
     : "";
 
   const bodyJson = JSON.stringify(ctx.resumeBody, null, 2);
-
-  // Use JD-extracted title if available — this is the actual role being applied for
   const effectiveRole = directive?.effectiveTargetRole ?? ctx.targetRole;
 
   if (pass === "generate") {
@@ -96,7 +164,6 @@ export function buildEnhanceUserPrompt(
     ].join("\n");
   }
 
-  // Pass 2 — tactical optimization using pre-computed intelligence
   const intelligenceBlock = directive
     ? buildDirectiveBlock(directive)
     : buildIntelligenceBlock(intelligence);
@@ -107,7 +174,7 @@ export function buildEnhanceUserPrompt(
           ? `PRIORITY FIXES:\n${brief.readiness.topActions.slice(0, 5).map((a) => `  - ${a}`).join("\n")}`
           : "",
         brief.jd?.coverageBefore.gaps.length
-          ? `GAPS — do NOT fabricate; improve surrounding content only:\n${brief.jd.coverageBefore.gaps.slice(0, 8).map((g) => `  - ${g.atom.label}`).join("\n")}`
+          ? buildGapsBlock(brief.jd.coverageBefore.gaps, brief.skills.list)
           : "",
       ]
         .filter(Boolean)
@@ -167,7 +234,9 @@ export function buildDirectiveBlock(directive: ResumeEnhanceDirective): string {
   }
 
   if (directive.targetVerbs.length > 0) {
-    parts.push(`BULLET REWRITES — use these verbs: ${directive.targetVerbs.join(", ")}`);
+    parts.push(
+      `BULLET REWRITES — prefer these verbs where they naturally fit the achievement:\n  ${directive.targetVerbs.join(", ")}\n  Do NOT force every verb into the resume if it creates awkward phrasing. Prioritize natural fit over verb coverage.`,
+    );
   }
 
   if (directive.impactDimensions.length > 0) {
@@ -181,6 +250,9 @@ export function buildDirectiveBlock(directive: ResumeEnhanceDirective): string {
   if (directive.deprioritize.length > 0) {
     parts.push(`SUPPRESS / DOWNPLAY: ${directive.deprioritize.join(", ")}`);
   }
+
+  const cultureBlock = buildCultureBlock(directive.cultureSignals);
+  if (cultureBlock) parts.push(cultureBlock);
 
   if (parts.length === 0) return "";
 

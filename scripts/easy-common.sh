@@ -83,3 +83,18 @@ easy_run_with_post_start() {
 
   wait "$server_pid"
 }
+
+easy_run_tests() {
+  echo "→ Running tests"
+  npm test
+}
+
+easy_posthog_journey_report() {
+  local label="${1:-dev}"
+  echo "→ PostHog journey report ($label, non-blocking)"
+  if npm run posthog:journey; then
+    echo "→ PostHog journey report complete"
+  else
+    echo "⚠ PostHog journey report skipped (missing POSTHOG_PERSONAL_API_KEY or DB)"
+  fi
+}

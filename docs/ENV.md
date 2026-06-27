@@ -4,8 +4,8 @@ Two commands — local secrets on disk, production secrets on **Vercel only**.
 
 | Command | Purpose |
 |---------|---------|
-| **`run easy`** | Local dev — `.env.local`, migrations, dev server (browser manual by default) |
-| **`run easy prod`** | Deploy pipeline — tests → prod migrations (env pulled from Vercel) → `vercel deploy --prod` |
+| **`run easy`** | Local dev — `.env.local`, migrations, **tests**, extension build, **PostHog journey report**, dev server |
+| **`run easy prod`** | Deploy pipeline — **tests**, **PostHog journey report**, extension build → prod migrations (env pulled from Vercel) → `vercel deploy --prod` |
 
 ## Local dev
 
@@ -14,6 +14,15 @@ run easy
 ```
 
 Auto-creates `.env.local` from `.env.example` on first run. One-time: paste `DATABASE_URL` if still a placeholder.
+
+Pipeline (`scripts/easy-bootstrap.sh`):
+
+1. Validate / prepare `.env.local`
+2. `prisma generate` + `prisma migrate deploy`
+3. `npm test`
+4. `npm run build:extension`
+5. `npm run posthog:journey` — DB + PostHog dev journey report (non-blocking if keys missing)
+6. `next dev` on port 3000
 
 When the server is ready, the terminal prints the login URL — open it yourself in any browser.
 
@@ -35,10 +44,26 @@ Pipeline:
 
 1. Removes any legacy local prod env files (`.env.production.local`, etc.)
 2. `npm test`
-3. Pulls production env from Vercel **temporarily** → runs `prisma migrate deploy` → deletes temp file
-4. `vercel deploy --prod`
+3. `npm run posthog:journey` — dev PostHog + DB journey report (non-blocking if keys missing)
+4. `npm run build:extension` — same extension artifact as local dev
+5. Pulls production env from Vercel **temporarily** → runs `prisma migrate deploy` → deletes temp file
+6. `vercel deploy --prod`
 
 One-time: `vercel login` and `vercel link` (prompted automatically).
+
+### `run easy` vs `run easy prod`
+
+| Step | `run easy` | `run easy prod` |
+|------|------------|-----------------|
+| Env source | `.env.local` | Vercel pull (temp, migrations only) |
+| Stop stale dev server | ✓ | — |
+| `setup-env` / validate DB URL | ✓ | — |
+| `prisma generate` + `migrate deploy` | ✓ (local DB) | ✓ (prod DB) |
+| `npm test` | ✓ | ✓ |
+| `npm run posthog:journey` | ✓ (non-blocking) | ✓ (non-blocking, uses local `.env.local`) |
+| `npm run build:extension` | ✓ | ✓ |
+| `next dev` | ✓ | — |
+| `vercel deploy --prod` | — | ✓ |
 
 ## Files
 
@@ -76,9 +101,14 @@ See [`docs/analytics-option-a.md`](./analytics-option-a.md).
 | `NEXT_PUBLIC_ANALYTICS_ENABLED` | `true` | `true` |
 | `NEXT_PUBLIC_ANALYTICS_ENV` | `dev` | `prod` |
 | `NEXT_PUBLIC_POSTHOG_AUTOCAPTURE` | `true` | `true` (web only; extension build forces `false`) |
+| `POSTHOG_PERSONAL_API_KEY` | `phx_…` (for `npm run posthog:journey` / `run easy`) | optional on Vercel |
+| `POSTHOG_DEV_PROJECT_ID` | `488025` | — |
+| `POSTHOG_PROD_PROJECT_ID` | `488042` | — |
 | `LOG_LEVEL` | `debug` | `info` |
 
 Dashboard bootstrap (optional): `POSTHOG_PERSONAL_API_KEY=phx_... npm run analytics:setup`
+
+Journey report (runs in `run easy` / `run easy prod`): `npm run posthog:journey` — add `--backfill` to sync last DB session into PostHog dev.
 
 ## JDSkills (optional — north-star enhance)
 

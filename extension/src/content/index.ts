@@ -73,6 +73,8 @@ import { AnalyticsEvents, captureAnalyticsEvent } from "@shared/analytics";
 import {
   trackEnhanceClicked,
   trackEnhanceCompleted,
+  trackResumeJourneyStep,
+  trackUiInteraction,
 } from "@shared/analytics/product-events";
 import {
   escapeHintAttr,
@@ -2589,6 +2591,59 @@ let profilePickerOutsideCleanup: (() => void) | null = null;
 let settingsMenuOutsideCleanup: (() => void) | null = null;
 let profilePickerDelegationReady = false;
 let settingsMenuDelegationReady = false;
+let extensionUiAnalyticsReady = false;
+
+function inferExtensionUiAction(el: Element): { action: string; target: string } {
+  const tracked = [
+    "data-save",
+    "data-minimize",
+    "data-refresh-card",
+    "data-settings",
+    "data-settings-dashboard",
+    "data-settings-reconnect",
+    "data-fix-ai-dashboard",
+    "data-force-upgrade-update",
+    "data-update-resume",
+    "data-profile-id",
+    "data-profile-picker",
+  ] as const;
+
+  for (const attr of tracked) {
+    const node = el.closest(`[${attr}]`);
+    if (node) {
+      return {
+        action: attr.replace(/^data-/, "").replace(/-/g, "_"),
+        target: attr,
+      };
+    }
+  }
+
+  const tag = el.tagName.toLowerCase();
+  const label = (el.textContent ?? "").trim().slice(0, 40);
+  return { action: "click", target: label || tag };
+}
+
+function setupExtensionUiAnalyticsDelegation(shadow: ShadowRoot): void {
+  if (extensionUiAnalyticsReady) return;
+  extensionUiAnalyticsReady = true;
+
+  shadow.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const interactive = target.closest("button, a, [role='button']");
+    if (!interactive) return;
+
+    const { action, target: targetName } = inferExtensionUiAction(interactive);
+    trackUiInteraction({
+      surface: "extension",
+      action,
+      target: targetName,
+      label: (interactive.textContent ?? "").trim().slice(0, 80) || null,
+      traceId: savedStatus.id ?? null,
+      entryId: savedStatus.id ?? null,
+    });
+  });
+}
 
 function normalizeResumeProfileOptions(
   profiles: ExtensionResumeProfilesResponse["profiles"],
@@ -2678,7 +2733,7 @@ function scheduleRuntimeConfigRefresh(minIntervalMs: number): void {
 }
 
 function maybeRefreshAiHealthConfig(): void {
-  if (!isExtensionApplyBlockedByAiHealth(runtimeConfig)) return;
+  if (!resolveExtensionAiHealthBanner(runtimeConfig)) return;
   scheduleRuntimeConfigRefresh(30_000);
 }
 
@@ -3165,6 +3220,20 @@ async function applyServerJourneyRefresh(reason: string): Promise<void> {
   if (transition !== "unchanged" || previousSaveError !== saveError) {
     void refreshRuntimeConfig().catch(() => undefined);
     if (cardHost) renderCard(cardHost.shadow);
+  }
+
+  if (after.status === "READY_TO_APPLY" && before.status !== "READY_TO_APPLY") {
+    trackResumeJourneyStep({
+      journey: "apply_ready",
+      pipelineStep: "85_post_pipeline_state",
+      surface: "extension_pipeline",
+      traceId: after.id ?? undefined,
+      aiUsed: false,
+      aiCallStatus: "none",
+      status: saveError ? "error" : "success",
+      jobStatus: after.status,
+      errorCode: saveError ? "pipeline_error" : null,
+    });
   }
 
   if (shouldRunExtensionJourneySyncPoll(after)) {
@@ -3785,6 +3854,16 @@ async function startApplyPipeline(): Promise<void> {
       entry_id: captureRes.id,
       status: captureRes.status ?? "CAPTURED",
     });
+    trackResumeJourneyStep({
+      journey: "capture",
+      pipelineStep: "40_apply_start",
+      surface: "extension_pipeline",
+      traceId: captureRes.id,
+      aiUsed: false,
+      aiCallStatus: "skipped",
+      status: "success",
+      jobStatus: captureRes.status ?? "CAPTURED",
+    });
     const jobId = captureRes.id;
     savedStatus = {
       saved: true,
@@ -3941,6 +4020,7 @@ async function mountCard(
     applyHostShell(host);
     const shadow = host.attachShadow({ mode: "open" });
     cardHost = { host, shadow, position };
+    setupExtensionUiAnalyticsDelegation(shadow);
     setupProfilePickerDelegation(shadow);
     setupSettingsMenuDelegation(shadow);
     setupPanelResizeDelegation(shadow);
@@ -3974,6 +4054,7 @@ function removeCard(): void {
   closeSettingsMenu();
   profilePickerDelegationReady = false;
   settingsMenuDelegationReady = false;
+  extensionUiAnalyticsReady = false;
   panelResizeDelegationReady = false;
   void stopJobStatusRealtime();
   cardHost?.host.remove();

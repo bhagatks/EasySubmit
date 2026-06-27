@@ -1,5 +1,9 @@
 import posthog from "posthog-js";
-import { getAnalyticsConfig, isLocalhostHost } from "@/src/shared/analytics/config";
+import {
+  getAnalyticsConfig,
+  isDevAnalyticsEnvironment,
+  isLocalhostHost,
+} from "@/src/shared/analytics/config";
 import { sanitizeProperties } from "@/src/shared/analytics/sanitize";
 import type { AnalyticsEventName } from "@/src/shared/analytics/events";
 
@@ -56,6 +60,18 @@ export function captureAnalyticsEvent(
       ...properties,
     }),
   );
+}
+
+/** Dev PostHog project only — use for resume journey debug, not prod metrics. */
+export function captureDevAnalyticsEvent(
+  event: AnalyticsEventName | string,
+  properties?: Record<string, unknown>,
+): void {
+  if (!isDevAnalyticsEnvironment()) return;
+  captureAnalyticsEvent(event, {
+    dev_journey: true,
+    ...properties,
+  });
 }
 
 export function captureAnalyticsPageView(path?: string): void {

@@ -25,7 +25,8 @@
     "pool:status": "npx --yes tsx scripts/pool-status.ts",
     "pool:reset": "npx --yes tsx scripts/pool-reset-dev.ts",
     "ai:usage": "npx --yes tsx scripts/ai-usage-stats.ts",
-    "analytics:setup": "node scripts/posthog-setup-dashboards.mjs"
+    "analytics:setup": "node scripts/posthog-setup-dashboards.mjs",
+    "posthog:journey": "npx tsx scripts/posthog-journey-report.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.85",
@@ -69,6 +70,7 @@
     "tw-animate-css": "^1.4.0",
     "wink-eng-lite-web-model": "^1.8.1",
     "wink-nlp": "^2.4.0",
+    "zod": "^3.25.76",
     "zustand": "^5.0.14"
   },
   "devDependencies": {

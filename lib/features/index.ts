@@ -10,6 +10,7 @@ import type {
 
 export type { FeatureName, FeatureSurface } from "@/lib/features/types";
 export type { EnhanceFeatureResolution, SubscriptionFeatureResolution } from "@/lib/features/types";
+export { enhanceFeatureRoute } from "@/lib/features/enhance-ai-route";
 
 type ResolveFeatureInput<F extends FeatureName> = {
   feature: F;

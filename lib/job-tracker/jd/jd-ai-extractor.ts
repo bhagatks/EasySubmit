@@ -1,16 +1,28 @@
-// Layer 3B — AI-powered JD extraction using Gemini Flash via system key pool.
-// Uses system key only (never user quota). Cached per job — one call per unique JD.
+// Layer 3B — AI-powered JD extraction via shared enhance AI route (BYOK or system pool).
 // Never throws: on any error returns { ok: false }.
 
-import { generateText } from "ai";
-import { createAiSdkLanguageModel } from "@/src/lib/ai/ai-sdk-provider";
-import { acquireSystemGeminiKey } from "@/src/lib/ai/engine/system-key-pool";
-import { getAppConfig } from "@/src/lib/services/config-service";
-import { getFeatureFlags, isSystemAiEnabled } from "@/src/lib/services/feature-flags-service";
-import type { JDSegments, JDIntelligence, JDImpactDimension } from "@/lib/job-tracker/jd/jd-intelligence";
+import type { JDIntelligence, JDImpactDimension, JDSegments } from "@/lib/job-tracker/jd/jd-intelligence";
+import { jdAiExtractSchema, type JdAiExtractPayload } from "@/lib/job-tracker/jd/jd-ai-extract-schema";
+import { truncateSegmentsForExtraction } from "@/lib/job-tracker/jd/jd-prompt-segments";
+import { canonicalizeMasterSkills } from "@/lib/job-tracker/jd/skill-canonicalize";
+import type { ResolvedAiRoute } from "@/src/lib/ai/engine/router";
+import { callEnhanceObjectModel } from "@/src/lib/ai/engine/run-enhance";
+import { logEnhance } from "@/src/lib/ai/engine/enhance-logger";
+import { ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
+
+/** Utility model for system-key JD extraction (resume enhance may use a different system model). */
+export const JD_EXTRACTION_SYSTEM_MODEL = "gemini-1.5-flash";
 
 const VALID_IMPACT_DIMS = new Set<JDImpactDimension>([
-  "reliability","scale","speed","cost","revenue","quality","security","team","delivery",
+  "reliability",
+  "scale",
+  "speed",
+  "cost",
+  "revenue",
+  "quality",
+  "security",
+  "team",
+  "delivery",
 ]);
 
 export type JDAiExtractResult =
@@ -21,61 +33,65 @@ export function buildJDExtractionPrompt(
   segments: JDSegments,
   targetRole: string,
 ): string {
-  const reqBlock = segments.requirements.slice(0, 3000).trim();
-  const respBlock = segments.responsibilities.slice(0, 2000).trim();
-  const prefBlock = segments.preferred.slice(0, 1000).trim();
+  const truncated = truncateSegmentsForExtraction(segments);
 
   const parts = [
     `Target role: ${targetRole}`,
     "",
     "REQUIREMENTS:",
     '"""',
-    reqBlock || "(not found)",
+    truncated.requirements || "(not found)",
     '"""',
     "",
     "RESPONSIBILITIES:",
     '"""',
-    respBlock || "(not found)",
+    truncated.responsibilities || "(not found)",
     '"""',
   ];
 
-  if (prefBlock) {
-    parts.push("", "PREFERRED:", '"""', prefBlock, '"""');
+  if (truncated.preferred) {
+    parts.push("", "PREFERRED:", '"""', truncated.preferred, '"""');
+  }
+
+  if (truncated.context) {
+    parts.push("", "CONTEXT:", '"""', truncated.context, '"""');
   }
 
   parts.push(
     "",
-    "Extract job intelligence. Return ONLY valid JSON matching exactly this schema:",
-    JSON.stringify({
-      mustHaveSkills: [],
-      preferredSkills: [],
-      mustHaveYearsExp: null,
-      mustHaveDegree: null,
-      mustHaveCerts: [],
-      summaryTheme: "",
-      targetVerbs: [],
-      deliverables: [],
-      impactDimensions: [],
-      emphasisAreas: [],
-      deprioritize: [],
-      velocitySignal: null,
-      ownershipLevel: null,
-      industryDomain: [],
-      preferredDomain: [],
-    }),
-    "",
     "Rules:",
-    "- mustHaveSkills: technical skills explicitly required (taxonomy terms only)",
+    "- mustHaveSkills: specific tools, languages, platforms explicitly REQUIRED — use exact JD wording",
+    "- emphasisAreas: broader domains or architectural patterns ONLY — NOT specific tools (e.g. Distributed Systems, not Python or Kafka)",
     "- summaryTheme: one sentence — what the resume summary MUST lead with for this role",
-    "- targetVerbs: top 8 strong action verbs extracted from responsibilities section",
-    "- impactDimensions: subset of [reliability,scale,speed,cost,revenue,quality,security,team,delivery]",
+    "- targetVerbs: up to 8 past-tense action verbs from responsibilities",
+    "- impactDimensions: subset of reliability, scale, speed, cost, revenue, quality, security, team, delivery",
     "- velocitySignal: fast=startup/rapid-shipping, moderate=balanced, structured=enterprise/process-heavy",
     "- ownershipLevel: high=autonomous/own-your-area, medium=collaborative, low=support/execution",
     "- deprioritize: skills or experiences NOT relevant to this role (suppress in resume)",
-    "- Never invent facts. If unknown, use empty string or null.",
+    "- Never invent facts. If unknown, use empty string, null, or [].",
   );
 
   return parts.join("\n");
+}
+
+function payloadToPartialIntelligence(payload: JdAiExtractPayload): Partial<JDIntelligence> {
+  return {
+    mustHaveSkills: payload.mustHaveSkills,
+    preferredSkills: payload.preferredSkills,
+    mustHaveYearsExp: payload.mustHaveYearsExp,
+    mustHaveDegree: payload.mustHaveDegree ?? null,
+    mustHaveCerts: payload.mustHaveCerts,
+    summaryTheme: payload.summaryTheme,
+    targetVerbs: payload.targetVerbs,
+    deliverables: payload.deliverables,
+    impactDimensions: payload.impactDimensions,
+    emphasisAreas: payload.emphasisAreas,
+    deprioritize: payload.deprioritize,
+    velocitySignal: payload.velocitySignal,
+    ownershipLevel: payload.ownershipLevel,
+    industryDomain: payload.industryDomain,
+    preferredDomain: payload.preferredDomain,
+  };
 }
 
 export function mergeAIIntoIntelligence(
@@ -85,10 +101,18 @@ export function mergeAIIntoIntelligence(
   const merged: JDIntelligence = { ...base };
 
   if (ai.mustHaveSkills?.length) {
-    merged.mustHaveSkills = [...new Set([...base.mustHaveSkills, ...ai.mustHaveSkills])];
+    const canonical = canonicalizeMasterSkills(ai.mustHaveSkills);
+    const seen = new Set<string>();
+    merged.mustHaveSkills = [...base.mustHaveSkills, ...canonical].filter((s) => {
+      const key = s.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }
   if (ai.preferredSkills?.length) {
-    merged.preferredSkills = [...new Set([...base.preferredSkills, ...ai.preferredSkills])];
+    const canonical = canonicalizeMasterSkills(ai.preferredSkills);
+    merged.preferredSkills = [...new Set([...base.preferredSkills, ...canonical])];
   }
   if (ai.mustHaveYearsExp != null && base.mustHaveYearsExp == null) {
     merged.mustHaveYearsExp = ai.mustHaveYearsExp;
@@ -107,7 +131,11 @@ export function mergeAIIntoIntelligence(
       .filter((d): d is JDImpactDimension => VALID_IMPACT_DIMS.has(d as JDImpactDimension))
       .slice(0, 5);
   }
-  if (ai.emphasisAreas?.length) merged.emphasisAreas = ai.emphasisAreas.slice(0, 4);
+  if (ai.emphasisAreas?.length) {
+    merged.emphasisAreas = ai.emphasisAreas
+      .filter((area) => !ai.mustHaveSkills?.some((s) => s.toLowerCase() === area.toLowerCase()))
+      .slice(0, 4);
+  }
   if (ai.deprioritize?.length) merged.deprioritize = ai.deprioritize;
   if (ai.velocitySignal) merged.velocitySignal = ai.velocitySignal;
   if (ai.ownershipLevel) merged.ownershipLevel = ai.ownershipLevel;
@@ -121,58 +149,64 @@ export function mergeAIIntoIntelligence(
   return merged;
 }
 
+function jdExtractionRoute(route: ResolvedAiRoute): ResolvedAiRoute {
+  if (route.mode === "system") {
+    return { mode: "system", modelId: JD_EXTRACTION_SYSTEM_MODEL };
+  }
+  return route;
+}
+
+const JD_EXTRACTION_SYSTEM =
+  "You are an expert technical recruiter and resume strategist. " +
+  "Extract structured job intelligence from the provided sections. " +
+  "Never invent facts not present in the text.";
+
 export async function extractJDIntelligenceWithAI(
   segments: JDSegments,
   targetRole: string,
-  base: JDIntelligence,
+  route: ResolvedAiRoute,
+  traceId = "no-trace",
+  userId?: string | null,
 ): Promise<JDAiExtractResult> {
   try {
-    const [aiEngine, featureFlags] = await Promise.all([
-      getAppConfig("aiEngine"),
-      getFeatureFlags(),
-    ]);
-    if (!isSystemAiEnabled(featureFlags)) {
-      return { ok: false, reason: "unavailable" };
-    }
+    const prompt = buildJDExtractionPrompt(segments, targetRole);
+    const executionRoute = jdExtractionRoute(route);
 
-    const keyResult = await acquireSystemGeminiKey(aiEngine);
-    if (!keyResult) {
-      return { ok: false, reason: "quota" };
-    }
-
-    const model = createAiSdkLanguageModel(
-      "gemini",
-      keyResult.apiKey,
-      "gemini-1.5-flash",
+    const result = await callEnhanceObjectModel(
+      executionRoute,
+      JD_EXTRACTION_SYSTEM,
+      prompt,
+      jdAiExtractSchema,
+      traceId,
+      "generate",
+      userId,
     );
 
-    const prompt = buildJDExtractionPrompt(segments, targetRole);
+    const intelligence = payloadToPartialIntelligence(result.object);
 
-    const { text } = await generateText({
-      model,
-      system:
-        "You are an expert technical recruiter and resume strategist. " +
-        "Extract structured job intelligence from the provided sections. " +
-        "Return ONLY valid JSON — no markdown fences, no commentary. " +
-        "Never invent facts not present in the text.",
-      prompt,
-      temperature: 0,
-      maxOutputTokens: 1000,
+    logEnhance("server", "jd.extract.done", {
+      traceId,
+      userId,
+      step: ENHANCE_PIPELINE.PRE_JD_BRAIN,
+      modelId: result.modelId,
+      routeMode: executionRoute.mode,
+      mustHaveSkillsCount: intelligence.mustHaveSkills?.length ?? 0,
+      mustHaveSkills: intelligence.mustHaveSkills?.slice(0, 12) ?? [],
+      emphasisAreas: intelligence.emphasisAreas ?? [],
+      velocitySignal: intelligence.velocitySignal ?? null,
+      ownershipLevel: intelligence.ownershipLevel ?? null,
+      industryDomain: intelligence.industryDomain ?? [],
+      summaryTheme: intelligence.summaryTheme ?? null,
     });
 
-    // Strip markdown fences if model adds them
-    const cleaned = text
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/\s*```\s*$/, "")
-      .trim();
-
-    const parsed = JSON.parse(cleaned) as Partial<JDIntelligence>;
-
-    return { ok: true, intelligence: parsed };
+    return { ok: true, intelligence };
   } catch (err) {
     const isParseErr =
       err instanceof SyntaxError ||
-      (err instanceof Error && err.message.toLowerCase().includes("json"));
+      (err instanceof Error &&
+        (err.message.toLowerCase().includes("json") ||
+          err.message.toLowerCase().includes("schema") ||
+          err.message.toLowerCase().includes("parse")));
     return { ok: false, reason: isParseErr ? "parse_error" : "unavailable" };
   }
 }

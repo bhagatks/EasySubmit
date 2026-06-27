@@ -26,6 +26,7 @@ import {
 import { findBannedWords, validateSummary } from "@/lib/resume/summary-rules";
 import { findEmbeddedExperienceHeaderInBullet } from "@/lib/resume/split-mashed-experience";
 import { inferResumePagesFromForm } from "@/src/lib/ai/engine/candidate-context";
+import type { ResolvedAiRoute } from "@/src/lib/ai/engine/router";
 import { logEnhance } from "@/src/lib/ai/engine/enhance-logger";
 import { ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
 
@@ -38,6 +39,8 @@ export type BuildEnhanceBriefInput = {
   variant: NonNullable<EnhanceResumeProfileInput["variant"]>;
   traceId: string;
   userId: string;
+  /** Shared enhance AI route for JD extraction (null → deterministic JD only). */
+  aiRoute?: ResolvedAiRoute | null;
 };
 
 function countMashedRoles(form: HubRefineryForm): number {
@@ -184,6 +187,9 @@ export async function buildEnhanceBrief(
       targetRole: input.targetRole,
       cachedIntelligence: caches.jdIntelligence,
       cachedHash: caches.jdHash,
+      aiRoute: input.aiRoute ?? null,
+      traceId: input.traceId,
+      userId: input.userId,
     });
 
     const directive = buildResumeEnhanceDirective(
@@ -223,6 +229,7 @@ export async function buildEnhanceBrief(
     }
 
     jdSlice = {
+      segments: jdResult.segments,
       intelligence: jdResult.intelligence,
       skillsVocabulary: jdSkillsVocabulary,
       directive,
@@ -248,13 +255,7 @@ export async function buildEnhanceBrief(
     input.targetRole,
   );
 
-  const groupedPreview = hasJd
-    ? { jdSkills: [] as string[], resumeSkills: skillsList }
-    : { jdSkills: [] as string[], resumeSkills: skillsList };
-
-  if (hasJd && jdSlice) {
-    groupedPreview.jdSkills = jdSlice.directive.mustAddSkills.slice(0, 20);
-  }
+  const jdSkills = hasJd && jdSlice ? jdSlice.directive.mustAddSkills.slice(0, 20) : [];
 
   const brief: ResumeEnhanceBrief = {
     traceId: input.traceId,
@@ -288,8 +289,8 @@ export async function buildEnhanceBrief(
     },
     skills: {
       list: skillsList,
-      jdSkills: groupedPreview.jdSkills,
-      resumeSkills: groupedPreview.resumeSkills,
+      jdSkills,
+      resumeSkills: skillsList,
       warnings: plan.skillsWarnings,
       banned: findBannedSkills(skillsList),
       count: skillsList.length,

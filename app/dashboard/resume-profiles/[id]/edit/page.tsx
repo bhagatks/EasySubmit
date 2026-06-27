@@ -40,7 +40,7 @@ export default async function EditResumeProfilePage({
         initialTargetTitle={result.targetTitle}
         initialForm={result.form}
         rawResumeText={result.rawResumeText}
-        enhanceWithAiEnabled={enhance.available}
+        enhanceWithAiEnabled={enhance.aiAvailable}
         dependentJobs={dependents.success ? dependents.jobs : []}
       />
     </div>

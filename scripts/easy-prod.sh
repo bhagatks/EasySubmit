@@ -5,6 +5,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# shellcheck disable=SC1091
+source "$ROOT/scripts/easy-common.sh"
+
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  EasySubmit · deploy production (Vercel)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -45,7 +48,12 @@ if [[ ! -f "$ROOT/.vercel/project.json" ]]; then
 fi
 
 echo "→ Running tests"
-npm test
+easy_run_tests
+
+easy_posthog_journey_report "pre-deploy (local .env.local)"
+
+echo "→ Building Chrome extension (dist/extension)"
+npm run build:extension
 
 echo "→ Production DB migrations (env pulled from Vercel, not saved locally)"
 node "$ROOT/scripts/run-with-vercel-env.mjs" npx prisma generate

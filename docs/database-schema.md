@@ -110,6 +110,8 @@ Server loader: `src/lib/services/config-service.ts` → `getAppConfig()` reads `
 | `localStorage` | `ai_models_cache_v1` | Cached provider model catalogs (`model-cache.ts`) |
 | `sessionStorage` | `easysubmit-ignition-api-key-cipher` | AES-GCM encrypted BYOK key (tab session) |
 | `sessionStorage` | `easysubmit-ignition-vault-key` | Per-tab vault key for cipher |
+| `sessionStorage` | `easysubmit-extension-install-dismiss-v1` | Return-visit extension install modal dismissed for browser session (`"1"`) |
+| `localStorage` | `easysubmit_extension_id_v1` | Chrome extension id for dashboard PING (`isExtensionConnectedForDashboard`) |
 
 Legacy shim removed — import from `src/stores/use-ignition-store.ts` directly.
 
@@ -360,7 +362,7 @@ Upserts all keys below (including `forceUpgrade`). Existing rows are not overwri
 | `resumeProfiles` | `{ maxProfilesPerCustomer: 20 }` | Max `profiles` rows per user — enforced on dashboard create and job-tailor clone |
 | `legalDocuments` | `{ terms: { title, updatedLabel, blocks[] }, privacy: { … } }` | Terms of Service and Privacy Policy copy for `/terms`, `/privacy`, and login overlay — structured blocks (paragraphs, headings, lists, links); seeded from `src/lib/services/legal-documents-defaults.ts` |
 | `forceUpgrade` | `{ enabled: false, minVersion: "0.2.6", updateUrl: "/extension", message: "…" }` | Extension minimum-version gate — see [Extension force-upgrade](#extension-force-upgrade-app_configforceupgrade) below |
-| `extensionInstallPrompt` | `{ refreshIntervalMinutes: 30 }` | Re-show extension install modal on dashboard load, tab focus, and this interval (minutes) until extension PING succeeds — see `DashboardSetupPrompts` |
+| `extensionInstallPrompt` | `{ refreshIntervalMinutes: 30, dashboardVisit: false, tabFocusReturn: false, periodicRefresh: false }` | Opt-in return-visit install modal triggers — see [Extension install prompt](#extension-install-prompt-app_configextensioninstallprompt) below |
 | `dashboardTutorialVideos` | `{ videos: [{ id, title, watchUrl }] }` | Video Tutorials page (`/dashboard/tutorials`) — YouTube watch URLs; invalid entries skipped; see [Dashboard tutorial videos](#dashboard-tutorial-videos-app_configdashboardtutorialvideos) below |
 
 ### Dashboard tutorial videos (`app_config.dashboardTutorialVideos`)
@@ -393,6 +395,49 @@ WHERE key = 'dashboardTutorialVideos';
 ```
 
 Invalid URLs are skipped at render time; if every entry is invalid, code falls back to seeded defaults.
+
+### Extension install prompt (`app_config.extensionInstallPrompt`)
+
+Powers **`DashboardSetupPrompts`** in `app/dashboard/layout.tsx`. Return-visit triggers are **independent (OR)** — each enabled flag may open **`ExtensionInstallPromptModal`** while `isExtensionConnectedForDashboard()` is false. **`?setup=1`** onboarding is separate: BYOK modal (if no vault) → extension modal → always **Video Tutorials** on skip, close, or successful connect.
+
+| Field | Default | Purpose |
+|-------|---------|---------|
+| `refreshIntervalMinutes` | `30` | Interval for `periodicRefresh` (minutes; min 1, max 1440) |
+| `dashboardVisit` | `false` | Show modal on dashboard load |
+| `tabFocusReturn` | `false` | Re-show when browser tab regains focus |
+| `periodicRefresh` | `false` | Re-show on timer while disconnected |
+
+Legacy JSON keys accepted by parser: `extensionInstallPromptRefreshTime`, `refreshTimeMinutes` (map to `refreshIntervalMinutes`).
+
+**Enable all return-visit nags:**
+
+```sql
+UPDATE app_config
+SET value = '{
+  "refreshIntervalMinutes": 30,
+  "dashboardVisit": true,
+  "tabFocusReturn": true,
+  "periodicRefresh": true
+}'::jsonb
+WHERE key = 'extensionInstallPrompt';
+```
+
+**Disable all return-visit nags (default behavior):**
+
+```sql
+UPDATE app_config
+SET value = '{
+  "refreshIntervalMinutes": 30,
+  "dashboardVisit": false,
+  "tabFocusReturn": false,
+  "periodicRefresh": false
+}'::jsonb
+WHERE key = 'extensionInstallPrompt';
+```
+
+**Client session dismiss** (return visits only): `sessionStorage` key `easysubmit-extension-install-dismiss-v1` — set when user clicks **Skip for now** outside setup flow. **Extension id** for PING: `localStorage` key `easysubmit_extension_id_v1`.
+
+Code: `src/lib/services/extension-install-prompt-config.ts`, `lib/dashboard/extension-install-prompt-triggers.ts`, `components/dashboard/DashboardSetupPrompts.tsx`.
 
 ### Extension force-upgrade (`app_config.forceUpgrade`)
 
@@ -531,6 +576,7 @@ npm run db:seed              # or: npx prisma db seed
 
 | Date | Summary |
 |------|---------|
+| 2026-06-27 | `app_config.extensionInstallPrompt` — opt-in trigger flags (`dashboardVisit`, `tabFocusReturn`, `periodicRefresh`); session dismiss storage; setup flow always → tutorials |
 | 2026-06-27 | `app_config.forceUpgrade` — extension min-version gate; seed via `npm run db:seed`; ops SQL documented above |
 | 2026-06-21 | System key pool v1: `system_api_keys` quota fields (`callsToday`, `exhaustedUntil`, `quotaResetDate`, `billingMode`, per-row `modelId`); Alpha/Beta/Gamma slots; `api_call_logs.keyLabel` + `billingMode` |
 | 2026-06-20 | Schema consolidation: merged `architectures` into `profiles.content` + `calibrationScore`; dropped child resume tables and `minSalary` / `workMode` / `coreCompetencies` |

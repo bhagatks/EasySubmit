@@ -46,3 +46,16 @@ export function getAnalyticsConfig(): AnalyticsConfig {
 export function isLocalhostHost(hostname: string): boolean {
   return hostname === "localhost" || hostname === "127.0.0.1";
 }
+
+/** True when analytics env is dev (PostHog project 488025) — never send journey debug to prod. */
+export function isDevAnalyticsEnvironment(): boolean {
+  return getAnalyticsConfig().environment !== "prod";
+}
+
+/** Verbose `[EnhanceAI]` console + journey debug — local/dev only, not production deploys. */
+export function isEnhanceJourneyDebugEnabled(): boolean {
+  if (typeof process !== "undefined" && process.env.NODE_ENV === "production") {
+    return false;
+  }
+  return isDevAnalyticsEnvironment();
+}

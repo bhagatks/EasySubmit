@@ -44,7 +44,7 @@ describe("resolveExtensionAiHealthBanner", () => {
 });
 
 describe("isExtensionApplyBlockedByAiHealth", () => {
-  it("blocks when aiHealthError is set", () => {
+  it("blocks only when system quota is exhausted", () => {
     expect(
       isExtensionApplyBlockedByAiHealth({
         aiHealthError: "Daily enhancement limit reached (5/day).",
@@ -52,9 +52,6 @@ describe("isExtensionApplyBlockedByAiHealth", () => {
         byokKeyInvalid: false,
       } as never),
     ).toBe(true);
-  });
-
-  it("blocks when quota or key flags are set without message", () => {
     expect(
       isExtensionApplyBlockedByAiHealth({
         aiHealthError: null,
@@ -62,13 +59,34 @@ describe("isExtensionApplyBlockedByAiHealth", () => {
         byokKeyInvalid: false,
       } as never),
     ).toBe(true);
+  });
+
+  it("allows apply for key or API advisory errors", () => {
     expect(
       isExtensionApplyBlockedByAiHealth({
-        aiHealthError: null,
+        aiHealthError: "Your API key is failing. Check it in AI Keys settings.",
         systemQuotaExceeded: false,
         byokKeyInvalid: true,
       } as never),
-    ).toBe(true);
+    ).toBe(false);
+    expect(
+      isExtensionApplyBlockedByAiHealth({
+        aiHealthError: "Add your API key in AI Keys to unlock AI enhancements.",
+        systemQuotaExceeded: false,
+        byokKeyInvalid: false,
+      } as never),
+    ).toBe(false);
+  });
+
+  it("still shows advisory banner when apply is allowed", () => {
+    const config = {
+      aiHealthError: "Your API key is failing. Check it in AI Keys settings.",
+      systemQuotaExceeded: false,
+      byokKeyInvalid: true,
+    } as never;
+    expect(isExtensionApplyBlockedByAiHealth(config)).toBe(false);
+    expect(getExtensionAiHealthBlockMessage(config)).toBeNull();
+    expect(resolveExtensionAiHealthBanner(config)?.message).toContain("API key");
   });
 
   it("allows apply when config is healthy", () => {

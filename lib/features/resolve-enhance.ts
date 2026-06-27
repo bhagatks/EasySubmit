@@ -1,6 +1,6 @@
 import type { EnhanceOffReason, FeatureSurface } from "@/lib/features/types";
 import { isAiGloballyEnabled } from "@/lib/ai/ai-global-enabled";
-import { resolveAiRoute } from "@/src/lib/ai/engine/router";
+import { resolveAiRoute, type ResolvedAiRoute } from "@/src/lib/ai/engine/router";
 import { resolveQuotaRowWithReset } from "@/src/lib/ai/engine/system-quota-gate";
 import { checkAiQuota } from "@/src/lib/ai/engine/quota";
 import { getAppConfig, isSubscribed } from "@/src/lib/services/config-service";
@@ -8,6 +8,7 @@ import { getFeatureFlags, isSystemAiEnabled } from "@/src/lib/services/feature-f
 import { isCustomerQuotaUnlimited } from "@/src/lib/services/ai-engine-config";
 import type { AiSourcePreference } from "@/src/lib/ai/engine/constants";
 import type { SystemQuotaUserRow } from "@/src/lib/ai/engine/system-quota-gate";
+import type { AiEngineConfig } from "@/src/lib/services/ai-engine-config";
 
 /** Which feature flag gates each surface. */
 const SURFACE_FLAG_MAP = {
@@ -32,11 +33,36 @@ function softOff(
     aiAvailable: false,
     available: false,
     reason,
+    route: null,
     mode: null,
     vaultKeyId: null,
     provider: null,
     modelId: null,
     quota: { used: 0, limit: 0, unlimited: false },
+    fallbackAvailable: true,
+  };
+}
+
+function resolutionFromRoute(
+  route: ResolvedAiRoute,
+  user: SystemQuotaUserRow,
+  aiEngine: AiEngineConfig,
+  unlimited: boolean,
+): import("@/lib/features/types").EnhanceFeatureResolution {
+  return {
+    baselineAvailable: true,
+    aiAvailable: true,
+    available: true,
+    route,
+    mode: route.mode,
+    vaultKeyId: route.mode === "customer" ? route.vaultKeyId : null,
+    provider: route.mode === "customer" ? route.provider : null,
+    modelId: route.modelId,
+    quota: {
+      used: user.aiEnhancementsToday,
+      limit: unlimited ? Infinity : aiEngine.quotas[route.mode].dailyEnhancements,
+      unlimited,
+    },
     fallbackAvailable: true,
   };
 }
@@ -77,7 +103,7 @@ export async function resolveEnhanceFeature(
     activeProvider: user.activeProvider,
     systemAiEnabled: isSystemAiEnabled(flags),
     forceSystem: opts.forceSystem ?? false,
-    allowByokFallback: opts.useCustomerKey ?? false,
+    allowByokFallback: opts.useCustomerKey ?? true,
     aiEngine,
   });
 
@@ -99,19 +125,5 @@ export async function resolveEnhanceFeature(
 
   const unlimited = subscribed || (route.mode === "customer" && isCustomerQuotaUnlimited(aiEngine));
 
-  return {
-    baselineAvailable: true,
-    aiAvailable: true,
-    available: true,
-    mode: route.mode,
-    vaultKeyId: route.mode === "customer" ? route.vaultKeyId : null,
-    provider: route.mode === "customer" ? route.provider : null,
-    modelId: route.modelId,
-    quota: {
-      used: quotaRow.aiEnhancementsToday,
-      limit: unlimited ? Infinity : aiEngine.quotas[route.mode].dailyEnhancements,
-      unlimited,
-    },
-    fallbackAvailable: true,
-  };
+  return resolutionFromRoute(route, user, aiEngine, unlimited);
 }

@@ -41,7 +41,7 @@ export default async function JobResumeStudioPage({ params }: JobResumePageProps
           initialTargetTitle={result.targetTitle}
           initialForm={result.form}
           rawResumeText={result.rawResumeText}
-          enhanceWithAiEnabled={enhance.available}
+          enhanceWithAiEnabled={enhance.aiAvailable}
         />
       </Suspense>
     </div>

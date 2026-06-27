@@ -1,5 +1,6 @@
 | Date | Item |
 |------|------|
+| 2026-06-27 | Extension install prompt — opt-in `app_config.extensionInstallPrompt` triggers (`dashboardVisit`, `tabFocusReturn`, `periodicRefresh`); session dismiss on Skip; `?setup=1` → tutorials on all exits; `lib/dashboard/extension-install-prompt-triggers.ts` + tests |
 | 2026-06-27 | North-star resume enhance — JDSkillsFramework (deterministic + optional ESCO), 3-phase pipeline (`runResumeEnhancePipeline`), soft AI gates (baseline always succeeds), grouped skills, coverage panel, extension warning UX, analytics + pipeline logs; migration `20260627120000_north_star_jd_skills_enhance_meta` |
 | 2026-06-27 | Product analytics Option A — PostHog events (login, onboarding, review, enhance, extension, BYOK), Pino logging, `docs/analytics-option-a.md`, dashboard setup script |
 | 2026-06-25 | Resume export spacing overhaul — `resume-style.ts` spacing constants updated (betweenSections, afterSectionRule, afterEntryHead, afterEntrySub, bulletGap, betweenEntries); DOCX line height 240→276 DXA + bodyParagraph uses constant; HTML preview fully wired to SPACING constants — all three renderers (PDF/DOCX/HTML) now share single source of truth |

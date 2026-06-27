@@ -6,8 +6,28 @@ import {
   type EnhancePipelineStep,
 } from "@/src/lib/ai/engine/enhance-pipeline";
 import { DEFAULT_ENHANCE_WITH_AI_TIMEOUT_MS } from "@/src/lib/services/enhance-with-ai-config";
+import { isEnhanceJourneyDebugEnabled } from "@/src/shared/analytics/config";
+import { captureDevJourneyStep } from "@/src/shared/analytics/server-dev-capture";
 
 export const ENHANCE_AI_LOG_PREFIX = "[EnhanceAI]";
+
+/** Max chars for request/response previews in journey + ApiCall logs. */
+export const JOURNEY_LOG_PREVIEW_CHARS = 400;
+
+/** High-level resume journey phases — search logs with `journey:` field. */
+export const RESUME_JOURNEY = {
+  CAPTURE: "capture",
+  ANALYZE: "analyze",
+  BASELINE: "baseline",
+  AI_UPGRADE: "ai_upgrade",
+  PERSIST: "persist",
+  APPLY_READY: "apply_ready",
+} as const;
+
+export type ResumeJourneyPhase = (typeof RESUME_JOURNEY)[keyof typeof RESUME_JOURNEY];
+
+/** Whether an AI model call ran and how it ended for this journey step. */
+export type JourneyAiCallStatus = "success" | "failure" | "skipped" | "blocked" | "none";
 
 export type EnhanceLogScope = "client" | "server" | "engine" | "pipeline" | "export";
 
@@ -24,11 +44,43 @@ export function createEnhanceTraceId(): string {
   return `t${Date.now().toString(36)}`;
 }
 
+export function truncateForJourneyLog(
+  value: string | null | undefined,
+  max = JOURNEY_LOG_PREVIEW_CHARS,
+): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return trimmed.length > max ? `${trimmed.slice(0, max)}…` : trimmed;
+}
+
+export function buildModelCallRequestPreview(system: string, prompt: string): string {
+  return truncateForJourneyLog(
+    `[system ${system.length} chars] ${system.slice(0, 120)} … [user ${prompt.length} chars] ${prompt}`,
+    JOURNEY_LOG_PREVIEW_CHARS * 2,
+  )!;
+}
+
+export function resolveJourneyAiCallStatus(input: {
+  aiUsed: boolean;
+  aiSucceeded?: boolean;
+  blocked?: boolean;
+}): JourneyAiCallStatus {
+  if (!input.aiUsed) {
+    return input.blocked ? "blocked" : "skipped";
+  }
+  if (input.aiSucceeded === true) return "success";
+  if (input.aiSucceeded === false) return "failure";
+  return "none";
+}
+
 export function logEnhance(
   scope: EnhanceLogScope,
   event: string,
   payload: EnhanceLogPayload = {},
 ): void {
+  if (!isEnhanceJourneyDebugEnabled()) return;
+
   const step = payload.step;
   const hint = pipelineStepHint(typeof step === "string" ? step : undefined);
 
@@ -38,6 +90,60 @@ export function logEnhance(
     event,
     ...(hint ? { hint } : {}),
     ...payload,
+  });
+}
+
+/** Dev PostHog journey step (server) + optional console when enhance debug is on. */
+export function logJourneyStep(
+  scope: EnhanceLogScope,
+  event: string,
+  input: EnhanceLogPayload & {
+    journey: ResumeJourneyPhase | string;
+    aiUsed: boolean;
+    aiCallStatus: JourneyAiCallStatus;
+    userId?: string | null;
+    surface?: string | null;
+    engineMode?: "ai" | "deterministic" | null;
+    errorCode?: string | null;
+    status?: "success" | "error";
+    requestPreview?: string | null;
+    responsePreview?: string | null;
+    apiCallCount?: number | null;
+    tokensUsed?: number | null;
+  },
+): void {
+  const { requestPreview, responsePreview, userId, surface, engineMode, errorCode, status, apiCallCount, tokensUsed, journey, aiUsed, aiCallStatus, traceId, step, ...rest } = input;
+
+  if (typeof window === "undefined") {
+    captureDevJourneyStep({
+      userId,
+      traceId: typeof traceId === "string" ? traceId : null,
+      journey,
+      pipelineStep: typeof step === "string" ? step : null,
+      surface,
+      aiUsed,
+      aiCallStatus,
+      engineMode,
+      errorCode,
+      status,
+      requestPreviewChars: requestPreview?.length ?? null,
+      responsePreviewChars: responsePreview?.length ?? null,
+      apiCallCount,
+      tokensUsed,
+    });
+  }
+
+  if (!isEnhanceJourneyDebugEnabled()) return;
+
+  logEnhance(scope, event, {
+    ...rest,
+    traceId,
+    step,
+    journey,
+    aiUsed,
+    aiCallStatus,
+    requestPreview: truncateForJourneyLog(requestPreview),
+    responsePreview: truncateForJourneyLog(responsePreview),
   });
 }
 

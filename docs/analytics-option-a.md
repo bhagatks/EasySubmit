@@ -65,6 +65,25 @@ All events include `environment` (`dev`|`prod`) and `internal` (bool). **`identi
 ### Enhance
 - `enhance_clicked` — `{ surface, document_kind, ai_enabled }`
 - `enhance_completed` — `{ surface, document_kind, status, trace_id?, duration_ms, error_code? }`
+- `resume_journey_step` — dev project only — `{ journey, trace_id, ai_used, ai_call_status, engine_mode? }`
+
+### API calls (mirrors Postgres)
+Every server `logApiCall()` row also emits **`api_call_logged`** in PostHog (dev + prod when analytics enabled):
+
+`{ api_log_id, trace_id, domain, operation, provider, model_id, status, duration_ms, tokens_used, key_slot, error_code?, metadata? }`
+
+Query by trace:
+
+```sql
+-- DB (source of truth, all fields)
+SELECT * FROM api_call_logs WHERE "traceId" = 'e0a3a0b0' ORDER BY "createdAt";
+```
+
+PostHog Activity → filter `api_call_logged` + property `trace_id = e0a3a0b0`.
+
+### UI interactions
+- **Web dashboard:** `NEXT_PUBLIC_POSTHOG_AUTOCAPTURE=true` captures generic clicks; plus explicit events below.
+- **Extension:** autocapture off — **`ui_interaction`** on every button/link click in the job card (`{ surface, action, target, label?, entry_id? }`), plus named events (`extension_card_opened`, etc.).
 
 Surfaces: `review_resume`, `review_cover`, `onboarding_studio`, `dashboard_studio`, `job_studio`, `extension`
 
@@ -82,7 +101,18 @@ Surfaces: `review_resume`, `review_cover`, `onboarding_studio`, `dashboard_studi
 
 ## Postgres ↔ PostHog correlation
 
-Enhance runs: copy `trace_id` from PostHog `enhance_completed` → query Supabase:
+**DB (`api_call_logs`)** — every external API call (AI, vault, etc.): full ops record, retained for billing/debug.
+
+**PostHog** — product funnel + mirrored API rows + UI clicks:
+
+| PostHog event | Granularity |
+|---------------|-------------|
+| `api_call_logged` | 1 per API call (mirrors DB row) |
+| `resume_journey_step` | ~3 per job (dev only) |
+| `enhance_completed` | 1 per enhance run |
+| `ui_interaction` | 1 per extension button/link click |
+
+Enhance runs: copy `trace_id` from PostHog → query both:
 
 ```sql
 SELECT "createdAt", operation, status, "durationMs", "tokensUsed", "keySlot", metadata

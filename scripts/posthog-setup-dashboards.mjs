@@ -44,6 +44,14 @@ const FUNNELS = [
       "extension_apply_started",
     ],
   },
+  {
+    name: "Resume journey (dev debug)",
+    events: [
+      "extension_job_captured",
+      "resume_journey_step",
+      "enhance_completed",
+    ],
+  },
 ];
 
 async function post(path, body) {

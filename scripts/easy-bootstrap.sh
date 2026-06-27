@@ -23,8 +23,12 @@ echo "→ Applying Prisma migrations"
 npx prisma generate
 npx prisma migrate deploy
 
+easy_run_tests
+
 echo "→ Building Chrome extension (dist/extension)"
 npm run build:extension
+
+easy_posthog_journey_report "local dev"
 
 echo "→ Dev server (http://localhost:$PORT)"
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=4096}"

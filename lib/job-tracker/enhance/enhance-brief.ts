@@ -7,6 +7,7 @@ import type { OnetRoleVocabulary } from "@/lib/job-tracker/ats/onet-service";
 import type { KeywordGapResult } from "@/lib/job-tracker/ats/keyword-gap";
 import type {
   JDIntelligence,
+  JDSegments,
   ResumeEnhanceDirective,
 } from "@/lib/job-tracker/jd/jd-intelligence";
 import type { JdSkillsVocabulary } from "@/lib/job-tracker/jd/jd-skills-types";
@@ -76,6 +77,7 @@ export type ResumeEnhanceBrief = {
   };
 
   jd?: {
+    segments: JDSegments;
     intelligence: JDIntelligence;
     skillsVocabulary: JdSkillsVocabulary;
     directive: ResumeEnhanceDirective;

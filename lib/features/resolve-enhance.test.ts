@@ -59,7 +59,6 @@ import { checkAiQuota } from "@/src/lib/ai/engine/quota";
 import { isSubscribed } from "@/src/lib/services/config-service";
 
 const baseUser: SystemQuotaUserRow = {
-  id: "user-1",
   aiSourcePreference: "auto",
   vaultKeyId: null,
   activeProvider: null,
@@ -94,13 +93,14 @@ describe("resolveEnhanceFeature", () => {
     expect(result.aiAvailable).toBe(false);
     expect(result.baselineAvailable).toBe(true);
     expect(result.reason).toBe("globally_disabled");
+    expect(result.route).toBeNull();
   });
 
   // ── Onboarding: always deterministic ─────────────────────────────────────────
 
   it("onboarding surface always returns unavailable (deterministic path)", async () => {
     const result = await resolveEnhanceFeature(baseUser, "onboarding");
-    expect(result.available).toBe(false);
+    expect(result.aiAvailable).toBe(false);
     expect(result.reason).toBe("user_disabled");
   });
 
@@ -122,7 +122,7 @@ describe("resolveEnhanceFeature", () => {
   it("G3: returns user_disabled when user has AI disabled", async () => {
     const user = { ...baseUser, aiSourcePreference: "disabled" };
     const result = await resolveEnhanceFeature(user, "job_apply");
-    expect(result.available).toBe(false);
+    expect(result.aiAvailable).toBe(false);
     expect(result.reason).toBe("user_disabled");
   });
 
@@ -131,7 +131,7 @@ describe("resolveEnhanceFeature", () => {
   it("G5: returns no_key when route resolution fails with no_customer_key", async () => {
     vi.mocked(resolveAiRoute).mockResolvedValue({ error: "no_customer_key" });
     const result = await resolveEnhanceFeature(baseUser, "job_apply");
-    expect(result.available).toBe(false);
+    expect(result.aiAvailable).toBe(false);
     expect(result.reason).toBe("no_key");
   });
 
@@ -141,7 +141,7 @@ describe("resolveEnhanceFeature", () => {
       byokAvailable: false,
     });
     const result = await resolveEnhanceFeature(baseUser, "job_apply");
-    expect(result.available).toBe(false);
+    expect(result.aiAvailable).toBe(false);
     expect(result.reason).toBe("pool_down");
   });
 
@@ -161,7 +161,7 @@ describe("resolveEnhanceFeature", () => {
     } as ReturnType<typeof checkAiQuota>);
     const user = { ...baseUser, vaultKeyId: "vault-1" };
     const result = await resolveEnhanceFeature(user, "job_apply");
-    expect(result.available).toBe(false);
+    expect(result.aiAvailable).toBe(false);
     expect(result.reason).toBe("quota_exceeded");
   });
 
@@ -180,20 +180,39 @@ describe("resolveEnhanceFeature", () => {
     } as ReturnType<typeof checkAiQuota>);
     const user = { ...baseUser, vaultKeyId: "vault-1", plan: "pro", subscriptionStatus: "active" };
     const result = await resolveEnhanceFeature(user, "job_apply");
-    expect(result.available).toBe(true);
+    expect(result.aiAvailable).toBe(true);
   });
 
   // ── Happy path ────────────────────────────────────────────────────────────────
 
-  it("happy path: returns available with system mode", async () => {
+  it("happy path: returns available with system mode and route", async () => {
     const result = await resolveEnhanceFeature(baseUser, "job_apply");
-    expect(result.available).toBe(true);
+    expect(result.aiAvailable).toBe(true);
     expect(result.mode).toBe("system");
+    expect(result.route).toEqual({ mode: "system", modelId: "gemini-1.5-flash" });
     expect(result.fallbackAvailable).toBe(true);
+  });
+
+  it("returns vault route when user has BYOK key", async () => {
+    vi.mocked(resolveAiRoute).mockResolvedValue({
+      mode: "customer",
+      modelId: "gpt-4o",
+      provider: "openai",
+      vaultKeyId: "vault-1",
+    });
+    const user = { ...baseUser, vaultKeyId: "vault-1", activeProvider: "openai" };
+    const result = await resolveEnhanceFeature(user, "job_apply");
+    expect(result.aiAvailable).toBe(true);
+    expect(result.route).toEqual({
+      mode: "customer",
+      modelId: "gpt-4o",
+      provider: "openai",
+      vaultKeyId: "vault-1",
+    });
   });
 
   it("happy path: extension surface same as job_apply", async () => {
     const result = await resolveEnhanceFeature(baseUser, "extension");
-    expect(result.available).toBe(true);
+    expect(result.aiAvailable).toBe(true);
   });
 });

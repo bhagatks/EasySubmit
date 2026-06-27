@@ -41,7 +41,7 @@ After Studio, **Finalize & continue** does **not** advance to a fourth onboardin
 2. **`completeOnboarding`** — persists profile + Career Architecture JSONB (no BYOK / AI provider required).
 3. **Redirect → `/dashboard?setup=1`** — sequential glossy modals via `DashboardSetupPrompts`:
    - **BYOK modal** (`DashboardByokPromptModal` + `IgnitionGate`) when `vaultKeyId` is null — save a key or close.
-   - **Extension modal** (`ExtensionInstallPromptModal`) — install link + **Skip for now**; repeats until extension PING succeeds.
+   - **Extension modal** (`ExtensionInstallPromptModal`) — install link + **Skip for now**; skip, close, or successful extension connect → **Video Tutorials** (not gated by return-visit config flags).
    - **Video Tutorials** (`/dashboard/tutorials?welcome=1`) — auto-navigate after extension step; **Continue to dashboard** → overview.
 
 If **`users.vaultKeyId`** is null after setup, the overview still renders in **Cold Engine** state. BYOK remains optional — Settings or header **BYOK KEY** any time.
@@ -98,9 +98,9 @@ Canonical identity separation and app-load routing: **`docs/IDENTITY_AND_BOOT_RU
 
 On successful OAuth: redirect → `/onboarding` until `onboardingStep >= 4`, then **`/dashboard`**.
 
-**Cold Engine on first dashboard visit:** After synthesis, users land on **`/dashboard?setup=1`** with the BYOK modal (if no vaulted key), then the extension install modal. **`DashboardSetupPrompts`** re-shows the extension modal on every dashboard load, tab return, and on **`app_config.extensionInstallPrompt.refreshIntervalMinutes`** until the extension responds to PING. Skip dismisses until the next trigger. Sidebar **Extension** (`/dashboard/extension`) remains the full-page install reference.
+**Cold Engine on first dashboard visit:** After synthesis, users land on **`/dashboard?setup=1`** with the BYOK modal (if no vaulted key), then the extension install modal. Every setup exit routes to **Video Tutorials** — skip, close, or successful extension connect. Session dismiss applies only to return-visit nags, not setup.
 
-**Extension install on return visits:** While the extension is not connected, **`ExtensionInstallPromptModal`** opens on dashboard app load, browser tab focus return, and every **`extensionInstallPrompt.refreshIntervalMinutes`** (default 30). **`/dashboard/extension`** full page is not auto-redirected — modals handle the prompt. `DashboardIgnitionGuard` only syncs stale client ignition state when the server vault is empty.
+**Extension install on return visits:** While the extension is not connected, **`ExtensionInstallPromptModal`** may open when enabled in **`app_config.extensionInstallPrompt`**. Triggers are **independent (OR)** — any enabled one can show the modal: **`dashboardVisit`**, **`tabFocusReturn`**, **`periodicRefresh`** (uses **`refreshIntervalMinutes`**, default 30). All three default to **`false`** (no nag until opted in via DB). **Skip for now** dismisses for the browser session on return visits only (`sessionStorage` key `easysubmit-extension-install-dismiss-v1`). **`?setup=1`** onboarding always routes to tutorials on skip, close, or successful extension connect — no session dismiss during setup. **`/dashboard/extension`** full page is not auto-redirected — modals handle the prompt. Connection check: `isExtensionConnectedForDashboard()` (`localStorage` extension id + PING). `DashboardIgnitionGuard` only syncs stale client ignition state when the server vault is empty.
 
 **Env:** `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`. Setup guide: [`docs/oauth-setup.md`](./oauth-setup.md).
 

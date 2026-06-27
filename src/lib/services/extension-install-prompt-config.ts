@@ -4,10 +4,19 @@ export const EXTENSION_INSTALL_PROMPT_CONFIG_KEY = "extensionInstallPrompt";
 export type ExtensionInstallPromptConfig = {
   /** Minutes between extension install prompt displays while extension is not connected. */
   refreshIntervalMinutes: number;
+  /** Show the install modal when the user loads any dashboard page (excludes setup flow). */
+  dashboardVisit: boolean;
+  /** Re-show the install modal when the user returns focus to the dashboard tab. */
+  tabFocusReturn: boolean;
+  /** Re-show on a timer while disconnected (uses refreshIntervalMinutes). */
+  periodicRefresh: boolean;
 };
 
 export const EXTENSION_INSTALL_PROMPT_DEFAULTS: ExtensionInstallPromptConfig = {
   refreshIntervalMinutes: 30,
+  dashboardVisit: false,
+  tabFocusReturn: false,
+  periodicRefresh: false,
 };
 
 const MIN_REFRESH_MINUTES = 1;
@@ -42,7 +51,16 @@ export function parseExtensionInstallPromptConfig(
     return null;
   }
 
-  return { refreshIntervalMinutes };
+  return {
+    refreshIntervalMinutes,
+    dashboardVisit: parseBooleanFlag(value.dashboardVisit, EXTENSION_INSTALL_PROMPT_DEFAULTS.dashboardVisit),
+    tabFocusReturn: parseBooleanFlag(value.tabFocusReturn, EXTENSION_INSTALL_PROMPT_DEFAULTS.tabFocusReturn),
+    periodicRefresh: parseBooleanFlag(value.periodicRefresh, EXTENSION_INSTALL_PROMPT_DEFAULTS.periodicRefresh),
+  };
+}
+
+function parseBooleanFlag(value: unknown, defaultValue: boolean): boolean {
+  return typeof value === "boolean" ? value : defaultValue;
 }
 
 export function resolveExtensionInstallPromptConfig(

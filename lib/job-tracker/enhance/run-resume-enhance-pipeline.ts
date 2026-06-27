@@ -19,7 +19,7 @@ import {
   SYSTEM_QUOTA_PIPELINE_ESTIMATED_CALLS,
 } from "@/src/lib/ai/engine/system-quota-gate";
 import { getAppConfig } from "@/src/lib/services/config-service";
-import { logEnhance, summarizeFormDelta } from "@/src/lib/ai/engine/enhance-logger";
+import { logEnhance, logJourneyStep, RESUME_JOURNEY, resolveJourneyAiCallStatus, summarizeFormDelta } from "@/src/lib/ai/engine/enhance-logger";
 import { ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
 
 const MIN_JD_CHARS = 120;
@@ -42,13 +42,29 @@ export async function runResumeEnhancePipeline(
     };
   }
 
-  logEnhance("server", "pipeline.start", {
+  logJourneyStep("server", "pipeline.start", {
     traceId,
     userId,
     step: ENHANCE_PIPELINE.BASELINE_START,
+    journey: RESUME_JOURNEY.ANALYZE,
     surface: input.surface,
     variant: input.variant,
+    aiUsed: false,
+    aiCallStatus: "skipped",
   });
+
+  const allowAi =
+    input.allowAiUpgrade !== false &&
+    input.surface !== "onboarding" &&
+    input.variant !== "onboarding";
+
+  let aiUpgrade: Awaited<ReturnType<typeof resolveAiUpgrade>> | null = null;
+  if (allowAi) {
+    aiUpgrade = await resolveAiUpgrade(user, input.surface, {
+      forceSystem: input.forceSystem,
+      useCustomerKey: input.useCustomerKey,
+    });
+  }
 
   let brief;
   try {
@@ -61,6 +77,7 @@ export async function runResumeEnhancePipeline(
       variant: input.variant,
       traceId,
       userId,
+      aiRoute: aiUpgrade?.route ?? null,
     });
   } catch (err) {
     logEnhance("server", "pipeline.brief.error", {
@@ -95,14 +112,17 @@ export async function runResumeEnhancePipeline(
     };
   }
 
-  logEnhance("server", "pipeline.baseline.done", {
+  logJourneyStep("server", "pipeline.baseline.done", {
     traceId,
     userId,
     step: ENHANCE_PIPELINE.BASELINE_DONE,
+    journey: RESUME_JOURNEY.BASELINE,
     skillsAdded: baseline.changes.skillsAdded.length,
     bulletsWoven: baseline.changes.bulletsWoven,
     coverageAfter: baseline.coverageAfter?.coveragePercent ?? null,
     delta: summarizeFormDelta(input.form, baseline.form),
+    aiUsed: false,
+    aiCallStatus: "skipped",
   });
 
   let finalForm = baseline.form;
@@ -118,20 +138,10 @@ export async function runResumeEnhancePipeline(
   let modelId = "deterministic";
   let estimatedCost = 0;
 
-  const allowAi =
-    input.allowAiUpgrade !== false &&
-    input.surface !== "onboarding" &&
-    input.variant !== "onboarding";
-
-  if (allowAi) {
-    const ai = await resolveAiUpgrade(user, input.surface, {
-      forceSystem: input.forceSystem,
-      useCustomerKey: input.useCustomerKey,
-    });
-
-    if (ai.aiAllowed && ai.route) {
+  if (allowAi && aiUpgrade) {
+    if (aiUpgrade.aiAllowed && aiUpgrade.route) {
       aiAttempted = true;
-      aiMode = ai.route.mode;
+      aiMode = aiUpgrade.route.mode;
       const pricingMap = await getAppConfig("ai_pricing_map");
       const estimatedCalls = input.jobDescription?.trim()
         ? SYSTEM_QUOTA_PIPELINE_ESTIMATED_CALLS
@@ -150,7 +160,7 @@ export async function runResumeEnhancePipeline(
           targetRole: input.targetRole,
           jobDescription: input.jobDescription,
           rawResumeText: input.rawResumeText,
-          route: ai.route,
+          route: aiUpgrade.route,
           traceId,
           userId,
           jobIntelligence: brief.jd?.jobIntelligence,
@@ -193,13 +203,13 @@ export async function runResumeEnhancePipeline(
         });
       }
     } else {
-      warning = ai.warning;
-      aiBlockCode = ai.reason;
+      warning = aiUpgrade.warning;
+      aiBlockCode = aiUpgrade.reason;
       logEnhance("server", "pipeline.ai.blocked", {
         traceId,
         userId,
         step: ENHANCE_PIPELINE.AI_UPGRADE_BLOCKED,
-        reason: ai.reason ?? null,
+        reason: aiUpgrade.reason ?? null,
       });
     }
   } else {
@@ -275,6 +285,25 @@ export async function runResumeEnhancePipeline(
     skillsGaps: baseline.coverageAfter?.gaps.map((g) => g.atom.label),
     readinessDelta,
   };
+
+  logJourneyStep("server", "pipeline.complete", {
+    traceId,
+    userId,
+    step: ENHANCE_PIPELINE.SERVER_SUCCESS,
+    journey: RESUME_JOURNEY.APPLY_READY,
+    surface: input.surface,
+    aiUsed: aiAttempted,
+    aiCallStatus: resolveJourneyAiCallStatus({
+      aiUsed: aiAttempted,
+      aiSucceeded,
+      blocked: Boolean(aiBlockCode && !aiAttempted),
+    }),
+    engineMode,
+    errorCode: aiBlockCode ?? null,
+    status: "success",
+    apiCallCount,
+    tokensUsed,
+  });
 
   return {
     success: true,

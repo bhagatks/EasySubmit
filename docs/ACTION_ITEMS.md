@@ -52,7 +52,9 @@ See also [`PROD_CUTOVER.md`](./PROD_CUTOVER.md) §7.
 |------|--------|-------|
 | All Wave B items | **Done** | `run-resume-enhance-pipeline.ts`, brief/baseline/weave, soft gates, UI |
 
-**Local DB:** migration `20260627120000_north_star_jd_skills_enhance_meta` — run `npx prisma migrate dev` (or `run easy`) to apply.
+**Local DB migrations** — run `npx prisma migrate dev` (or `run easy`) to apply:
+- `20260627120000_north_star_jd_skills_enhance_meta`
+- `20260627140000_extension_install_prompt_config`
 
 #### Open product decisions
 
@@ -67,6 +69,10 @@ See also [`PROD_CUTOVER.md`](./PROD_CUTOVER.md) §7.
 | **EU cookie consent banner** | **Todo** | Evaluate if required for target regions; wire opt-in before PostHog init if yes. Not needed for US-only beta unless legal says otherwise. |
 
 - Add `@testing-library/react` harness for onboarding UI (see sidepanel rule pattern)
+- **Extension install prompt admin UI** (optional) — toggle `app_config.extensionInstallPrompt` flags from dashboard Settings; today DB-only (Prisma Studio / SQL). Logic tested via `lib/dashboard/extension-install-prompt-triggers.test.ts`.
+- **`callEnhanceObjectModel` system-path logging** — system pool path for `generateObject` (JD extraction) logs `model.object.success` but does NOT call `recordEnhanceModelCall`/`logApiCall` — no `api_call_logs` row for JD extract calls. Add observability parity with the `generateText` path when JD AI extraction volume warrants it.
+- **JD AI extractor quota** — `extractJDIntelligenceWithAI` consumes an AI call but does not decrement or check quota before running. The outer `runResumeEnhancePipeline` quota gate covers the enhance pass; JD extraction runs first and could exhaust capacity without a pre-check. Evaluate whether JD-only calls should count toward `aiCallsToday`.
+- **`JD_EXTRACTION_SYSTEM_MODEL` for BYOK** — when mode is `customer`, `jdExtractionRoute` returns the customer route as-is (their chosen model), ignoring `JD_EXTRACTION_SYSTEM_MODEL = "gemini-1.5-flash"`. Intentional (customers may prefer GPT-4 for extraction) but not documented. Add a comment or expose a config option if this diverges in practice.
 
 ## JD Brain (completed 2026-06-22)
 

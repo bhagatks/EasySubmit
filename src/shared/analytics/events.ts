@@ -14,6 +14,12 @@ export const AnalyticsEvents = {
 
   ENHANCE_CLICKED: "enhance_clicked",
   ENHANCE_COMPLETED: "enhance_completed",
+  /** Mirrors each row written to `api_call_logs` (server-side). */
+  API_CALL_LOGGED: "api_call_logged",
+  /** Dev project only — granular resume journey steps (ai_used, ai_call_status). */
+  RESUME_JOURNEY_STEP: "resume_journey_step",
+  /** Explicit UI click / control activation (extension + web helpers). */
+  UI_INTERACTION: "ui_interaction",
 
   EXTENSION_CARD_OPENED: "extension_card_opened",
   EXTENSION_CARD_COLLAPSED: "extension_card_collapsed",

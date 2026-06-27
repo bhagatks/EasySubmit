@@ -31,8 +31,10 @@ describe("resolveEffectiveAiSource", () => {
     expect(resolveEffectiveAiSource("auto", false, true, true)).toBe("system");
   });
 
-  it("prefers customer on auto when a vault key exists", () => {
+  it("prefers customer when a vault key exists (over forceSystem and system preference)", () => {
     expect(resolveEffectiveAiSource("auto", true, true)).toBe("customer");
+    expect(resolveEffectiveAiSource("system", true, true, true)).toBe("customer");
+    expect(resolveEffectiveAiSource("auto", true, true, true)).toBe("customer");
   });
 });
 
@@ -87,7 +89,24 @@ describe("resolveAiRoute", () => {
     expect(route).toEqual({ error: "system_pool_exhausted", byokAvailable: false });
   });
 
-  it("uses BYOK only when user explicitly allows fallback", async () => {
+  it("falls back to BYOK when system pool is down and vault key exists", async () => {
+    vi.mocked(hasHealthySystemPoolSlot).mockResolvedValue(false);
+
+    const route = await resolveAiRoute({
+      aiSourcePreference: "auto",
+      vaultKeyId: "vault-1",
+      activeProvider: "gemini",
+    });
+
+    expect(route).toEqual({
+      mode: "customer",
+      provider: "gemini",
+      vaultKeyId: "vault-1",
+      modelId: expect.any(String),
+    });
+  });
+
+  it("uses BYOK when user explicitly allows fallback (legacy opt-in still works)", async () => {
     vi.mocked(hasHealthySystemPoolSlot).mockResolvedValue(false);
 
     const route = await resolveAiRoute({

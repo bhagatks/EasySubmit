@@ -83,9 +83,29 @@ src/components/auth/
   KeyProtector.tsx          Dashboard-only overlay when isLocked (via app/dashboard/layout)
 components/dashboard/
   DashboardShell.tsx          Sidebar layout (Workspace nav + extension CTA)
+  DashboardSetupPrompts.tsx   Post-onboarding BYOK + extension install modals (`?setup=1` + opt-in return-visit triggers)
+  ExtensionInstallPromptModal.tsx  Glossy install CTA modal (Skip / Chrome Web Store)
   DashboardOverview.tsx       Post-onboarding overview cards
   DashboardFuelBadge.tsx      BYOK active pill when ignition complete
   DashboardIgnitionGuard.tsx  Redirects to /onboarding?ignition=1 when BYOK missing; KeyProtector for auth failures only
+lib/dashboard/
+  extension-install-prompt-triggers.ts  Pure trigger gates (dashboardVisit, tabFocusReturn, periodicRefresh, setupFlow)
+  extension-install-dismiss-storage.ts  Session dismiss after Skip on return visits
+lib/extension/
+  extension-dashboard-connection.ts     isExtensionConnectedForDashboard (localStorage id + PING)
+lib/features/
+  index.ts                              resolveFeature entry point (enhance | subscription)
+  types.ts                              EnhanceFeatureResolution, SubscriptionFeatureResolution, FeatureName
+  resolve-enhance.ts                    Full enhance gate (BYOK/system route, quota, flags, surface)
+  resolve-subscription.ts              Subscription plan + upgrade-nudge gate
+  enhance-ai-route.ts                  enhanceFeatureRoute helper + isResolvedAiRoute type guard
+lib/job-tracker/jd/
+  jd-ai-extract-schema.ts              Zod schema for AI JD extraction (generateObject payload)
+  jd-ai-extractor.ts                   Layer 3B — AI JD extraction + mergeAIIntoIntelligence
+  jd-prompt-segments.ts               JD segment word-limit truncation + Pass 1 draft prompt builder
+  skill-canonicalize.ts               MASTER_SKILLS canonicalization (aliases + tokenize fallback)
+src/shared/analytics/
+  server-dev-capture.ts               Server-side PostHog dev journey capture (fire-and-forget, dev only)
 components/ui/
   sidebar.tsx                 shadcn sidebar (collapsible, mobile sheet)
 middleware.ts               NextAuth route protection (onboardingStep gate)
@@ -162,10 +182,16 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 
 | Date | Summary |
 |------|---------|
+| 2026-06-27 | Extension install prompt config — `app_config.extensionInstallPrompt` trigger flags (`dashboardVisit`, `tabFocusReturn`, `periodicRefresh`, all default `false`); `DashboardSetupPrompts` + session dismiss on Skip; `?setup=1` always → tutorials; logic in `lib/dashboard/extension-install-prompt-triggers.ts` |
+| 2026-06-27 | PostHog mirrors every `api_call_logs` row as `api_call_logged`; extension emits `ui_interaction` on card clicks — see `docs/analytics-option-a.md` |
+| 2026-06-27 | `run easy` / `run easy prod` — shared pipeline adds `npm test`, `build:extension`, `npm run posthog:journey` (non-blocking); see `docs/ENV.md` |
+| 2026-06-27 | Dev-only resume journey observability — `resume_journey_step` in PostHog dev project (488025); `[EnhanceAI]` console gated off in production |
+| 2026-06-27 | Extension AI health — system-quota users without BYOK no longer blocked by spurious `key_missing` health check |
+| 2026-06-27 | JD Brain Layer 3B — `generateObject`+Zod JD extract, MASTER_SKILLS canonicalization, segment-based Pass 1 JD (req+resp ≤4k), Pass 2 culture/gap/verb guardrails, `traceId` jdIntelligence logging |
 | 2026-06-27 | Onboarding Studio validation — live `validateResume` banner + field highlights after parse; errors Studio-only; cleared on Import back / re-upload |
 | 2026-06-27 | `app_config.dashboardTutorialVideos` — configurable YouTube titles/URLs for `/dashboard/tutorials` |
 | 2026-06-27 | Video Tutorials — `/dashboard/tutorials` with six YouTube embeds; sidebar nav above Settings; post-setup auto-nav after extension modal (`?welcome=1`) |
-| 2026-06-27 | Extension install guard — `DashboardExtensionGuard` redirects `/dashboard` overview when extension PING fails; session dismiss on continue; `isExtensionConnectedForDashboard` shared helper |
+| 2026-06-27 | Extension install guard (superseded) — early `DashboardExtensionGuard` redirect experiment; replaced by opt-in `DashboardSetupPrompts` modals + `/dashboard/extension` reference page |
 | 2026-06-27 | Dashboard profile menu — landing-style avatar dropdown on all dashboard screens except Settings (logout only); Settings keeps sign-out pill |
 | 2026-06-27 | Dashboard About page — product overview, how-it-works steps, extension CTA, ATS Guidelines cross-link, consolidated support contact; workspace header labels per route |
 | 2026-06-27 | New resume profile upload — `/dashboard/resume-profiles/new` third option reuses onboarding `FuelPanel` (PDF/DOCX parse → `createResumeProfileFromParsed` → Studio); edit-existing profiles unchanged |

@@ -28,20 +28,10 @@ export async function resolveAiUpgrade(
 ): Promise<AiUpgradeResolution> {
   const enhance = await resolveEnhanceFeature(user, surface, opts);
 
-  if (enhance.aiAvailable) {
-    const route: ResolvedAiRoute =
-      enhance.mode === "customer"
-        ? {
-            mode: "customer",
-            provider: enhance.provider as Extract<ResolvedAiRoute, { mode: "customer" }>["provider"],
-            modelId: enhance.modelId!,
-            vaultKeyId: enhance.vaultKeyId!,
-          }
-        : { mode: "system", modelId: enhance.modelId! };
-
+  if (enhance.aiAvailable && enhance.route) {
     return {
       aiAllowed: true,
-      route,
+      route: enhance.route,
       baselineAvailable: true,
       aiAvailable: true,
     };

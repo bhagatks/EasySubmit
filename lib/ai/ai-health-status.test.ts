@@ -159,7 +159,7 @@ describe("getAiHealthStatusForUser", () => {
     });
   });
 
-  it("returns key_missing when no vault key and AI is enabled", async () => {
+  it("returns healthy when no vault key but system AI readiness passes", async () => {
     vi.mocked(prisma.user.findUnique).mockResolvedValue({
       vaultKeyId: null,
       aiSourcePreference: "auto",
@@ -169,11 +169,7 @@ describe("getAiHealthStatusForUser", () => {
     vi.mocked(prisma.apiCallLog.count).mockResolvedValue(0);
 
     const status = await getAiHealthStatusForUser("user-1");
-    expect(status).toEqual({
-      ok: false,
-      code: "key_missing",
-      message: "Add your API key in AI Keys to unlock AI enhancements.",
-    });
+    expect(status).toEqual({ ok: true });
   });
 
   it("returns ai_disabled when user turned off AI enhancements", async () => {

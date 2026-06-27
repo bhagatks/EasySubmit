@@ -42,12 +42,19 @@ export function resolveEffectiveAiSource(
   systemAiEnabled: boolean,
   forceSystem = false,
 ): AiRouteMode {
+  if (hasVaultKey) {
+    return "customer";
+  }
+
+  if (forceSystem && systemAiEnabled) {
+    return "system";
+  }
+
   if (!systemAiEnabled) {
     return "customer";
   }
 
-  if (forceSystem) return "system";
-  return hasVaultKey ? "customer" : "system";
+  return "system";
 }
 
 export function resolveCustomerModelId(
@@ -107,12 +114,12 @@ export async function resolveAiRoute(input: {
     const customerFallback = resolveCustomerRouteFromVault(input);
 
     if (!(await hasSystemGeminiKeys(engine))) {
-      if (input.allowByokFallback && customerFallback) return customerFallback;
+      if (customerFallback) return customerFallback;
       return { error: "no_system_key" };
     }
 
     if (!(await hasHealthySystemPoolSlot(engine))) {
-      if (input.allowByokFallback && customerFallback) return customerFallback;
+      if (customerFallback) return customerFallback;
       return {
         error: "system_pool_exhausted",
         byokAvailable: Boolean(customerFallback),

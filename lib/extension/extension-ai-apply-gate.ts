@@ -17,7 +17,7 @@ function extensionAiHealthConfigFromChecks(
   };
 }
 
-/** Server-side gate: same AI health rules as extension config + card banner. */
+/** Server-side gate: blocks capture/apply only when system daily quota is exhausted. */
 export async function getExtensionAiApplyBlockForUser(userId: string): Promise<string | null> {
   const [aiHealth, readiness] = await Promise.all([
     getAiHealthCheckForUser(userId),

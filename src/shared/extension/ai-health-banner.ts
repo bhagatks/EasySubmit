@@ -61,17 +61,28 @@ export function resolveExtensionAiHealthBanner(
   };
 }
 
-/** True when extension config reports an active AI health block (quota, key, or API error). */
+/** True when EasySubmit system daily quota is exhausted (blocks add-job / apply). */
+export function isExtensionSystemQuotaExhausted(
+  config: ExtensionAiHealthConfig | null | undefined,
+): boolean {
+  if (!config) return false;
+  if (config.systemQuotaExceeded) return true;
+  const message = config.aiHealthError?.trim() ?? "";
+  return Boolean(message && looksLikeQuotaIssue(message));
+}
+
+/** True when add-job / apply must wait for quota reset or BYOK (system quota only). */
 export function isExtensionApplyBlockedByAiHealth(
   config: ExtensionAiHealthConfig | null | undefined,
 ): boolean {
-  return resolveExtensionAiHealthBanner(config) !== null;
+  return isExtensionSystemQuotaExhausted(config);
 }
 
-/** User-facing block reason for disabling Apply / capture; config-only (not pipeline saveError). */
+/** User-facing block reason when apply is disabled for quota; null for advisory-only warnings. */
 export function getExtensionAiHealthBlockMessage(
   config: ExtensionAiHealthConfig | null | undefined,
 ): string | null {
+  if (!isExtensionSystemQuotaExhausted(config)) return null;
   return resolveExtensionAiHealthBanner(config)?.message ?? null;
 }
 

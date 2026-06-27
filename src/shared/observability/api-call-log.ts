@@ -131,6 +131,10 @@ export async function persistApiCallLog(input: ApiCallLogInput): Promise<string>
     select: { id: true },
   });
 
+  void import("@/src/shared/analytics/server-api-call-capture").then(({ captureApiCallLogged }) => {
+    captureApiCallLogged({ ...input, apiLogId: row.id });
+  });
+
   return row.id;
 }
 
