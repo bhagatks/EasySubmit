@@ -49,10 +49,18 @@ One-time: `vercel login` and `vercel link` (prompted automatically).
 .env.vercel.deploy.tmp → ephemeral during deploy (gitignored, auto-deleted)
 ```
 
+## OAuth credentials
+
+Login uses NextAuth (Google + LinkedIn). Required vars: `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`.
+
+**Full setup (Google Cloud Console, redirect URIs, troubleshooting):** [`docs/oauth-setup.md`](./oauth-setup.md)
+
+**Production cutover (DB + Vercel + OAuth prod):** [`docs/PROD_CUTOVER.md`](./PROD_CUTOVER.md)
+
 ## Troubleshooting
 
 **P1000 on local dev:** update `DATABASE_URL` in `.env.local`, run `run easy` again.
 
 **Deploy fails on env pull:** ensure `DATABASE_URL` is set in Vercel Production environment variables.
 
-**OAuth loops locally:** use a fresh incognito/private window, or run `EASY_OPEN_BROWSER=1 run easy` to auto-open one.
+**OAuth loops locally:** use a fresh incognito/private window, or run `EASY_OPEN_BROWSER=1 run easy` to auto-open one. See [`oauth-setup.md`](./oauth-setup.md) for redirect URI and consent-screen fixes.

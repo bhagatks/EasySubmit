@@ -92,7 +92,7 @@ On successful OAuth: redirect → `/onboarding` until `onboardingStep >= 4`, the
 
 **Cold Engine on first dashboard visit:** Users who complete onboarding without a vaulted key (`vaultKeyId` null) land on **`/dashboard`** with Engine Cold UI — navigation is not blocked. A one-time centered nudge (`DashboardByokNudge`, `easysubmit-byok-nudge-v1`) prompts them to connect AI Keys; `BYOK Inactive` appears on the sidebar **AI Keys** nav item. `DashboardIgnitionGuard` only syncs stale client ignition state when the server vault is empty.
 
-**Env:** `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`.
+**Env:** `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`. Setup guide: [`docs/oauth-setup.md`](./oauth-setup.md).
 
 ### Signup (Supabase — legacy)
 
