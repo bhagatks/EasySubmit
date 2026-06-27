@@ -4,11 +4,20 @@ import { JetBrains_Mono } from "next/font/google";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft,
+  ChevronDown,
+  ChevronUp,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { completeOnboarding, completeStep } from "@/app/actions/onboarding";
+import { DASHBOARD_SETUP_HREF } from "@/lib/dashboard/dashboard-extension-links";
 import { enhanceResumeOnboarding } from "@/app/actions/ai/enhance-resume";
+import {
+  advanceOnboardingComplete,
+  completeOnboarding,
+  completeStep,
+} from "@/app/actions/onboarding";
 import { getLoginIdentity, getProfileIdentity } from "@/app/actions/profile";
 import { IdentityCanvasGhost } from "@/components/onboarding/hub/IdentityCanvasGhost";
 import { SynthesisTransition } from "@/components/onboarding/SynthesisTransition";
@@ -25,6 +34,7 @@ import {
 import { OnboardingWorkbenchChrome } from "@/components/onboarding/hub/OnboardingWorkbenchChrome";
 import { AtsSamplePreviewLinks } from "@/components/onboarding/hub/AtsSamplePreviewLinks";
 import {
+  onboardingHeaderActionClass,
   onboardingHeaderBackClass,
   onboardingHeaderLinkClass,
   ONBOARDING_HEADER_PRIMARY,
@@ -34,6 +44,7 @@ import {
   type PrimeResumeData,
 } from "@/components/onboarding/PrimeResume";
 import { ScanningBeam } from "@/components/resume/ScanningBeam";
+import { ValidationErrorsBanner } from "@/components/resume/ValidationErrorsBanner";
 import { ResumeStudioWorkbench } from "@/components/resume/ResumeStudioWorkbench";
 import {
   coordinatesToPrimeResume,
@@ -48,6 +59,10 @@ import {
 import { formatFullPhone } from "@/lib/phone/phone";
 import type { StructuredResume } from "@/lib/resume/heuristicParser";
 import { formatDateRangeParts } from "@/lib/resume/dates";
+import {
+  collectValidationErrorMessages,
+  validateResume,
+} from "@/lib/resume/validation";
 import { cn } from "@/lib/utils";
 import { useOnboardingStore } from "@/src/stores/onboarding-store";
 import { isIdentityPhaseComplete } from "@/lib/onboarding/identity";
@@ -144,7 +159,7 @@ export default function OnboardingPage() {
   const [profileLastName, setProfileLastName] = useState("");
   const [loginFirstName, setLoginFirstName] = useState("");
   const [loginLastName, setLoginLastName] = useState("");
-  const [finalizeError, setFinalizeError] = useState<string | null>(null);
+  const [synthesisErrors, setSynthesisErrors] = useState<string[] | null>(null);
   const [studioToolbarUi, setStudioToolbarUi] = useState<RefineryStudioToolbarUi | null>(
     null,
   );
@@ -152,6 +167,7 @@ export default function OnboardingPage() {
     RefineryStudioToolbarPayload["actions"] | null
   >(null);
   const calibrationRanRef = useRef(false);
+  const panelScrollRef = useRef<HTMLDivElement>(null);
   const [workbenchReady, setWorkbenchReady] = useState(false);
   const phaseStartedAtRef = useRef<number>(Date.now());
   const onboardingStartedAtRef = useRef<number>(Date.now());
@@ -221,6 +237,12 @@ export default function OnboardingPage() {
 
     setWorkbenchReady(true);
   }, [setStudioSkills]);
+
+  useEffect(() => {
+    if (phase !== 3) {
+      setSynthesisErrors(null);
+    }
+  }, [phase]);
 
   useEffect(() => {
     if (!workbenchReady || isSynthesizing) {
@@ -336,6 +358,9 @@ export default function OnboardingPage() {
 
   const handleFuelParsed = useCallback(
     async ({ data, rawText }: { data: StructuredResume; rawText: string }) => {
+      setSynthesisErrors(null);
+      setRefineryRevision((current) => current + 1);
+
       const form = mergeParsedWithCoordinates(data, coordinates);
       const parsedSkills =
         data.skills.length > 0 ? [...data.skills] : parseSkillsText(form.skillsText);
@@ -395,6 +420,34 @@ export default function OnboardingPage() {
     return { ...refineryForm, skillsText };
   }, [refineryForm, studioSkills]);
 
+  const studioValidationErrors = useMemo(() => {
+    if (phase !== 3) return null;
+
+    const skills =
+      studioSkills.length > 0
+        ? studioSkills
+        : parseSkillsText(mergedRefineryForm.skillsText);
+    const gate = validateResume(
+      { ...mergedRefineryForm, skillsText: skills.join(", ") },
+      identity.targetRole.trim(),
+      { summaryRequired: false },
+    );
+    if (gate.canFinalize) return null;
+
+    const errors = collectValidationErrorMessages(gate);
+    return errors.length ? errors : ["Resume validation failed"];
+  }, [phase, mergedRefineryForm, studioSkills, identity.targetRole]);
+
+  const studioBannerErrors = synthesisErrors ?? studioValidationErrors;
+
+  const prevPhaseRef = useRef(phase);
+  useEffect(() => {
+    const enteredStudio = phase === 3 && prevPhaseRef.current !== 3;
+    prevPhaseRef.current = phase;
+    if (!enteredStudio || !studioValidationErrors?.length) return;
+    panelScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }, [phase, studioValidationErrors]);
+
   const studioPreview = useMemo(() => {
     const skillsText =
       studioSkills.length > 0
@@ -418,16 +471,52 @@ export default function OnboardingPage() {
     return hasStudioContent ? studioPreview : resumeData;
   }, [phase, resumeData, studioPreview]);
 
+  const handleSynthesisComplete = useCallback(async () => {
+    try {
+      await advanceOnboardingComplete();
+      await updateSession({ onboardingStep: 4 });
+      clearWorkbenchSession();
+
+      captureAnalyticsEvent(AnalyticsEvents.ONBOARDING_PHASE_COMPLETED, {
+        phase: 3,
+        phase_code: "STUDIO",
+        duration_ms: Date.now() - phaseStartedAtRef.current,
+      });
+      captureAnalyticsEvent(AnalyticsEvents.ONBOARDING_COMPLETED, {
+        duration_ms: Date.now() - onboardingStartedAtRef.current,
+      });
+    } catch (err) {
+      calibrationRanRef.current = false;
+      setIsSynthesizing(false);
+      setSynthesisErrors([
+        err instanceof Error
+          ? err.message
+          : "Could not finish onboarding. Please try again.",
+      ]);
+      throw err;
+    }
+  }, [updateSession]);
+
   const handleSynthesizeArchitecture = useCallback(
     (form: HubRefineryForm) => {
       if (calibrationRanRef.current || isSynthesizing) return;
 
-      setFinalizeError(null);
+      setSynthesisErrors(null);
 
       const skills =
         useOnboardingStore.getState().studio.skills.length > 0
           ? useOnboardingStore.getState().studio.skills
           : parseSkillsText(form.skillsText);
+
+      const targetRole = useOnboardingStore.getState().identity.targetRole.trim();
+      const gate = validateResume(
+        { ...form, skillsText: skills.join(", ") },
+        targetRole,
+        { summaryRequired: false },
+      );
+      if (!gate.canFinalize) {
+        return;
+      }
 
       setRefineryForm(form);
       setResumeData(
@@ -499,29 +588,18 @@ export default function OnboardingPage() {
             },
           });
 
-          await updateSession({ onboardingStep: 4 });
-          clearWorkbenchSession();
-
-          captureAnalyticsEvent(AnalyticsEvents.ONBOARDING_PHASE_COMPLETED, {
-            phase: 3,
-            phase_code: "STUDIO",
-            duration_ms: Date.now() - phaseStartedAtRef.current,
-          });
-          captureAnalyticsEvent(AnalyticsEvents.ONBOARDING_COMPLETED, {
-            duration_ms: Date.now() - onboardingStartedAtRef.current,
-          });
         } catch (err) {
           calibrationRanRef.current = false;
           setIsSynthesizing(false);
-          setFinalizeError(
+          setSynthesisErrors(
             err instanceof Error
-              ? err.message
-              : "Could not save your profile. Please try again.",
+              ? err.message.split("\n").filter(Boolean)
+              : ["Could not save your profile. Please try again."],
           );
         }
       })();
     },
-    [isSynthesizing, parsedStructured, rawResumeText, updateSession],
+    [isSynthesizing, parsedStructured, rawResumeText],
   );
 
   const handleRefineryBack = useCallback(() => {
@@ -596,20 +674,60 @@ export default function OnboardingPage() {
       const backLabel = getWorkbenchPhase(2)?.label ?? "Import";
 
       return (
-        <button
-          type="button"
-          onClick={handleRefineryBack}
-          className={cn(monoClass, onboardingHeaderBackClass)}
-          style={{ color: "oklch(0.98 0.01 268)" }}
-        >
-          <ArrowLeft className="h-3 w-3" aria-hidden="true" />
-          {backLabel}
-        </button>
+        <>
+          <AtsSamplePreviewLinks
+            monoClass={monoClass}
+            linkClassName={onboardingHeaderLinkClass}
+            linkColor={ONBOARDING_HEADER_PRIMARY}
+          />
+          {studioToolbarUi?.hasRawText ? (
+            <button
+              type="button"
+              onClick={() => studioToolbarActionsRef.current?.toggleRawText()}
+              className={onboardingHeaderActionClass}
+              style={{ color: ONBOARDING_HEADER_PRIMARY }}
+            >
+              {studioToolbarUi.showRawText ? (
+                <EyeOff className="h-3 w-3" aria-hidden="true" />
+              ) : (
+                <Eye className="h-3 w-3" aria-hidden="true" />
+              )}
+              {studioToolbarUi.showRawText ? "Hide raw" : "Raw text"}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => studioToolbarActionsRef.current?.toggleAllSections()}
+            className={onboardingHeaderActionClass}
+            style={{ color: ONBOARDING_HEADER_PRIMARY }}
+            aria-label={
+              studioToolbarUi?.allSectionsExpanded
+                ? "Collapse all sections"
+                : "Expand all sections"
+            }
+          >
+            {studioToolbarUi?.allSectionsExpanded ? (
+              <ChevronUp className="h-3 w-3" aria-hidden="true" />
+            ) : (
+              <ChevronDown className="h-3 w-3" aria-hidden="true" />
+            )}
+            {studioToolbarUi?.allSectionsExpanded ? "Collapse all" : "Expand all"}
+          </button>
+          <button
+            type="button"
+            onClick={handleRefineryBack}
+            className={cn(monoClass, onboardingHeaderBackClass)}
+            style={{ color: "oklch(0.98 0.01 268)" }}
+          >
+            <ArrowLeft className="h-3 w-3" aria-hidden="true" />
+            {backLabel}
+          </button>
+        </>
       );
     }
 
     return null;
-  }, [phase, handleRefineryBack]);
+  }, [phase, handleRefineryBack, studioToolbarUi]);
 
   const renderPhasePanel = () => {
     switch (phase) {
@@ -729,14 +847,16 @@ export default function OnboardingPage() {
           previewOverlay={<ScanningBeam active={isScanning} />}
           panel={
             <div className="flex h-full min-h-0 flex-col">
-              <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-6 py-6">
-                {finalizeError ? (
-                  <p
-                    className="mb-4 shrink-0 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200"
-                    role="alert"
-                  >
-                    {finalizeError}
-                  </p>
+              <div
+                ref={panelScrollRef}
+                className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-6 py-6"
+              >
+                {phase === 3 && studioBannerErrors?.length ? (
+                  <ValidationErrorsBanner
+                    errors={studioBannerErrors}
+                    className="mb-4"
+                    variant="onboarding"
+                  />
                 ) : null}
                 <AnimatePresence mode="wait" custom={direction}>
                   <motion.div
@@ -761,8 +881,9 @@ export default function OnboardingPage() {
       <SynthesisTransition
         active={isSynthesizing}
         resume={resumeData}
-        redirectTo="/dashboard/keys"
+        redirectTo={DASHBOARD_SETUP_HREF}
         durationMs={5000}
+        onComplete={handleSynthesisComplete}
       />
     </div>
   );

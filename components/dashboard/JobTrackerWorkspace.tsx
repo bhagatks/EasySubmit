@@ -22,6 +22,10 @@ import { ToastBanner } from "@/components/ui/toast-banner";
 import { Button } from "@/components/ui/button";
 import { BRAND_FULL } from "@/lib/brand";
 import { useRegisterDashboardHeaderActions } from "@/components/dashboard/DashboardWorkspaceHeader";
+import {
+  dashboardHeaderNeutralPillClassName,
+  dashboardHeaderNeutralPillStyle,
+} from "@/lib/dashboard/dashboard-header-chrome";
 import { AnalyticsEvents, captureAnalyticsEvent } from "@/src/shared/analytics";
 
 const APPLIED_ARCHIVE_TOAST_KEY = "easysubmit_applied_archive_toast_v1";
@@ -194,16 +198,15 @@ export function JobTrackerWorkspace({ entries, autoArchiveAppliedJobs }: JobTrac
 
   const archiveHeaderButton = useMemo(
     () => (
-      <Button
+      <button
         type="button"
-        variant={archivedView ? "default" : "outline"}
-        size="sm"
-        className="rounded-xl"
+        className={dashboardHeaderNeutralPillClassName()}
+        style={dashboardHeaderNeutralPillStyle}
         onClick={toggleArchiveView}
       >
-        <Archive className="h-3.5 w-3.5" aria-hidden="true" />
+        <Archive className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         {archivedView ? "Active jobs" : "Archive"}
-      </Button>
+      </button>
     ),
     [archivedView, toggleArchiveView],
   );

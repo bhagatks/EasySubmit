@@ -17,7 +17,7 @@ describe("BRAND", () => {
     expect(BRAND.name).toBe("EasySubmit");
     expect(BRAND.suffix).toBe(".ai");
     expect(BRAND.full).toBe("EasySubmit.ai");
-    expect(BRAND.applyCta).toBe("Apply with EasySubmit.ai");
+    expect(BRAND.applyCta).toBe("Apply with EasySubmit");
     expect(BRAND_FULL).toBe(BRAND.full);
     expect(BRAND_NAME).toBe(BRAND.name);
     expect(BRAND_SUFFIX).toBe(BRAND.suffix);

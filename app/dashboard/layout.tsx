@@ -1,30 +1,56 @@
-import { getServerSession } from "next-auth";
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import { authOptions } from "@/lib/auth";
+import { getCachedServerSession } from "@/lib/auth/cached-session";
 import { requireDashboardSession } from "@/lib/auth/require-dashboard-session";
 import { KeyProtector } from "@/src/components/auth/KeyProtector";
-import { DashboardByokNudge } from "@/components/dashboard/DashboardByokNudge";
+import { DashboardSetupPrompts } from "@/components/dashboard/DashboardSetupPrompts";
 import { DashboardIgnitionGuard } from "@/components/dashboard/DashboardIgnitionGuard";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { DashboardRouteFallback } from "@/components/dashboard/DashboardRouteFallback";
+import { getExtensionForceUpgradeConfig } from "@/lib/extension/force-upgrade-gate";
+import { getAppConfig } from "@/src/lib/services/config-service";
+
+type DashboardGateShellProps = {
+  sessionUserId: string;
+  children: React.ReactNode;
+};
+
+async function DashboardGateShell({ sessionUserId, children }: DashboardGateShellProps) {
+  const user = await requireDashboardSession(sessionUserId);
+  const [forceUpgrade, extensionInstallPrompt] = await Promise.all([
+    getExtensionForceUpgradeConfig(),
+    getAppConfig("extensionInstallPrompt"),
+  ]);
+
+  return (
+    <>
+      <DashboardIgnitionGuard vaultKeyId={user.vaultKeyId} />
+      <DashboardSetupPrompts
+        vaultKeyId={user.vaultKeyId}
+        storeUrl={forceUpgrade.updateUrl}
+        refreshIntervalMinutes={extensionInstallPrompt.refreshIntervalMinutes}
+      />
+      <DashboardShell vaultKeyId={user.vaultKeyId}>{children}</DashboardShell>
+    </>
+  );
+}
 
 export default async function DashboardLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const session = await getServerSession(authOptions);
+  const session = await getCachedServerSession();
 
-  if (!session?.user) {
+  if (!session?.user?.id) {
     redirect("/login");
   }
 
-  const user = await requireDashboardSession(session.user.id);
-
   return (
     <KeyProtector>
-      <DashboardIgnitionGuard vaultKeyId={user.vaultKeyId} />
-      <DashboardByokNudge vaultKeyId={user.vaultKeyId} />
-      <DashboardShell vaultKeyId={user.vaultKeyId}>{children}</DashboardShell>
+      <Suspense fallback={<DashboardRouteFallback />}>
+        <DashboardGateShell sessionUserId={session.user.id}>{children}</DashboardGateShell>
+      </Suspense>
     </KeyProtector>
   );
 }

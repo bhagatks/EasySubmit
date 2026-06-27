@@ -6,11 +6,12 @@ import { usePathname, useSearchParams } from "next/navigation";
 import {
   Briefcase,
   FileText,
-  FlaskConical,
-  Key,
+  Info,
   LayoutDashboard,
+  PlayCircle,
   Puzzle,
   Settings,
+  ShieldCheck,
 } from "lucide-react";
 import {
   Sidebar,
@@ -27,6 +28,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { SignOutButton } from "@/components/auth/SignOutButton";
+import { NavbarProfileMenu } from "@/components/nav/NavbarProfileMenu";
 import { Button } from "@/components/ui/button";
 import { LogoIcon } from "@/components/ui/logo";
 import { BrandWordmark } from "@/components/ui/brand-wordmark";
@@ -36,9 +38,8 @@ import {
   BYOKStatusBadge,
 } from "@/components/dashboard/BYOKStatus";
 import {
-  AiHealthAlertBanner,
-  AiHealthAlertIcon,
   AiHealthAlertProvider,
+  AiHealthHeaderNotice,
 } from "@/components/dashboard/AiHealthAlert";
 import { DashboardStudioSidebarEffect } from "@/components/dashboard/DashboardStudioSidebarEffect";
 import { ReviewStudioPageHeader } from "@/components/dashboard/review/ReviewStudioPageHeader";
@@ -49,26 +50,27 @@ import {
   DashboardWorkspaceHeaderProvider,
 } from "@/components/dashboard/DashboardWorkspaceHeader";
 import {
+  getDashboardHeaderLabel,
   isDashboardDetailScreen,
   isJobReviewStudioScreen,
   shouldShowDashboardByokKeyButton,
+  shouldShowDashboardProfileMenu,
   shouldShowDashboardSignOut,
 } from "@/lib/dashboard/dashboard-header-controls";
 import { parseJobReviewStudioJobId } from "@/lib/job-tracker/review-screen-ui";
+import { DASHBOARD_TOPBAR_BORDER_CLASS, dashboardTopBarClassName } from "@/lib/dashboard/dashboard-header-chrome";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { title: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { title: "Resume profiles", href: "/dashboard/resume-profiles", icon: FileText },
   { title: "Job Tracker", href: "/dashboard/job-tracker", icon: Briefcase },
-  { title: "AI", href: "/dashboard/keys", icon: Key },
+  { title: "ATS Guidelines", href: "/dashboard/ats-guidelines", icon: ShieldCheck },
+  { title: "Extension", href: "/dashboard/extension", icon: Puzzle },
+  { title: "Video Tutorials", href: "/dashboard/tutorials", icon: PlayCircle },
   { title: "Settings", href: "/dashboard/settings", icon: Settings },
+  { title: "About", href: "/dashboard/about", icon: Info },
 ] as const;
-
-const devNavItems =
-  process.env.NODE_ENV === "development"
-    ? [{ title: "Testing Resume", href: "/dashboard/testing-resume", icon: FlaskConical }]
-    : [];
 
 type DashboardShellProps = {
   children: React.ReactNode;
@@ -81,10 +83,15 @@ function DashboardSidebar({ vaultKeyId }: { vaultKeyId?: string | null }) {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader>
+      <SidebarHeader
+        className={cn(
+          dashboardTopBarClassName(),
+          "flex-row items-center gap-0 p-0 px-2 group-data-[collapsible=icon]:justify-center",
+        )}
+      >
         <Link
           href="/"
-          className="flex w-full items-center gap-2 px-2 py-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:px-0"
+          className="flex h-full w-full items-center gap-2 px-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:px-0"
         >
           <LogoIcon className="h-8 w-8 shrink-0" aria-hidden="true" />
           <span className="font-display text-base font-semibold group-data-[collapsible=icon]:hidden">
@@ -114,7 +121,7 @@ function DashboardSidebar({ vaultKeyId }: { vaultKeyId?: string | null }) {
                     <Link href={item.href} className="flex w-full items-center gap-2">
                       <item.icon className="h-4 w-4 shrink-0" />
                       <span className="flex-1 truncate">{item.title}</span>
-                      {item.href === "/dashboard/keys" && engineCold ? (
+                      {item.href === "/dashboard/settings" && engineCold ? (
                         <BYOKInactiveNavBadge className="group-data-[collapsible=icon]:hidden" />
                       ) : null}
                     </Link>
@@ -124,29 +131,6 @@ function DashboardSidebar({ vaultKeyId }: { vaultKeyId?: string | null }) {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        {devNavItems.length > 0 && (
-          <SidebarGroup>
-            <SidebarGroupLabel>Dev</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {devNavItems.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      tooltip={item.title}
-                      isActive={pathname.startsWith(item.href)}
-                    >
-                      <Link href={item.href} className="flex w-full items-center gap-2">
-                        <item.icon className="h-4 w-4 shrink-0" />
-                        <span className="flex-1 truncate">{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
       </SidebarContent>
       <SidebarFooter className="group-data-[collapsible=icon]:hidden">
         <div className="rounded-lg border border-border bg-surface p-3 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
@@ -156,7 +140,7 @@ function DashboardSidebar({ vaultKeyId }: { vaultKeyId?: string | null }) {
           </div>
           <p className="mt-1.5">Autofill any application in one click.</p>
           <Button variant="mint" size="sm" className="mt-2 w-full" asChild>
-            <Link href="/extension">Get it</Link>
+            <Link href="/dashboard/extension">Get it</Link>
           </Button>
         </div>
       </SidebarFooter>
@@ -173,6 +157,7 @@ function DashboardShellFrame({ children, vaultKeyId, fromParam }: DashboardShell
   const isReviewStudio = isJobReviewStudioScreen(pathname, fromParam);
   const reviewStudioJobId = isReviewStudio ? parseJobReviewStudioJobId(pathname) : null;
   const isStudioEdit = isDashboardDetailScreen(pathname, fromParam);
+  const showProfileMenu = shouldShowDashboardProfileMenu(pathname, fromParam);
   const showSignOut = shouldShowDashboardSignOut(pathname);
   const showByokKeyButton = shouldShowDashboardByokKeyButton(pathname, vaultKeyId);
 
@@ -197,31 +182,33 @@ function DashboardShellFrame({ children, vaultKeyId, fromParam }: DashboardShell
       <DashboardSidebar vaultKeyId={vaultKeyId} />
       <div className={cn("flex min-h-0 flex-1 flex-col", isStudioEdit && "overflow-hidden")}>
         <AiHealthAlertProvider>
-          <header className="relative shrink-0 border-b border-border/60">
+          <header className={cn("relative shrink-0", DASHBOARD_TOPBAR_BORDER_CLASS)}>
             <div className="grid h-14 grid-cols-[1fr_auto_1fr] items-center px-4">
-              <div className="flex items-center gap-3 justify-self-start">
+              <div className="flex h-full items-center gap-3 justify-self-start">
                 <SidebarTrigger />
-                <div className="text-sm text-muted-foreground">
-                  {isStudioEdit ? "Resume Studio" : "Dashboard"}
+                <div className="text-sm leading-none text-muted-foreground">
+                  {getDashboardHeaderLabel(pathname, isStudioEdit)}
                 </div>
               </div>
               {isStudioEdit ? (
-                <div className="flex justify-center justify-self-center">
+                <div className="flex h-full items-center justify-center justify-self-center">
                   <StudioHeaderCenterSlot />
                 </div>
               ) : (
                 <div />
               )}
-              <div className="flex items-center gap-2 justify-self-end">
-                <DashboardHeaderActionsSlot />
+              <div className="flex h-full items-center justify-end gap-2 justify-self-end">
                 <DashboardHeaderExpandSlot />
+                <DashboardHeaderActionsSlot />
                 <BYOKStatusBadge vaultKeyId={vaultKeyId} />
                 {showByokKeyButton ? <BYOKKeyButton /> : null}
+                {showProfileMenu ? <NavbarProfileMenu /> : null}
                 {showSignOut ? <SignOutButton variant="pill" /> : null}
-                <AiHealthAlertIcon />
               </div>
             </div>
-            <AiHealthAlertBanner />
+            <div className="flex justify-end px-4 pb-2 empty:hidden">
+              <AiHealthHeaderNotice />
+            </div>
           </header>
         </AiHealthAlertProvider>
         <main

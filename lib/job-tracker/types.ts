@@ -18,6 +18,8 @@ export type JobTrackerSummary = {
   canonicalUrl: string;
   savedAt: string;
   appliedAt: string | null;
+  /** From metadata.appliedSource — distinguishes manual vs assist apply. */
+  appliedSource?: string | null;
   /** Precomputed on list — hover tooltip when non-null */
   issueMessage?: string | null;
   hasTailoredResume?: boolean;

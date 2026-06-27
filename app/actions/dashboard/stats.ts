@@ -1,7 +1,6 @@
 "use server";
 
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getCachedServerSession } from "@/lib/auth/cached-session";
 import { prisma } from "@/lib/prisma";
 import { getJobTrackerStatsForUser } from "@/app/actions/job-tracker";
 import {
@@ -59,7 +58,7 @@ export type DashboardStatsResult =
 
 
 export async function getDashboardStats(): Promise<DashboardStatsResult> {
-  const session = await getServerSession(authOptions);
+  const session = await getCachedServerSession();
   const userId = session?.user?.id;
 
   if (!userId) {

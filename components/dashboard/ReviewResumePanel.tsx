@@ -20,6 +20,7 @@ import {
 import { jobTrackerReviewStudioUrl } from "@/lib/job-tracker/review-screen-ui";
 import type { JobTrackerDetail } from "@/lib/job-tracker/types";
 import { DEFAULT_STUDIO_ZOOM } from "@/lib/resume/studio-preview-zoom";
+import { EnhanceCoveragePanel } from "@/components/dashboard/review/EnhanceCoveragePanel";
 import { trackEnhanceClicked, trackEnhanceCompleted } from "@/src/shared/analytics/product-events";
 
 type ReviewResumePanelProps = {
@@ -50,6 +51,8 @@ type EnhanceFeedback = {
   engineMode: "ai" | "deterministic";
   atsDelta: { before: number; after: number } | null;
   summary: string | null;
+  warning?: string | null;
+  coverageAfter?: import("@/lib/job-tracker/enhance/enhance-brief").JdCoverageReport | null;
 };
 
 function EnhanceFeedbackCard({ feedback }: { feedback: EnhanceFeedback }) {
@@ -102,6 +105,9 @@ function EnhanceFeedbackCard({ feedback }: { feedback: EnhanceFeedback }) {
 
           {feedback.summary ? (
             <p className="mt-1 text-muted-foreground">{feedback.summary}</p>
+          ) : null}
+          {feedback.warning ? (
+            <p className="mt-1 text-amber-300/90">{feedback.warning}</p>
           ) : null}
         </div>
       </div>
@@ -230,11 +236,21 @@ export function ReviewResumePanel({ entry, onRefresh, aiEnabled }: ReviewResumeP
             documentKind: "resume",
             status: "success",
             durationMs: Date.now() - startedAt,
+            engineMode: result.engineMode,
+            aiAttempted: result.aiAttempted,
+            aiSucceeded: result.aiSucceeded,
+            aiBlockCode: result.aiBlockCode ?? null,
+            coveragePercent: result.coverageAfter?.coveragePercent ?? null,
+            gapsCount: result.coverageAfter?.gaps.length ?? null,
           });
           setEnhanceFeedback({
             engineMode: result.engineMode ?? "ai",
-            atsDelta: result.atsDelta ?? null,
+            atsDelta: result.readinessDelta
+              ? { before: result.readinessDelta.before, after: result.readinessDelta.after }
+              : result.atsDelta ?? null,
             summary: result.enhanceSummary ?? result.fallbackSummary ?? null,
+            warning: result.warning ?? null,
+            coverageAfter: result.coverageAfter ?? null,
           });
           onRefresh();
         })();
@@ -294,7 +310,19 @@ export function ReviewResumePanel({ entry, onRefresh, aiEnabled }: ReviewResumeP
             {error}
           </p>
         ) : enhanceFeedback ? (
-          <EnhanceFeedbackCard feedback={enhanceFeedback} />
+          <>
+            <EnhanceFeedbackCard feedback={enhanceFeedback} />
+            {enhanceFeedback.coverageAfter ? (
+              <div className="absolute left-2 right-2 top-24 z-10 pointer-events-auto">
+                <EnhanceCoveragePanel
+                  coverageAfter={enhanceFeedback.coverageAfter}
+                  engineMode={enhanceFeedback.engineMode}
+                  warning={enhanceFeedback.warning ?? undefined}
+                  enhanceSummary={enhanceFeedback.summary ?? undefined}
+                />
+              </div>
+            ) : null}
+          </>
         ) : null}
 
         <ReviewResumePreview

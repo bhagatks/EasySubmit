@@ -17,6 +17,7 @@ type DateRangeFieldsProps = {
   onEndYearChange: (value: string) => void;
   monoClass: string;
   compact?: boolean;
+  startYearError?: boolean;
 };
 
 export function DateRangeFields({
@@ -30,7 +31,14 @@ export function DateRangeFields({
   onEndYearChange,
   monoClass,
   compact = false,
+  startYearError = false,
 }: DateRangeFieldsProps) {
+  const startYearClass = cn(
+    INPUT_CLASS,
+    startYearError &&
+      "border-[oklch(0.55_0.22_25_/_0.65)] focus:border-[oklch(0.55_0.22_25)] focus:ring-[oklch(0.55_0.22_25_/_0.35)]",
+  );
+
   return (
     <div className={cn("grid gap-2", compact ? "grid-cols-2" : "grid-cols-1 sm:grid-cols-2")}>
       <fieldset className="space-y-1.5">
@@ -63,7 +71,7 @@ export function DateRangeFields({
             inputMode="numeric"
             maxLength={4}
             placeholder="YYYY"
-            className={INPUT_CLASS}
+            className={startYearClass}
             aria-label="Start year"
           />
         </div>

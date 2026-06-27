@@ -22,3 +22,8 @@ export type ResumeValidationResult = {
   education: SectionValidationResult;
   canFinalize: boolean;
 };
+
+export type ValidateResumeOptions = {
+  /** When false, an empty professional summary does not block finalize. Default true. */
+  summaryRequired?: boolean;
+};

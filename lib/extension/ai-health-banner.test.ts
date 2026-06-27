@@ -25,13 +25,13 @@ describe("resolveExtensionAiHealthBanner", () => {
     expect(banner?.message).toContain("Daily enhancement");
   });
 
-  it("routes key issues to AI Keys", () => {
+  it("routes key issues to Settings add-key flow", () => {
     const banner = resolveExtensionAiHealthBanner({
       aiHealthError: "Your API key is failing. Check it in AI Keys settings.",
       byokKeyInvalid: true,
       systemQuotaExceeded: false,
     } as never);
-    expect(banner?.fixPath).toBe("/dashboard/keys");
+    expect(banner?.fixPath).toBe("/dashboard/settings?addKey=1");
     expect(banner?.bannerLabel).toBe("Key issue");
   });
 

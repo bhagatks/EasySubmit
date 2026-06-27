@@ -93,6 +93,8 @@ export type IgnitionGateProps = {
   manageConfirmLabel?: string;
   /** Mint glow styling for manage-mode action buttons. */
   manageIgniteGlow?: boolean;
+  /** Hide manage-mode title block when embedded in a parent shell (e.g. Settings modal). */
+  hideManageHeader?: boolean;
 };
 
 function toneColor(tone: TerminalLine["tone"]): string {
@@ -175,6 +177,7 @@ export function IgnitionGate({
   manageSubmitLabel,
   manageConfirmLabel,
   manageIgniteGlow = false,
+  hideManageHeader = false,
 }: IgnitionGateProps) {
   const isProtectMode = variant === "protect";
   const isManageMode = variant === "manage";
@@ -392,6 +395,7 @@ export function IgnitionGate({
 
   const panel = (
     <div className={cn("flex flex-1 flex-col", fullScreen && "relative z-10")}>
+      {!(isManageMode && hideManageHeader) ? (
       <div className="mb-6">
         <p
           className={cn(monoClass, "text-[11px] font-medium uppercase tracking-[0.2em]")}
@@ -419,6 +423,7 @@ export function IgnitionGate({
               : "Connect your AI provider and choose your Primary Fuel before launch."}
         </p>
       </div>
+      ) : null}
 
       <div
         className="rounded-xl border border-white/10 shadow-[inset_0_1px_0_oklch(1_0_0/0.04)]"

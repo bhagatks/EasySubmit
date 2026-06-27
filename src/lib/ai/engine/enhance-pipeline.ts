@@ -78,6 +78,21 @@ export const ENHANCE_PIPELINE = {
   /** Pre: all pre-processing steps done, context ready for engine. */
   PRE_CONTEXT_READY: "77_pre_context_ready",
 
+  /** Phase 1 — Brief builder */
+  PRE_BRIEF_START: "78_pre_brief_start",
+  PRE_JD_SKILLS: "78a_pre_jd_skills",
+  PRE_BRIEF_READY: "78e_pre_brief_ready",
+
+  /** Phase 2 — Baseline apply */
+  BASELINE_START: "26_baseline_start",
+  BASELINE_DONE: "26e_baseline_done",
+
+  /** Phase 3 — AI upgrade */
+  AI_UPGRADE_START: "27_ai_upgrade_start",
+  AI_UPGRADE_BLOCKED: "27a_ai_upgrade_blocked",
+  AI_UPGRADE_SUCCESS: "27b_ai_upgrade_success",
+  AI_UPGRADE_FAIL: "27c_ai_upgrade_fail",
+
   // ─── Post-enhance / persist steps (80–89) ────────────────────────────────────
 
   /** Post: ATS readiness score computed before enhance. */
@@ -136,6 +151,16 @@ export const ENHANCE_PIPELINE_HINTS: Record<EnhancePipelineStep, string> = {
   [ENHANCE_PIPELINE.PRE_JD_BRAIN]: "JD brain analysis complete",
   [ENHANCE_PIPELINE.PRE_JD_DIRECTIVE]: "Enhance directive built",
   [ENHANCE_PIPELINE.PRE_CONTEXT_READY]: "Pre-processing done — context ready for engine",
+
+  [ENHANCE_PIPELINE.PRE_BRIEF_START]: "Phase 1 — building enhance brief",
+  [ENHANCE_PIPELINE.PRE_JD_SKILLS]: "JD Skills Framework vocabulary extracted",
+  [ENHANCE_PIPELINE.PRE_BRIEF_READY]: "Enhance brief ready",
+  [ENHANCE_PIPELINE.BASELINE_START]: "Phase 2 — baseline enhance starting",
+  [ENHANCE_PIPELINE.BASELINE_DONE]: "Baseline enhance complete",
+  [ENHANCE_PIPELINE.AI_UPGRADE_START]: "Phase 3 — AI upgrade starting",
+  [ENHANCE_PIPELINE.AI_UPGRADE_BLOCKED]: "AI upgrade blocked — baseline only",
+  [ENHANCE_PIPELINE.AI_UPGRADE_SUCCESS]: "AI upgrade succeeded",
+  [ENHANCE_PIPELINE.AI_UPGRADE_FAIL]: "AI upgrade failed — baseline kept",
 
   [ENHANCE_PIPELINE.POST_ATS_BEFORE]: "ATS readiness score before enhance",
   [ENHANCE_PIPELINE.POST_OVERRIDES]: "Section overrides extracted from enhanced vs base diff",

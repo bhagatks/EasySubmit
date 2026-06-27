@@ -10,9 +10,8 @@ vi.mock("@/lib/profile/copy-profile-for-job", () => ({
   resolveSourceProfileForJob: vi.fn(),
 }));
 
-vi.mock("@/lib/profile/job-resume-tailor", () => ({
-  upsertJobResumeTailor: vi.fn(),
-  updateJobReviewDocuments: vi.fn(),
+vi.mock("@/lib/job-tracker/persist-enhanced-resume", () => ({
+  persistEnhancedResume: vi.fn(),
 }));
 
 vi.mock("@/lib/profile/studio-form-db", () => ({
@@ -29,13 +28,18 @@ vi.mock("@/lib/extension/pipeline-metadata", () => ({
   recordPipelineTailorError: vi.fn(),
 }));
 
-vi.mock("@/src/lib/ai/engine/enhance-logger", () => ({
-  createEnhanceTraceId: vi.fn(() => "trace-pipeline"),
-}));
+vi.mock("@/src/lib/ai/engine/enhance-logger", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/src/lib/ai/engine/enhance-logger")>();
+  return {
+    ...actual,
+    createEnhanceTraceId: vi.fn(() => "trace-pipeline"),
+    logEnhance: vi.fn(),
+  };
+});
 
 import { enhanceResumeForUserId } from "@/lib/ai/enhance-resume-for-user";
 import { resolveSourceProfileForJob } from "@/lib/profile/copy-profile-for-job";
-import { upsertJobResumeTailor, updateJobReviewDocuments } from "@/lib/profile/job-resume-tailor";
+import { persistEnhancedResume } from "@/lib/job-tracker/persist-enhanced-resume";
 import {
   hubRefineryFormFromProfile,
   targetTitleFromProfile,
@@ -92,16 +96,12 @@ describe("runPipelineTailor", () => {
         callsLimit: 10,
       },
       aiMode: "customer",
+      engineMode: "ai",
     });
-    vi.mocked(upsertJobResumeTailor).mockResolvedValue({
-      id: "tailor-1",
-      jobTrackerEntryId: "entry-1",
-      sourceProfileId: "source-1",
-      overrides: { professionalSummary: "Tailored summary" },
+    vi.mocked(persistEnhancedResume).mockResolvedValue({
+      success: true,
       changedSections: ["professionalSummary"],
-      enhanceTraceId: "trace-pipeline",
     });
-    vi.mocked(updateJobReviewDocuments).mockResolvedValue({ success: true });
   });
 
   it("enhances source profile and saves overrides on the job", async () => {
@@ -126,15 +126,7 @@ describe("runPipelineTailor", () => {
         profileId: "source-1",
       }),
     );
-    expect(upsertJobResumeTailor).toHaveBeenCalled();
-    expect(updateJobReviewDocuments).toHaveBeenCalledWith(
-      "user-1",
-      "entry-1",
-      expect.objectContaining({
-        coverLetter: expect.stringMatching(/Dear/i),
-        coverLetterLatex: expect.stringContaining("\\begin{document}"),
-      }),
-    );
+    expect(persistEnhancedResume).toHaveBeenCalled();
     expect(updateJobTrackerStatus).toHaveBeenCalledWith("user-1", "entry-1", "RESUME_READY");
   });
 
@@ -167,7 +159,7 @@ describe("runPipelineTailor", () => {
     });
 
     expect(result.success).toBe(false);
-    expect(upsertJobResumeTailor).not.toHaveBeenCalled();
+    expect(persistEnhancedResume).not.toHaveBeenCalled();
     expect(recordPipelineTailorError).toHaveBeenCalled();
   });
 });

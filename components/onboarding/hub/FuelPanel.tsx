@@ -43,6 +43,7 @@ type FuelPanelProps = {
   onParsed: (payload: { data: StructuredResume; rawText: string }) => void;
   onScanningChange: (scanning: boolean) => void;
   hidePhaseIntro?: boolean;
+  successAdvanceLabel?: string;
 };
 
 export function FuelPanel({
@@ -51,6 +52,7 @@ export function FuelPanel({
   onParsed,
   onScanningChange,
   hidePhaseIntro = false,
+  successAdvanceLabel,
 }: FuelPanelProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -234,7 +236,7 @@ export function FuelPanel({
                 className={cn(monoClass, "mt-1 text-[10px] uppercase tracking-[0.12em]")}
                 style={{ color: MUTED }}
               >
-                {advancingToNextPhaseLabel(2)}
+                {successAdvanceLabel ?? advancingToNextPhaseLabel(2)}
               </p>
             </motion.div>
           ) : isProcessing ? (

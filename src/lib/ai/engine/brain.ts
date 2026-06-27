@@ -52,6 +52,7 @@ export function buildEnhanceUserPrompt(
   pass: "generate" | "optimize",
   intelligence?: JobIntelligence,
   directive?: ResumeEnhanceDirective,
+  brief?: import("@/lib/job-tracker/enhance/enhance-brief").ResumeEnhanceBrief,
 ): string {
   const jdBlock = ctx.jobDescription
     ? `\nJOB DESCRIPTION TO TARGET:\n"""\n${ctx.jobDescription.slice(0, 12000)}\n"""\n`
@@ -67,7 +68,13 @@ export function buildEnhanceUserPrompt(
   const effectiveRole = directive?.effectiveTargetRole ?? ctx.targetRole;
 
   if (pass === "generate") {
+    const briefHints = brief?.readiness.topActions.length
+      ? `\nBaseline already applied — refine, do not discard grouped skills or bullet weave:\n${brief.readiness.topActions.slice(0, 4).map((a) => `- ${a}`).join("\n")}\n`
+      : "";
+
     return [
+      "Refine this pre-enhanced resume for the target role. Baseline improvements (skills, bullets, summary) are already applied — improve quality without undoing them.",
+      briefHints,
       `Target role: ${effectiveRole}`,
       jdBlock || "Mode: general ATS enhancement (no job description).",
       rawSnippet,
@@ -94,10 +101,25 @@ export function buildEnhanceUserPrompt(
     ? buildDirectiveBlock(directive)
     : buildIntelligenceBlock(intelligence);
 
+  const briefBlock = brief
+    ? [
+        brief.readiness.topActions.length
+          ? `PRIORITY FIXES:\n${brief.readiness.topActions.slice(0, 5).map((a) => `  - ${a}`).join("\n")}`
+          : "",
+        brief.jd?.coverageBefore.gaps.length
+          ? `GAPS — do NOT fabricate; improve surrounding content only:\n${brief.jd.coverageBefore.gaps.slice(0, 8).map((g) => `  - ${g.atom.label}`).join("\n")}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n")
+    : "";
+
   return [
+    "Refine this pre-enhanced resume. Do not discard baseline improvements.",
     `Target role: ${effectiveRole}`,
     jdBlock,
     intelligenceBlock,
+    briefBlock,
     "Perform a strict second-pass edit on the draft below.",
     "Fix weak verbs, missing metrics, keyword gaps, and any ATS rule violations.",
     "Each bullet must start with exactly ONE past-tense action verb — never two consecutive verbs (e.g. 'Led lead', 'Built define' are errors — use only the first verb).",

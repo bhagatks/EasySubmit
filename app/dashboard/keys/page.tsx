@@ -1,20 +1,14 @@
-import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
-import { listVaultedApiKeys } from "@/app/actions/ai/vault-key";
-import { authOptions } from "@/lib/auth";
-import { requireDashboardSession } from "@/lib/auth/require-dashboard-session";
-import { AiKeysManager } from "@/components/dashboard/AiKeysManager";
+import { SETTINGS_ADD_KEY_HREF, SETTINGS_KEYS_HREF } from "@/lib/dashboard/settings-ai-links";
 
-export default async function KeysPage() {
-  const session = await getServerSession(authOptions);
+type KeysPageProps = {
+  searchParams?: { addKey?: string };
+};
 
-  if (!session?.user?.id) {
-    redirect("/login");
+/** Legacy route — AI keys live in Settings. */
+export default function KeysPage({ searchParams }: KeysPageProps) {
+  if (searchParams?.addKey === "1") {
+    redirect(SETTINGS_ADD_KEY_HREF);
   }
-
-  await requireDashboardSession(session.user.id);
-
-  const initialKeys = await listVaultedApiKeys();
-
-  return <AiKeysManager initialKeys={initialKeys} />;
+  redirect(SETTINGS_KEYS_HREF);
 }

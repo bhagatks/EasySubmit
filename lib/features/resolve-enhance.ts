@@ -1,4 +1,4 @@
-import type { EnhanceFeatureResolution, FeatureSurface } from "@/lib/features/types";
+import type { EnhanceOffReason, FeatureSurface } from "@/lib/features/types";
 import { isAiGloballyEnabled } from "@/lib/ai/ai-global-enabled";
 import { resolveAiRoute } from "@/src/lib/ai/engine/router";
 import { resolveQuotaRowWithReset } from "@/src/lib/ai/engine/system-quota-gate";
@@ -17,35 +17,39 @@ const SURFACE_FLAG_MAP = {
   extension: "enhanceWithAiResumeProfile",
 } as const satisfies Record<FeatureSurface, keyof Awaited<ReturnType<typeof getFeatureFlags>> | null>;
 
-/**
- * Onboarding always uses the deterministic engine — AI call is intentionally
- * skipped to avoid quota burn and keep the experience fast.
- */
 const AI_DISABLED_SURFACES: FeatureSurface[] = ["onboarding"];
-
-const OFF: EnhanceFeatureResolution = {
-  available: false,
-  mode: null,
-  vaultKeyId: null,
-  provider: null,
-  modelId: null,
-  quota: { used: 0, limit: 0, unlimited: false },
-  fallbackAvailable: true,
-};
 
 export type ResolveEnhanceOpts = {
   forceSystem?: boolean;
   useCustomerKey?: boolean;
 };
 
+function softOff(
+  reason: EnhanceOffReason,
+): import("@/lib/features/types").EnhanceFeatureResolution {
+  return {
+    baselineAvailable: true,
+    aiAvailable: false,
+    available: false,
+    reason,
+    mode: null,
+    vaultKeyId: null,
+    provider: null,
+    modelId: null,
+    quota: { used: 0, limit: 0, unlimited: false },
+    fallbackAvailable: true,
+  };
+}
+
 export async function resolveEnhanceFeature(
   user: SystemQuotaUserRow,
   surface: FeatureSurface,
   opts: ResolveEnhanceOpts = {},
-): Promise<EnhanceFeatureResolution> {
-  // G1 — global kill switch
+): Promise<import("@/lib/features/types").EnhanceFeatureResolution> {
+  const { quotaRow } = resolveQuotaRowWithReset(user);
+
   if (!isAiGloballyEnabled()) {
-    return { ...OFF, reason: "globally_disabled" };
+    return softOff("globally_disabled");
   }
 
   const [flags, aiEngine] = await Promise.all([
@@ -53,24 +57,20 @@ export async function resolveEnhanceFeature(
     getAppConfig("aiEngine"),
   ]);
 
-  // Onboarding has no flag — always runs deterministic engine directly.
   if (AI_DISABLED_SURFACES.includes(surface)) {
-    return { ...OFF, reason: "user_disabled" };
+    return softOff("user_disabled");
   }
 
-  // G2 — feature flag for all other surfaces
   const flagKey = SURFACE_FLAG_MAP[surface];
   if (flagKey && !flags[flagKey]) {
-    return { ...OFF, reason: "feature_disabled" };
+    return softOff("feature_disabled");
   }
 
-  // G3 — user AI preference
   const preference = (user.aiSourcePreference ?? "auto") as AiSourcePreference;
   if (preference === "disabled") {
-    return { ...OFF, reason: "user_disabled" };
+    return softOff("user_disabled");
   }
 
-  // G4 + G5 — route resolution (handles systemAiEnabled flag internally)
   const route = await resolveAiRoute({
     aiSourcePreference: preference,
     vaultKeyId: user.vaultKeyId,
@@ -86,23 +86,22 @@ export async function resolveEnhanceFeature(
       route.error === "no_customer_key" || route.error === "no_system_key"
         ? "no_key"
         : "pool_down";
-    return { ...OFF, reason };
+    return softOff(reason);
   }
 
-  // G6 — quota (customer mode, non-subscribed, no admin bypass)
   const subscribed = isSubscribed(user.plan ?? "free", user.subscriptionStatus ?? null);
   if (route.mode === "customer" && !subscribed && !isCustomerQuotaUnlimited(aiEngine)) {
-    const { quotaRow } = resolveQuotaRowWithReset(user);
     const quotaCheck = checkAiQuota(quotaRow, aiEngine, "customer", { isEnhancement: true });
     if (!quotaCheck.ok) {
-      return { ...OFF, reason: "quota_exceeded" };
+      return softOff("quota_exceeded");
     }
   }
 
-  const { quotaRow } = resolveQuotaRowWithReset(user);
   const unlimited = subscribed || (route.mode === "customer" && isCustomerQuotaUnlimited(aiEngine));
 
   return {
+    baselineAvailable: true,
+    aiAvailable: true,
     available: true,
     mode: route.mode,
     vaultKeyId: route.mode === "customer" ? route.vaultKeyId : null,

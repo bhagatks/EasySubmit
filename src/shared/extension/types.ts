@@ -71,6 +71,11 @@ export type ExtensionRuntimeConfig = {
   systemQuotaExceeded?: boolean;
   byokKeyInvalid?: boolean;
   aiEnabled?: boolean;
+  /** From `app_config.forceUpgrade` — client compares against `manifest.version`. */
+  forceUpgradeEnabled?: boolean;
+  minExtensionVersion?: string | null;
+  forceUpgradeMessage?: string | null;
+  forceUpgradeUpdateUrl?: string | null;
 };
 
 export type ApplyPipelineResponse = {

@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/ai/ai-global-enabled", () => ({
-  isAiGloballyEnabled: vi.fn(() => true),
+vi.mock("@/lib/features", () => ({
+  resolveFeature: vi.fn(),
+}));
+
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    user: { findUnique: vi.fn() },
+  },
 }));
 
 vi.mock("next-auth", () => ({
@@ -12,64 +18,17 @@ vi.mock("@/lib/auth", () => ({
   authOptions: {},
 }));
 
-vi.mock("@/lib/prisma", () => ({
-  prisma: {
-    user: {
-      findUnique: vi.fn(),
-    },
-  },
-}));
-
-vi.mock("@/src/lib/services/config-service", () => ({
-  getAppConfig: vi.fn(),
-  isSubscribed: vi.fn(() => false),
-}));
-
-vi.mock("@/src/lib/services/feature-flags-service", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/src/lib/services/feature-flags-service")>();
-  return {
-    ...actual,
-    getFeatureFlags: vi.fn(),
-  };
-});
-
-vi.mock("@/src/lib/ai/engine/router", () => ({
-  resolveAiRoute: vi.fn(),
-}));
-
-vi.mock("@/lib/ai/ai-readiness-gate-for-user", () => ({
-  getAiReadinessForUser: vi.fn(),
+vi.mock("@/src/lib/services/feature-flags-service", () => ({
+  getFeatureFlags: vi.fn(),
+  isSystemAiEnabled: vi.fn(() => true),
 }));
 
 import { getServerSession } from "next-auth";
-import { prisma } from "@/lib/prisma";
-import { getAppConfig } from "@/src/lib/services/config-service";
-import { getFeatureFlags } from "@/src/lib/services/feature-flags-service";
-import { resolveAiRoute } from "@/src/lib/ai/engine/router";
-import { getAiReadinessForUser } from "@/lib/ai/ai-readiness-gate-for-user";
-import { isAiGloballyEnabled } from "@/lib/ai/ai-global-enabled";
+import { resolveFeature } from "@/lib/features";
+import { getFeatureFlags, isSystemAiEnabled } from "@/src/lib/services/feature-flags-service";
 import { checkEnhanceWithAiPreflight } from "@/app/actions/ai/enhance-resume";
 
-const baseUser = {
-  vaultKeyId: null,
-  activeProvider: null,
-  aiSourcePreference: "auto",
-  aiEnhancementsToday: 0,
-  aiCallsToday: 0,
-  aiQuotaResetAt: new Date(),
-};
-
-const aiEngineSystemOff = {
-  system: { modelId: "gemini-2.5-flash-lite", maxKeySlots: 3 },
-  quotas: {
-    system: { enable: false, dailyEnhancements: 5, dailyCalls: 20 },
-    customer: { aiDailyUnlimited: true, dailyEnhancements: 50, dailyCalls: 200 },
-  },
-  customerDailyEnhancementCap: 50,
-};
-
 const defaultFlags = {
-  enhanceWithAiOnboarding: true,
   enhanceWithAiResumeProfile: true,
   extensionGlobalSwitch: true,
   extensionAutoApply: true,
@@ -78,63 +37,52 @@ const defaultFlags = {
 
 describe("checkEnhanceWithAiPreflight", () => {
   beforeEach(() => {
-    vi.mocked(isAiGloballyEnabled).mockReturnValue(true);
     vi.mocked(getServerSession).mockReset();
-    vi.mocked(prisma.user.findUnique).mockReset();
-    vi.mocked(getAppConfig).mockReset();
+    vi.mocked(resolveFeature).mockReset();
     vi.mocked(getFeatureFlags).mockReset();
-    vi.mocked(resolveAiRoute).mockReset();
-    vi.mocked(getAiReadinessForUser).mockReset();
-    vi.mocked(getAiReadinessForUser).mockResolvedValue({
-      status: { ok: true },
-      reason: "ready",
-      systemQuota: { applies: false, exceeded: false, reason: null, code: null },
-      byokKey: { applies: true, valid: true, reason: null },
-    } as never);
+    vi.mocked(isSystemAiEnabled).mockReturnValue(true);
+    vi.mocked(getFeatureFlags).mockResolvedValue(defaultFlags);
   });
 
-  it("blocks when feature flag is off", async () => {
+  it("allows baseline when feature flag blocks AI", async () => {
     vi.mocked(getServerSession).mockResolvedValue({ user: { id: "u1" } } as never);
-    vi.mocked(prisma.user.findUnique).mockResolvedValue(baseUser as never);
-    vi.mocked(getAppConfig).mockResolvedValue(aiEngineSystemOff as never);
-    vi.mocked(getFeatureFlags).mockResolvedValue({
-      ...defaultFlags,
-      enhanceWithAiResumeProfile: false,
-    });
+    vi.mocked(resolveFeature).mockResolvedValue({
+      baselineAvailable: true,
+      aiAvailable: false,
+    } as never);
 
     const result = await checkEnhanceWithAiPreflight({ variant: "dashboard" });
 
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.code).toBe("feature_disabled");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.baselineAvailable).toBe(true);
+      expect(result.aiAvailable).toBe(false);
     }
   });
 
-  it("requires BYOK when system AI is disabled and no vault key", async () => {
+  it("allows baseline when BYOK is required but missing", async () => {
     vi.mocked(getServerSession).mockResolvedValue({ user: { id: "u1" } } as never);
-    vi.mocked(prisma.user.findUnique).mockResolvedValue(baseUser as never);
-    vi.mocked(getAppConfig).mockResolvedValue(aiEngineSystemOff as never);
-    vi.mocked(getFeatureFlags).mockResolvedValue({
-      ...defaultFlags,
-      systemAiEnabled: false,
-    });
-    vi.mocked(resolveAiRoute).mockResolvedValue({ error: "no_customer_key" });
+    vi.mocked(resolveFeature).mockResolvedValue({
+      baselineAvailable: true,
+      aiAvailable: false,
+    } as never);
+    vi.mocked(isSystemAiEnabled).mockReturnValue(false);
 
     const result = await checkEnhanceWithAiPreflight({ variant: "dashboard" });
 
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.code).toBe("no_customer_key");
-      expect(result.requiresByokOnly).toBe(true);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.aiAvailable).toBe(false);
+      expect(result.systemAiEnabled).toBe(false);
     }
   });
 
   it("allows rules-only enhance when global AI is off", async () => {
-    vi.mocked(isAiGloballyEnabled).mockReturnValue(false);
     vi.mocked(getServerSession).mockResolvedValue({ user: { id: "u1" } } as never);
-    vi.mocked(prisma.user.findUnique).mockResolvedValue(baseUser as never);
-    vi.mocked(getAppConfig).mockResolvedValue(aiEngineSystemOff as never);
-    vi.mocked(getFeatureFlags).mockResolvedValue(defaultFlags);
+    vi.mocked(resolveFeature).mockResolvedValue({
+      baselineAvailable: true,
+      aiAvailable: false,
+    } as never);
 
     const result = await checkEnhanceWithAiPreflight({ variant: "dashboard" });
 
@@ -146,22 +94,11 @@ describe("checkEnhanceWithAiPreflight", () => {
 
   it("opens path when preflight passes", async () => {
     vi.mocked(getServerSession).mockResolvedValue({ user: { id: "u1" } } as never);
-    vi.mocked(prisma.user.findUnique).mockResolvedValue({
-      ...baseUser,
-      vaultKeyId: "vault-1",
-      activeProvider: "gemini",
+    vi.mocked(resolveFeature).mockResolvedValue({
+      baselineAvailable: true,
+      aiAvailable: true,
     } as never);
-    vi.mocked(getAppConfig).mockResolvedValue(aiEngineSystemOff as never);
-    vi.mocked(getFeatureFlags).mockResolvedValue({
-      ...defaultFlags,
-      systemAiEnabled: false,
-    });
-    vi.mocked(resolveAiRoute).mockResolvedValue({
-      mode: "customer",
-      provider: "gemini",
-      modelId: "gemini-2.5-flash",
-      vaultKeyId: "vault-1",
-    });
+    vi.mocked(isSystemAiEnabled).mockReturnValue(false);
 
     const result = await checkEnhanceWithAiPreflight({ variant: "dashboard" });
 

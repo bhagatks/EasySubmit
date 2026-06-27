@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { BRAND } from "@/src/shared/brand";
 import {
   classifyJourneySyncTransition,
   extensionShowsJourneyError,
@@ -62,7 +63,7 @@ describe("extension journey display after delete", () => {
       pipelineBusy: false,
     });
     expect(display.stage).toBe(0);
-    expect(display.label).toBe("Apply");
+    expect(display.label).toBe(BRAND.applyCta);
     expect(display.applyButtonState).toBe("hidden");
   });
 
@@ -83,8 +84,8 @@ describe("extension journey display after delete", () => {
       status: "READY_TO_APPLY",
       pipelineBusy: false,
     });
-    expect(display.stage).toBe(2);
-    expect(display.statusLabel).toBe("Ready to apply");
+    expect(display.stage).toBe(3);
+    expect(display.statusLabel).toBe("");
     expect(display.showReviewRow).toBe(true);
     expect(display.showAssistCard).toBe(false);
   });

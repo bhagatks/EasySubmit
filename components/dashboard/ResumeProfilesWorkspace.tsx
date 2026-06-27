@@ -3,14 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
-import { Plus } from "lucide-react";
 import type { ResumeProfileListItem } from "@/app/actions/resume-profiles";
 import { ResumeProfilesList } from "@/components/dashboard/ResumeProfilesList";
-import {
-  useDashboardExpandAllControl,
-  useRegisterDashboardHeaderActions,
-} from "@/components/dashboard/DashboardWorkspaceHeader";
-import { StudioIconButton } from "@/components/resume/StudioIconButton";
+import { useRegisterDashboardHeaderActions, DashboardHeaderHeroButton } from "@/components/dashboard/DashboardWorkspaceHeader";
 import { Button } from "@/components/ui/button";
 
 type ResumeProfilesWorkspaceProps = {
@@ -29,20 +24,15 @@ export function ResumeProfilesWorkspace({
   canCreate,
 }: ResumeProfilesWorkspaceProps) {
   const router = useRouter();
-  const sectionIds = useMemo(() => profiles.map((profile) => profile.id), [profiles]);
-  const { expanded, toggleSection } = useDashboardExpandAllControl(sectionIds, {
-    disabled: profiles.length === 0,
-  });
 
   const addProfileAction = useMemo(
     () => (
-      <StudioIconButton
+      <DashboardHeaderHeroButton
         type="button"
-        tone="bordered"
-        aria-label="Add resume profile"
+        aria-label="Add new resume profile"
         title={
           canCreate
-            ? "Add profile"
+            ? "Add new resume profile"
             : `Profile limit reached (${maxProfiles})`
         }
         disabled={!canCreate}
@@ -52,8 +42,8 @@ export function ResumeProfilesWorkspace({
           }
         }}
       >
-        <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-      </StudioIconButton>
+        Add new
+      </DashboardHeaderHeroButton>
     ),
     [canCreate, maxProfiles, router],
   );
@@ -79,12 +69,7 @@ export function ResumeProfilesWorkspace({
         {profileCount} of {maxProfiles} profiles
         {!canCreate ? " — delete a profile to add another." : ""}
       </p>
-      <ResumeProfilesList
-        profiles={profiles}
-        canDelete={canDelete}
-        expanded={expanded}
-        onToggleSection={toggleSection}
-      />
+      <ResumeProfilesList profiles={profiles} canDelete={canDelete} />
     </div>
   );
 }

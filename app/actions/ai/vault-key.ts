@@ -108,7 +108,7 @@ export async function setActiveVaultedApiKey(
   try {
     await setActiveVaultedUserApiKey(userId, provider);
     revalidatePath("/dashboard");
-    revalidatePath("/dashboard/keys");
+    revalidatePath("/dashboard/settings");
     return { success: true, provider, vaulted: true };
   } catch (error) {
     const message =
@@ -144,7 +144,7 @@ export async function saveVaultedApiKey(
       setAsActive: options?.setAsActive ?? true,
     });
     revalidatePath("/dashboard");
-    revalidatePath("/dashboard/keys");
+    revalidatePath("/dashboard/settings");
     return { success: true, provider, vaulted: true };
   } catch (error) {
     const message =
@@ -192,7 +192,7 @@ export async function removeVaultedApiKey(
   try {
     await revokeUserApiKey(userId, provider);
     revalidatePath("/dashboard");
-    revalidatePath("/dashboard/keys");
+    revalidatePath("/dashboard/settings");
     return { success: true, provider };
   } catch (error) {
     const message =

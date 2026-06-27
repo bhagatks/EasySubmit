@@ -1,5 +1,6 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { isAiGloballyEnabled } from "@/lib/ai/ai-global-enabled";
 import { prisma } from "@/lib/prisma";
 import { getAiReadinessForUser } from "@/lib/ai/ai-readiness-gate-for-user";
 import { logAiHealth, redactUserId } from "@/lib/ai/ai-health-debug";
@@ -11,7 +12,9 @@ export type AiHealthErrorCode =
   | "quota_exhausted"
   | "key_invalid"
   | "key_missing"
-  | "api_error";
+  | "api_error"
+  | "ai_disabled"
+  | "shared_ai_unavailable";
 
 export type AiHealthStatus =
   | { ok: true }
@@ -108,16 +111,45 @@ async function _checkForUser(userId: string): Promise<AiHealthCheckResult> {
 
   const debug = baseDebug();
   debug.hasVaultKey = Boolean(user.vaultKeyId);
-  debug.aiSourcePreference = user.aiSourcePreference;
 
-  const preference = (user.aiSourcePreference ?? "auto") as AiSourcePreference;
+  const preference = (user.aiSourcePreference ?? "disabled") as AiSourcePreference;
+  debug.aiSourcePreference = preference;
+
+  if (preference === "disabled") {
+    debug.reason = "ai_enhancement_disabled";
+    return finishCheck(userId, debug, {
+      ok: false,
+      code: "ai_disabled",
+      message: "AI enhancements are off. Turn them on in Settings to tailor resumes.",
+    });
+  }
+
+  if (!isAiGloballyEnabled()) {
+    debug.reason = "platform_ai_disabled";
+    return finishCheck(userId, debug, {
+      ok: false,
+      code: "ai_disabled",
+      message: "AI is temporarily unavailable. Check back later or add your API key.",
+    });
+  }
+
   const featureFlags = await getFeatureFlags();
+  const systemAiEnabled = isSystemAiEnabled(featureFlags);
   const routeMode = resolveEffectiveAiSource(
     preference,
     Boolean(user.vaultKeyId),
-    isSystemAiEnabled(featureFlags),
+    systemAiEnabled,
   );
   debug.routeMode = routeMode;
+
+  if (!systemAiEnabled && !user.vaultKeyId) {
+    debug.reason = "shared_ai_kill_switch";
+    return finishCheck(userId, debug, {
+      ok: false,
+      code: "shared_ai_unavailable",
+      message: "EasySubmit AI is turned off. Add your API key in AI Keys to continue.",
+    });
+  }
 
   const readiness = await getAiReadinessForUser(userId);
   debug.byokApplies = readiness.byokKey.applies;
@@ -162,7 +194,7 @@ async function _checkForUser(userId: string): Promise<AiHealthCheckResult> {
       ok: false,
       code: "quota_exhausted",
       message:
-        "EasySubmit's shared AI hit quota limits. Add your own API key for unlimited use.",
+        "EasySubmit AI hit its daily limit. Add your API key in AI Keys for unlimited use.",
     });
   }
 
@@ -203,6 +235,15 @@ async function _checkForUser(userId: string): Promise<AiHealthCheckResult> {
       ok: false,
       code: "api_error",
       message: "AI calls are failing. Check your settings.",
+    });
+  }
+
+  if (!user.vaultKeyId) {
+    debug.reason = "no_byok_key";
+    return finishCheck(userId, debug, {
+      ok: false,
+      code: "key_missing",
+      message: "Add your API key in AI Keys to unlock AI enhancements.",
     });
   }
 

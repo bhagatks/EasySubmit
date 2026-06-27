@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { parseProfileName } from "@/lib/profile/name";
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
 import { parseDateRangeString } from "@/lib/resume/dates";
-import { validateResume } from "@/lib/resume/validation";
+import { collectValidationErrorMessages, validateResume } from "@/lib/resume/validation";
 import {
   profileContentPatch,
   profileEmailForUser,
@@ -268,18 +268,14 @@ export async function completeOnboarding(data: CompleteOnboardingInput = {}) {
     throw new Error("Unauthorized");
   }
 
-  const gate = validateResume(buildGateForm(data), data.targetTitle ?? "");
+  const gate = validateResume(buildGateForm(data), data.targetTitle ?? "", {
+    summaryRequired: false,
+  });
   if (!gate.canFinalize) {
-    const errors = [
-      ...gate.header.issues,
-      ...gate.targetRole.issues,
-      ...gate.summary.issues,
-      ...gate.skills.issues,
-      ...gate.experience.issues,
-    ].filter((issue) => issue.severity === "error");
+    const errors = collectValidationErrorMessages(gate);
 
     throw new Error(
-      errors.map((issue) => issue.message).join(" ") || "Resume validation failed",
+      errors.join("\n") || "Resume validation failed",
     );
   }
 
@@ -288,11 +284,6 @@ export async function completeOnboarding(data: CompleteOnboardingInput = {}) {
   const profilePatch = buildProfilePatch(payload);
 
   await prisma.$transaction(async (tx) => {
-    await tx.user.update({
-      where: { id: userId },
-      data: { onboardingStep: 4 },
-    });
-
     await upsertDefaultUserProfile(
       tx,
       userId,
@@ -301,10 +292,26 @@ export async function completeOnboarding(data: CompleteOnboardingInput = {}) {
     );
   });
 
+  return { success: true as const, profileSaved: true as const };
+}
+
+/** Marks onboarding complete after the synthesis animation — keeps step at 3 until then. */
+export async function advanceOnboardingComplete() {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.id) {
+    throw new Error("Unauthorized");
+  }
+
+  await prisma.user.update({
+    where: { id: session.user.id },
+    data: { onboardingStep: 4 },
+  });
+
   revalidatePath("/onboarding");
   revalidatePath("/dashboard");
 
-  return { success: true, onboardingStep: 4 };
+  return { success: true as const, onboardingStep: 4 as const };
 }
 
 export async function updateUserOnboarding(step: number, formData: unknown) {

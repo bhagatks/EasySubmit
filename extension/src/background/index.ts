@@ -2,6 +2,7 @@ import {
   DEFAULT_API_BASE,
   EXTENSION_ENHANCE_TIMEOUT_MS,
   EXTENSION_MESSAGE,
+  EXTENSION_VERSION_HEADER,
   STORAGE_KEYS,
 } from "@shared/extension/constants";
 import {
@@ -23,6 +24,10 @@ import { appendAssistOpenParam } from "@shared/extension/assist-open-url";
 import type { FieldCapturePayload } from "@shared/extension/field-descriptor";
 
 const CONTEXT_MENU_FORCE_SHOW = "easysubmit-force-show-card";
+
+function getExtensionVersion(): string {
+  return chrome.runtime.getManifest().version;
+}
 
 async function getApiBase(): Promise<string> {
   const stored = await chrome.storage.local.get(STORAGE_KEYS.apiBaseUrl);
@@ -47,6 +52,7 @@ async function apiFetch<T>(
   const token = await getAuthToken();
   const headers = new Headers(init?.headers);
   headers.set("Content-Type", "application/json");
+  headers.set(EXTENSION_VERSION_HEADER, getExtensionVersion());
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
   const { timeoutMs, ...fetchInit } = init ?? {};
@@ -88,6 +94,7 @@ async function apiFetchBinary(
   const base = await getApiBase();
   const token = await getAuthToken();
   const headers = new Headers();
+  headers.set(EXTENSION_VERSION_HEADER, getExtensionVersion());
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
   const res = await fetch(`${base}${path}`, { headers });

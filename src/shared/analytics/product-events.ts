@@ -23,6 +23,12 @@ export function trackEnhanceCompleted(input: {
   traceId?: string | null;
   durationMs?: number;
   errorCode?: string | null;
+  engineMode?: "ai" | "deterministic";
+  aiAttempted?: boolean;
+  aiSucceeded?: boolean;
+  aiBlockCode?: string | null;
+  coveragePercent?: number | null;
+  gapsCount?: number | null;
 }): void {
   captureAnalyticsEvent(AnalyticsEvents.ENHANCE_COMPLETED, {
     surface: input.surface,
@@ -31,6 +37,12 @@ export function trackEnhanceCompleted(input: {
     trace_id: input.traceId ?? undefined,
     duration_ms: input.durationMs,
     error_code: input.errorCode ?? undefined,
+    engine_mode: input.engineMode,
+    ai_attempted: input.aiAttempted,
+    ai_succeeded: input.aiSucceeded,
+    ai_block_code: input.aiBlockCode ?? undefined,
+    coverage_percent: input.coveragePercent ?? undefined,
+    gaps_count: input.gapsCount ?? undefined,
   });
 }
 

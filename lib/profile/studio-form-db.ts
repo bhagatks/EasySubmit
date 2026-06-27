@@ -6,6 +6,9 @@ import {
   normalizeBulletText,
   normalizeResumeLine,
 } from "@/lib/resume/normalizeResumeText";
+import {
+  normalizePageLengthPreference,
+} from "@/lib/resume/page-length-preference";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (value && typeof value === "object" && !Array.isArray(value)) {
@@ -155,6 +158,7 @@ export function hubRefineryFormFromProfile(profile: ResumeProfile): HubRefineryF
   form.projects = mapTextList(root.projects, "proj");
   form.languages = mapTextList(root.languages, "lang");
   form.customSections = mapCustomSections(root.customSections);
+  form.pageLengthPreference = normalizePageLengthPreference(root.pageLengthPreference);
 
   return form;
 }
@@ -174,11 +178,14 @@ export function hubFormToProfileContent(
   form: HubRefineryForm,
   skills: string[],
 ): Record<string, unknown> {
+  const pageLengthPreference = normalizePageLengthPreference(form.pageLengthPreference);
+
   return {
     email: form.email.trim(),
     phone: form.phone.trim(),
     linkedIn: form.linkedIn.trim(),
     skills,
+    pageLengthPreference,
     experiences: form.experience
       .filter((entry) => !entry.hidden)
       .filter((entry) => entry.title.trim() || entry.company.trim())

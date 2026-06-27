@@ -7,6 +7,18 @@ import {
   AI_ENGINE_DEFAULTS,
 } from "../src/lib/services/ai-engine-config";
 import {
+  EXTENSION_FORCE_UPGRADE_CONFIG_KEY,
+  EXTENSION_FORCE_UPGRADE_DEFAULTS,
+} from "../src/lib/services/extension-force-upgrade-config";
+import {
+  EXTENSION_INSTALL_PROMPT_CONFIG_KEY,
+  EXTENSION_INSTALL_PROMPT_DEFAULTS,
+} from "../src/lib/services/extension-install-prompt-config";
+import {
+  DASHBOARD_TUTORIAL_VIDEOS_CONFIG_KEY,
+  DASHBOARD_TUTORIAL_VIDEOS_DEFAULTS,
+} from "../src/lib/services/dashboard-tutorial-videos-config";
+import {
   EXTENSION_SITES_CONFIG_KEY,
   EXTENSION_SITES_DEFAULTS,
 } from "../src/lib/services/extension-sites-config";
@@ -150,6 +162,33 @@ async function main() {
     });
 
     await prisma.appConfig.upsert({
+      where: { key: EXTENSION_FORCE_UPGRADE_CONFIG_KEY },
+      create: {
+        key: EXTENSION_FORCE_UPGRADE_CONFIG_KEY,
+        value: EXTENSION_FORCE_UPGRADE_DEFAULTS as Prisma.InputJsonValue,
+      },
+      update: {},
+    });
+
+    await prisma.appConfig.upsert({
+      where: { key: EXTENSION_INSTALL_PROMPT_CONFIG_KEY },
+      create: {
+        key: EXTENSION_INSTALL_PROMPT_CONFIG_KEY,
+        value: EXTENSION_INSTALL_PROMPT_DEFAULTS as Prisma.InputJsonValue,
+      },
+      update: {},
+    });
+
+    await prisma.appConfig.upsert({
+      where: { key: DASHBOARD_TUTORIAL_VIDEOS_CONFIG_KEY },
+      create: {
+        key: DASHBOARD_TUTORIAL_VIDEOS_CONFIG_KEY,
+        value: DASHBOARD_TUTORIAL_VIDEOS_DEFAULTS as Prisma.InputJsonValue,
+      },
+      update: {},
+    });
+
+    await prisma.appConfig.upsert({
       where: { key: RESUME_PROFILES_CONFIG_KEY },
       create: {
         key: RESUME_PROFILES_CONFIG_KEY,
@@ -185,7 +224,7 @@ async function main() {
     }
 
     console.log(
-      `Seeded AppConfig keys: ${DATA_REFRESH_KEY}, ${AI_CONFIG_KEY}, ${AI_PRICING_MAP_KEY}, ${ENHANCE_WITH_AI_CONFIG_KEY}, ${AI_ENGINE_CONFIG_KEY}, ${EXTENSION_SITES_CONFIG_KEY}, ${RESUME_PROFILES_CONFIG_KEY}, ${LEGAL_DOCUMENTS_CONFIG_KEY}; feature_flags registry`,
+      `Seeded AppConfig keys: ${DATA_REFRESH_KEY}, ${AI_CONFIG_KEY}, ${AI_PRICING_MAP_KEY}, ${ENHANCE_WITH_AI_CONFIG_KEY}, ${AI_ENGINE_CONFIG_KEY}, ${EXTENSION_SITES_CONFIG_KEY}, ${EXTENSION_FORCE_UPGRADE_CONFIG_KEY}, ${RESUME_PROFILES_CONFIG_KEY}, ${LEGAL_DOCUMENTS_CONFIG_KEY}; feature_flags registry`,
     );
   } finally {
     await prisma.$disconnect();

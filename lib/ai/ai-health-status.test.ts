@@ -11,10 +11,19 @@ vi.mock("@/lib/prisma", () => ({
 vi.mock("@/lib/ai/ai-readiness-gate-for-user", () => ({
   getAiReadinessForUser: vi.fn(),
 }));
+vi.mock("@/lib/ai/ai-global-enabled", () => ({
+  isAiGloballyEnabled: vi.fn(() => true),
+}));
+
+vi.mock("@/src/lib/services/feature-flags-service", () => ({
+  getFeatureFlags: vi.fn(),
+  isSystemAiEnabled: vi.fn(() => true),
+}));
 
 import { getAiHealthStatusForUser } from "@/lib/ai/ai-health-status";
 import { getAiReadinessForUser } from "@/lib/ai/ai-readiness-gate-for-user";
 import { prisma } from "@/lib/prisma";
+import { getFeatureFlags } from "@/src/lib/services/feature-flags-service";
 
 const healthyReadiness = {
   status: { ok: true as const },
@@ -40,6 +49,12 @@ const healthyReadiness = {
 describe("getAiHealthStatusForUser", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(getFeatureFlags).mockResolvedValue({
+      enhanceWithAiResumeProfile: true,
+      extensionGlobalSwitch: true,
+      extensionAutoApply: true,
+      systemAiEnabled: true,
+    });
     vi.mocked(prisma.user.findUnique).mockResolvedValue({
       vaultKeyId: "vault-1",
       aiSourcePreference: "customer",
@@ -140,8 +155,57 @@ describe("getAiHealthStatusForUser", () => {
       ok: false,
       code: "quota_exhausted",
       message:
-        "EasySubmit's shared AI hit quota limits. Add your own API key for unlimited use.",
+        "EasySubmit AI hit its daily limit. Add your API key in AI Keys for unlimited use.",
     });
+  });
+
+  it("returns key_missing when no vault key and AI is enabled", async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      vaultKeyId: null,
+      aiSourcePreference: "auto",
+      activeProvider: null,
+    } as never);
+    vi.mocked(getAiReadinessForUser).mockResolvedValue(healthyReadiness);
+    vi.mocked(prisma.apiCallLog.count).mockResolvedValue(0);
+
+    const status = await getAiHealthStatusForUser("user-1");
+    expect(status).toEqual({
+      ok: false,
+      code: "key_missing",
+      message: "Add your API key in AI Keys to unlock AI enhancements.",
+    });
+  });
+
+  it("returns ai_disabled when user turned off AI enhancements", async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      vaultKeyId: "vault-1",
+      aiSourcePreference: "disabled",
+      activeProvider: "gemini",
+    } as never);
+
+    const status = await getAiHealthStatusForUser("user-1");
+    expect(status).toMatchObject({
+      ok: false,
+      code: "ai_disabled",
+    });
+    expect(getAiReadinessForUser).not.toHaveBeenCalled();
+  });
+
+  it("returns shared_ai_unavailable when system AI is off and no BYOK key", async () => {
+    const { isSystemAiEnabled } = await import("@/src/lib/services/feature-flags-service");
+    vi.mocked(isSystemAiEnabled).mockReturnValue(false);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      vaultKeyId: null,
+      aiSourcePreference: "auto",
+      activeProvider: null,
+    } as never);
+
+    const status = await getAiHealthStatusForUser("user-1");
+    expect(status).toMatchObject({
+      ok: false,
+      code: "shared_ai_unavailable",
+    });
+    expect(getAiReadinessForUser).not.toHaveBeenCalled();
   });
 
   it("ignores stale system pool errors when user routes to My key (BYOK)", async () => {

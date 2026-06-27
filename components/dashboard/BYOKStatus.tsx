@@ -5,6 +5,13 @@ import { motion } from "framer-motion";
 import { KeyRound } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { SETTINGS_ADD_KEY_HREF, SETTINGS_KEYS_HREF } from "@/lib/dashboard/settings-ai-links";
+import {
+  dashboardHeaderMintPillClassName,
+  dashboardHeaderMintPillStyle,
+  dashboardHeaderWarningPillClassName,
+  dashboardHeaderWarningPillStyle,
+} from "@/lib/dashboard/dashboard-header-chrome";
 import { trackByokCtaClicked } from "@/src/shared/analytics/product-events";
 
 const jetbrainsMono = JetBrains_Mono({
@@ -12,9 +19,6 @@ const jetbrainsMono = JetBrains_Mono({
   weight: ["400", "500", "600"],
   display: "swap",
 });
-
-const WARNING_RED = "oklch(0.55 0.22 25)";
-const SYSTEM_MINT = "oklch(0.82 0.16 165)";
 
 export function resolveBYOKStatus(vaultKeyId?: string | null): "ACTIVE" | "INACTIVE" {
   return vaultKeyId ? "ACTIVE" : "INACTIVE";
@@ -35,46 +39,61 @@ export function BYOKStatusBadge({ vaultKeyId, className }: BYOKStatusProps) {
 
   return (
     <Link
-      href="/dashboard/keys"
+      href={SETTINGS_KEYS_HREF}
       onClick={() => trackByokCtaClicked("header_badge")}
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-opacity hover:opacity-90",
-        className,
-      )}
-      style={{
-        color: SYSTEM_MINT,
-        borderColor: "oklch(0.82 0.16 165 / 0.4)",
-        backgroundColor: "oklch(0.82 0.16 165 / 0.1)",
-      }}
+      className={dashboardHeaderMintPillClassName(className)}
+      style={dashboardHeaderMintPillStyle}
       aria-label="BYOK active — manage AI keys"
     >
-      <KeyRound className="h-3 w-3 shrink-0" aria-hidden="true" />
+      <KeyRound className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
       BYOK Active
     </Link>
   );
 }
 
-/** Header CTA when BYOK is not configured — links to AI Keys. */
+const byokKeyButtonClassName = cn(
+  jetbrainsMono.className,
+  dashboardHeaderWarningPillClassName("uppercase tracking-[0.08em]"),
+);
+
+/** Header CTA when BYOK is not configured — opens add-key in Settings. */
 export function BYOKKeyButton({ className }: { className?: string }) {
   return (
     <Link
-      href="/dashboard/keys"
+      href={SETTINGS_ADD_KEY_HREF}
       onClick={() => trackByokCtaClicked("header_cta")}
-      className={cn(
-        jetbrainsMono.className,
-        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] transition-opacity hover:opacity-90",
-        className,
-      )}
-      style={{
-        color: WARNING_RED,
-        borderColor: "oklch(0.55 0.22 25 / 0.45)",
-        backgroundColor: "oklch(0.55 0.22 25 / 0.1)",
-      }}
+      className={cn(byokKeyButtonClassName, className)}
+      style={dashboardHeaderWarningPillStyle}
       aria-label="Add BYOK API key"
     >
-      <KeyRound className="h-3 w-3 shrink-0" aria-hidden="true" />
+      <KeyRound className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
       BYOK KEY
     </Link>
+  );
+}
+
+/** Same BYOK CTA as a button — for in-page actions (e.g. Settings header slot). */
+export function BYOKKeyHeaderAction({
+  className,
+  onClick,
+}: {
+  className?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        trackByokCtaClicked("settings_header");
+        onClick();
+      }}
+      className={cn(byokKeyButtonClassName, className)}
+      style={dashboardHeaderWarningPillStyle}
+      aria-label="Add BYOK API key"
+    >
+      <KeyRound className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+      BYOK KEY
+    </button>
   );
 }
 

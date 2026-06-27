@@ -38,6 +38,7 @@ type ResumePaginatedPreviewProps = {
   layoutKey?: string | number;
   autoFitZoom?: boolean;
   onAutoFitZoom?: (zoom: number) => void;
+  onPageCountChange?: (pageCount: number) => void;
 };
 
 export function ResumePaginatedPreview({
@@ -52,6 +53,7 @@ export function ResumePaginatedPreview({
   layoutKey,
   autoFitZoom = false,
   onAutoFitZoom,
+  onPageCountChange,
 }: ResumePaginatedPreviewProps) {
   const contentMeasureRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -89,6 +91,10 @@ export function ResumePaginatedPreview({
     observer.observe(node);
     return () => observer.disconnect();
   }, [measureContent]);
+
+  useEffect(() => {
+    onPageCountChange?.(pageCount);
+  }, [onPageCountChange, pageCount]);
 
   useLayoutEffect(() => {
     if (!autoFitZoom || !onAutoFitZoom || autoFitAppliedRef.current) return;

@@ -13,6 +13,9 @@ import {
   type SetStateAction,
 } from "react";
 import { StudioIconButton } from "@/components/resume/StudioIconButton";
+import { Button, type ButtonProps } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { dashboardHeaderControlClassName } from "@/lib/dashboard/dashboard-header-chrome";
 import { useWorkspaceSectionExpansion } from "@/lib/dashboard/use-workspace-section-expansion";
 
 const DashboardHeaderActionsSetterContext = createContext<
@@ -71,6 +74,22 @@ export function DashboardHeaderActionsSlot() {
 
 export function DashboardHeaderExpandSlot() {
   return useContext(DashboardHeaderExpandSlotContext);
+}
+
+/** Landing-style hero CTA for dashboard header actions (Save, Add new, …). */
+export function DashboardHeaderHeroButton({
+  className,
+  size = "sm",
+  ...props
+}: ButtonProps) {
+  return (
+    <Button
+      variant="hero"
+      size={size}
+      className={cn(dashboardHeaderControlClassName, className)}
+      {...props}
+    />
+  );
 }
 
 type DashboardExpandAllButtonProps = {

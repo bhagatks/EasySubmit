@@ -56,7 +56,7 @@ export function AtsSamplePreviewLinks({
         <DialogContent
           layout="flex"
           className={cn(
-            "max-h-[min(90vh,720px)] w-[min(92vw,420px)] gap-0 overflow-hidden",
+            "max-h-[min(94vh,900px)] w-[min(94vw,680px)] gap-0 overflow-hidden",
             "border border-white/10 bg-[oklch(0.14_0.04_268)] p-0 text-[oklch(0.98_0.01_268)]",
           )}
         >
@@ -75,7 +75,7 @@ export function AtsSamplePreviewLinks({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="min-h-0 flex-1 overflow-y-auto bg-[oklch(0.12_0.03_268)] p-3">
+          <div className="min-h-0 flex-1 overflow-y-auto bg-[oklch(0.12_0.03_268)] p-4">
             <div className="overflow-hidden rounded-lg shadow-[0_12px_40px_rgba(0,0,0,0.35)]">
               <PrimeResume resume={ATS_UNIVERSAL_SAMPLE_RESUME} />
             </div>

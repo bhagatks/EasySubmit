@@ -47,5 +47,9 @@ export function mergeExtensionRuntimeConfig(
     systemQuotaExceeded: partial.systemQuotaExceeded ?? false,
     byokKeyInvalid: partial.byokKeyInvalid ?? false,
     aiEnabled: partial.aiEnabled ?? EXTENSION_RUNTIME_DEFAULTS.aiEnabled,
+    forceUpgradeEnabled: partial.forceUpgradeEnabled ?? false,
+    minExtensionVersion: partial.minExtensionVersion ?? null,
+    forceUpgradeMessage: partial.forceUpgradeMessage ?? null,
+    forceUpgradeUpdateUrl: partial.forceUpgradeUpdateUrl ?? null,
   };
 }

@@ -40,6 +40,7 @@ export type UpsertJobResumeTailorInput = {
   overrides: JobResumeOverrides;
   changedSections: StudioEditorSectionId[];
   enhanceTraceId?: string | null;
+  enhanceMeta?: Prisma.InputJsonValue;
 };
 
 export async function upsertJobResumeTailor(
@@ -54,12 +55,14 @@ export async function upsertJobResumeTailor(
       overrides: input.overrides as Prisma.InputJsonValue,
       changedSections: input.changedSections,
       enhanceTraceId: input.enhanceTraceId ?? null,
+      ...(input.enhanceMeta !== undefined ? { enhanceMeta: input.enhanceMeta } : {}),
     },
     update: {
       sourceProfileId: input.sourceProfileId,
       overrides: input.overrides as Prisma.InputJsonValue,
       changedSections: input.changedSections,
       enhanceTraceId: input.enhanceTraceId ?? null,
+      ...(input.enhanceMeta !== undefined ? { enhanceMeta: input.enhanceMeta } : {}),
     },
   });
 

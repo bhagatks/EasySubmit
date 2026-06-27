@@ -1,15 +1,13 @@
-import Link from "next/link";
 import {
-  ArrowRight,
   Check,
   Globe,
   Download,
-  MousePointerClick,
   ShieldCheck,
   Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/Navbar";
+import { ExtensionCardMock } from "@/components/marketing/ExtensionCardMock";
 import { BRAND } from "@/lib/brand";
 
 export const metadata = {
@@ -65,55 +63,7 @@ export default function ExtensionPage() {
             </p>
           </div>
 
-          <div className="relative">
-            <div className="absolute -inset-6 rounded-3xl bg-gradient-to-br from-primary/30 to-mint/20 blur-3xl" />
-            <div className="relative overflow-hidden rounded-2xl border border-border bg-surface shadow-elevated">
-              <div className="flex items-center gap-1.5 border-b border-border bg-surface/80 px-4 py-3">
-                <div className="h-2.5 w-2.5 rounded-full bg-destructive/70" />
-                <div className="h-2.5 w-2.5 rounded-full bg-mint/70" />
-                <div className="h-2.5 w-2.5 rounded-full bg-primary/70" />
-                <div className="ml-3 flex-1 truncate rounded-md bg-background/60 px-3 py-1 font-dm text-xs text-muted-foreground">
-                  jobs.workday.com/apply/senior-product-manager
-                </div>
-              </div>
-              <div className="grid gap-4 bg-surface p-6">
-                {[
-                  { label: "Full name", value: "Alex Rivera" },
-                  { label: "Email", value: "alex@rivera.dev" },
-                  {
-                    label: "Resume",
-                    value: "resume_senior-pm_tailored.pdf",
-                    chip: "Tailored 98/100",
-                  },
-                  {
-                    label: "Why this role?",
-                    value: "Generated from JD · 142 words",
-                    chip: "AI",
-                  },
-                ].map((f) => (
-                  <div
-                    key={f.label}
-                    className="rounded-lg border border-border bg-background/40 p-3"
-                  >
-                    <div className="font-dm text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                      {f.label}
-                    </div>
-                    <div className="mt-1 flex items-center justify-between">
-                      <div className="text-sm text-foreground">{f.value}</div>
-                      {f.chip && (
-                        <span className="rounded-full bg-mint/15 px-2 py-0.5 text-[10px] font-medium text-mint">
-                          {f.chip}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                <Button variant="mint" className="mt-2 h-12 w-full">
-                  <MousePointerClick className="mr-2 h-4 w-4" /> Autofill & review
-                </Button>
-              </div>
-            </div>
-          </div>
+          <ExtensionCardMock />
         </div>
       </section>
 

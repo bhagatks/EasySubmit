@@ -11,7 +11,7 @@ describe("review-screen-ui", () => {
   it("maps status to default panel", () => {
     expect(defaultReviewScreenPanel("CAPTURED")).toBe("job");
     expect(defaultReviewScreenPanel("RESUME_READY")).toBe("resume");
-    expect(defaultReviewScreenPanel("READY_TO_APPLY")).toBe("apply");
+    expect(defaultReviewScreenPanel("READY_TO_APPLY")).toBe("resume");
   });
 
   it("builds Review Screen deep links", () => {

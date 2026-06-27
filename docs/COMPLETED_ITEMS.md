@@ -1,5 +1,6 @@
 | Date | Item |
 |------|------|
+| 2026-06-27 | North-star resume enhance — JDSkillsFramework (deterministic + optional ESCO), 3-phase pipeline (`runResumeEnhancePipeline`), soft AI gates (baseline always succeeds), grouped skills, coverage panel, extension warning UX, analytics + pipeline logs; migration `20260627120000_north_star_jd_skills_enhance_meta` |
 | 2026-06-27 | Product analytics Option A — PostHog events (login, onboarding, review, enhance, extension, BYOK), Pino logging, `docs/analytics-option-a.md`, dashboard setup script |
 | 2026-06-25 | Resume export spacing overhaul — `resume-style.ts` spacing constants updated (betweenSections, afterSectionRule, afterEntryHead, afterEntrySub, bulletGap, betweenEntries); DOCX line height 240→276 DXA + bodyParagraph uses constant; HTML preview fully wired to SPACING constants — all three renderers (PDF/DOCX/HTML) now share single source of truth |
 | 2026-06-25 | Extension state map overhaul — 5-state journey (State 0–4) replacing old 4-state model; `autoSuggestCta` added to BRAND; `journey-display.ts` states corrected (CAPTURED hides CTA, RESUME_READY/READY_TO_APPLY show "Apply with Auto Suggest", APPLIED/archived show no status label); `showUpdateResume` removed entirely; `is-live` shell animation stops at APPLIED |

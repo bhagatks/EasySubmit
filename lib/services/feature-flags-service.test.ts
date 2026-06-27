@@ -17,7 +17,6 @@ import {
   getFeatureFlags,
   getFeatureFlagsWithExtra,
   isFeatureEnabled,
-  isEnhanceOnboardingVisible,
   parseFeatureFlagExtra,
 } from "@/src/lib/services/feature-flags-service";
 
@@ -48,16 +47,15 @@ describe("getFeatureFlags", () => {
 
   it("merges database rows over defaults", async () => {
     vi.mocked(prisma.featureFlag.findMany).mockResolvedValue([
-      { key: FEATURE_FLAG_KEYS.enhanceWithAiOnboarding, enabled: false },
-      { key: FEATURE_FLAG_KEYS.enhanceWithAiResumeProfile, enabled: true },
+      { key: FEATURE_FLAG_KEYS.enhanceWithAiResumeProfile, enabled: false },
+      { key: FEATURE_FLAG_KEYS.systemAiEnabled, enabled: false },
     ]);
 
     await expect(getFeatureFlags()).resolves.toEqual({
-      enhanceWithAiOnboarding: false,
-      enhanceWithAiResumeProfile: true,
+      enhanceWithAiResumeProfile: false,
       extensionGlobalSwitch: true,
       extensionAutoApply: true,
-      systemAiEnabled: true,
+      systemAiEnabled: false,
     });
   });
 });
@@ -73,7 +71,7 @@ describe("getFeatureFlag", () => {
       extra: { bannerText: "Beta" },
     });
 
-    await expect(getFeatureFlag(FEATURE_FLAG_KEYS.enhanceWithAiOnboarding)).resolves.toEqual({
+    await expect(getFeatureFlag(FEATURE_FLAG_KEYS.enhanceWithAiResumeProfile)).resolves.toEqual({
       enabled: true,
       extra: { bannerText: "Beta" },
     });
@@ -85,7 +83,7 @@ describe("getFeatureFlag", () => {
       extra: null,
     });
 
-    await expect(getFeatureFlag(FEATURE_FLAG_KEYS.enhanceWithAiOnboarding)).resolves.toEqual({
+    await expect(getFeatureFlag(FEATURE_FLAG_KEYS.enhanceWithAiResumeProfile)).resolves.toEqual({
       enabled: false,
       extra: null,
     });
@@ -100,18 +98,18 @@ describe("getFeatureFlagsWithExtra", () => {
   it("includes registry defaults for missing rows", async () => {
     vi.mocked(prisma.featureFlag.findMany).mockResolvedValue([
       {
-        key: FEATURE_FLAG_KEYS.enhanceWithAiOnboarding,
-        enabled: true,
+        key: FEATURE_FLAG_KEYS.enhanceWithAiResumeProfile,
+        enabled: false,
         extra: { note: "test" },
       },
     ]);
 
     const result = await getFeatureFlagsWithExtra();
-    expect(result[FEATURE_FLAG_KEYS.enhanceWithAiOnboarding]).toEqual({
-      enabled: true,
+    expect(result[FEATURE_FLAG_KEYS.enhanceWithAiResumeProfile]).toEqual({
+      enabled: false,
       extra: { note: "test" },
     });
-    expect(result[FEATURE_FLAG_KEYS.enhanceWithAiResumeProfile]?.enabled).toBe(true);
+    expect(result[FEATURE_FLAG_KEYS.extensionGlobalSwitch]?.enabled).toBe(true);
   });
 });
 
@@ -126,7 +124,7 @@ describe("isFeatureEnabled", () => {
       extra: null,
     });
 
-    await expect(isFeatureEnabled(FEATURE_FLAG_KEYS.enhanceWithAiOnboarding)).resolves.toBe(
+    await expect(isFeatureEnabled(FEATURE_FLAG_KEYS.enhanceWithAiResumeProfile)).resolves.toBe(
       false,
     );
   });
@@ -143,39 +141,5 @@ describe("isFeatureEnabled", () => {
     vi.mocked(prisma.featureFlag.findUnique).mockResolvedValue(null);
 
     await expect(isFeatureEnabled("unknown_flag")).resolves.toBe(false);
-  });
-});
-
-describe("isEnhanceOnboardingVisible", () => {
-  it("requires feature flag and system AI enabled", () => {
-    expect(
-      isEnhanceOnboardingVisible({
-        enhanceWithAiOnboarding: true,
-        enhanceWithAiResumeProfile: true,
-        extensionGlobalSwitch: true,
-        extensionAutoApply: true,
-        systemAiEnabled: true,
-      }),
-    ).toBe(true);
-
-    expect(
-      isEnhanceOnboardingVisible({
-        enhanceWithAiOnboarding: true,
-        enhanceWithAiResumeProfile: true,
-        extensionGlobalSwitch: true,
-        extensionAutoApply: true,
-        systemAiEnabled: false,
-      }),
-    ).toBe(false);
-
-    expect(
-      isEnhanceOnboardingVisible({
-        enhanceWithAiOnboarding: false,
-        enhanceWithAiResumeProfile: true,
-        extensionGlobalSwitch: true,
-        extensionAutoApply: true,
-        systemAiEnabled: true,
-      }),
-    ).toBe(false);
   });
 });

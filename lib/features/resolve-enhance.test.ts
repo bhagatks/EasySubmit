@@ -91,7 +91,8 @@ describe("resolveEnhanceFeature", () => {
   it("G1: returns globally_disabled when AI env is off", async () => {
     vi.mocked(isAiGloballyEnabled).mockReturnValue(false);
     const result = await resolveEnhanceFeature(baseUser, "job_apply");
-    expect(result.available).toBe(false);
+    expect(result.aiAvailable).toBe(false);
+    expect(result.baselineAvailable).toBe(true);
     expect(result.reason).toBe("globally_disabled");
   });
 
@@ -105,13 +106,14 @@ describe("resolveEnhanceFeature", () => {
 
   // ── G2: feature flag ─────────────────────────────────────────────────────────
 
-  it("G2: returns feature_disabled when flag is off", async () => {
+  it("G2: returns feature_disabled when flag is off (baseline still available)", async () => {
     vi.mocked(getFeatureFlags).mockResolvedValue({
       enhanceWithAiResumeProfile: false,
       systemAiEnabled: true,
     } as Awaited<ReturnType<typeof getFeatureFlags>>);
     const result = await resolveEnhanceFeature(baseUser, "job_apply");
-    expect(result.available).toBe(false);
+    expect(result.aiAvailable).toBe(false);
+    expect(result.baselineAvailable).toBe(true);
     expect(result.reason).toBe("feature_disabled");
   });
 

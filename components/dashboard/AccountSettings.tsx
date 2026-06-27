@@ -1,16 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { signIn, useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   FileText,
-  Key,
   Link2,
   Loader2,
-  Save,
   Sparkles,
   User,
   Zap,
@@ -24,6 +21,7 @@ import {
   updateAutoArchiveAppliedJobs,
   updateResumeProfilePickerMode,
 } from "@/app/actions/account";
+import type { VaultedApiKeySummary } from "@/app/actions/ai/vault-key";
 import type { ResumeProfilePickerMode } from "@/lib/generated/prisma/client";
 import { updateAiSourcePreference } from "@/app/actions/ai/enhance-resume";
 import {
@@ -35,27 +33,25 @@ import {
   useDashboardExpandAllControl,
   useRegisterDashboardHeaderActions,
 } from "@/components/dashboard/DashboardWorkspaceHeader";
+import { BYOKKeyHeaderAction } from "@/components/dashboard/BYOKStatus";
 import {
   DashboardWorkspacePage,
   DashboardWorkspaceStack,
 } from "@/components/dashboard/DashboardWorkspacePage";
 import { StudioCollapsibleSection } from "@/components/resume/StudioCollapsibleSection";
-import { StudioIconButton } from "@/components/resume/StudioIconButton";
+import { SettingsVaultKeysPanel } from "@/components/dashboard/SettingsVaultKeysPanel";
 import { isClientAiGloballyEnabled } from "@/lib/ai/ai-global-enabled";
-import {
-  SYSTEM_AI_DAILY_CALL_LIMIT,
-  SYSTEM_AI_DAILY_ENHANCEMENT_LIMIT,
-} from "@/src/lib/ai/engine/constants";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
-export const SETTINGS_ACCOUNT_FORM_ID = "settings-account-form";
+const PROFILE_SAVE_DEBOUNCE_MS = 600;
 
 const SETTINGS_SECTION_IDS = ["account", "ai-keys", "general"];
 
 type AccountSettingsProps = {
   initial: AccountSettingsSnapshot;
+  initialVaultKeys: VaultedApiKeySummary[];
 };
 
 type ProviderMeta = {
@@ -218,16 +214,22 @@ function ProviderRow({
   );
 }
 
-export function AccountSettings({ initial }: AccountSettingsProps) {
+export function AccountSettings({ initial, initialVaultKeys }: AccountSettingsProps) {
   const { update: updateSession } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
   const appliedAiSourceParam = useRef(false);
+  const appliedAddKeyParam = useRef(false);
   const [firstName, setFirstName] = useState(initial.firstName ?? "");
   const [lastName, setLastName] = useState(initial.lastName ?? "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [openAddKeyRequestId, setOpenAddKeyRequestId] = useState(0);
+  const persistedProfileRef = useRef({
+    firstName: (initial.firstName ?? "").trim(),
+    lastName: (initial.lastName ?? "").trim(),
+  });
   const [connecting, setConnecting] = useState<AuthProviderId | null>(null);
   const [aiEnabled, setAiEnabled] = useState(initial.aiSourcePreference !== "disabled");
   const [aiPrefBusy, setAiPrefBusy] = useState(false);
@@ -269,58 +271,98 @@ export function AccountSettings({ initial }: AccountSettingsProps) {
     })();
   }, [expanded, initial.aiSourcePreference, router, searchParams, toggleSection]);
 
+  const openAddKeyOnMount = searchParams.get("addKey") === "1";
+
+  useEffect(() => {
+    if (appliedAddKeyParam.current) return;
+    if (!openAddKeyOnMount) return;
+    appliedAddKeyParam.current = true;
+
+    if (!expanded["ai-keys"]) {
+      toggleSection("ai-keys");
+    }
+
+    router.replace("/dashboard/settings", { scroll: false });
+  }, [expanded, openAddKeyOnMount, router, searchParams, toggleSection]);
+
   const engineHot = Boolean(initial.vaultKeyId);
   const aiSummaryKeys = aiEnabled
-    ? `${engineHot ? "Your key active" : "System AI"} · ${initial.aiEnhancementsToday}/${SYSTEM_AI_DAILY_ENHANCEMENT_LIMIT} enhancements`
+    ? engineHot
+      ? "Your key active — unlimited AI tailoring"
+      : "EasySubmit AI — add a key for unlimited tailoring"
     : "AI off · rules engine only";
   const generalSummary = `${autoApplyUserSwitch ? "One-click on" : "One-click off"} · ${profilePickerMode === "DEFAULT" ? "Default resume" : "Last used resume"}`;
 
   const connectedSet = new Set(initial.connectedProviders);
 
-  const saveButton = useMemo(
-    () => (
-      <StudioIconButton
-        type="submit"
-        form={SETTINGS_ACCOUNT_FORM_ID}
-        tone="bordered"
-        disabled={saving}
-        aria-label={saving ? "Saving profile" : "Save account"}
-        title={saving ? "Saving…" : "Save account"}
-      >
-        {saving ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-        ) : (
-          <Save className="h-3.5 w-3.5" aria-hidden="true" />
-        )}
-      </StudioIconButton>
-    ),
-    [saving],
+  const handleOpenAddKey = useCallback(() => {
+    if (!expanded["ai-keys"]) {
+      toggleSection("ai-keys");
+    }
+    setOpenAddKeyRequestId((id) => id + 1);
+  }, [expanded, toggleSection]);
+
+  const byokHeaderButton = useMemo(
+    () => (engineHot ? null : <BYOKKeyHeaderAction onClick={handleOpenAddKey} />),
+    [engineHot, handleOpenAddKey],
   );
 
-  useRegisterDashboardHeaderActions(saveButton);
+  useRegisterDashboardHeaderActions(byokHeaderButton);
 
-  async function handleSave(event: React.FormEvent) {
-    event.preventDefault();
-    setSaving(true);
-    setSaved(false);
-    setError(null);
+  useEffect(() => {
+    const trimmedFirst = firstName.trim();
+    const trimmedLast = lastName.trim();
 
-    const result = await updateLoginProfile({ firstName, lastName });
-    setSaving(false);
-
-    if (!result.success) {
-      setError(result.error);
+    if (
+      trimmedFirst === persistedProfileRef.current.firstName &&
+      trimmedLast === persistedProfileRef.current.lastName
+    ) {
       return;
     }
 
-    await updateSession({
-      firstName: result.firstName,
-      lastName: result.lastName,
-      name: result.name,
-    });
+    if (!trimmedFirst) {
+      return;
+    }
 
-    setSaved(true);
-  }
+    setSaved(false);
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        setSaving(true);
+        setError(null);
+
+        const result = await updateLoginProfile({ firstName, lastName });
+        setSaving(false);
+
+        if (!result.success) {
+          setError(result.error);
+          return;
+        }
+
+        persistedProfileRef.current = {
+          firstName: result.firstName,
+          lastName: (result.lastName ?? "").trim(),
+        };
+
+        await updateSession({
+          firstName: result.firstName,
+          lastName: result.lastName,
+          name: result.name,
+        });
+
+        setSaved(true);
+      })();
+    }, PROFILE_SAVE_DEBOUNCE_MS);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [firstName, lastName, updateSession]);
+
+  useEffect(() => {
+    if (!saved) return;
+    const timer = window.setTimeout(() => setSaved(false), 3000);
+    return () => window.clearTimeout(timer);
+  }, [saved]);
 
   async function handleConnectProvider(provider: AuthProviderId) {
     setConnecting(provider);
@@ -389,6 +431,11 @@ export function AccountSettings({ initial }: AccountSettingsProps) {
             <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
               {error}
             </p>
+          ) : saving ? (
+            <p className="flex items-center gap-1.5 rounded-xl border border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+              Saving account…
+            </p>
           ) : saved ? (
             <p className="rounded-xl border border-mint/30 bg-mint/10 px-3 py-2 text-xs font-medium text-mint">
               Account saved.
@@ -421,11 +468,7 @@ export function AccountSettings({ initial }: AccountSettingsProps) {
                 onImageChange={setAvatarImage}
               />
 
-              <form
-                id={SETTINGS_ACCOUNT_FORM_ID}
-                onSubmit={(event) => void handleSave(event)}
-                className="grid gap-3 sm:grid-cols-2"
-              >
+              <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
                   <label htmlFor="account-first-name" className="text-xs font-medium">
                     First name
@@ -433,10 +476,7 @@ export function AccountSettings({ initial }: AccountSettingsProps) {
                   <Input
                     id="account-first-name"
                     value={firstName}
-                    onChange={(event) => {
-                      setFirstName(event.target.value);
-                      setSaved(false);
-                    }}
+                    onChange={(event) => setFirstName(event.target.value)}
                     required
                     autoComplete="given-name"
                     className="h-9 rounded-xl"
@@ -449,15 +489,12 @@ export function AccountSettings({ initial }: AccountSettingsProps) {
                   <Input
                     id="account-last-name"
                     value={lastName}
-                    onChange={(event) => {
-                      setLastName(event.target.value);
-                      setSaved(false);
-                    }}
+                    onChange={(event) => setLastName(event.target.value)}
                     autoComplete="family-name"
                     className="h-9 rounded-xl"
                   />
                 </div>
-              </form>
+              </div>
 
               <div className="grid gap-2 sm:grid-cols-2">
                 {AUTH_PROVIDERS.map((provider) => (
@@ -489,13 +526,13 @@ export function AccountSettings({ initial }: AccountSettingsProps) {
           >
             <div className="space-y-4">
               <SettingToggleRow
-                label="AI Enhancement"
+                label="AI enhancements"
                 description={
                   aiEnabled
                     ? engineHot
-                      ? "Your key active"
-                      : "System AI · uses daily quota"
-                    : "AI disabled — enhance uses rules engine"
+                      ? "Your key active — unlimited AI tailoring"
+                      : "EasySubmit AI — add a provider key below for unlimited use"
+                    : "Off — resume tailoring uses the rules engine only"
                 }
                 checked={aiEnabled}
                 disabled={aiPrefBusy || !isClientAiGloballyEnabled()}
@@ -503,44 +540,32 @@ export function AccountSettings({ initial }: AccountSettingsProps) {
                 icon={<Sparkles className="h-3.5 w-3.5 text-primary" aria-hidden="true" />}
               />
 
-              {aiEnabled ? (
-                <>
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/70 bg-background/30 px-3 py-2.5">
-                <div className="min-w-0 text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">Today&apos;s usage</span>
-                  <span className="mt-0.5 block">
-                    {initial.aiEnhancementsToday}/{SYSTEM_AI_DAILY_ENHANCEMENT_LIMIT} enhancements ·{" "}
-                    {initial.aiCallsToday}/{SYSTEM_AI_DAILY_CALL_LIMIT} calls
-                  </span>
-                </div>
-                <Button asChild variant="outline" size="sm" className="h-8 shrink-0 rounded-xl">
-                  <Link href="/dashboard/keys">
-                    <Key className="h-3.5 w-3.5" aria-hidden="true" />
-                    {engineHot ? "Manage keys" : "Add key"}
-                  </Link>
-                </Button>
-              </div>
+              <SettingsVaultKeysPanel
+                initialKeys={initialVaultKeys}
+                openAddOnMount={openAddKeyOnMount}
+                openAddRequestId={openAddKeyRequestId}
+              />
 
-              <p className="text-[11px] leading-snug text-muted-foreground">
-                AI uses work history only — contact info stays local.{" "}
-                <LegalDocumentLink documentId="terms" onOpen={openDocument}>
-                  Terms
-                </LegalDocumentLink>
-                {" · "}
-                <LegalDocumentLink documentId="privacy" onOpen={openDocument}>
-                  Privacy
-                </LegalDocumentLink>
-                {" · "}
-                <a
-                  href="https://ai.google.dev/gemini-api/terms"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  Gemini terms
-                </a>
-              </p>
-                </>
+              {aiEnabled ? (
+                <p className="text-[11px] leading-snug text-muted-foreground">
+                  AI uses work history only — contact info stays local.{" "}
+                  <LegalDocumentLink documentId="terms" onOpen={openDocument}>
+                    Terms
+                  </LegalDocumentLink>
+                  {" · "}
+                  <LegalDocumentLink documentId="privacy" onOpen={openDocument}>
+                    Privacy
+                  </LegalDocumentLink>
+                  {" · "}
+                  <a
+                    href="https://ai.google.dev/gemini-api/terms"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline"
+                  >
+                    Gemini terms
+                  </a>
+                </p>
               ) : null}
             </div>
           </StudioCollapsibleSection>

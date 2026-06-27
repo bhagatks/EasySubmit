@@ -16,8 +16,10 @@
 | `/dashboard/resume-profiles/[id]/edit` | Resume Studio — same Refinery controls as onboarding Phase 3 + profile role field | NextAuth required |
 | `/dashboard/job-tracker` | Job Tracker — pipeline rows, Review Screen, Archive toggle in header | NextAuth required |
 | `/dashboard/applications` | Redirect → `/dashboard/job-tracker` | NextAuth required |
-| `/dashboard/keys` | **Ignition Chamber** — post-onboarding BYOK vault (Power Cells, IGNITE handshake) | NextAuth required |
-| `/dashboard/settings` | Account settings — login identity (`users`), connected OAuth providers, engine status stub, sign out | NextAuth required |
+| `/dashboard/keys` | Redirect → `/dashboard/settings` (`?addKey=1` opens add-key modal) | NextAuth required |
+| `/dashboard/extension` | Extension install reference — Chrome Web Store CTA, connect bridge; sidebar nav item | NextAuth required |
+| `/dashboard/tutorials` | Video Tutorials — six embedded walkthroughs; `?welcome=1` after post-onboarding setup | NextAuth required |
+| `/dashboard/settings` | Account settings — login identity, **AI enhancements** toggle, vaulted provider keys (list + modal), extension prefs, sign out | NextAuth required |
 
 Middleware (`middleware.ts`) and `app/onboarding/layout.tsx` both redirect unauthenticated users to `/login`. Incomplete onboarding redirects to `/onboarding` except API routes under `/api/auth`, `/api/resume`, `/api/profile`, and `/api/extension` (avatar upload, resume import, finalize). **Sign out** — `SignOutButton` clears client state, ends the NextAuth session, and returns everyone to `/login?signedOut=1` (same flow for Google and LinkedIn).
 
@@ -29,7 +31,7 @@ Primary onboarding path — client state in `app/onboarding/page.tsx` (not Zusta
 |-------|-------|---------------|------------|
 | 1 · Identity | `CoordinatesPanel` | `firstName`, `lastName`, optional profile photo (`uploadProfileAvatar` server action), `cityState` (Nominatim debounce + locate via `CityStateField`), `phone` with country-code selector (default US +1), `email` | Continue → Import; `completeStep(1)` |
 | 2 · Import | `FuelPanel` | Resume PDF/DOCX → `parseResumeFile` (browser Open-Resume pipeline) | **No back to Phase 1** (`minNavigablePhase=2` on breadcrumb); auto-advance to Studio after parse |
-| 3 · Studio | `RefineryPanel` | ATS section order (Header → Summary → Skills → Experience → Education → optional Certifications/Projects/Languages); `mergeParsedWithCoordinates` prefills contact from Phase 1 | **Import** back → re-upload; **Finalize & continue** → see bridge below |
+| 3 · Studio | `RefineryPanel` | ATS section order (Header → Summary → Skills → Experience → Education → optional Certifications/Projects/Languages); `mergeParsedWithCoordinates` prefills contact from Phase 1; **`validateResume` runs live after parse** — banner + section highlights on Studio only (cleared when leaving Studio or re-uploading) | **Import** back → re-upload; header: sample PDF/DOCX, raw text, expand/collapse; **Finalize & continue** → see bridge below |
 
 ### Synthesis Transition (Phase 3 → Dashboard)
 
@@ -37,17 +39,23 @@ After Studio, **Finalize & continue** does **not** advance to a fourth onboardin
 
 1. **`SynthesisTransition`** (`components/onboarding/SynthesisTransition.tsx`) — full-screen mint scanning beam, JSON particle flow, JetBrains Mono status copy (~3s).
 2. **`completeOnboarding`** — persists profile + Career Architecture JSONB (no BYOK / AI provider required).
-3. **Redirect → `/dashboard`** — user lands on the dashboard with architecture drafted.
+3. **Redirect → `/dashboard?setup=1`** — sequential glossy modals via `DashboardSetupPrompts`:
+   - **BYOK modal** (`DashboardByokPromptModal` + `IgnitionGate`) when `vaultKeyId` is null — save a key or close.
+   - **Extension modal** (`ExtensionInstallPromptModal`) — install link + **Skip for now**; repeats until extension PING succeeds.
+   - **Video Tutorials** (`/dashboard/tutorials?welcome=1`) — auto-navigate after extension step; **Continue to dashboard** → overview.
 
-If **`users.vaultKeyId`** is null, the dashboard renders in **Cold Engine** state (overview blurred resume canvas, `BYOK Inactive • Engine Cold`, Ignition Chamber hint). BYOK is optional at onboarding exit.
+If **`users.vaultKeyId`** is null after setup, the overview still renders in **Cold Engine** state. BYOK remains optional — Settings or header **BYOK KEY** any time.
 
 ```text
-Phase 3 Studio  →  SynthesisTransition  →  /dashboard  →  (optional) Phase 4 Ignition Chamber
+Phase 3 Studio  →  SynthesisTransition  →  /dashboard?setup=1  →  BYOK modal  →  Extension modal  →  Video Tutorials  →  /dashboard
 ```
 
 | Phase | Where | Purpose | BYOK required? |
 |-------|--------|---------|----------------|
-| 4 · Ignition Chamber (post-onboarding) | `/dashboard/keys` | Vault provider keys into Power Cells; `igniteEngineVault` + Ignition Blast; Prime Paper unlock | Yes, to run headless engine |
+| 4 · Setup modals (post-onboarding) | `/dashboard?setup=1` | BYOK `IgnitionGate` modal, then extension install modal | No |
+| 5 · Extension install (sidebar) | `/dashboard/extension` | Full-page install reference + connect bridge | No |
+| 6 · Video Tutorials | `/dashboard/tutorials` | Six embedded YouTube walkthroughs; post-setup `?welcome=1` | No |
+| 7 · Vault BYOK (optional) | `/dashboard/settings` | Provider keys list + `IgnitionGate` modal | Optional — EasySubmit AI works without BYOK |
 
 Resume section order and preview typography follow **`docs/resume/RULES.md`** (code constants in `lib/resume/resumeSpec.ts`). Golden fixtures: `assets/resume/templates/` (download via `/api/resume/ats-template`).
 
@@ -90,7 +98,9 @@ Canonical identity separation and app-load routing: **`docs/IDENTITY_AND_BOOT_RU
 
 On successful OAuth: redirect → `/onboarding` until `onboardingStep >= 4`, then **`/dashboard`**.
 
-**Cold Engine on first dashboard visit:** Users who complete onboarding without a vaulted key (`vaultKeyId` null) land on **`/dashboard`** with Engine Cold UI — navigation is not blocked. A one-time centered nudge (`DashboardByokNudge`, `easysubmit-byok-nudge-v1`) prompts them to connect AI Keys; `BYOK Inactive` appears on the sidebar **AI Keys** nav item. `DashboardIgnitionGuard` only syncs stale client ignition state when the server vault is empty.
+**Cold Engine on first dashboard visit:** After synthesis, users land on **`/dashboard?setup=1`** with the BYOK modal (if no vaulted key), then the extension install modal. **`DashboardSetupPrompts`** re-shows the extension modal on every dashboard load, tab return, and on **`app_config.extensionInstallPrompt.refreshIntervalMinutes`** until the extension responds to PING. Skip dismisses until the next trigger. Sidebar **Extension** (`/dashboard/extension`) remains the full-page install reference.
+
+**Extension install on return visits:** While the extension is not connected, **`ExtensionInstallPromptModal`** opens on dashboard app load, browser tab focus return, and every **`extensionInstallPrompt.refreshIntervalMinutes`** (default 30). **`/dashboard/extension`** full page is not auto-redirected — modals handle the prompt. `DashboardIgnitionGuard` only syncs stale client ignition state when the server vault is empty.
 
 **Env:** `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`. Setup guide: [`docs/oauth-setup.md`](./oauth-setup.md).
 
@@ -128,7 +138,9 @@ Authenticated home after `onboardingStep >= 4`. Overview (`DashboardOverview`) s
 | **Cold Engine** | `vaultKeyId` null | Blurred resume preview, **Neural Calibration Pending** watermark, `BYOK Inactive • Engine Cold` badge, glass hint → Ignition Chamber |
 | **Hot Engine** | `vaultKeyId` set | High-contrast canvas, recent applications, ATS Guarantee verification panel |
 
-### Phase 4 · Ignition Chamber (`/dashboard/keys`)
+### Vault BYOK (`/dashboard/settings`)
+
+Provider keys are managed in **Settings → AI** — list rows per provider, **Add key** opens the `IgnitionGate` modal (same vault flow as before).
 
 Post-onboarding BYOK — **not** part of the `/onboarding` workbench. Users vault OpenAI, Anthropic, Gemini, Groq, or DeepSeek keys into Power Cells. Successful **`igniteEngineVault`** triggers **Ignition Blast** (mint bloom, screen shake, `POWER STABILIZED` overlay) and unlocks Prime Paper on the chamber canvas.
 

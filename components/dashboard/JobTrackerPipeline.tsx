@@ -22,12 +22,13 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { BRAND_FULL } from "@/lib/brand";
 import type { JobTrackerSummary } from "@/lib/job-tracker/types";
+import { resolvePipelineSubLabel } from "@/lib/job-tracker/pipeline-sub-labels";
 import { resolveJourneyDisplay, type JourneyDisplay } from "@/src/shared/journey-display";
 import {
   notifyExtensionJobArchived,
-  readExtensionIdForDashboard,
   startJobApplyFromDashboard,
 } from "@/lib/extension/start-job-apply-from-dashboard";
+import { isExtensionConnectedForDashboard } from "@/lib/extension/extension-dashboard-connection";
 import { cn } from "@/lib/utils";
 
 type JobTrackerPipelineProps = {
@@ -45,10 +46,6 @@ function trackerRowLine(entry: JobTrackerSummary): string {
   const role = entry.title.trim() || "Role unknown";
   const company = entry.company?.trim() || "Company unknown";
   return `${role} · ${company}`;
-}
-
-function stageAssistSubtitle(extensionInstalled: boolean): string {
-  return extensionInstalled ? "Apply assist active" : "Continue on job page";
 }
 
 function applyButtonLabel(journey: JourneyDisplay): string {
@@ -129,7 +126,9 @@ export function JobTrackerPipeline({
   const [extensionInstalled, setExtensionInstalled] = useState(false);
 
   useEffect(() => {
-    setExtensionInstalled(Boolean(readExtensionIdForDashboard()));
+    void (async () => {
+      setExtensionInstalled(await isExtensionConnectedForDashboard());
+    })();
   }, []);
 
   async function handleArchive() {
@@ -220,7 +219,12 @@ export function JobTrackerPipeline({
           const stage2 = journey.applyButtonState === "navigate";
           const stage3 = journey.applyButtonState === "completed";
           const stageError = journey.stage === "error";
-          const subtitle = stage2 ? stageAssistSubtitle(extensionInstalled) : journey.label;
+          const subtitle = resolvePipelineSubLabel({
+            status: entry.status,
+            hasError: stageError,
+            extensionInstalled,
+            appliedSource: entry.appliedSource,
+          });
 
           return (
             <li key={entry.id}>

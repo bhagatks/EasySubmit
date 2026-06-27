@@ -129,17 +129,23 @@ export function validateTargetRole(targetRole: string): SectionValidationResult 
   return sectionResult(issues);
 }
 
-export function validateSummarySection(form: HubRefineryForm): SectionValidationResult {
+export function validateSummarySection(
+  form: HubRefineryForm,
+  options: { required?: boolean } = {},
+): SectionValidationResult {
   const issues: ValidationIssue[] = [];
   const summary = form.professionalSummary?.trim() ?? "";
+  const required = options.required ?? true;
 
   if (!summary) {
-    issues.push({
-      field: "professionalSummary",
-      code: "summary_empty",
-      severity: "error",
-      message: "Professional summary is required.",
-    });
+    if (required) {
+      issues.push({
+        field: "professionalSummary",
+        code: "summary_empty",
+        severity: "error",
+        message: "Professional summary is required.",
+      });
+    }
     return sectionResult(issues);
   }
 
@@ -219,7 +225,10 @@ export function validateSkillsSection(skills: string[]): SectionValidationResult
   return sectionResult(issues);
 }
 
-export function validateExperienceSection(form: HubRefineryForm): SectionValidationResult {
+export function validateExperienceSection(
+  form: HubRefineryForm,
+  targetRole = "",
+): SectionValidationResult {
   const issues: ValidationIssue[] = [];
   const visibleEntries = (form.experience ?? []).filter((entry) => entry.hidden !== true);
 
@@ -301,7 +310,7 @@ export function validateExperienceSection(form: HubRefineryForm): SectionValidat
     });
   }
 
-  const pages = inferResumePagesFromForm(form);
+  const pages = inferResumePagesFromForm(form, targetRole);
   for (const issue of auditExperienceBulletCounts(form.experience ?? [], pages)) {
     if (issue.kind !== "below_min" || issue.count === 0) continue;
     issues.push({

@@ -86,6 +86,11 @@ import {
   getExtensionAiHealthBlockMessage,
 } from "@shared/extension/ai-health-banner";
 import {
+  getExtensionForceUpgradeBlockMessage,
+  isExtensionForceUpgradeRequired,
+  resolveExtensionForceUpgradeBanner,
+} from "@shared/extension/extension-force-upgrade";
+import {
   buildManualCaptureMetadata,
   buildNoJobDetectedMetadata,
   NO_JOB_DETECTED_MESSAGE,
@@ -909,6 +914,8 @@ async function enhanceDocumentPreview(
         enhanceSummary?: string;
         fallbackSummary?: string;
         fallbackUsed?: boolean;
+        warning?: string;
+        engineMode?: "ai" | "deterministic";
         aiMode?: "customer" | "system";
       }>({
         action: EXTENSION_MESSAGE.ENHANCE_DOCUMENT,
@@ -947,11 +954,15 @@ async function enhanceDocumentPreview(
       status: "success",
       traceId,
       durationMs: Date.now() - enhanceStartedAt,
+      engineMode: res.engineMode,
     });
 
     documentEnhanceByokOffer = null;
 
-    if (res.fallbackUsed) {
+    if (res.warning) {
+      saveError = res.warning;
+      documentEnhanceFallbackFix = null;
+    } else if (res.fallbackUsed || res.engineMode === "deterministic") {
       saveError = resolveEnhanceFallbackWarning(res.aiMode);
       documentEnhanceFallbackFix = {
         path: resolveEnhanceFallbackSettingsPath(res.aiMode),
@@ -1546,7 +1557,16 @@ function getCaptureContext(): {
   };
 }
 
+function getExtensionManifestVersion(): string {
+  try {
+    return chrome.runtime.getManifest().version;
+  } catch {
+    return "0.0.0";
+  }
+}
+
 function isApplyEnabled(): boolean {
+  if (isExtensionForceUpgradeRequired(runtimeConfig, getExtensionManifestVersion())) return false;
   if (isExtensionApplyBlockedByAiHealth(runtimeConfig)) return false;
   if (savedStatus.canReapply) {
     const capture = getCaptureContext();
@@ -1691,9 +1711,19 @@ function renderExpandedCard(root: ShadowRoot): void {
     ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" x2="3" y1="12" y2="12"/></svg>`
     : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>`;
 
-  const aiHealthBanner = resolveExtensionAiHealthBanner(runtimeConfig, saveError);
+  const forceUpgradeBanner = resolveExtensionForceUpgradeBanner(
+    runtimeConfig,
+    getExtensionManifestVersion(),
+  );
+  const aiHealthBanner = forceUpgradeBanner
+    ? null
+    : resolveExtensionAiHealthBanner(runtimeConfig, saveError);
   const cardSaveError = shouldHidePipelineErrorInBody(aiHealthBanner, saveError) ? null : saveError;
-  const aiBlockMessage = getExtensionAiHealthBlockMessage(runtimeConfig);
+  const upgradeBlockMessage = getExtensionForceUpgradeBlockMessage(
+    runtimeConfig,
+    getExtensionManifestVersion(),
+  );
+  const aiBlockMessage = upgradeBlockMessage ?? getExtensionAiHealthBlockMessage(runtimeConfig);
   const captureHint = applyCaptureBlockReason({ url: capture.url, description: capture.description });
   const applyHint = !aiBlockMessage && !applyEnabled ? captureHint : null;
 
@@ -1892,7 +1922,8 @@ function renderExpandedCard(root: ShadowRoot): void {
                 <button type="button" class="header-btn ${FLOATING_HINT_BUTTON_CLASS}" data-minimize="1" data-hint="Minimize" title="Minimize" aria-label="Minimize">×</button>
               </div>
             </div>
-            ${renderAiHealthBannerMarkup(aiHealthBanner)}
+            ${renderForceUpgradeBannerMarkup(forceUpgradeBanner)}
+            ${forceUpgradeBanner ? "" : renderAiHealthBannerMarkup(aiHealthBanner)}
             <div class="${bodyClass}">${bodyMarkup}</div>
           </div>
         </div>
@@ -1915,6 +1946,18 @@ function renderExpandedCard(root: ShadowRoot): void {
       (event.currentTarget as HTMLElement).getAttribute("data-fix-path") ??
       SETTINGS_AI_AUTO_HREF;
     void openDashboardPath(path);
+  });
+
+  root.querySelector("[data-force-upgrade-update]")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const updateUrl =
+      (event.currentTarget as HTMLElement).getAttribute("data-update-url") ?? "/extension";
+    if (/^https?:\/\//i.test(updateUrl)) {
+      window.open(updateUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+    void openDashboardPath(updateUrl.startsWith("/") ? updateUrl : `/${updateUrl}`);
   });
 
   bindCardViewHandlers(root);
@@ -2468,7 +2511,7 @@ function bindHeaderButton(root: ParentNode, selector: string, onActivate: () => 
 
 function isInteractiveGripTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
-  return Boolean(target.closest("[data-minimize], [data-refresh-card], [data-settings], [data-settings-dashboard], [data-settings-reconnect], [data-fix-ai-dashboard], .settings-menu, [data-profile-picker], [data-profile-id], .profile-picker-menu, .ai-health-banner, button, a"));
+  return Boolean(target.closest("[data-minimize], [data-refresh-card], [data-settings], [data-settings-dashboard], [data-settings-reconnect], [data-fix-ai-dashboard], [data-force-upgrade-update], .settings-menu, [data-profile-picker], [data-profile-id], .profile-picker-menu, .ai-health-banner, button, a"));
 }
 
 function renderCard(root: ShadowRoot): void {
@@ -2641,6 +2684,23 @@ function maybeRefreshAiHealthConfig(): void {
 
 function refreshRuntimeConfigOnTabResume(): void {
   scheduleRuntimeConfigRefresh(2_000);
+}
+
+function renderForceUpgradeBannerMarkup(
+  banner: ReturnType<typeof resolveExtensionForceUpgradeBanner>,
+): string {
+  if (!banner) return "";
+  const hint = escapeHtml(banner.message);
+  const updateUrl = escapeHtml(banner.updateUrl);
+  return `
+    <div class="ai-health-banner force-upgrade-banner" role="alert">
+      <div class="ai-health-banner-inner">
+        <span class="ai-health-banner-icon">${AI_HEALTH_ALERT_ICON}</span>
+        <p class="ai-health-banner-message" title="${hint}">${hint}</p>
+        <button type="button" class="ai-health-banner-cta" data-force-upgrade-update="1" data-update-url="${updateUrl}" aria-label="${escapeHtml(banner.ctaLabel)}">${escapeHtml(banner.ctaLabel)}</button>
+      </div>
+    </div>
+  `;
 }
 
 function renderAiHealthBannerMarkup(
@@ -3637,6 +3697,7 @@ async function startApplyPipeline(): Promise<void> {
   if (pipelineBusy) return;
 
   const config = runtimeConfig ?? (await ensureRuntimeConfig());
+  if (isExtensionForceUpgradeRequired(config, getExtensionManifestVersion())) return;
   if (isExtensionApplyBlockedByAiHealth(config)) return;
 
   const captureForAnalytics = getCaptureContext();
@@ -3770,6 +3831,7 @@ async function onPrimaryClick(): Promise<void> {
   if (cardPresentation === "no_job") return;
 
   await ensureRuntimeConfig();
+  if (isExtensionForceUpgradeRequired(runtimeConfig, getExtensionManifestVersion())) return;
   if (isExtensionApplyBlockedByAiHealth(runtimeConfig)) return;
 
   if (requireApplicationProfileSetupBeforeApply()) return;

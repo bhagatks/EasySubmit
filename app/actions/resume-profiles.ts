@@ -208,6 +208,70 @@ export async function createResumeProfile(
   }
 }
 
+export type CreateResumeProfileFromParsedInput = {
+  form: HubRefineryForm;
+  rawResumeText: string;
+};
+
+export async function createResumeProfileFromParsed(
+  input: CreateResumeProfileFromParsedInput,
+): Promise<CreateResumeProfileResult> {
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id;
+  const sessionEmail = session?.user?.email;
+
+  if (!userId) {
+    return { success: false, error: "Sign in required" };
+  }
+
+  const form = input.form;
+  const skills = studioSkillsFromForm(form);
+  const { city, country } = parseCityState(form.cityState);
+  const defaultProfile = await findDefaultProfile(userId);
+
+  const email =
+    sanitizeString(form.email, 200) ||
+    defaultProfile?.email ||
+    profileEmailForUser(userId, sessionEmail);
+
+  try {
+    const profileId = await prisma.$transaction(async (tx) => {
+      const limit = await checkUserCanCreateResumeProfile(userId, tx);
+      if (!limit.ok) {
+        throw new Error(limit.error);
+      }
+
+      const created = await tx.profile.create({
+        data: {
+          userId,
+          isDefault: false,
+          email,
+          firstName: sanitizeString(form.firstName, 80) || null,
+          lastName: sanitizeString(form.lastName, 80) || null,
+          phone: sanitizeString(form.phone, 40) || null,
+          city: sanitizeString(city, 120) || null,
+          country: sanitizeString(country, 120) || null,
+          targetTitle: null,
+          summary: sanitizeString(form.professionalSummary, 8000) || null,
+          skills,
+          resumeRawText: input.rawResumeText.trim() || null,
+          content: hubFormToProfileContent(form, skills) as Prisma.InputJsonValue,
+        },
+      });
+
+      return created.id;
+    });
+
+    revalidatePath("/dashboard/resume-profiles");
+
+    return { success: true, profileId };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Failed to create profile";
+    return { success: false, error: message };
+  }
+}
+
 export type SaveResumeProfileStudioInput = {
   profileId: string;
   targetTitle: string;

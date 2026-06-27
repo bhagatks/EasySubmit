@@ -36,6 +36,29 @@ See also [`PROD_CUTOVER.md`](./PROD_CUTOVER.md) §7.
 
 ## Follow-up (not blocking deploy)
 
+### North-star resume enhance — implementation tracker
+
+**Spec:** [`docs/north-star.md`](./north-star.md) (§2.1 frameworks, §23 JDSkillsFramework, §24 work inventory)
+
+#### Wave A — JDSkillsFramework
+
+| Step | Status | Notes |
+|------|--------|-------|
+| All Wave A items | **Done** | `jd-skills-service.ts`, deterministic + ESCO providers, tests |
+
+#### Wave B — 3-phase pipeline
+
+| Step | Status | Notes |
+|------|--------|-------|
+| All Wave B items | **Done** | `run-resume-enhance-pipeline.ts`, brief/baseline/weave, soft gates, UI |
+
+**Local DB:** migration `20260627120000_north_star_jd_skills_enhance_meta` — run `npx prisma migrate dev` (or `run easy`) to apply.
+
+#### Open product decisions
+
+- [ ] Quota: does baseline-only count toward daily limit? (§18.2 — provisional: no, only when `aiSucceeded`)
+- [ ] ESCOX self-host vs ESCO-only for v1 (§23.2 — provisional: deterministic + ESCO for v1)
+
 ### Analytics — Phase C (legal / compliance)
 
 | Item | Status | Notes |

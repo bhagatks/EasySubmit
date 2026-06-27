@@ -33,10 +33,6 @@ import {
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
 import type { StudioEditorSectionId } from "@/lib/resume/studio-editor-sections";
 import type { JobIntelligence } from "@/lib/job-tracker/ats/job-intelligence";
-import {
-  deterministicEnhance,
-  type DeterministicEnhanceResult,
-} from "@/lib/job-tracker/ats/deterministic-enhancer";
 import { logApiCall } from "@/src/shared/observability";
 import type { ApiCallStatus } from "@/src/shared/observability";
 
@@ -52,6 +48,8 @@ export type RunEnhanceInput = {
   jobIntelligence?: JobIntelligence;
   /** Pre-computed JD directive — structured instructions replacing raw intelligence block when present. */
   enhanceDirective?: import("@/lib/job-tracker/jd/jd-intelligence").ResumeEnhanceDirective;
+  /** Phase 1 brief — baseline already applied; AI refines only. */
+  brief?: import("@/lib/job-tracker/enhance/enhance-brief").ResumeEnhanceBrief;
 };
 
 export type RunEnhanceSuccess = {
@@ -65,10 +63,14 @@ export type RunEnhanceSuccess = {
   matchScore?: number;
   partialEnhance?: boolean;
   partialEnhanceMessage?: string;
-  /** Which engine produced the output. */
+  /** Legacy — baseline-first pipeline no longer uses engine fallback. */
   fallbackUsed?: boolean;
   fallbackSummary?: string;
-  fallbackChanges?: DeterministicEnhanceResult["changes"];
+  fallbackChanges?: {
+    skillsAdded: string[];
+    bulletsRewritten: number;
+    structuralIssuesFound: number;
+  };
   /** True when user has AI disabled in settings. */
   aiDisabled?: boolean;
 };
@@ -305,6 +307,7 @@ async function runPass(
   preferredSlot?: number,
   jobIntelligence?: JobIntelligence,
   enhanceDirective?: import("@/lib/job-tracker/jd/jd-intelligence").ResumeEnhanceDirective,
+  brief?: import("@/lib/job-tracker/enhance/enhance-brief").ResumeEnhanceBrief,
 ): Promise<{
   text: string;
   tokensUsed: number;
@@ -333,8 +336,9 @@ async function runPass(
   const prompt = buildEnhanceUserPrompt(
     ctx,
     pass,
-    pass === "optimize" ? jobIntelligence : undefined,
-    pass === "optimize" ? enhanceDirective : undefined,
+    pass === "optimize" ? jobIntelligence : brief?.jd?.jobIntelligence ?? jobIntelligence,
+    pass === "optimize" ? enhanceDirective : brief?.jd?.directive ?? enhanceDirective,
+    brief,
   );
   const result = await callEnhanceModel(
     route,
@@ -399,6 +403,8 @@ export async function runResumeEnhance(
       pricingMap,
       undefined,
       input.jobIntelligence,
+      input.enhanceDirective,
+      input.brief,
     );
     totalTokens += pass1.tokensUsed;
     totalCost += pass1.estimatedCost;
@@ -445,6 +451,7 @@ export async function runResumeEnhance(
           pass1.slot,
           input.jobIntelligence,
           input.enhanceDirective,
+          input.brief,
         );
         totalTokens += pass2.tokensUsed;
         totalCost += pass2.estimatedCost;
@@ -537,56 +544,6 @@ export async function runResumeEnhance(
       aiMode,
       rawMessage: err instanceof Error ? err.message : String(err),
     });
-
-    // Deterministic fallback — run when intelligence is available
-    if (input.jobIntelligence) {
-      logEnhance("engine", "run.fallback.start", {
-        traceId,
-        step: ENHANCE_PIPELINE.ENGINE_ERROR,
-        reason: errorCode,
-      });
-
-      try {
-        const fallback = deterministicEnhance(
-          input.form,
-          input.jobIntelligence,
-          input.enhanceDirective,
-        );
-        const changedSections = diffChangedSections(input.form, fallback.form, false);
-
-        logEnhance("engine", "run.fallback.success", {
-          traceId,
-          step: ENHANCE_PIPELINE.ENGINE_DETERMINISTIC,
-          changedSections,
-          skillsAdded: fallback.changes.skillsAdded,
-          skillsAddedCount: fallback.changes.skillsAdded.length,
-          bulletsRewritten: fallback.changes.bulletsRewritten,
-          structuralIssuesFound: fallback.changes.structuralIssuesFound,
-          delta: summarizeFormDelta(input.form, fallback.form),
-          mustAddSkillsSource: "jd_brain_directive",
-          note: "Summary unchanged — deterministic path flags summary issues only",
-        });
-
-        return {
-          ok: true,
-          form: fallback.form,
-          changedSections,
-          targetRole: originalTarget,
-          tokensUsed: 0,
-          modelId: "deterministic",
-          estimatedCost: 0,
-          apiCallCount: 0,
-          fallbackUsed: true,
-          fallbackSummary: fallback.summary,
-          fallbackChanges: fallback.changes,
-        };
-      } catch (fallbackErr) {
-        logEnhance("engine", "run.fallback.error", {
-          traceId,
-          message: fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr),
-        });
-      }
-    }
 
     return {
       ok: false,

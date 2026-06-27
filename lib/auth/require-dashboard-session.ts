@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import {
   type DashboardGateUser,
@@ -39,6 +40,8 @@ async function fetchDashboardGateUser(
   });
 }
 
+const getCachedDashboardGateUser = cache(fetchDashboardGateUser);
+
 /**
  * DB-backed dashboard gate — used by layouts so JWT onboardingStep cannot fight Postgres.
  */
@@ -49,7 +52,7 @@ export async function checkDashboardSessionReady(
     return false;
   }
 
-  const user = await fetchDashboardGateUser(sessionUserId);
+  const user = await getCachedDashboardGateUser(sessionUserId);
   return Boolean(user && isDashboardSessionReady(user));
 }
 
@@ -64,7 +67,7 @@ export async function requireDashboardSession(
     redirect("/login");
   }
 
-  const user = await fetchDashboardGateUser(sessionUserId);
+  const user = await getCachedDashboardGateUser(sessionUserId);
 
   if (!user) {
     redirect(

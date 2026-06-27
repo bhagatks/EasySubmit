@@ -10,40 +10,12 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-vi.mock("@/src/lib/services/config-service", () => ({
-  getAppConfig: vi.fn(),
-}));
-
-vi.mock("@/src/lib/services/feature-flags-service", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/src/lib/services/feature-flags-service")>();
-  return {
-    ...actual,
-    getFeatureFlags: vi.fn(),
-  };
-});
-
-vi.mock("@/src/lib/ai/engine/router", () => ({
-  resolveAiRoute: vi.fn(),
-}));
-
-vi.mock("@/src/lib/ai/engine/run-enhance", () => ({
-  runResumeEnhance: vi.fn(),
-}));
-
-vi.mock("@/app/actions/ai/usage-log", () => ({
-  recordUsageLogForUser: vi.fn(),
-}));
-
-vi.mock("@/lib/ai/ai-readiness-gate-for-user", () => ({
-  getAiReadinessForUser: vi.fn(),
+vi.mock("@/lib/job-tracker/enhance/run-resume-enhance-pipeline", () => ({
+  runResumeEnhancePipeline: vi.fn(),
 }));
 
 import { prisma } from "@/lib/prisma";
-import { getAppConfig } from "@/src/lib/services/config-service";
-import { getFeatureFlags } from "@/src/lib/services/feature-flags-service";
-import { resolveAiRoute } from "@/src/lib/ai/engine/router";
-import { runResumeEnhance } from "@/src/lib/ai/engine/run-enhance";
-import { getAiReadinessForUser } from "@/lib/ai/ai-readiness-gate-for-user";
+import { runResumeEnhancePipeline } from "@/lib/job-tracker/enhance/run-resume-enhance-pipeline";
 
 const baseForm = {
   firstName: "Ada",
@@ -51,6 +23,7 @@ const baseForm = {
   email: "ada@example.com",
   phone: "",
   cityState: "",
+  linkedIn: "",
   professionalSummary: "",
   skillsText: "",
   skills: [],
@@ -62,70 +35,45 @@ const baseForm = {
   customSections: [],
 };
 
-const defaultFlags = {
-  enhanceWithAiOnboarding: true,
-  enhanceWithAiResumeProfile: true,
-  extensionGlobalSwitch: true,
-  extensionAutoApply: true,
-  systemAiEnabled: true,
+const pipelineSuccess = {
+  success: true as const,
+  form: baseForm,
+  baselineForm: baseForm,
+  brief: {} as never,
+  changedSections: ["skills"] as never[],
+  targetRole: "Senior Engineer",
+  engineMode: "ai" as const,
+  baselineApplied: true as const,
+  aiAttempted: true,
+  aiSucceeded: true,
+  quota: {
+    enhancementsUsed: 1,
+    enhancementsLimit: 10,
+    callsUsed: 1,
+    callsLimit: 20,
+  },
+  aiMode: "system" as const,
+  enhanceSummary: "Enhanced",
+  traceId: "t1",
+  sessionMeta: {} as never,
+  skillsAdded: [],
 };
 
 describe("enhanceResumeForUserId", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getAppConfig).mockImplementation(async (key: string) => {
-      if (key === "aiEngine") {
-        return { systemAiEnabled: true, quotas: { customer: { aiDailyUnlimited: true } } };
-      }
-      return {};
-    });
-    vi.mocked(getFeatureFlags).mockResolvedValue(defaultFlags);
     vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: "user-1",
       vaultKeyId: "vault-1",
       activeProvider: "google",
       aiSourcePreference: "auto",
       aiEnhancementsToday: 0,
       aiCallsToday: 0,
       aiQuotaResetAt: new Date(),
+      plan: "free",
+      subscriptionStatus: null,
     } as never);
-    vi.mocked(resolveAiRoute).mockResolvedValue({
-      mode: "customer",
-      provider: "google",
-      modelId: "gemini-test",
-      apiKey: "secret",
-    } as never);
-    vi.mocked(runResumeEnhance).mockResolvedValue({
-      ok: true,
-      form: baseForm,
-      changedSections: ["skills"],
-      targetRole: "Senior Engineer",
-      modelId: "gemini-test",
-      tokensUsed: 10,
-      apiCallCount: 1,
-      estimatedCost: 0.001,
-      partialEnhance: false,
-    } as never);
-    vi.mocked(prisma.user.update).mockResolvedValue({} as never);
-    vi.mocked(getAiReadinessForUser).mockResolvedValue({
-      status: { ok: true },
-      reason: "healthy",
-      systemQuota: {
-        applies: false,
-        exceeded: false,
-        reason: null,
-        message: null,
-        code: null,
-        snapshot: null,
-      },
-      byokKey: {
-        applies: true,
-        valid: true,
-        reason: null,
-        message: null,
-        code: null,
-        lastJobFailure: null,
-      },
-    });
+    vi.mocked(runResumeEnhancePipeline).mockResolvedValue(pipelineSuccess);
   });
 
   it("returns unauthorized when user is missing", async () => {
@@ -144,61 +92,45 @@ describe("enhanceResumeForUserId", () => {
     });
   });
 
-  it("blocks pipeline variant when resume-profile enhance is off", async () => {
-    vi.mocked(getFeatureFlags).mockResolvedValue({
-      ...defaultFlags,
-      enhanceWithAiResumeProfile: false,
+  it("returns baseline success when pipeline succeeds with AI blocked", async () => {
+    vi.mocked(runResumeEnhancePipeline).mockResolvedValue({
+      ...pipelineSuccess,
+      engineMode: "deterministic",
+      aiAttempted: false,
+      aiSucceeded: false,
+      warning: "Daily AI limit reached. Baseline enhancements were applied.",
+      aiBlockCode: "quota_exceeded",
     });
 
     const result = await enhanceResumeForUserId("user-1", {
       form: baseForm,
       targetRole: "Senior Engineer",
-      variant: "pipeline",
-    });
-
-    expect(result).toEqual({
-      success: false,
-      error: "Enhance with AI is not available right now.",
-      code: "feature_disabled",
-    });
-    expect(runResumeEnhance).not.toHaveBeenCalled();
-  });
-
-  it("allows pipeline variant when resume-profile enhance is on", async () => {
-    vi.mocked(getFeatureFlags).mockResolvedValue({
-      ...defaultFlags,
-      extensionAutoApply: false,
-    });
-
-    const result = await enhanceResumeForUserId("user-1", {
-      form: baseForm,
-      targetRole: "Senior Engineer",
-      jobDescription: "Build scalable systems.",
+      jobDescription: "x".repeat(120),
       variant: "pipeline",
     });
 
     expect(result.success).toBe(true);
-    expect(runResumeEnhance).toHaveBeenCalled();
+    if (result.success) {
+      expect(result.engineMode).toBe("deterministic");
+      expect(result.warning).toContain("Baseline");
+    }
   });
 
-  it("runs enhance without a NextAuth session", async () => {
+  it("delegates to runResumeEnhancePipeline for pipeline variant", async () => {
     const result = await enhanceResumeForUserId("user-1", {
       form: baseForm,
       targetRole: "Senior Engineer",
-      jobDescription: "Build scalable systems.",
-      rawResumeText: "Experience...",
-      traceId: "pipeline-test",
+      jobDescription: "Build scalable systems. ".repeat(10),
       variant: "pipeline",
     });
 
     expect(result.success).toBe(true);
-    expect(runResumeEnhance).toHaveBeenCalledWith(
+    expect(runResumeEnhancePipeline).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: "user-1",
         targetRole: "Senior Engineer",
-        jobDescription: "Build scalable systems.",
+        surface: "extension",
       }),
-      expect.anything(),
     );
   });
 });

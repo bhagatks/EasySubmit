@@ -34,24 +34,34 @@ export function isDashboardSettingsScreen(pathname: string): boolean {
   return pathname.startsWith("/dashboard/settings");
 }
 
+/** Legacy route — redirects to Settings. */
 export function isDashboardKeysScreen(pathname: string): boolean {
   return pathname.startsWith("/dashboard/keys");
 }
 
-/** BYOK management is already on-screen (keys page, settings section, or active badge). */
+/** BYOK management is on-screen in Settings (or active badge when vaulted). */
 export function dashboardScreenHasByokUi(
   pathname: string,
   vaultKeyId?: string | null,
 ): boolean {
-  return (
-    Boolean(vaultKeyId) ||
-    isDashboardKeysScreen(pathname) ||
-    isDashboardSettingsScreen(pathname)
-  );
+  return Boolean(vaultKeyId) || isDashboardSettingsScreen(pathname);
 }
 
 export function shouldShowDashboardSignOut(pathname: string): boolean {
   return isDashboardSettingsScreen(pathname);
+}
+
+export function shouldShowDashboardProfileMenu(
+  pathname: string,
+  fromParam?: string | null,
+): boolean {
+  if (isDashboardSettingsScreen(pathname)) {
+    return false;
+  }
+  if (isDashboardDetailScreen(pathname, fromParam)) {
+    return false;
+  }
+  return true;
 }
 
 export function shouldShowDashboardByokKeyButton(
@@ -59,4 +69,33 @@ export function shouldShowDashboardByokKeyButton(
   vaultKeyId?: string | null,
 ): boolean {
   return !dashboardScreenHasByokUi(pathname, vaultKeyId);
+}
+
+/** Workspace header label — detail screens override the generic "Dashboard" label. */
+export function getDashboardHeaderLabel(pathname: string, isStudioEdit: boolean): string {
+  if (isStudioEdit) {
+    return "Resume Studio";
+  }
+  if (pathname.startsWith("/dashboard/about")) {
+    return "About";
+  }
+  if (pathname.startsWith("/dashboard/extension")) {
+    return "Extension";
+  }
+  if (pathname.startsWith("/dashboard/tutorials")) {
+    return "Video Tutorials";
+  }
+  if (pathname.startsWith("/dashboard/ats-guidelines")) {
+    return "ATS Guidelines";
+  }
+  if (pathname.startsWith("/dashboard/settings") || pathname.startsWith("/dashboard/keys")) {
+    return "Settings";
+  }
+  if (pathname.startsWith("/dashboard/resume-profiles")) {
+    return "Resume profiles";
+  }
+  if (pathname.startsWith("/dashboard/job-tracker")) {
+    return "Job Tracker";
+  }
+  return "Dashboard";
 }

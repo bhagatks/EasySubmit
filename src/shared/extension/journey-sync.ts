@@ -1,5 +1,5 @@
 import type { JobTrackerStatus } from "@/lib/generated/prisma/client";
-import type { JourneyDisplay } from "@/src/shared/journey-display";
+import { PIPELINE_SUB_LABELS } from "@/lib/job-tracker/pipeline-sub-labels";
 import { resolveJourneyDisplay } from "@/src/shared/journey-display";
 
 export type JourneySnapshot = {
@@ -106,7 +106,7 @@ export function resolveExtensionJourneyDisplay(input: {
   }
 
   if (input.pipelineBusy) {
-    const busyLabel = input.pipelineBusyLabel ?? "Optimizing resume…";
+    const busyLabel = input.pipelineBusyLabel ?? PIPELINE_SUB_LABELS.optimizingResume;
     return {
       stage: 1,
       label: "Apply",

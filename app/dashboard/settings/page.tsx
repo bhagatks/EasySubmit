@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { getAccountSettings } from "@/app/actions/account";
+import { listVaultedApiKeys } from "@/app/actions/ai/vault-key";
 import { AccountSettings } from "@/components/dashboard/AccountSettings";
 import { authOptions } from "@/lib/auth";
 import { requireDashboardSession } from "@/lib/auth/require-dashboard-session";
@@ -15,7 +16,10 @@ export default async function SettingsPage() {
 
   await requireDashboardSession(session.user.id);
 
-  const account = await getAccountSettings();
+  const [account, initialVaultKeys] = await Promise.all([
+    getAccountSettings(),
+    listVaultedApiKeys(),
+  ]);
 
   if (!account) {
     redirect(
@@ -25,7 +29,7 @@ export default async function SettingsPage() {
 
   return (
     <Suspense fallback={<p className="text-sm text-muted-foreground">Loading settings…</p>}>
-      <AccountSettings initial={account} />
+      <AccountSettings initial={account} initialVaultKeys={initialVaultKeys} />
     </Suspense>
   );
 }

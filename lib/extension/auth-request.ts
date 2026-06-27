@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { getExtensionConnectedUser } from "@/lib/extension/connected-user";
 import { readBearerToken, verifyExtensionToken } from "@/lib/extension/auth-token";
+import { extensionForceUpgradeResponse } from "@/lib/extension/force-upgrade-gate";
 
 /** Resolve extension bearer token to a live `users.id`, or null if invalid / stale. */
 export async function getExtensionUserId(request: NextRequest): Promise<string | null> {
@@ -32,6 +33,11 @@ export function extensionReconnectResponse(): Response {
 export async function resolveExtensionUserId(
   request: NextRequest,
 ): Promise<{ userId: string } | { response: Response }> {
+  const upgradeBlock = await extensionForceUpgradeResponse(request);
+  if (upgradeBlock) {
+    return { response: upgradeBlock };
+  }
+
   const bearer = readBearerToken(request.headers.get("authorization"));
   const tokenUserId = verifyExtensionToken(bearer);
 

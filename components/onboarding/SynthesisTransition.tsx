@@ -3,6 +3,7 @@
 import { JetBrains_Mono } from "next/font/google";
 import { motion, useReducedMotion } from "framer-motion";
 import { useRouter } from "next/navigation";
+import { DASHBOARD_SETUP_HREF } from "@/lib/dashboard/dashboard-extension-links";
 import { memo, useEffect, useMemo, useRef } from "react";
 import {
   PrimeResume,
@@ -24,6 +25,8 @@ const MUTED = "oklch(0.45 0.02 268)";
 
 const SYNTHESIS_MS = 5000;
 const BEAM_DURATION_S = 2.2;
+/** Minimum time the overlay stays visible — one full scanning-beam cycle. */
+export const MIN_SYNTHESIS_MS = Math.ceil(BEAM_DURATION_S * 1000);
 const PAPER_CENTER = { x: 50, y: 44 };
 
 type ParticleSpec = {
@@ -258,7 +261,7 @@ export type SynthesisTransitionProps = {
   redirectTo?: string | null;
   durationMs?: number;
   /** Called after the synthesis timer — use to trigger dashboard redirect. */
-  onComplete?: () => void;
+  onComplete?: () => void | Promise<void>;
   className?: string;
 };
 
@@ -269,7 +272,7 @@ export type SynthesisTransitionProps = {
 export function SynthesisTransition({
   resume = {},
   active = true,
-  redirectTo = "/dashboard/keys",
+  redirectTo = DASHBOARD_SETUP_HREF,
   durationMs = SYNTHESIS_MS,
   onComplete,
   className,
@@ -280,16 +283,27 @@ export function SynthesisTransition({
   const particles = useMemo(() => buildParticles(), []);
 
   useEffect(() => {
-    if (!active || completedRef.current) return;
+    if (!active) {
+      completedRef.current = false;
+      return;
+    }
+
+    const holdMs = Math.max(durationMs, MIN_SYNTHESIS_MS);
 
     const timer = window.setTimeout(() => {
-      if (completedRef.current) return;
-      completedRef.current = true;
-      onComplete?.();
-      if (redirectTo) {
-        router.push(redirectTo);
-      }
-    }, durationMs);
+      void (async () => {
+        if (completedRef.current) return;
+        completedRef.current = true;
+        try {
+          await onComplete?.();
+          if (redirectTo) {
+            router.push(redirectTo);
+          }
+        } catch {
+          completedRef.current = false;
+        }
+      })();
+    }, holdMs);
 
     return () => window.clearTimeout(timer);
   }, [active, durationMs, onComplete, redirectTo, router]);
@@ -369,7 +383,7 @@ export function SynthesisTransition({
             className="text-[11px] font-normal tracking-[0.08em] sm:text-xs"
             style={{ color: MUTED }}
           >
-            Neural mapping complete. Opening AI Keys…
+            Neural mapping complete. Opening dashboard…
           </p>
         </motion.div>
       </div>

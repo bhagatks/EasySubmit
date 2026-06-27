@@ -41,8 +41,10 @@ Last updated: **2026-06-22**
 
 ### Config & flags
 - `app_config.extensionSites` (seeded)
+- `app_config.forceUpgrade` (seeded, default off — min extension version gate; see [`database-schema.md`](./database-schema.md#extension-force-upgrade-app_configforceupgrade))
 - `feature_flags.extension_global_switch` (seeded, default on — off = extension inactive platform-wide)
 - `feature_flags.extension_auto_apply` (seeded, default on — off = manual 3-step apply flow)
+- Seed all config: `npm run db:seed` (or `npx prisma db seed`)
 
 ---
 

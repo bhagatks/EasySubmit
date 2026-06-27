@@ -79,6 +79,8 @@ function toSummary(entry: {
     canonicalUrl: entry.canonicalUrl,
     savedAt: entry.savedAt.toISOString(),
     appliedAt: entry.appliedAt?.toISOString() ?? null,
+    appliedSource:
+      typeof metadata?.appliedSource === "string" ? metadata.appliedSource : null,
     hasTailoredResume: Boolean(entry.resumeTailor?.id),
     issueMessage: entryIssueMessage({
       url: entry.canonicalUrl,

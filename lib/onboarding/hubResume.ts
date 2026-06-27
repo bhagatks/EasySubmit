@@ -19,6 +19,12 @@ import {
   normalizeResumeLine,
 } from "@/lib/resume/normalizeResumeText";
 import { splitMashedExperienceInForm } from "@/lib/resume/split-mashed-experience";
+import {
+  DEFAULT_PAGE_LENGTH_PREFERENCE,
+  type PageLengthPreference,
+} from "@/lib/resume/page-length-preference";
+
+export type { PageLengthPreference };
 
 export type HubRefineryForm = {
   firstName: string;
@@ -61,6 +67,8 @@ export type HubRefineryForm = {
     content: string;
     hidden?: boolean;
   }>;
+  /** Resume length target for enhance, validation, and export budgets. */
+  pageLengthPreference: PageLengthPreference;
 };
 
 function pickParsedField(
@@ -112,6 +120,7 @@ export function emptyHubRefineryForm(): HubRefineryForm {
     projects: [],
     languages: [],
     customSections: [],
+    pageLengthPreference: DEFAULT_PAGE_LENGTH_PREFERENCE,
   };
 }
 

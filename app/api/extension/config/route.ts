@@ -9,13 +9,15 @@ import { logAiHealth, logAiHealthError, redactUserId } from "@/lib/ai/ai-health-
 import { getAiHealthCheckForUser } from "@/lib/ai/ai-health-status";
 import { getAiReadinessForUser } from "@/lib/ai/ai-readiness-gate-for-user";
 import { isAiGloballyEnabled } from "@/lib/ai/ai-global-enabled";
+import { getExtensionForceUpgradeConfig } from "@/lib/extension/force-upgrade-gate";
 
 export async function GET(request: NextRequest) {
   const tokenUserId = verifyExtensionToken(readBearerToken(request.headers.get("authorization")));
 
-  const [config, connectedUser] = await Promise.all([
+  const [config, connectedUser, forceUpgrade] = await Promise.all([
     getExtensionRuntimeConfig(request.nextUrl.origin),
     tokenUserId ? getExtensionConnectedUser(tokenUserId) : Promise.resolve(null),
+    getExtensionForceUpgradeConfig(),
   ]);
 
   const userId = connectedUser?.id ?? null;
@@ -70,5 +72,9 @@ export async function GET(request: NextRequest) {
     aiEnabled:
       isAiGloballyEnabled() &&
       (userPrefs?.aiSourcePreference ?? "disabled") !== "disabled",
+    forceUpgradeEnabled: forceUpgrade.enabled,
+    minExtensionVersion: forceUpgrade.minVersion,
+    forceUpgradeMessage: forceUpgrade.message,
+    forceUpgradeUpdateUrl: forceUpgrade.updateUrl,
   });
 }

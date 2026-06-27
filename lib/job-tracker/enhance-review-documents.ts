@@ -26,7 +26,13 @@ export type EnhanceResumeActionResult =
       fallbackSummary?: string;
       aiMode?: "customer" | "system";
       atsDelta?: { before: number; after: number };
+      readinessDelta?: { before: number; after: number };
       enhanceSummary?: string;
+      warning?: string;
+      aiAttempted?: boolean;
+      aiSucceeded?: boolean;
+      aiBlockCode?: string;
+      coverageAfter?: import("@/lib/job-tracker/enhance/enhance-brief").JdCoverageReport;
     }
   | { success: false; error: string; code?: string; byokAvailable?: boolean };
 
@@ -126,6 +132,7 @@ export async function enhanceJobResumeForUser(
     jobDescription: description,
     enhanceTraceId: traceId,
     traceId,
+    enhanceMeta: enhanced.sessionMeta,
   });
 
   if (!persist.success) {
@@ -152,14 +159,16 @@ export async function enhanceJobResumeForUser(
   return {
     success: true,
     engineMode: enhanced.engineMode,
-    fallbackSummary: enhanced.fallbackSummary,
+    fallbackSummary: enhanced.fallbackSummary ?? enhanced.enhanceSummary,
     aiMode: enhanced.aiMode,
     atsDelta: { before: beforeScore, after: afterScore },
-    enhanceSummary: enhanced.engineMode === "deterministic"
-      ? enhanced.fallbackSummary
-      : changedSections.length > 0
-        ? `Updated ${changedSections.length} section${changedSections.length > 1 ? "s" : ""}: ${changedSections.join(", ")}.`
-        : undefined,
+    readinessDelta: enhanced.readinessDelta ?? { before: beforeScore, after: afterScore },
+    enhanceSummary: enhanced.enhanceSummary ?? enhanced.fallbackSummary,
+    warning: enhanced.warning,
+    aiAttempted: enhanced.aiAttempted,
+    aiSucceeded: enhanced.aiSucceeded,
+    aiBlockCode: enhanced.aiBlockCode,
+    coverageAfter: enhanced.coverageAfter,
   };
 }
 

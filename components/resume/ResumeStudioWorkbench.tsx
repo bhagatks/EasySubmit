@@ -13,6 +13,7 @@ import { ResumePaginatedPreview } from "@/components/resume/ResumePaginatedPrevi
 import { StudioLayoutPanel } from "@/components/resume/StudioLayoutPanel";
 import { StudioPanelTabs, type StudioPanelTab } from "@/components/resume/StudioPanelTabs";
 import { useStudioPreviewZoom } from "@/lib/resume/useStudioPreviewZoom";
+import type { PageLengthPreference } from "@/lib/resume/page-length-preference";
 import {
   DEFAULT_SPLIT,
   STUDIO_PANEL_AUTO_SAVE_ID,
@@ -38,6 +39,10 @@ type ResumeStudioWorkbenchProps = {
   previewLayoutKey?: string | number;
   focusPreviewOnLayoutKey?: string | number;
   panelHeaderActions?: ReactNode;
+  pageLengthPreference?: PageLengthPreference;
+  onPageLengthPreferenceChange?: (value: PageLengthPreference) => void;
+  autoPageLengthRecommendation?: string;
+  resolvedPageCount?: 1 | 2;
 };
 
 function subscribeMediaQuery(query: string, callback: () => void) {
@@ -75,6 +80,10 @@ export function ResumeStudioWorkbench({
   previewLayoutKey,
   focusPreviewOnLayoutKey,
   panelHeaderActions,
+  pageLengthPreference,
+  onPageLengthPreferenceChange,
+  autoPageLengthRecommendation = "",
+  resolvedPageCount = 1,
 }: ResumeStudioWorkbenchProps) {
   const isDesktop = useDesktopLayout();
   const [mobileTab, setMobileTab] = useState<"preview" | "edit">("edit");
@@ -82,7 +91,11 @@ export function ResumeStudioWorkbench({
   const [pageSizeId, setPageSizeId] = usePageSizeState();
   const [fontId, setFontId] = useResumeFontState();
   const [zoom, setZoom] = useStudioPreviewZoom();
+  const [renderedPageCount, setRenderedPageCount] = useState<number | undefined>(undefined);
   const isOnboarding = variant === "onboarding";
+  const showPageLengthControls = Boolean(
+    studioTabs && pageLengthPreference && onPageLengthPreferenceChange,
+  );
 
   useEffect(() => {
     sanitizeStudioPanelStorage();
@@ -100,6 +113,10 @@ export function ResumeStudioWorkbench({
     [setZoom],
   );
 
+  const handlePageCountChange = useCallback((pageCount: number) => {
+    setRenderedPageCount(pageCount);
+  }, []);
+
   const previewPane = (
     <ResumePaginatedPreview
       variant={variant}
@@ -110,6 +127,7 @@ export function ResumeStudioWorkbench({
       layoutKey={previewLayoutKey}
       autoFitZoom
       onAutoFitZoom={handleAutoFitZoom}
+      onPageCountChange={showPageLengthControls ? handlePageCountChange : undefined}
     >
       {previewPrefix}
       {preview}
@@ -130,6 +148,11 @@ export function ResumeStudioWorkbench({
       pageSizeId={pageSizeId}
       onFontChange={setFontId}
       onPageSizeChange={setPageSizeId}
+      pageLengthPreference={pageLengthPreference}
+      onPageLengthPreferenceChange={onPageLengthPreferenceChange}
+      autoPageLengthRecommendation={autoPageLengthRecommendation}
+      resolvedPageCount={resolvedPageCount}
+      renderedPageCount={renderedPageCount}
       variant={variant}
       monoClass={monoClass}
     />

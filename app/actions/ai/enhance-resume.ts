@@ -36,6 +36,7 @@ export type EnhancePreflightInput = {
 export type EnhancePreflightSuccess = {
   ok: true;
   systemAiEnabled: boolean;
+  baselineAvailable: true;
   /** False when global AI is off or user disabled AI — rules-only enhance still allowed. */
   aiAvailable: boolean;
 };
@@ -68,45 +69,20 @@ export async function checkEnhanceWithAiPreflight(
     surface,
   });
 
-  if (!enhance.available) {
-    if (enhance.reason === "globally_disabled" || enhance.reason === "user_disabled") {
-      const featureFlags = await getFeatureFlags();
-      return {
-        ok: true,
-        systemAiEnabled: isSystemAiEnabled(featureFlags),
-        aiAvailable: false,
-      };
-    }
-
-    const codeMap: Record<string, NonNullable<EnhanceResumeProfileFailure["code"]>> = {
-      feature_disabled: "feature_disabled",
-      no_key: "no_customer_key",
-      pool_down: "system_pool_exhausted",
-      quota_exceeded: "quota_enhancement",
-    };
-
-    const requiresByokOnly = enhance.reason === "no_key";
-
+  if (!enhance.aiAvailable) {
+    const featureFlags = await getFeatureFlags();
     return {
-      ok: false,
-      error:
-        enhance.reason === "feature_disabled"
-          ? "Enhance with AI is not available right now."
-          : enhance.reason === "no_key"
-            ? "EasySubmit AI is off — add your API key in AI Keys to use Enhance with AI."
-            : enhance.reason === "pool_down"
-              ? "EasySubmit's shared AI is temporarily unavailable."
-              : enhance.reason === "quota_exceeded"
-                ? "Daily enhancement limit reached. Try again tomorrow."
-                : "Enhance with AI is not available right now.",
-      code: codeMap[enhance.reason ?? ""] ?? "feature_disabled",
-      ...(requiresByokOnly ? { requiresByokOnly: true } : {}),
+      ok: true,
+      baselineAvailable: true,
+      systemAiEnabled: isSystemAiEnabled(featureFlags),
+      aiAvailable: false,
     };
   }
 
   const featureFlags = await getFeatureFlags();
   return {
     ok: true,
+    baselineAvailable: true,
     systemAiEnabled: isSystemAiEnabled(featureFlags),
     aiAvailable: true,
   };
@@ -218,38 +194,36 @@ export async function enhanceResumeOnboarding(
   if (!userId) return { success: false, error: "Sign in required." };
 
   const { createEnhanceTraceId } = await import("@/src/lib/ai/engine/enhance-logger");
-  const { runDeterministicResumeEnhance } = await import("@/lib/ai/run-deterministic-resume-enhance");
+  const { runResumeEnhancePipeline } = await import("@/lib/job-tracker/enhance/run-resume-enhance-pipeline");
   const { prisma } = await import("@/lib/prisma");
   const { SYSTEM_QUOTA_USER_SELECT } = await import("@/lib/ai/system-quota-gate-for-user");
-  const { getAppConfig } = await import("@/src/lib/services/config-service");
 
-  const [user, aiEngine] = await Promise.all([
-    prisma.user.findUnique({ where: { id: userId }, select: SYSTEM_QUOTA_USER_SELECT }),
-    getAppConfig("aiEngine"),
-  ]);
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: SYSTEM_QUOTA_USER_SELECT });
 
   if (!user) return { success: false, error: "User not found." };
 
   const traceId = createEnhanceTraceId();
 
-  const result = await runDeterministicResumeEnhance({
+  const result = await runResumeEnhancePipeline({
     userId,
     user,
-    enhanceInput: {
-      form: input.form,
-      targetRole: input.targetRole,
-      variant: "onboarding",
-    },
-    aiEngine,
+    form: input.form,
+    targetRole: input.targetRole,
+    surface: "onboarding",
+    variant: "onboarding",
     traceId,
-    aiDisabled: true,
+    allowAiUpgrade: false,
   });
+
+  if (!result.success) {
+    return { success: false, error: result.error };
+  }
 
   return {
     success: true,
     form: result.form,
-    skillsAdded: result.changedSections,
-    bulletsRewritten: 0,
-    summary: result.fallbackSummary ?? "",
+    skillsAdded: result.skillsAdded,
+    bulletsRewritten: result.brief.experience.weakBullets.length,
+    summary: result.enhanceSummary,
   };
 }

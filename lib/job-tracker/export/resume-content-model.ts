@@ -17,6 +17,7 @@ import {
   estimateYearsExperience,
   resolvePageBudget,
 } from "@/src/lib/ai/engine/candidate-context";
+import { normalizePageLengthPreference } from "@/lib/resume/page-length-preference";
 
 export { MAX_BULLETS_PER_ROLE };
 
@@ -250,7 +251,11 @@ export function buildResumeContentFromForm(
       lines: line(section.content).split("\n").map(line).filter(Boolean),
     }));
 
-  const pages = resolvePageBudget(estimateYearsExperience(form), targetTitle).pages;
+  const pages = resolvePageBudget(
+    estimateYearsExperience(form),
+    targetTitle,
+    normalizePageLengthPreference(form.pageLengthPreference),
+  ).pages;
   const warnings = bulletCountWarnings(
     form.experience ?? [],
     pages,

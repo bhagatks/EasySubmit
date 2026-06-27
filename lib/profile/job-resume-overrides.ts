@@ -1,4 +1,6 @@
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
+import type { PageLengthPreference } from "@/lib/resume/page-length-preference";
+import { normalizePageLengthPreference } from "@/lib/resume/page-length-preference";
 import type { StudioEditorSectionId } from "@/lib/resume/studio-editor-sections";
 import { diffChangedSections } from "@/src/lib/ai/engine/post-process";
 
@@ -19,6 +21,7 @@ export type JobResumeOverrides = {
   projects?: HubRefineryForm["projects"];
   languages?: HubRefineryForm["languages"];
   customSections?: HubRefineryForm["customSections"];
+  pageLengthPreference?: PageLengthPreference;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -108,6 +111,13 @@ export function extractJobResumeOverrides(
     }
   }
 
+  if (
+    normalizePageLengthPreference(before.pageLengthPreference) !==
+    normalizePageLengthPreference(after.pageLengthPreference)
+  ) {
+    overrides.pageLengthPreference = normalizePageLengthPreference(after.pageLengthPreference);
+  }
+
   return { overrides, changedSections };
 }
 
@@ -136,6 +146,9 @@ export function mergeProfileWithOverrides(
       ...(overrides.languages !== undefined ? { languages: overrides.languages } : {}),
       ...(overrides.customSections !== undefined
         ? { customSections: overrides.customSections }
+        : {}),
+      ...(overrides.pageLengthPreference !== undefined
+        ? { pageLengthPreference: overrides.pageLengthPreference }
         : {}),
     },
   };

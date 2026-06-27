@@ -16,7 +16,7 @@ Postgres (Prisma) + Supabase Vault BYOK + client Zustand stores. Login identity 
 | Web onboarding | Next.js, Framer Motion, Zustand | `/onboarding` (3-phase workbench); legacy aliases redirect here |
 | Auth login | NextAuth (Google + LinkedIn OAuth) | `/login` → `/api/auth/[...nextauth]` |
 | Auth signup | Supabase Auth (legacy path) | `/auth/signup` |
-| Dashboard | NextAuth-protected shell + sidebar nav | `/dashboard` (+ `/dashboard/resume-profiles`, `/dashboard/job-tracker`, `/keys`, `/settings`) |
+| Dashboard | NextAuth-protected shell + sidebar nav | `/dashboard` (+ `/dashboard/resume-profiles`, `/dashboard/job-tracker`, `/dashboard/ats-guidelines`, `/dashboard/about`, `/dashboard/settings`) |
 | Extension landing | Static marketing | `/extension` |
 | Chrome extension | MV3 in-page job card v0.1 | `dist/extension/` (load unpacked) |
 
@@ -48,6 +48,8 @@ app/
     applications/           Redirect → `/dashboard/job-tracker`
     keys/                   Placeholder
     settings/               Account settings (`AccountSettings`)
+    about/                  Product overview, contact, legal links
+    ats-guidelines/         In-app ATS rules + product enforcement reference
 components/
   onboarding/
     OnboardingFlowShell.tsx Asymmetric layout + phase progress (legacy routes)
@@ -160,6 +162,18 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 
 | Date | Summary |
 |------|---------|
+| 2026-06-27 | Onboarding Studio validation — live `validateResume` banner + field highlights after parse; errors Studio-only; cleared on Import back / re-upload |
+| 2026-06-27 | `app_config.dashboardTutorialVideos` — configurable YouTube titles/URLs for `/dashboard/tutorials` |
+| 2026-06-27 | Video Tutorials — `/dashboard/tutorials` with six YouTube embeds; sidebar nav above Settings; post-setup auto-nav after extension modal (`?welcome=1`) |
+| 2026-06-27 | Extension install guard — `DashboardExtensionGuard` redirects `/dashboard` overview when extension PING fails; session dismiss on continue; `isExtensionConnectedForDashboard` shared helper |
+| 2026-06-27 | Dashboard profile menu — landing-style avatar dropdown on all dashboard screens except Settings (logout only); Settings keeps sign-out pill |
+| 2026-06-27 | Dashboard About page — product overview, how-it-works steps, extension CTA, ATS Guidelines cross-link, consolidated support contact; workspace header labels per route |
+| 2026-06-27 | New resume profile upload — `/dashboard/resume-profiles/new` third option reuses onboarding `FuelPanel` (PDF/DOCX parse → `createResumeProfileFromParsed` → Studio); edit-existing profiles unchanged |
+| 2026-06-27 | Dashboard ATS Guidelines page — page length (Auto/Studio/AI off-on), bullet budgets, product enforcement + gaps vs `RULES.md` |
+| 2026-06-27 | Resume Studio Layout — profile `pageLengthPreference` (Auto \| 1 \| 2 pages, default Auto) drives enhance bullet budgets + validation |
+| 2026-06-27 | Marketing nav signed-in — hero **Dashboard** CTA before profile menu (dropdown keeps Settings + Log out) |
+| 2026-06-27 | **North-star resume enhance shipped** — `runResumeEnhancePipeline`, JDSkillsFramework, grouped skills, JD weave, soft AI gates, `enhanceMeta` persist, coverage UI — [`docs/north-star.md`](./north-star.md) |
+| 2026-06-27 | North-star enhance spec — 3-phase pipeline design, three intelligence frameworks (Features / O\*NET Role Skills / **JDSkillsFramework**), grouped skills policy, work inventory §24 — [`docs/north-star.md`](./north-star.md) |
 | 2026-06-27 | Deterministic enhance hardening — no double-verb bullet stacking, `cleanBulletsString` on experience, recency taper in `applyEnhancePlan`, mashed-role split on PDF import (`split-mashed-experience.ts`) |
 | 2026-06-27 | Experience bullet recency rules — `lib/resume/experience-bullet-rules.ts` (recent/mid/older taper, min 3 on recent role); AI enhance prompts, Studio validation, readiness score, export warnings; `RULES.md` §6.3 aligned to max 6 hard cap |
 | 2026-06-26 | Prod cutover checklist — `docs/PROD_CUTOVER.md` (DB/P3009, Vercel env, Google OAuth prod todo, storage, smoke tests); OAuth local client recreated — prod redirect URIs still required |

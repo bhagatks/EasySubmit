@@ -79,3 +79,16 @@ See [`docs/analytics-option-a.md`](./analytics-option-a.md).
 | `LOG_LEVEL` | `debug` | `info` |
 
 Dashboard bootstrap (optional): `POSTHOG_PERSONAL_API_KEY=phx_... npm run analytics:setup`
+
+## JDSkills (optional — north-star enhance)
+
+Used by `fetchJdSkillsVocabulary()` when extracting skills from job descriptions. Deterministic extraction always runs; ESCO/ESCOX are optional enrichers.
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `ESCO_API_BASE` | `https://ec.europa.eu/esco/api` | ESCO REST API base URL |
+| `ESCO_API_ENABLED` | enabled (set `false` to skip) | Disable ESCO phrase enrichment |
+| `ESCOX_URL` | unset | Self-hosted ESCOX sidecar base URL |
+| `ESCOX_ENABLED` | off (requires `true`) | Enable ESCOX sidecar extraction |
+
+No keys required for the default ESCO public API. ESCOX is off unless you self-host and set both `ESCOX_URL` and `ESCOX_ENABLED=true`.

@@ -83,4 +83,19 @@ describe("hubFormToProfileContent", () => {
     expect(content.certifications).toEqual(["PMP"]);
     expect(content.languages).toEqual(["English — Native"]);
   });
+
+  it("round-trips page length preference in profile content", () => {
+    const form = hubRefineryFormFromProfile(
+      mockProfile({
+        content: {
+          ...(mockProfile().content as Record<string, unknown>),
+          pageLengthPreference: "2",
+        },
+      }),
+    );
+    expect(form.pageLengthPreference).toBe("2");
+
+    const content = hubFormToProfileContent(form, ["Python"]);
+    expect(content.pageLengthPreference).toBe("2");
+  });
 });

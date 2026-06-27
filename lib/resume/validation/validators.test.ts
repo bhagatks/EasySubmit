@@ -126,6 +126,15 @@ describe("validateSummarySection", () => {
     expect(result.issues.some((issue) => issue.code === "summary_empty")).toBe(true);
   });
 
+  it("allows empty summary when optional", () => {
+    const result = validateSummarySection(
+      validHeaderForm({ professionalSummary: "" }),
+      { required: false },
+    );
+    expect(result.hasErrors).toBe(false);
+    expect(result.issues).toHaveLength(0);
+  });
+
   it('flags banned word "leverage" as warning', () => {
     const result = validateSummarySection(
       validHeaderForm({ professionalSummary: "I leverage tools to build software." }),

@@ -10,6 +10,7 @@ import {
   dismissByokNudge,
   isByokNudgeDismissed,
 } from "@/lib/dashboard/byok-nudge-storage";
+import { SETTINGS_ADD_KEY_HREF } from "@/lib/dashboard/settings-ai-links";
 import { useIgnitionStore } from "@/src/stores/use-ignition-store";
 
 type DashboardByokNudgeProps = {
@@ -26,7 +27,8 @@ export function DashboardByokNudge({ vaultKeyId }: DashboardByokNudgeProps) {
 
   useEffect(() => {
     if (!hasHydrated || vaultKeyId) return;
-    if (pathname.startsWith("/dashboard/keys")) return;
+    if (pathname.startsWith("/dashboard/settings")) return;
+    if (pathname.startsWith("/dashboard/extension")) return;
     if (isByokNudgeDismissed(window.localStorage)) return;
 
     const timer = window.setTimeout(() => setOpen(true), 400);
@@ -52,7 +54,7 @@ export function DashboardByokNudge({ vaultKeyId }: DashboardByokNudgeProps) {
     >
       <div className="flex flex-col gap-2 sm:flex-row">
         <Button variant="hero" className="flex-1 rounded-xl" asChild>
-          <Link href="/dashboard/keys" onClick={handleDismiss}>
+          <Link href={SETTINGS_ADD_KEY_HREF} onClick={handleDismiss}>
             Connect AI key
           </Link>
         </Button>

@@ -1,0 +1,6 @@
+export const DASHBOARD_TUTORIALS_WELCOME_QUERY = "welcome=1" as const;
+
+export const DASHBOARD_TUTORIALS_HREF = "/dashboard/tutorials";
+
+export const DASHBOARD_TUTORIALS_WELCOME_HREF =
+  `${DASHBOARD_TUTORIALS_HREF}?${DASHBOARD_TUTORIALS_WELCOME_QUERY}` as const;

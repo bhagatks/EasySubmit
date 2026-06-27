@@ -1,16 +1,16 @@
 import Link from "next/link";
+import { SETTINGS_ADD_KEY_HREF } from "@/lib/dashboard/settings-ai-links";
 import { JetBrains_Mono } from "next/font/google";
 import {
   ArrowUpRight,
   Briefcase,
+  AlertTriangle,
   CheckCircle2,
   ChevronRight,
   FileText,
   KeyRound,
   Loader2,
-  Plus,
   Send,
-  Sparkles,
   Zap,
 } from "lucide-react";
 import { getDashboardStats } from "@/app/actions/dashboard/stats";
@@ -27,7 +27,7 @@ import {
   defaultReviewScreenPanel,
   jobTrackerReviewScreenUrl,
 } from "@/lib/job-tracker/review-screen-ui";
-import type { NextBestAction, SystemQuotaStats } from "@/app/actions/dashboard/stats";
+import type { NextBestAction } from "@/app/actions/dashboard/stats";
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
@@ -49,51 +49,6 @@ function monoClass(): string {
   return jetbrainsMono.className;
 }
 
-function SystemQuotaCard({ quota }: { quota: SystemQuotaStats }) {
-  const mono = monoClass();
-  const pct = Math.min((quota.callsToday / quota.dailyCap) * 100, 100);
-  const nearLimit = pct >= 75;
-  const exhausted = quota.slotsExhausted === quota.slotsTotal;
-
-  if (!nearLimit && !exhausted) return null;
-
-  const barColor = exhausted
-    ? "oklch(0.55 0.22 25)"
-    : pct >= 90
-      ? "oklch(0.68 0.18 45)"
-      : SYSTEM_MINT;
-
-  return (
-    <div className="rounded-2xl border border-border bg-surface/60 p-5">
-      <div className="flex items-center justify-between">
-        <span className="text-xs uppercase tracking-wider text-muted-foreground">
-          System AI Quota
-        </span>
-        <Sparkles className="h-4 w-4 text-muted-foreground" />
-      </div>
-      <div className={mono + " mt-3 text-3xl font-semibold tabular-nums"}>
-        {formatDashboardInteger(quota.callsToday)}
-        <span className="ml-1 text-base font-normal text-muted-foreground">
-          / {formatDashboardInteger(quota.dailyCap)}
-        </span>
-      </div>
-      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
-        <div
-          className="h-full rounded-full transition-all"
-          style={{ width: `${pct}%`, backgroundColor: barColor }}
-        />
-      </div>
-      <p className={mono + " mt-1.5 text-xs tabular-nums"} style={{ color: barColor }}>
-        {exhausted
-          ? `All ${quota.slotsTotal} keys exhausted · resets at midnight PT`
-          : quota.slotsExhausted > 0
-            ? `${quota.slotsExhausted} of ${quota.slotsTotal} keys exhausted`
-            : `${Math.round(100 - pct)}% remaining today`}
-      </p>
-    </div>
-  );
-}
-
 function OwnKeyCard({
   vaultKeyId,
   activeProvider,
@@ -109,18 +64,23 @@ function OwnKeyCard({
 
   if (!vaultKeyId) {
     return (
-      <div className="rounded-2xl border border-dashed border-border bg-surface/40 p-5">
+      <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-5">
         <div className="flex items-center justify-between">
-          <span className="text-xs uppercase tracking-wider text-muted-foreground">
+          <span className="text-xs uppercase tracking-wider text-destructive">
             Your AI Key
           </span>
-          <KeyRound className="h-4 w-4 text-muted-foreground" />
+          <AlertTriangle className="h-4 w-4 text-destructive" aria-hidden="true" />
         </div>
-        <p className="mt-3 text-sm text-muted-foreground">
-          No key connected. Add your own key for unlimited AI — bypasses the system quota entirely.
+        <p className="mt-3 text-sm text-foreground">
+          No key connected. Add your own key for unlimited AI enhancements.
         </p>
-        <Button variant="mint" size="sm" className="mt-3 rounded-xl" asChild>
-          <Link href="/dashboard/keys">Connect key</Link>
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-3 rounded-xl border-destructive/40 text-destructive hover:bg-destructive/10"
+          asChild
+        >
+          <Link href={SETTINGS_ADD_KEY_HREF}>Connect key</Link>
         </Button>
       </div>
     );
@@ -208,7 +168,7 @@ function NextActionCard({ action }: { action: NextBestAction }) {
           {action.count === 1 ? "1 job is" : `${action.count} jobs are`} waiting for tailoring. Connect a key to run the engine.
         </p>
         <Button variant="outline" size="sm" className="mt-3 rounded-xl border-amber-500/40 text-amber-600 hover:bg-amber-500/10 dark:text-amber-400" asChild>
-          <Link href="/dashboard/keys">Connect key</Link>
+          <Link href={SETTINGS_ADD_KEY_HREF}>Connect key</Link>
         </Button>
       </div>
     );
@@ -280,27 +240,15 @@ export async function DashboardOverview({
     { label: "Recruiter readability", value: stats.verification.recruiterReadability },
   ];
 
-  const showSystemQuota =
-    stats.systemQuota !== null &&
-    (stats.systemQuota.slotsExhausted > 0 ||
-      stats.systemQuota.callsToday / stats.systemQuota.dailyCap >= 0.75);
-
   return (
     <DashboardWorkspaceShell className="space-y-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight">
-            Welcome back, {firstName}
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Here&apos;s your job hunt at a glance.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button variant="hero">
-            <Plus className="h-4 w-4" /> New tailored resume
-          </Button>
-        </div>
+      <div>
+        <h1 className="font-display text-2xl font-semibold tracking-tight">
+          Welcome back, {firstName}
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Here&apos;s your job hunt at a glance.
+        </p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -314,20 +262,17 @@ export async function DashboardOverview({
               <Briefcase className="h-3.5 w-3.5 text-muted-foreground" />
             </div>
           </div>
-          <div className="mt-3 flex items-end gap-4">
-            <div>
-              <div className={mono + " text-3xl font-semibold tabular-nums"}>
-                {formatDashboardInteger(stats.resumesGenerated)}
-              </div>
-              <div className="mt-0.5 text-xs text-muted-foreground">resumes</div>
+          <div className="mt-3 inline-grid grid-cols-[auto_auto_auto] items-baseline gap-x-3 gap-y-0.5">
+            <div className={mono + " text-3xl font-semibold tabular-nums"}>
+              {formatDashboardInteger(stats.resumesGenerated)}
             </div>
-            <div className="mb-0.5 text-muted-foreground/40 text-lg font-light">/</div>
-            <div>
-              <div className={mono + " text-3xl font-semibold tabular-nums"}>
-                {formatDashboardInteger(stats.jobsTracked)}
-              </div>
-              <div className="mt-0.5 text-xs text-muted-foreground">jobs tracked</div>
+            <div className="text-lg font-light text-muted-foreground/40">/</div>
+            <div className={mono + " text-3xl font-semibold tabular-nums"}>
+              {formatDashboardInteger(stats.jobsTracked)}
             </div>
+            <div className="text-xs text-muted-foreground">resumes</div>
+            <div aria-hidden="true" />
+            <div className="text-xs text-muted-foreground">jobs tracked</div>
           </div>
           <div className={mono + " mt-2 text-xs tabular-nums"} style={{ color: SYSTEM_MINT }}>
             {stats.targetRole ? `Target · ${stats.targetRole}` : "Career Architecture"}
@@ -363,10 +308,6 @@ export async function DashboardOverview({
 
         <NextActionCard action={stats.nextBestAction} />
       </div>
-
-      {showSystemQuota && stats.systemQuota ? (
-        <SystemQuotaCard quota={stats.systemQuota} />
-      ) : null}
 
       <div className="grid min-w-0 gap-6 lg:grid-cols-[3fr_2fr]">
         <div

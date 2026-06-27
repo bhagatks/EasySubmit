@@ -13,6 +13,11 @@ export type EnhanceOffReason =
   | "quota_exceeded";
 
 export type EnhanceFeatureResolution = {
+  /** Baseline enhance always available when auth passes. */
+  baselineAvailable: true;
+  /** Whether Phase 3 AI may run. */
+  aiAvailable: boolean;
+  /** @deprecated Use aiAvailable — kept for backward compat. */
   available: boolean;
   reason?: EnhanceOffReason;
   /** Which AI key path runs. Null when available is false. */

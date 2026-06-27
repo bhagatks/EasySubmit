@@ -47,5 +47,8 @@ export const STORAGE_KEYS = {
 
 export const DEFAULT_API_BASE = "http://localhost:3000";
 
+/** Sent on every extension → dashboard API request (`manifest.version`). */
+export const EXTENSION_VERSION_HEADER = "X-Extension-Version";
+
 /** Client-side enhance wait in extension content script (matches dashboard default). */
 export const EXTENSION_ENHANCE_TIMEOUT_MS = 90_000;

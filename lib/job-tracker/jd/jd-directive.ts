@@ -2,6 +2,7 @@
 // The directive is what gets fed to brain.ts — structured instructions, not raw gaps.
 
 import type { JDIntelligence, ResumeEnhanceDirective } from "@/lib/job-tracker/jd/jd-intelligence";
+import type { JdSkillsVocabulary } from "@/lib/job-tracker/jd/jd-skills-types";
 import { MASTER_SKILLS } from "@/src/lib/constants/skills";
 import { isBannedSkill, SKILLS_HARD_MAX } from "@/lib/resume/skills-rules";
 
@@ -46,13 +47,19 @@ function isTechRole(intelligence: JDIntelligence): boolean {
 export function buildResumeEnhanceDirective(
   intelligence: JDIntelligence,
   currentSkills: string[],
+  jdVocabulary?: JdSkillsVocabulary,
 ): ResumeEnhanceDirective {
   const resumeSkillsLower = new Set(currentSkills.map((s) => s.toLowerCase().trim()));
   const isNonTech = !isTechRole(intelligence);
 
-  // Skills gap: must-haves not already in resume
+  const vocabSkills = (jdVocabulary?.skills ?? []).map((s) => s.label);
+  const rawMustAdd = [
+    ...vocabSkills,
+    ...intelligence.mustHaveSkills.filter((s) => !resumeSkillsLower.has(s.toLowerCase())),
+  ];
+
   const mustAddSkills = filterMustAddSkills(
-    intelligence.mustHaveSkills.filter((s) => !resumeSkillsLower.has(s.toLowerCase())),
+    rawMustAdd.filter((s) => !resumeSkillsLower.has(s.toLowerCase())),
   );
 
   // Keywords gap: tier1 + tier2 not already in resume

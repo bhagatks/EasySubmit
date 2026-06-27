@@ -40,6 +40,18 @@ import {
   parseSubscriptionConfig,
   type SubscriptionConfig,
 } from "@/src/lib/services/subscription-config";
+import {
+  EXTENSION_INSTALL_PROMPT_CONFIG_KEY,
+  EXTENSION_INSTALL_PROMPT_DEFAULTS,
+  resolveExtensionInstallPromptConfig,
+  type ExtensionInstallPromptConfig,
+} from "@/src/lib/services/extension-install-prompt-config";
+import {
+  DASHBOARD_TUTORIAL_VIDEOS_CONFIG_KEY,
+  DASHBOARD_TUTORIAL_VIDEOS_DEFAULTS,
+  resolveDashboardTutorialVideosConfig,
+  type DashboardTutorialVideosConfig,
+} from "@/src/lib/services/dashboard-tutorial-videos-config";
 
 export type { AiPricingMap } from "@/src/lib/services/ai-pricing-map";
 export type { DataRefreshConfig, RefreshIntervalMinutes };
@@ -76,6 +88,16 @@ export {
   type SubscriptionPlanConfig,
   type SubscriptionStatus,
 } from "@/src/lib/services/subscription-config";
+export type { ExtensionInstallPromptConfig } from "@/src/lib/services/extension-install-prompt-config";
+export {
+  EXTENSION_INSTALL_PROMPT_CONFIG_KEY,
+  EXTENSION_INSTALL_PROMPT_DEFAULTS,
+} from "@/src/lib/services/extension-install-prompt-config";
+export type { DashboardTutorialVideosConfig } from "@/src/lib/services/dashboard-tutorial-videos-config";
+export {
+  DASHBOARD_TUTORIAL_VIDEOS_CONFIG_KEY,
+  DASHBOARD_TUTORIAL_VIDEOS_DEFAULTS,
+} from "@/src/lib/services/dashboard-tutorial-videos-config";
 
 export interface AiConfigRecord {
   defaultProvider: string;
@@ -93,6 +115,8 @@ export interface AppConfigSnapshot {
   resumeProfiles: ResumeProfilesConfig;
   legalDocuments: LegalDocumentsConfig;
   subscriptions: SubscriptionConfig;
+  extensionInstallPrompt: ExtensionInstallPromptConfig;
+  dashboardTutorialVideos: DashboardTutorialVideosConfig;
 }
 
 const DATA_REFRESH_KEY = "dataRefresh";
@@ -172,6 +196,12 @@ export async function getAppConfig(key: "resumeProfiles"): Promise<ResumeProfile
 export async function getAppConfig(key: "legalDocuments"): Promise<LegalDocumentsConfig>;
 export async function getAppConfig(key: "subscriptions"): Promise<SubscriptionConfig>;
 export async function getAppConfig(
+  key: "extensionInstallPrompt",
+): Promise<ExtensionInstallPromptConfig>;
+export async function getAppConfig(
+  key: "dashboardTutorialVideos",
+): Promise<DashboardTutorialVideosConfig>;
+export async function getAppConfig(
   key?:
     | "dataRefresh"
     | "aiConfig"
@@ -180,7 +210,9 @@ export async function getAppConfig(
     | "aiEngine"
     | "resumeProfiles"
     | "legalDocuments"
-    | "subscriptions",
+    | "subscriptions"
+    | "extensionInstallPrompt"
+    | "dashboardTutorialVideos",
 ): Promise<
   | AppConfigSnapshot
   | DataRefreshConfig
@@ -192,6 +224,8 @@ export async function getAppConfig(
   | ResumeProfilesConfig
   | LegalDocumentsConfig
   | SubscriptionConfig
+  | ExtensionInstallPromptConfig
+  | DashboardTutorialVideosConfig
 > {
   const snapshot = await loadAppConfigSnapshot();
 
@@ -227,6 +261,14 @@ export async function getAppConfig(
     return snapshot.subscriptions;
   }
 
+  if (key === "extensionInstallPrompt") {
+    return snapshot.extensionInstallPrompt;
+  }
+
+  if (key === "dashboardTutorialVideos") {
+    return snapshot.dashboardTutorialVideos;
+  }
+
   return snapshot;
 }
 
@@ -243,6 +285,8 @@ async function loadAppConfigSnapshot(): Promise<AppConfigSnapshot> {
           RESUME_PROFILES_CONFIG_KEY,
           LEGAL_DOCUMENTS_CONFIG_KEY,
           SUBSCRIPTION_CONFIG_KEY,
+          EXTENSION_INSTALL_PROMPT_CONFIG_KEY,
+          DASHBOARD_TUTORIAL_VIDEOS_CONFIG_KEY,
         ],
       },
     },
@@ -278,6 +322,14 @@ async function loadAppConfigSnapshot(): Promise<AppConfigSnapshot> {
 
   const subscriptions = parseSubscriptionConfig(byKey.get(SUBSCRIPTION_CONFIG_KEY));
 
+  const extensionInstallPrompt = resolveExtensionInstallPromptConfig(
+    byKey.get(EXTENSION_INSTALL_PROMPT_CONFIG_KEY),
+  );
+
+  const dashboardTutorialVideos = resolveDashboardTutorialVideosConfig(
+    byKey.get(DASHBOARD_TUTORIAL_VIDEOS_CONFIG_KEY),
+  );
+
   return {
     dataRefresh,
     aiConfig,
@@ -287,5 +339,7 @@ async function loadAppConfigSnapshot(): Promise<AppConfigSnapshot> {
     resumeProfiles,
     legalDocuments,
     subscriptions,
+    extensionInstallPrompt,
+    dashboardTutorialVideos,
   };
 }

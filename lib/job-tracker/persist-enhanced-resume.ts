@@ -21,6 +21,7 @@ export type PersistEnhancedResumeInput = {
   jobDescription: string;
   enhanceTraceId: string;
   traceId: string;
+  enhanceMeta?: import("@/lib/job-tracker/enhance/enhance-brief").EnhanceSessionMeta;
 };
 
 export type PersistEnhancedResumeResult =
@@ -57,6 +58,17 @@ export async function persistEnhancedResume(
     overrides,
     changedSections,
     enhanceTraceId: input.enhanceTraceId,
+    enhanceMeta: input.enhanceMeta
+      ? ({
+          traceId: input.enhanceMeta.traceId,
+          engineMode: input.enhanceMeta.engineMode,
+          aiBlockCode: input.enhanceMeta.aiBlockCode,
+          coverageAfter: input.enhanceMeta.coverageAfter,
+          readinessDelta: input.enhanceMeta.readinessDelta,
+          enhanceSummary: input.enhanceMeta.enhanceSummary,
+          persistedAt: new Date().toISOString(),
+        } as import("@/lib/generated/prisma/client").Prisma.InputJsonValue)
+      : undefined,
   });
 
   logEnhance("server", "post.persist.done", {

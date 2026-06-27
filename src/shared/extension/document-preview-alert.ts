@@ -1,4 +1,4 @@
-import { SETTINGS_AI_AUTO_HREF } from "@/lib/dashboard/settings-ai-links";
+import { SETTINGS_ADD_KEY_HREF, SETTINGS_AI_AUTO_HREF } from "@/lib/dashboard/settings-ai-links";
 
 const ENHANCE_SERVER_ERROR =
   "Enhance failed — server error. Try again or check AI Keys in Settings.";
@@ -30,7 +30,7 @@ export function resolveEnhanceFallbackWarning(aiMode?: string | null): string {
 }
 
 export function resolveEnhanceFallbackSettingsPath(aiMode?: string | null): string {
-  return aiMode === "customer" ? "/dashboard/keys" : SETTINGS_AI_AUTO_HREF;
+  return aiMode === "customer" ? SETTINGS_ADD_KEY_HREF : SETTINGS_AI_AUTO_HREF;
 }
 
 /** User-facing copy for document preview toolbar errors (enhance, download, save). */

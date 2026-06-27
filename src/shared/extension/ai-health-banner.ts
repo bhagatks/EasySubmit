@@ -1,4 +1,4 @@
-import { SETTINGS_AI_AUTO_HREF } from "@/lib/dashboard/settings-ai-links";
+import { SETTINGS_ADD_KEY_HREF, SETTINGS_AI_AUTO_HREF } from "@/lib/dashboard/settings-ai-links";
 import type { ExtensionRuntimeConfig } from "@/src/shared/extension/types";
 
 export type ExtensionAiHealthBanner = {
@@ -50,13 +50,13 @@ export function resolveExtensionAiHealthBanner(
 
   const keyIssue =
     isKeyIssue || (!looksLikeQuotaIssue(message) && looksLikeKeyIssue(message));
-  const fixPath = keyIssue ? "/dashboard/keys" : SETTINGS_AI_AUTO_HREF;
+  const fixPath = keyIssue ? SETTINGS_ADD_KEY_HREF : SETTINGS_AI_AUTO_HREF;
 
   return {
     message,
     isKeyIssue: keyIssue,
     fixPath,
-    fixLabel: keyIssue ? "Verify in AI Keys" : "Fix in Settings",
+    fixLabel: keyIssue ? "Fix in Settings" : "Fix in Settings",
     bannerLabel: keyIssue ? "Key issue" : "AI issue",
   };
 }

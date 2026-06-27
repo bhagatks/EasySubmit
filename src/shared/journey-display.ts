@@ -1,5 +1,6 @@
 import type { JobTrackerStatus } from "@/lib/generated/prisma/client";
 import { BRAND } from "./brand";
+import { PIPELINE_SUB_LABELS } from "@/lib/job-tracker/pipeline-sub-labels";
 
 export type JourneyStage = 0 | 1 | 2 | 3 | 4 | "error";
 
@@ -51,7 +52,7 @@ export function resolveJourneyDisplay(
       return {
         stage: 1,
         label: "",
-        statusLabel: "Optimizing resume…",
+        statusLabel: PIPELINE_SUB_LABELS.optimizingResume,
         applyButtonState: "hidden",
         showResumeCard: false,
         showAssistCard: false,
@@ -61,7 +62,7 @@ export function resolveJourneyDisplay(
       return {
         stage: 2,
         label: BRAND.autoSuggestCta,
-        statusLabel: "Resume ready",
+        statusLabel: PIPELINE_SUB_LABELS.resumeReadyReview,
         applyButtonState: "disabled",
         showResumeCard: true,
         showAssistCard: false,
@@ -91,7 +92,7 @@ export function resolveJourneyDisplay(
       return {
         stage: 1,
         label: "",
-        statusLabel: "Optimizing resume…",
+        statusLabel: PIPELINE_SUB_LABELS.optimizingResume,
         applyButtonState: "hidden",
         showResumeCard: false,
         showAssistCard: false,

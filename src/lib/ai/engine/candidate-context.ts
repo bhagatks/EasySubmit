@@ -1,4 +1,9 @@
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
+import {
+  inferAutoResumePages,
+  normalizePageLengthPreference,
+  type PageLengthPreference,
+} from "@/lib/resume/page-length-preference";
 
 export type ResumeBodyForm = Omit<
   HubRefineryForm,
@@ -72,9 +77,12 @@ function inferSeniority(targetRole: string, years: number): string {
   return "early";
 }
 
-export function resolvePageBudget(years: number, targetRole: string): CandidateContext["pageBudget"] {
-  const seniority = inferSeniority(targetRole, years);
-  const pages: 1 | 2 = seniority === "executive" || years >= 10 ? 2 : 1;
+export function resolvePageBudget(
+  years: number,
+  targetRole: string,
+  preference: PageLengthPreference = "auto",
+): CandidateContext["pageBudget"] {
+  const pages = resolveResumePagesFromPreference(years, targetRole, preference);
 
   if (pages === 2) {
     return {
@@ -97,7 +105,21 @@ export function inferResumePagesFromForm(
   form: HubRefineryForm,
   targetRole = "",
 ): 1 | 2 {
-  return resolvePageBudget(estimateYearsExperience(form), targetRole).pages;
+  return resolvePageBudget(
+    estimateYearsExperience(form),
+    targetRole,
+    normalizePageLengthPreference(form.pageLengthPreference),
+  ).pages;
+}
+
+function resolveResumePagesFromPreference(
+  years: number,
+  targetRole: string,
+  preference: PageLengthPreference,
+): 1 | 2 {
+  if (preference === "1") return 1;
+  if (preference === "2") return 2;
+  return inferAutoResumePages(years, targetRole);
 }
 
 export function buildCandidateContext(input: {
@@ -113,7 +135,11 @@ export function buildCandidateContext(input: {
     targetRole,
     yearsExperienceEstimate: years,
     senioritySignal: inferSeniority(targetRole, years),
-    pageBudget: resolvePageBudget(years, targetRole),
+    pageBudget: resolvePageBudget(
+      years,
+      targetRole,
+      normalizePageLengthPreference(input.form.pageLengthPreference),
+    ),
     resumeBody: stripContactFromForm(input.form),
     jobDescription: input.jobDescription?.trim() || undefined,
     rawResumeSnippet: input.rawResumeText?.trim().slice(0, 2000) || undefined,

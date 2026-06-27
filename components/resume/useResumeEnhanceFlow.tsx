@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { SETTINGS_ADD_KEY_HREF } from "@/lib/dashboard/settings-ai-links";
 import { fetchEnhanceWithAiConfig } from "@/app/actions/config";
 import {
   checkEnhanceWithAiPreflight,
@@ -371,7 +372,7 @@ export function useResumeEnhanceFlow({
         ),
       });
 
-      if (result.partialEnhance && result.warning) {
+      if (result.warning) {
         setWarning(result.warning);
       }
 
@@ -617,7 +618,7 @@ export function useResumeEnhanceFlow({
             ) : null}
             {showAddApiKeyAction ? (
               <Button type="button" className="rounded-xl" asChild>
-                <Link href="/dashboard/keys">Add or update API key</Link>
+                <Link href={SETTINGS_ADD_KEY_HREF}>Add or update API key</Link>
               </Button>
             ) : null}
             {showRetryAction ? (

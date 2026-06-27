@@ -333,7 +333,16 @@ Per-application resume deltas — merged with `sourceProfileId` at read/export t
 
 ## PostgreSQL — `app_config` (Prisma `AppConfig`)
 
-Global runtime configuration keyed by namespace. Seeded via `prisma/seed.ts` (`prisma db seed`).
+Global runtime configuration keyed by namespace. Seeded via `prisma/seed.ts`.
+
+**Seed commands** (requires `DATABASE_URL` in `.env.local`):
+
+```bash
+npm run db:seed          # npm script → prisma db seed
+npx prisma db seed       # equivalent; configured in prisma.config.ts
+```
+
+Upserts all keys below (including `forceUpgrade`). Existing rows are not overwritten except on first insert (`update: {}` in seed).
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -350,6 +359,78 @@ Global runtime configuration keyed by namespace. Seeded via `prisma/seed.ts` (`p
 | `aiEngine` | `{ system: { modelId, maxKeySlots }, quotas: { system: { enable, dailyCalls, dailyEnhancements }, customer: { aiDailyUnlimited, dailyCalls, dailyEnhancements } }, customerDailyEnhancementCap }` | `quotas.system.enable` gates EasySubmit system AI; when `false`, all routes require BYOK. `quotas.customer.aiDailyUnlimited` bypasses BYOK daily caps when `true`. System secrets live in Vault (below). |
 | `resumeProfiles` | `{ maxProfilesPerCustomer: 20 }` | Max `profiles` rows per user — enforced on dashboard create and job-tailor clone |
 | `legalDocuments` | `{ terms: { title, updatedLabel, blocks[] }, privacy: { … } }` | Terms of Service and Privacy Policy copy for `/terms`, `/privacy`, and login overlay — structured blocks (paragraphs, headings, lists, links); seeded from `src/lib/services/legal-documents-defaults.ts` |
+| `forceUpgrade` | `{ enabled: false, minVersion: "0.2.6", updateUrl: "/extension", message: "…" }` | Extension minimum-version gate — see [Extension force-upgrade](#extension-force-upgrade-app_configforceupgrade) below |
+| `extensionInstallPrompt` | `{ refreshIntervalMinutes: 30 }` | Re-show extension install modal on dashboard load, tab focus, and this interval (minutes) until extension PING succeeds — see `DashboardSetupPrompts` |
+| `dashboardTutorialVideos` | `{ videos: [{ id, title, watchUrl }] }` | Video Tutorials page (`/dashboard/tutorials`) — YouTube watch URLs; invalid entries skipped; see [Dashboard tutorial videos](#dashboard-tutorial-videos-app_configdashboardtutorialvideos) below |
+
+### Dashboard tutorial videos (`app_config.dashboardTutorialVideos`)
+
+Powers **`/dashboard/tutorials`**. Each entry needs `title` and `watchUrl` (standard YouTube watch / youtu.be links; optional `&t=` start time). Optional stable `id` for React keys (defaults to `tutorial-1`, `tutorial-2`, …).
+
+**Example update** (replace one slot):
+
+```sql
+UPDATE app_config
+SET value = jsonb_set(
+  value,
+  '{videos,0}',
+  '{"id":"tutorial-1","title":"Welcome tour","watchUrl":"https://www.youtube.com/watch?v=IvjkGXZcnvc&t=4s"}'::jsonb
+)
+WHERE key = 'dashboardTutorialVideos';
+```
+
+**Replace full list:**
+
+```sql
+UPDATE app_config
+SET value = '{
+  "videos": [
+    {"id":"tutorial-1","title":"Title1","watchUrl":"https://www.youtube.com/watch?v=IvjkGXZcnvc&t=4s"},
+    {"id":"tutorial-2","title":"Title2","watchUrl":"https://www.youtube.com/watch?v=IvjkGXZcnvc&t=4s"}
+  ]
+}'::jsonb
+WHERE key = 'dashboardTutorialVideos';
+```
+
+Invalid URLs are skipped at render time; if every entry is invalid, code falls back to seeded defaults.
+
+### Extension force-upgrade (`app_config.forceUpgrade`)
+
+When `enabled` is `true` and the installed extension version (from `manifest.json`, sent as `X-Extension-Version`) is **below** `minVersion`:
+
+- Job card shows an **Update required** banner and blocks Save / Apply
+- Authenticated `/api/extension/*` routes return **HTTP 426** with `code: "EXTENSION_UPDATE_REQUIRED"`
+- `GET /api/extension/config` always succeeds so outdated clients can read the policy
+
+| Field | Default | Purpose |
+|-------|---------|---------|
+| `enabled` | `false` | Master switch — off = no version checks |
+| `minVersion` | `"0.2.6"` | Minimum semver (e.g. `"0.3.0"`) |
+| `updateUrl` | `"/extension"` | Chrome Web Store URL or dashboard path for the Update CTA |
+| `message` | (seed copy) | User-facing banner / 426 error text |
+
+**Enable after seed** (set `minVersion` to the build you require):
+
+```sql
+UPDATE app_config
+SET value = jsonb_set(
+  jsonb_set(value, '{enabled}', 'true'),
+  '{minVersion}', '"0.3.0"'
+)
+WHERE key = 'forceUpgrade';
+```
+
+Optional: set `updateUrl` to your Chrome Web Store listing and customize `message`:
+
+```sql
+UPDATE app_config
+SET value = value
+  || '{"updateUrl": "https://chromewebstore.google.com/detail/your-listing-id"}'::jsonb
+  || '{"message": "Update the EasySubmit extension to continue."}'::jsonb
+WHERE key = 'forceUpgrade';
+```
+
+Parser: `src/lib/services/extension-force-upgrade-config.ts`. Client gate: `src/shared/extension/extension-force-upgrade.ts`. Server gate: `lib/extension/force-upgrade-gate.ts`.
 
 ### `user_application_answers`
 
@@ -443,13 +524,14 @@ Verify: `SELECT slot, label, enabled FROM system_api_keys ORDER BY slot;` — po
 cp .env.example .env.local   # fill DATABASE_URL
 npx prisma migrate dev
 npx prisma generate
-npx prisma db seed
+npm run db:seed              # or: npx prisma db seed
 ```
 
 ## Changelog
 
 | Date | Summary |
 |------|---------|
+| 2026-06-27 | `app_config.forceUpgrade` — extension min-version gate; seed via `npm run db:seed`; ops SQL documented above |
 | 2026-06-21 | System key pool v1: `system_api_keys` quota fields (`callsToday`, `exhaustedUntil`, `quotaResetDate`, `billingMode`, per-row `modelId`); Alpha/Beta/Gamma slots; `api_call_logs.keyLabel` + `billingMode` |
 | 2026-06-20 | Schema consolidation: merged `architectures` into `profiles.content` + `calibrationScore`; dropped child resume tables and `minSalary` / `workMode` / `coreCompetencies` |
 | 2026-06-20 | Added [`TABLE_INVENTORY.md`](./TABLE_INVENTORY.md) — per-table read/write audit |

@@ -1,28 +1,34 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { BRAND_FULL } from "@/lib/brand";
 import { signOutUser } from "@/lib/auth/sign-out-client";
+import {
+  dashboardHeaderControlClassName,
+  dashboardHeaderMintPillStyle,
+} from "@/lib/dashboard/dashboard-header-chrome";
 import { cn } from "@/lib/utils";
 
-const authLinkPillClass =
-  "rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors hover:brightness-110";
-
-const authLinkPillStyle = {
-  color: "oklch(0.82 0.16 165)",
-  borderColor: "oklch(0.82 0.16 165 / 0.4)",
-  backgroundColor: "oklch(0.82 0.16 165 / 0.1)",
-} as const;
+const authLinkPillClass = cn(
+  dashboardHeaderControlClassName,
+  "border hover:brightness-110",
+);
 
 type SignOutButtonProps = {
   className?: string;
   label?: string;
+  /** Optional leading icon (e.g. menu rows). */
+  icon?: ReactNode;
   /** Match marketing nav “Sign In” pill styling. */
   variant?: "pill" | "ghost";
   /** Ask before signing out (default true). */
   confirm?: boolean;
+  /** Called when the user activates sign out (before confirm dialog). */
+  onActivate?: () => void;
+  /** Fired when the confirm dialog opens or closes (when `confirm` is true). */
+  onConfirmOpenChange?: (open: boolean) => void;
   /** @deprecated Use variant="pill" or variant="ghost" instead. */
   showIcon?: boolean;
   /** @deprecated Icon-only is no longer supported — use text label. */
@@ -34,14 +40,22 @@ type SignOutButtonProps = {
 export function SignOutButton({
   className,
   label = "Sign out",
+  icon,
   variant = "pill",
   confirm = true,
+  onActivate,
+  onConfirmOpenChange,
   showIcon: _showIcon = false,
   iconOnly: _iconOnly = false,
   mono = false,
 }: SignOutButtonProps) {
   const [pending, setPending] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+
+  useEffect(() => {
+    if (!confirm) return;
+    onConfirmOpenChange?.(confirmOpen);
+  }, [confirm, confirmOpen, onConfirmOpenChange]);
 
   async function handleSignOut(): Promise<boolean> {
     if (pending) return false;
@@ -62,10 +76,17 @@ export function SignOutButton({
       setConfirmOpen(true);
       return;
     }
+    onActivate?.();
     void handleSignOut();
   }
 
   const displayLabel = pending ? "Signing out…" : label;
+  const content = (
+    <>
+      {icon}
+      {displayLabel}
+    </>
+  );
 
   return (
     <>
@@ -75,9 +96,9 @@ export function SignOutButton({
           disabled={pending}
           onClick={handleClick}
           className={cn(authLinkPillClass, className)}
-          style={authLinkPillStyle}
+          style={dashboardHeaderMintPillStyle}
         >
-          {displayLabel}
+          {content}
         </button>
       ) : (
         <Button
@@ -92,7 +113,7 @@ export function SignOutButton({
             className,
           )}
         >
-          {displayLabel}
+          {content}
         </Button>
       )}
 

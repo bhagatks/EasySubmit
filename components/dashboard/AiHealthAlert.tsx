@@ -12,14 +12,16 @@ import {
 import { usePathname } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import Link from "next/link";
-import type { AiHealthDebugSnapshot, AiHealthStatus } from "@/lib/ai/ai-health-status";
-import { SETTINGS_AI_AUTO_HREF } from "@/lib/dashboard/settings-ai-links";
+import type { AiHealthDebugSnapshot, AiHealthErrorCode, AiHealthStatus } from "@/lib/ai/ai-health-status";
+import { SETTINGS_ADD_KEY_HREF, SETTINGS_AI_AUTO_HREF } from "@/lib/dashboard/settings-ai-links";
 
-const HINT: Record<string, string> = {
-  quota_exhausted: "Daily AI quota used up — add your API key in Settings",
-  key_missing: "Add your API key in AI Settings to continue",
-  key_invalid: "Your API key is failing — verify it in AI Settings",
+const HINT: Record<AiHealthErrorCode, string> = {
+  quota_exhausted: "Daily AI limit reached — add your API key in AI Keys",
+  key_missing: "Add your API key in AI Keys to unlock AI enhancements",
+  key_invalid: "Your API key is failing — verify it in AI Keys",
   api_error: "AI calls are failing — check Settings",
+  ai_disabled: "AI enhancements are off — turn them on in Settings",
+  shared_ai_unavailable: "EasySubmit AI is turned off — add your API key in AI Keys",
 };
 
 type AiHealthContextValue = {
@@ -35,6 +37,13 @@ function logClient(event: string, payload?: Record<string, unknown>) {
     return;
   }
   console.log("[AiHealth:client]", event);
+}
+
+function resolveFixTarget(code: AiHealthErrorCode): { href: string; label: string } {
+  if (code === "key_missing" || code === "key_invalid" || code === "shared_ai_unavailable") {
+    return { href: SETTINGS_ADD_KEY_HREF, label: "Settings" };
+  }
+  return { href: SETTINGS_AI_AUTO_HREF, label: "Settings" };
 }
 
 async function fetchAiHealthStatus(): Promise<{
@@ -140,61 +149,44 @@ function useAiHealthStatus() {
   return useContext(AiHealthContext).status;
 }
 
-/** Pulsing alert icon — sits in the header icon row. */
-export function AiHealthAlertIcon() {
+/** Compact issue notice — sits under the BYOK control in the dashboard header. */
+export function AiHealthHeaderNotice() {
   const status = useAiHealthStatus();
 
   if (!status || status.ok) return null;
 
   const message = status.message.trim() || HINT[status.code] || "AI issue detected";
-
-  return (
-    <div
-      className="relative flex h-8 w-8 items-center justify-center rounded-full"
-      aria-label={`AI health alert: ${message}`}
-      title={message}
-    >
-      <AlertTriangle
-        className="h-4 w-4 animate-pulse"
-        style={{ color: "oklch(0.55 0.22 25)" }}
-        aria-hidden="true"
-      />
-      <span
-        className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full"
-        style={{ background: "oklch(0.55 0.22 25)" }}
-        aria-hidden="true"
-      />
-    </div>
-  );
-}
-
-/** Expanded issue copy — renders below the header icon row when unhealthy. */
-export function AiHealthAlertBanner() {
-  const status = useAiHealthStatus();
-
-  if (!status || status.ok) return null;
-
-  const message = status.message.trim() || HINT[status.code] || "AI issue detected";
-  const fixHref =
-    status.code === "key_missing" || status.code === "key_invalid"
-      ? "/dashboard/keys"
-      : SETTINGS_AI_AUTO_HREF;
-  const fixLabel = fixHref === "/dashboard/keys" ? "AI Settings" : "Settings";
+  const { href: fixHref, label: fixLabel } = resolveFixTarget(status.code);
 
   return (
     <div
       role="alert"
-      className="flex justify-end border-t border-destructive/15 bg-destructive/5 px-4 py-2"
+      className="flex max-w-[16rem] items-start justify-end gap-1.5 text-right sm:max-w-xs"
     >
-      <div className="flex w-full max-w-md items-center gap-2 rounded-xl border border-destructive/25 bg-destructive/10 px-3 py-2 sm:w-auto">
-        <p className="min-w-0 flex-1 text-xs leading-snug text-foreground">{message}</p>
+      <AlertTriangle
+        className="mt-0.5 h-3.5 w-3.5 shrink-0"
+        style={{ color: "oklch(0.55 0.22 25)" }}
+        aria-hidden="true"
+      />
+      <div className="min-w-0">
+        <p className="text-[11px] leading-snug text-foreground">{message}</p>
         <Link
           href={fixHref}
-          className="shrink-0 rounded-lg bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90"
+          className="text-[11px] font-medium text-primary hover:underline"
         >
           Fix in {fixLabel}
         </Link>
       </div>
     </div>
   );
+}
+
+/** @deprecated Use {@link AiHealthHeaderNotice} — kept for import stability during migration. */
+export function AiHealthAlertIcon() {
+  return null;
+}
+
+/** @deprecated Use {@link AiHealthHeaderNotice} — kept for import stability during migration. */
+export function AiHealthAlertBanner() {
+  return null;
 }
