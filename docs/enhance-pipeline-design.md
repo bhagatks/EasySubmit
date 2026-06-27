@@ -1,6 +1,6 @@
 # Enhance Pipeline — Design Reference
 
-Captured from design session 2026-06-26. Updated 2026-06-26 with complete step audit. Read this before touching any AI enhance, features framework, or onboarding/job-apply flow code.
+Captured from design session 2026-06-26. Updated 2026-06-26 with validation framework + onboarding auto-enhance. Read this before touching any AI enhance, features framework, or onboarding/job-apply flow code.
 
 ---
 
@@ -14,9 +14,10 @@ Captured from design session 2026-06-26. Updated 2026-06-26 with complete step a
 
 ### Onboarding flow
 - Input: Raw Form + Target Role — **no JD attached**
+- Trigger: **Automatic after resume upload** — `enhanceResumeOnboarding()` in `app/onboarding/page.tsx` (`handleFuelParsed`) runs pipeline Steps **3, 6, 9, 10, 13, 14** before Refinery is shown. Failures are non-fatal (user sees raw parsed form). **Enhance with AI button removed** from onboarding — no manual enhance action.
 - Engine: **Deterministic only** — AI call is intentionally skipped
 - Pre-processing: O*NET vocabulary + bullet quality + Summary/Skills rules only. JD steps (segmentation, fast-rake, keyword gap, ATS parse, JD brain, directive) are all skipped — no JD exists
-- Output saved to: **base resume profile**
+- Output saved to: **base resume profile** (on finalize, not at upload)
 - Intentionally lite — generic role-scoped output, no job-specific intelligence
 
 ### Job apply / Extension flow
@@ -86,7 +87,7 @@ Takes form + intelligence context + directive → produces enhanced form.
 - Job apply + Extension → **AI first** (see AI section), **deterministic fallback** if AI fails — same deterministic logic with pre-processed intelligence instead of raw tokens
 
 ### Step 14 — Post-process + Rules Enforcement
-Runs on AI output. Basic cleanup exists. **NOT YET COMPLETE** — summary sentence/word count enforcement and skills enforce are missing. Deterministic path does not need this (output is already rule-compliant).
+`postProcessProfessionalSummary()` and `postProcessSkillsText()` in `src/lib/ai/engine/post-process.ts` — strip banned summary words and banned/prose skills; structured `logEnhance` on every rule trigger. Runs on **AI output and the deterministic path** (`runDeterministicResumeEnhance()` applies the same helpers after `deterministicEnhance()`). **All surfaces that run Step 13.**
 
 ### Step 15 — Diff Changed Sections
 `diffChangedSections()` in `src/lib/ai/engine/post-process.ts`. Compares output form against input form to produce `changedSections`. Used by UI to highlight changes and by persistence to record what was affected. **All surfaces.**
@@ -111,8 +112,8 @@ Write results to DB.
 ### Step 21 — Quota + Usage Log *(job apply + extension, AI path only)*
 Increment quota counters in DB. Log tokens, model ID, estimated cost via `recordUsageLogForUser()`. Skipped on onboarding (deterministic). Skipped when deterministic fallback runs.
 
-### Step 22 — Manual Flow / Real-time Validation *(UI layer — PENDING, all surfaces)*
-Shown in both diagrams at the bottom. Sentence count, word count, banned words, skills rules, prose block — all validated in real time as the user types in the manual text area. **NOT YET IMPLEMENTED.** Currently the manual textarea has no validation beyond an 8000 char limit.
+### Step 22 — Manual Flow / Real-time Validation *(UI layer — all Refinery surfaces)*
+`validateResume()` in `lib/resume/validation/index.ts`. Section validators wrap `validateSummary()` / `validateSkillsManual()` — UI and server actions call **`validateResume()` only**, never the low-level helpers directly. RefineryPanel shows live hints; `completeOnboarding()`, `saveResumeProfileStudio()`, and `saveJobResumeStudio()` gate on `canFinalize`. See `docs/cursor-prompts/08-resume-validation-framework.md`.
 
 ---
 
@@ -134,7 +135,7 @@ Shown in both diagrams at the bottom. Sentence count, word count, banned words, 
 | 11. AI gates G1–G6 | — | ✅ | ✅ | ✅ resolveFeature("enhance") |
 | 12. ATS score BEFORE | — | ✅ | — | ✅ |
 | 13. Enhance engine | deterministic | AI + fallback | AI + fallback | ✅ |
-| 14. Post-process + Rules | — | ✅ | ✅ | ✅ structured logging + enforcement |
+| 14. Post-process + Rules | ✅ | ✅ | ✅ | ✅ AI + deterministic (`post-process.ts`) |
 | 15. Diff changed sections | ✅ | ✅ | ✅ | ✅ |
 | 16. Extract overrides | — | ✅ | ✅ | ✅ |
 | 17. Persist | base profile | job_resume_tailor | job_resume_tailor | ✅ |
@@ -142,7 +143,7 @@ Shown in both diagrams at the bottom. Sentence count, word count, banned words, 
 | 19. ATS score AFTER | — | ✅ | — | ✅ transient UI only |
 | 20. Pipeline state update | — | — | ✅ | ✅ |
 | 21. Quota + usage log | — | ✅ AI only | ✅ AI only | ✅ |
-| 22. Manual flow validation | ✅ | ✅ | — | ✅ RefineryPanel skills + summary hints |
+| 22. Manual flow validation | ✅ | ✅ | — | ✅ `validateResume()` in RefineryPanel + server gates |
 
 ---
 
@@ -163,7 +164,10 @@ Shown in both diagrams at the bottom. Sentence count, word count, banned words, 
 - `enhanceWithAiOnboarding` feature flag — deleted entirely
 - `isEnhanceOnboardingVisible()` — deleted
 - `fetchEnhanceOnboardingAvailable()` — deleted
-- Onboarding enhance button always rendered, no flag gate
+- Onboarding auto-enhance after upload — `enhanceResumeOnboarding()`; Enhance with AI button removed from onboarding UI
+- Resume validation framework — `lib/resume/validation/`; RefineryPanel + server finalize gates
+- Deterministic Step 14 — `postProcessProfessionalSummary` + `postProcessSkillsText` on `runDeterministicResumeEnhance()`
+- Sign-out clears all EasySubmit web client storage (`lib/auth/client-storage.ts`)
 - `fallbackUsed: boolean` renamed to `engineMode: "ai" | "deterministic"` across all types and callers
 - Features framework built with `enhance` and `subscription` registered
 - `resolve-enhance.ts` — onboarding exits early, all other surfaces check G2–G6
@@ -171,7 +175,7 @@ Shown in both diagrams at the bottom. Sentence count, word count, banned words, 
 ### Completed in session 2026-06-26 (Phase 1)
 - **Step 5: fast-rake + wink-nlp POS filter** — `jd-nlp-extractor.ts`, rake-js + wink-nlp installed
 - **Step 9 + 14: Summary + Skills Rules enforcement** — `post-process.ts` strips banned words, structured `logEnhance` for every rule trigger
-- **Step 22: Manual flow real-time validation** — `RefineryPanel.tsx` shows skills count, count warning, and banned soft-skills list in real time
+- **Step 22: Manual flow real-time validation** — `validateResume()` framework in RefineryPanel + server gates (see `docs/cursor-prompts/08-resume-validation-framework.md`)
 - **Onboarding flow cleanup** — `buildOnboardingIntelligenceContext` (lite: O*NET + bullet quality only, no JD), O*NET implicit skills flow through `directive.mustAddSkills`
 - **Migrate `enhance-resume-for-user.ts`** — uses `resolveEnhanceFeature()` exclusively, no inline gates
 - **Migrate `checkEnhanceWithAiPreflight()`** — uses `resolveFeature("enhance", ...)`, no duplicate logic
@@ -263,7 +267,10 @@ Complete. `enhance-resume-for-user.ts` calls `resolveEnhanceFeature()` exclusive
 | Subscription resolver | `lib/features/resolve-subscription.ts` |
 | Feature types | `lib/features/types.ts` |
 | Framework rules (full) | `docs/features-framework.md` |
-| Cursor prompt | `docs/cursor-prompts/07-features-framework.md` |
+| Cursor prompt (features) | `docs/cursor-prompts/07-features-framework.md` |
+| Cursor prompt (validation) | `docs/cursor-prompts/08-resume-validation-framework.md` |
+| Validation entry | `lib/resume/validation/index.ts` |
+| Onboarding auto-enhance action | `app/actions/ai/enhance-resume.ts` → `enhanceResumeOnboarding()` |
 | Pre-processing orchestrator | `lib/ai/build-enhance-intelligence-context.ts` |
 | Deterministic fallback | `lib/ai/run-deterministic-resume-enhance.ts` |
 | Current enhance action (to migrate) | `lib/ai/enhance-resume-for-user.ts` |

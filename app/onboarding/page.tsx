@@ -4,14 +4,11 @@ import { JetBrains_Mono } from "next/font/google";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft,
-  ChevronDown,
-  ChevronUp,
-  Eye,
-  EyeOff,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { completeOnboarding, completeStep } from "@/app/actions/onboarding";
+import { enhanceResumeOnboarding } from "@/app/actions/ai/enhance-resume";
 import { getLoginIdentity, getProfileIdentity } from "@/app/actions/profile";
 import { IdentityCanvasGhost } from "@/components/onboarding/hub/IdentityCanvasGhost";
 import { SynthesisTransition } from "@/components/onboarding/SynthesisTransition";
@@ -26,14 +23,12 @@ import {
   type RefineryStudioToolbarUi,
 } from "@/components/onboarding/hub/RefineryPanel";
 import { OnboardingWorkbenchChrome } from "@/components/onboarding/hub/OnboardingWorkbenchChrome";
+import { AtsSamplePreviewLinks } from "@/components/onboarding/hub/AtsSamplePreviewLinks";
 import {
-  onboardingHeaderActionClass,
   onboardingHeaderBackClass,
   onboardingHeaderLinkClass,
   ONBOARDING_HEADER_PRIMARY,
 } from "@/components/onboarding/hub/onboarding-header-styles";
-import { EnhanceWithAiButton } from "@/components/resume/EnhanceWithAiFlow";
-import { useResumeEnhanceFlow } from "@/components/resume/useResumeEnhanceFlow";
 import {
   PrimeResume,
   type PrimeResumeData,
@@ -64,12 +59,6 @@ import {
 } from "@/lib/onboarding/workbench-session";
 import { formatLanguagesForResume } from "@/lib/onboarding/languages";
 import { parseProfileName } from "@/lib/profile/name";
-import {
-  ATS_TEMPLATE_DOCX_API_PATH,
-  ATS_TEMPLATE_DOCX_FILENAME,
-  ATS_TEMPLATE_PDF_API_PATH,
-  ATS_TEMPLATE_PDF_FILENAME,
-} from "@/lib/resume/resumeSpec";
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
@@ -319,7 +308,7 @@ export default function OnboardingPage() {
   );
 
   const handleFuelParsed = useCallback(
-    ({ data, rawText }: { data: StructuredResume; rawText: string }) => {
+    async ({ data, rawText }: { data: StructuredResume; rawText: string }) => {
       const form = mergeParsedWithCoordinates(data, coordinates);
       const parsedSkills =
         data.skills.length > 0 ? [...data.skills] : parseSkillsText(form.skillsText);
@@ -332,6 +321,23 @@ export default function OnboardingPage() {
       setStudioSkills(parsedSkills);
       setResumeData(refineryFormToPrimeResume(form));
       setIsScanning(false);
+
+      try {
+        const enhanced = await enhanceResumeOnboarding({
+          form,
+          targetRole: useOnboardingStore.getState().identity.targetRole.trim(),
+        });
+        if (enhanced.success) {
+          const enhancedSkills = parseSkillsText(enhanced.form.skillsText);
+          setRefineryInitial(enhanced.form);
+          setRefineryForm(enhanced.form);
+          setStudioSkills(enhancedSkills);
+          setResumeData(refineryFormToPrimeResume(enhanced.form));
+        }
+      } catch {
+        // pipeline failure is non-fatal — user sees raw parsed form
+      }
+
       goToPhase(3);
     },
     [coordinates, goToPhase, setStudioSkills],
@@ -346,33 +352,6 @@ export default function OnboardingPage() {
       studioSkills.length > 0 ? studioSkills.join(", ") : refineryForm.skillsText;
     return { ...refineryForm, skillsText };
   }, [refineryForm, studioSkills]);
-
-  const handleEnhanceApply = useCallback(
-    (result: {
-      form: HubRefineryForm;
-      skills: string[];
-      sectionExpansion: Record<string, boolean>;
-    }) => {
-      setRefineryForm(result.form);
-      setStudioSkills(result.skills);
-      setSectionExpansion(result.sectionExpansion);
-      setRefineryRevision((revision) => revision + 1);
-      setResumeData(refineryFormToPrimeResume(result.form));
-    },
-    [setStudioSkills],
-  );
-
-  const { flowUi: enhanceFlowUi, openDialog: openEnhanceDialog, isLoading: isEnhancing } =
-    useResumeEnhanceFlow({
-      form: mergedRefineryForm,
-      targetRole: identity.targetRole,
-      rawResumeText,
-      forceSystem: true,
-      variant: "onboarding",
-      registerHeader: false,
-      enabled: true,
-      onApply: handleEnhanceApply,
-    });
 
   const studioPreview = useMemo(() => {
     const skillsText =
@@ -554,95 +533,32 @@ export default function OnboardingPage() {
 
     if (phase === 2) {
       return (
-        <>
-          <a
-            href={ATS_TEMPLATE_PDF_API_PATH}
-            download={ATS_TEMPLATE_PDF_FILENAME}
-            className={cn(monoClass, onboardingHeaderLinkClass)}
-            style={{ color: ONBOARDING_HEADER_PRIMARY }}
-          >
-            Sample PDF
-          </a>
-          <a
-            href={ATS_TEMPLATE_DOCX_API_PATH}
-            download={ATS_TEMPLATE_DOCX_FILENAME}
-            className={cn(monoClass, onboardingHeaderLinkClass)}
-            style={{ color: ONBOARDING_HEADER_PRIMARY }}
-          >
-            Sample DOCX
-          </a>
-        </>
+        <AtsSamplePreviewLinks
+          monoClass={monoClass}
+          linkClassName={onboardingHeaderLinkClass}
+          linkColor={ONBOARDING_HEADER_PRIMARY}
+        />
       );
     }
 
     if (phase === 3) {
       const backLabel = getWorkbenchPhase(2)?.label ?? "Import";
-      const toolbar = studioToolbarUi;
-      const actions = studioToolbarActionsRef.current;
 
       return (
-        <>
-          {toolbar?.hasRawText && actions ? (
-            <button
-              type="button"
-              onClick={() => actions.toggleRawText()}
-              className={cn(monoClass, onboardingHeaderActionClass)}
-              style={{ color: ONBOARDING_HEADER_PRIMARY }}
-            >
-              {toolbar.showRawText ? (
-                <EyeOff className="h-3 w-3" aria-hidden="true" />
-              ) : (
-                <Eye className="h-3 w-3" aria-hidden="true" />
-              )}
-              {toolbar.showRawText ? "Hide raw" : "Raw text"}
-            </button>
-          ) : null}
-          {actions ? (
-            <button
-              type="button"
-              onClick={() => actions.toggleAllSections()}
-              className={cn(monoClass, onboardingHeaderActionClass)}
-              style={{ color: ONBOARDING_HEADER_PRIMARY }}
-              aria-label={
-                toolbar?.allSectionsExpanded
-                  ? "Collapse all sections"
-                  : "Expand all sections"
-              }
-            >
-              {toolbar?.allSectionsExpanded ? (
-                <ChevronUp className="h-3 w-3" aria-hidden="true" />
-              ) : (
-                <ChevronDown className="h-3 w-3" aria-hidden="true" />
-              )}
-              {toolbar?.allSectionsExpanded ? "Collapse all" : "Expand all"}
-            </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={handleRefineryBack}
-            className={cn(monoClass, onboardingHeaderBackClass)}
-            style={{ color: "oklch(0.98 0.01 268)" }}
-          >
-            <ArrowLeft className="h-3 w-3" aria-hidden="true" />
-            {backLabel}
-          </button>
-          <EnhanceWithAiButton
-            variant="onboarding"
-            isLoading={isEnhancing}
-            onClick={openEnhanceDialog}
-          />
-        </>
+        <button
+          type="button"
+          onClick={handleRefineryBack}
+          className={cn(monoClass, onboardingHeaderBackClass)}
+          style={{ color: "oklch(0.98 0.01 268)" }}
+        >
+          <ArrowLeft className="h-3 w-3" aria-hidden="true" />
+          {backLabel}
+        </button>
       );
     }
 
     return null;
-  }, [
-    phase,
-    studioToolbarUi,
-    handleRefineryBack,
-    isEnhancing,
-    openEnhanceDialog,
-  ]);
+  }, [phase, handleRefineryBack]);
 
   const renderPhasePanel = () => {
     switch (phase) {
@@ -733,8 +649,6 @@ export default function OnboardingPage() {
         isPhaseComplete={isPhaseComplete}
         onNavigate={handleBreadcrumbNavigate}
       />
-
-      {enhanceFlowUi}
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <ResumeStudioWorkbench

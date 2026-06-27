@@ -2,6 +2,7 @@
 
 import { JetBrains_Mono } from "next/font/google";
 import { signIn, signOut } from "next-auth/react";
+import { clearClientSessionState } from "@/lib/auth/sign-out-client";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { MarketTruth } from "@/components/MarketTruth";
@@ -149,8 +150,8 @@ function LoginPanel() {
     setError(null);
 
     try {
-      // Clear any surviving EasySubmit session cookie before OAuth (httpOnly cookies
-      // are not removed when users clear "application data" in the browser).
+      // Clear stale EasySubmit client drafts before OAuth and drop any surviving session cookie.
+      clearClientSessionState();
       await signOut({ redirect: false });
     } catch {
       // Already signed out — continue into provider OAuth.

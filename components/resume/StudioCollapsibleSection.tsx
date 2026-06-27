@@ -13,6 +13,7 @@ type StudioCollapsibleSectionProps = {
   variant?: "onboarding" | "dashboard";
   monoClass?: string;
   showDragHandle?: boolean;
+  hasError?: boolean;
 };
 
 export function StudioCollapsibleSection({
@@ -24,6 +25,7 @@ export function StudioCollapsibleSection({
   variant = "onboarding",
   monoClass,
   showDragHandle = true,
+  hasError = false,
 }: StudioCollapsibleSectionProps) {
   const isOnboarding = variant === "onboarding";
 
@@ -58,11 +60,14 @@ export function StudioCollapsibleSection({
           <span
             className={cn(
               monoClass,
-              "block text-sm font-semibold",
+              "inline-flex items-center text-sm font-semibold",
               isOnboarding ? "text-[oklch(0.98_0.01_268)]" : "text-foreground",
             )}
           >
             {title}
+            {hasError ? (
+              <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-[oklch(0.55_0.22_25)]" />
+            ) : null}
           </span>
           {description ? (
             <span

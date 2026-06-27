@@ -5,12 +5,7 @@ import { CheckCircle2, FileUp, Loader2, Upload } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { parseResumeFile } from "@/lib/resume/parseResumeClient";
-import {
-  ATS_TEMPLATE_DOCX_API_PATH,
-  ATS_TEMPLATE_DOCX_FILENAME,
-  ATS_TEMPLATE_PDF_API_PATH,
-  ATS_TEMPLATE_PDF_FILENAME,
-} from "@/lib/resume/resumeSpec";
+import { AtsSamplePreviewLinks } from "@/components/onboarding/hub/AtsSamplePreviewLinks";
 import { IngestionTerminal } from "@/components/onboarding/hub/IngestionTerminal";
 import { InlineAlert } from "@/components/ui/inline-alert";
 import { WorkbenchPhaseIntro } from "@/components/onboarding/hub/WorkbenchPhaseIntro";
@@ -165,24 +160,11 @@ export function FuelPanel({
           monoClass={monoClass}
           icon={<FileUp className="h-3.5 w-3.5" aria-hidden="true" />}
           actions={
-            <>
-              <a
-                href={ATS_TEMPLATE_PDF_API_PATH}
-                download={ATS_TEMPLATE_PDF_FILENAME}
-                className={cn(monoClass, TEMPLATE_LINK_CLASS)}
-                style={{ color: PRIMARY }}
-              >
-                Sample PDF
-              </a>
-              <a
-                href={ATS_TEMPLATE_DOCX_API_PATH}
-                download={ATS_TEMPLATE_DOCX_FILENAME}
-                className={cn(monoClass, TEMPLATE_LINK_CLASS)}
-                style={{ color: PRIMARY }}
-              >
-                Sample DOCX
-              </a>
-            </>
+            <AtsSamplePreviewLinks
+              monoClass={monoClass}
+              linkClassName={TEMPLATE_LINK_CLASS}
+              linkColor={PRIMARY}
+            />
           }
         />
       ) : null}

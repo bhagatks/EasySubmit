@@ -20,7 +20,10 @@ import { PhoneField } from "@/components/onboarding/hub/PhoneField";
 import { StudioSkillsField } from "@/components/onboarding/hub/StudioSkillsField";
 import { LanguagesField } from "@/components/onboarding/hub/LanguagesField";
 import { StudioCollapsibleSection } from "@/components/resume/StudioCollapsibleSection";
-import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
+import {
+  refineryFormToPrimeResume,
+  type HubRefineryForm,
+} from "@/lib/onboarding/hubResume";
 import {
   getWorkbenchPhase,
   WORKBENCH_FINALIZE_LABEL,
@@ -39,6 +42,7 @@ import {
 } from "@/lib/resume/resumeSpec";
 import { validateResume } from "@/lib/resume/validation";
 import type { ValidationIssue } from "@/lib/resume/validation";
+import { analyzeBulletQuality } from "@/lib/job-tracker/ats/bullet-quality";
 import {
   buildInitialStudioSectionState,
   STUDIO_EDITOR_SECTION_LABELS,
@@ -74,6 +78,22 @@ function headerFieldIssues(
   return issues.filter(
     (issue) => issue.severity === "error" && issue.field === field,
   );
+}
+
+function experienceFieldIssues(
+  issues: ValidationIssue[],
+  index: number,
+  field: string,
+): ValidationIssue[] {
+  return issues.filter((issue) => issue.field === `experience[${index}].${field}`);
+}
+
+function educationFieldIssues(
+  issues: ValidationIssue[],
+  index: number,
+  field: string,
+): ValidationIssue[] {
+  return issues.filter((issue) => issue.field === `education[${index}].${field}`);
 }
 
 const INPUT_CLASS =
@@ -401,11 +421,18 @@ export function RefineryPanel({
     [watched, activeSkills, isProfileMode, targetRole],
   );
 
+  const bulletQuality = useMemo(() => {
+    const prime = refineryFormToPrimeResume({
+      ...watched,
+      skillsText: activeSkills.join(", "),
+    });
+    return analyzeBulletQuality(prime);
+  }, [watched, activeSkills]);
+
   const isProceedLocked = !canProceedToCalibration;
   const isProceedDisabled =
     isProceedLocked ||
-    (isProfileMode && !targetRole.trim()) ||
-    !validation.canFinalize;
+    (isProfileMode && (!targetRole.trim() || !validation.canFinalize));
 
   const resolvedBackLabel = backLabel ?? getWorkbenchPhase(2)?.label ?? "Import";
   const resolvedFinalizeLabel =
@@ -537,6 +564,7 @@ export function RefineryPanel({
           onToggle={() => toggleSection("header")}
           variant={editorVariant}
           monoClass={monoClass}
+          hasError={validation.header.hasErrors}
         >
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
@@ -660,6 +688,7 @@ export function RefineryPanel({
           onToggle={() => toggleSection("professionalSummary")}
           variant={editorVariant}
           monoClass={monoClass}
+          hasError={validation.summary.hasErrors}
         >
           <textarea
             {...register("professionalSummary")}
@@ -684,6 +713,7 @@ export function RefineryPanel({
           onToggle={() => toggleSection("skills")}
           variant={editorVariant}
           monoClass={monoClass}
+          hasError={validation.skills.hasErrors}
         >
           <StudioSkillsField
             monoClass={monoClass}
@@ -707,6 +737,7 @@ export function RefineryPanel({
           onToggle={() => toggleSection("professionalExperience")}
           variant={editorVariant}
           monoClass={monoClass}
+          hasError={validation.experience.hasErrors}
         >
           <div className="mb-3 flex justify-end">
             <button
@@ -734,6 +765,14 @@ export function RefineryPanel({
               + Add job
             </button>
           </div>
+
+          {validation.experience.issues
+            .filter((issue) => issue.field === "experience" && issue.severity === "error")
+            .map((issue) => (
+              <p key={issue.code} className="mb-3 text-xs" style={{ color: ERROR }}>
+                {issue.message}
+              </p>
+            ))}
 
           <div className="space-y-4">
             {experienceFields.fields.map((field, index) => {
@@ -802,12 +841,34 @@ export function RefineryPanel({
                       placeholder="Job title"
                       autoComplete="off"
                     />
+                    {experienceFieldIssues(validation.experience.issues, index, "title").map(
+                      (issue) => (
+                        <p
+                          key={issue.code}
+                          className="mt-1 text-xs"
+                          style={{ color: issueColor(issue.severity) }}
+                        >
+                          {issue.message}
+                        </p>
+                      ),
+                    )}
                     <input
                       {...register(`experience.${index}.company`)}
                       className={INPUT_CLASS}
                       placeholder="Company"
                       autoComplete="off"
                     />
+                    {experienceFieldIssues(validation.experience.issues, index, "company").map(
+                      (issue) => (
+                        <p
+                          key={issue.code}
+                          className="mt-1 text-xs"
+                          style={{ color: issueColor(issue.severity) }}
+                        >
+                          {issue.message}
+                        </p>
+                      ),
+                    )}
                     <input
                       {...register(`experience.${index}.location`)}
                       className={INPUT_CLASS}
@@ -842,12 +903,52 @@ export function RefineryPanel({
                         })
                       }
                     />
+                    {experienceFieldIssues(
+                      validation.experience.issues,
+                      index,
+                      "startYear",
+                    ).map((issue) => (
+                      <p
+                        key={issue.code}
+                        className="mt-1 text-xs"
+                        style={{ color: issueColor(issue.severity) }}
+                      >
+                        {issue.message}
+                      </p>
+                    ))}
                     <textarea
                       {...register(`experience.${index}.bullets`)}
                       rows={4}
                       className={cn(INPUT_CLASS, "resize-y")}
                       placeholder={EXPERIENCE_BULLET_PLACEHOLDER}
                     />
+                    {experienceFieldIssues(validation.experience.issues, index, "bullets").map(
+                      (issue) => (
+                        <p
+                          key={issue.code}
+                          className="mt-1 text-xs"
+                          style={{ color: issueColor(issue.severity) }}
+                        >
+                          {issue.message}
+                        </p>
+                      ),
+                    )}
+                    {(() => {
+                      const entry = bulletQuality.entries[index];
+                      if (!entry) return null;
+                      const weak = entry.bullets.filter((b) => b.issues.length > 0);
+                      if (weak.length === 0) return null;
+                      return (
+                        <div className="mt-1 space-y-0.5">
+                          {weak.slice(0, 3).map((b, i) => (
+                            <p key={i} className="text-xs" style={{ color: WARNING }}>
+                              {b.issues[0]?.message ??
+                                "Weak bullet — start with a strong action verb"}
+                            </p>
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               );
@@ -861,6 +962,7 @@ export function RefineryPanel({
           onToggle={() => toggleSection("education")}
           variant={editorVariant}
           monoClass={monoClass}
+          hasError={validation.education.hasErrors}
         >
           <div className="mb-3 flex justify-end">
             <button
@@ -899,12 +1001,34 @@ export function RefineryPanel({
                   placeholder="Degree, Major"
                   autoComplete="off"
                 />
+                {educationFieldIssues(validation.education.issues, index, "degree").map(
+                  (issue) => (
+                    <p
+                      key={issue.code}
+                      className="mt-1 text-xs"
+                      style={{ color: issueColor(issue.severity) }}
+                    >
+                      {issue.message}
+                    </p>
+                  ),
+                )}
                 <input
                   {...register(`education.${index}.school`)}
                   className={INPUT_CLASS}
                   placeholder="Institution"
                   autoComplete="off"
                 />
+                {educationFieldIssues(validation.education.issues, index, "school").map(
+                  (issue) => (
+                    <p
+                      key={issue.code}
+                      className="mt-1 text-xs"
+                      style={{ color: issueColor(issue.severity) }}
+                    >
+                      {issue.message}
+                    </p>
+                  ),
+                )}
                 <input
                   {...register(`education.${index}.location`)}
                   className={INPUT_CLASS}

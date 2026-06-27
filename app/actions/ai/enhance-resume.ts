@@ -181,3 +181,62 @@ export async function updateAiSourcePreference(
 
   return { success: true };
 }
+
+export type EnhanceOnboardingInput = {
+  form: import("@/lib/onboarding/hubResume").HubRefineryForm;
+  targetRole: string;
+};
+
+export type EnhanceOnboardingResult =
+  | {
+      success: true;
+      form: import("@/lib/onboarding/hubResume").HubRefineryForm;
+      skillsAdded: string[];
+      bulletsRewritten: number;
+      summary: string;
+    }
+  | { success: false; error: string };
+
+export async function enhanceResumeOnboarding(
+  input: EnhanceOnboardingInput,
+): Promise<EnhanceOnboardingResult> {
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id;
+  if (!userId) return { success: false, error: "Sign in required." };
+
+  const { createEnhanceTraceId } = await import("@/src/lib/ai/engine/enhance-logger");
+  const { runDeterministicResumeEnhance } = await import("@/lib/ai/run-deterministic-resume-enhance");
+  const { prisma } = await import("@/lib/prisma");
+  const { SYSTEM_QUOTA_USER_SELECT } = await import("@/lib/ai/system-quota-gate-for-user");
+  const { getAppConfig } = await import("@/src/lib/services/config-service");
+
+  const [user, aiEngine] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: SYSTEM_QUOTA_USER_SELECT }),
+    getAppConfig("aiEngine"),
+  ]);
+
+  if (!user) return { success: false, error: "User not found." };
+
+  const traceId = createEnhanceTraceId();
+
+  const result = await runDeterministicResumeEnhance({
+    userId,
+    user,
+    enhanceInput: {
+      form: input.form,
+      targetRole: input.targetRole,
+      variant: "onboarding",
+    },
+    aiEngine,
+    traceId,
+    aiDisabled: true,
+  });
+
+  return {
+    success: true,
+    form: result.form,
+    skillsAdded: result.changedSections,
+    bulletsRewritten: 0,
+    summary: result.fallbackSummary ?? "",
+  };
+}

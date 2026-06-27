@@ -2,7 +2,7 @@ import type { EnhanceResumeProfileInput, EnhanceResumeProfileSuccess } from "@/l
 import { buildEnhanceIntelligenceContext } from "@/lib/ai/build-enhance-intelligence-context";
 import { buildOnboardingIntelligenceContext } from "@/lib/ai/build-onboarding-intelligence-context";
 import { deterministicEnhance } from "@/lib/job-tracker/ats/deterministic-enhancer";
-import { diffChangedSections } from "@/src/lib/ai/engine/post-process";
+import { diffChangedSections, postProcessProfessionalSummary, postProcessSkillsText } from "@/src/lib/ai/engine/post-process";
 import { buildQuotaSnapshot } from "@/src/lib/ai/engine/quota";
 import { logEnhance, summarizeFormDelta } from "@/src/lib/ai/engine/enhance-logger";
 import { ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
@@ -57,6 +57,22 @@ export async function runDeterministicResumeEnhance(input: {
     enhanceDirective,
   );
 
+  const cleanedSummary = postProcessProfessionalSummary(
+    fallback.form.professionalSummary ?? "",
+    input.traceId,
+    input.userId,
+  );
+  const cleanedSkills = postProcessSkillsText(
+    fallback.form.skillsText ?? "",
+    input.traceId,
+    input.userId,
+  );
+  const cleanedForm = {
+    ...fallback.form,
+    professionalSummary: cleanedSummary,
+    skillsText: cleanedSkills,
+  };
+
   const changedSections = diffChangedSections(input.enhanceInput.form, fallback.form, false);
 
   logEnhance("server", "action.deterministic.success", {
@@ -72,7 +88,7 @@ export async function runDeterministicResumeEnhance(input: {
 
   return {
     success: true,
-    form: fallback.form,
+    form: cleanedForm,
     changedSections,
     targetRole: input.enhanceInput.targetRole,
     quota: {

@@ -189,6 +189,8 @@ describe("validateSkillsSection", () => {
 });
 
 describe("validateExperienceSection", () => {
+  const baseForm = validHeaderForm();
+
   it("flags empty experience array as error", () => {
     const result = validateExperienceSection(validHeaderForm({ experience: [] }));
     expect(result.hasErrors).toBe(true);
@@ -307,7 +309,83 @@ describe("validateExperienceSection", () => {
       }),
     );
     expect(result.hasWarnings).toBe(true);
+    expect(result.hasErrors).toBe(true);
     expect(result.issues.some((issue) => issue.code === "experience_bullets_empty")).toBe(true);
+    expect(
+      result.issues.some((issue) => issue.code === "experience_all_bullets_empty"),
+    ).toBe(true);
+  });
+
+  it("all entries have empty bullets → error experience_all_bullets_empty", () => {
+    const form = {
+      ...baseForm,
+      experience: [
+        {
+          id: "1",
+          title: "Engineer",
+          company: "Acme",
+          location: "",
+          startMonth: "",
+          startYear: "2020",
+          endMonth: "",
+          endYear: "",
+          bullets: "",
+          hidden: false,
+        },
+        {
+          id: "2",
+          title: "Analyst",
+          company: "Corp",
+          location: "",
+          startMonth: "",
+          startYear: "2019",
+          endMonth: "",
+          endYear: "",
+          bullets: "   ",
+          hidden: false,
+        },
+      ],
+    };
+    const result = validateExperienceSection(form as HubRefineryForm);
+    expect(
+      result.issues.some(
+        (i) => i.code === "experience_all_bullets_empty" && i.severity === "error",
+      ),
+    ).toBe(true);
+  });
+
+  it("one entry has bullets → no experience_all_bullets_empty error", () => {
+    const form = {
+      ...baseForm,
+      experience: [
+        {
+          id: "1",
+          title: "Engineer",
+          company: "Acme",
+          location: "",
+          startMonth: "",
+          startYear: "2020",
+          endMonth: "",
+          endYear: "",
+          bullets: "Built things",
+          hidden: false,
+        },
+        {
+          id: "2",
+          title: "Analyst",
+          company: "Corp",
+          location: "",
+          startMonth: "",
+          startYear: "2019",
+          endMonth: "",
+          endYear: "",
+          bullets: "",
+          hidden: false,
+        },
+      ],
+    };
+    const result = validateExperienceSection(form as HubRefineryForm);
+    expect(result.issues.some((i) => i.code === "experience_all_bullets_empty")).toBe(false);
   });
 
   it("accepts valid entry with no errors", () => {

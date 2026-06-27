@@ -1,32 +1,17 @@
 import { signOut } from "next-auth/react";
-import { clearSessionApiKeyVault } from "@/src/lib/ai/session-key-vault";
-import { useIgnitionStore } from "@/src/stores/use-ignition-store";
-import { useOnboardingStore } from "@/src/stores/onboarding-store";
-
-const ONBOARDING_STORAGE_KEY = "easysubmit-onboarding";
-const IGNITION_PREFS_STORAGE_KEY = "easysubmit-ignition-prefs";
+import { clearEasySubmitClientStorage } from "@/lib/auth/client-storage";
 
 /**
  * Clear client-side auth state before NextAuth sign-out.
  *
- * Cleared: Zustand onboarding + ignition stores, session BYOK cipher/vault keys,
- * onboarding sessionStorage draft, ignition provider/model prefs in localStorage.
+ * Clears all EasySubmit web client storage: Zustand stores, workbench resume draft,
+ * BYOK session vault, onboarding/ignition prefs, studio UI prefs, and related caches.
  *
- * Kept: server data (profiles, job tracker entries, vaulted BYOK refs), NextAuth until
- * signOut completes, and non-sensitive UI prefs (studio zoom, page size, fonts).
+ * Server data (profiles, job tracker, vaulted BYOK refs) is unchanged.
+ * Chrome extension storage is unchanged — extension handles its own auth lifecycle.
  */
 export function clearClientSessionState(): void {
-  useOnboardingStore.getState().resetStore();
-  useIgnitionStore.getState().resetIgnition();
-  clearSessionApiKeyVault();
-
-  if (typeof sessionStorage !== "undefined") {
-    sessionStorage.removeItem(ONBOARDING_STORAGE_KEY);
-  }
-
-  if (typeof localStorage !== "undefined") {
-    localStorage.removeItem(IGNITION_PREFS_STORAGE_KEY);
-  }
+  clearEasySubmitClientStorage();
 }
 
 /** Sign out via NextAuth and return the user to `/login` (always stays on EasySubmit). */

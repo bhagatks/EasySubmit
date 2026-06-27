@@ -1,4 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  APPLIED_ARCHIVE_TOAST_KEY,
+  DASHBOARD_EXTENSION_ID_KEY,
+  IGNITION_PREFS_STORAGE_KEY,
+  ONBOARDING_STORAGE_KEY,
+} from "@/lib/auth/client-storage";
+import { WORKBENCH_SESSION_STORAGE_KEY } from "@/lib/onboarding/workbench-session";
+import { PAGE_SIZE_STORAGE_KEY } from "@/lib/resume/page-sizes";
+import { STUDIO_ZOOM_STORAGE_KEY } from "@/lib/resume/studio-preview-zoom";
 
 const { signOutMock, resetStoreMock, resetIgnitionMock, clearVaultMock, assignMock } =
   vi.hoisted(() => ({
@@ -34,6 +43,10 @@ import { clearClientSessionState, signOutUser } from "@/lib/auth/sign-out-client
 function createStorageMock() {
   let store: Record<string, string> = {};
   return {
+    get length() {
+      return Object.keys(store).length;
+    },
+    key: (index: number) => Object.keys(store)[index] ?? null,
     getItem: (key: string) => store[key] ?? null,
     setItem: (key: string, value: string) => {
       store[key] = value;
@@ -53,19 +66,35 @@ describe("sign-out-client", () => {
     vi.stubGlobal("sessionStorage", createStorageMock());
     vi.stubGlobal("localStorage", createStorageMock());
     vi.stubGlobal("window", { location: { assign: assignMock } });
-    sessionStorage.setItem("easysubmit-onboarding", "{}");
-    localStorage.setItem("easysubmit-ignition-prefs", "{}");
+
+    sessionStorage.setItem(ONBOARDING_STORAGE_KEY, "{}");
+    sessionStorage.setItem(WORKBENCH_SESSION_STORAGE_KEY, "{}");
+    sessionStorage.setItem("easysubmit-ignition-vault-key", "vault");
+    localStorage.setItem(IGNITION_PREFS_STORAGE_KEY, "{}");
+    localStorage.setItem(STUDIO_ZOOM_STORAGE_KEY, "100");
+    localStorage.setItem(PAGE_SIZE_STORAGE_KEY, "letter");
+    localStorage.setItem(DASHBOARD_EXTENSION_ID_KEY, "abc123");
+    localStorage.setItem(APPLIED_ARCHIVE_TOAST_KEY, "1");
+    localStorage.setItem("openai_key", "legacy");
+
     signOutMock.mockResolvedValue(undefined);
   });
 
-  it("clearClientSessionState resets stores and removes persisted keys", () => {
+  it("clearClientSessionState resets stores and removes all EasySubmit storage", () => {
     clearClientSessionState();
 
     expect(resetStoreMock).toHaveBeenCalledOnce();
     expect(resetIgnitionMock).toHaveBeenCalledOnce();
     expect(clearVaultMock).toHaveBeenCalledOnce();
-    expect(sessionStorage.getItem("easysubmit-onboarding")).toBeNull();
-    expect(localStorage.getItem("easysubmit-ignition-prefs")).toBeNull();
+    expect(sessionStorage.getItem(ONBOARDING_STORAGE_KEY)).toBeNull();
+    expect(sessionStorage.getItem(WORKBENCH_SESSION_STORAGE_KEY)).toBeNull();
+    expect(sessionStorage.getItem("easysubmit-ignition-vault-key")).toBeNull();
+    expect(localStorage.getItem(IGNITION_PREFS_STORAGE_KEY)).toBeNull();
+    expect(localStorage.getItem(STUDIO_ZOOM_STORAGE_KEY)).toBeNull();
+    expect(localStorage.getItem(PAGE_SIZE_STORAGE_KEY)).toBeNull();
+    expect(localStorage.getItem(DASHBOARD_EXTENSION_ID_KEY)).toBeNull();
+    expect(localStorage.getItem(APPLIED_ARCHIVE_TOAST_KEY)).toBeNull();
+    expect(localStorage.getItem("openai_key")).toBeNull();
   });
 
   it("signOutUser clears client state then signs out via NextAuth redirect", async () => {

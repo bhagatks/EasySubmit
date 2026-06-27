@@ -281,6 +281,21 @@ export function validateExperienceSection(form: HubRefineryForm): SectionValidat
     }
   }
 
+  const entries = form.experience ?? [];
+  const nonHidden = entries.filter((e) => e.hidden !== true);
+  const allBulletsEmpty =
+    nonHidden.length > 0 && nonHidden.every((e) => !e.bullets?.trim());
+
+  if (allBulletsEmpty) {
+    issues.push({
+      field: "experience",
+      code: "experience_all_bullets_empty",
+      severity: "error",
+      message:
+        "Add bullet points to at least one experience entry — ATS systems need content to evaluate.",
+    });
+  }
+
   return sectionResult(issues);
 }
 
