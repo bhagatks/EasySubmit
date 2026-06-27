@@ -58,6 +58,40 @@ export const ENHANCE_PIPELINE = {
 
   /** Engine: deterministic fallback enhancer ran. */
   ENGINE_DETERMINISTIC: "25_engine_deterministic",
+
+  // ─── Pre-processing steps (70–79) ────────────────────────────────────────────
+
+  /** Pre: onboarding lite context builder started (no JD path). */
+  PRE_ONBOARDING_START: "70_pre_onboarding_start",
+  /** Pre: O*NET role vocabulary fetched. */
+  PRE_ONET_FETCH: "71_pre_onet_fetch",
+  /** Pre: bullet quality analysis complete. */
+  PRE_BULLET_QUALITY: "72_pre_bullet_quality",
+  /** Pre: keyword gap analysis complete (JD surfaces only). */
+  PRE_KEYWORD_GAP: "73_pre_keyword_gap",
+  /** Pre: ATS parse simulation complete (JD surfaces only). */
+  PRE_ATS_PARSE: "74_pre_ats_parse",
+  /** Pre: JD brain analysis complete — cache hit or miss noted. */
+  PRE_JD_BRAIN: "75_pre_jd_brain",
+  /** Pre: enhance directive built from JDIntelligence. */
+  PRE_JD_DIRECTIVE: "76_pre_jd_directive",
+  /** Pre: all pre-processing steps done, context ready for engine. */
+  PRE_CONTEXT_READY: "77_pre_context_ready",
+
+  // ─── Post-enhance / persist steps (80–89) ────────────────────────────────────
+
+  /** Post: ATS readiness score computed before enhance. */
+  POST_ATS_BEFORE: "80_post_ats_before",
+  /** Post: section overrides extracted (enhanced vs base profile diff). */
+  POST_OVERRIDES: "81_post_overrides",
+  /** Post: job_resume_tailor row persisted. */
+  POST_PERSIST: "82_post_persist",
+  /** Post: cover letter seed built and saved. */
+  POST_COVER_SEED: "83_post_cover_seed",
+  /** Post: ATS readiness score computed after enhance. */
+  POST_ATS_AFTER: "84_post_ats_after",
+  /** Post: job tracker status + pipeline metadata updated (extension only). */
+  POST_PIPELINE_STATE: "85_post_pipeline_state",
 } as const;
 
 export type EnhancePipelineStep =
@@ -93,6 +127,22 @@ export const ENHANCE_PIPELINE_HINTS: Record<EnhancePipelineStep, string> = {
   [ENHANCE_PIPELINE.SERVER_JD_INTELLIGENCE]: "ATS intelligence computed from JD",
   [ENHANCE_PIPELINE.SERVER_JD_DIRECTIVE]: "JD Brain directive built for pass 2",
   [ENHANCE_PIPELINE.ENGINE_DETERMINISTIC]: "Deterministic fallback — no AI rewrite",
+
+  [ENHANCE_PIPELINE.PRE_ONBOARDING_START]: "Onboarding lite context — O*NET + bullet quality only",
+  [ENHANCE_PIPELINE.PRE_ONET_FETCH]: "O*NET role vocabulary fetched",
+  [ENHANCE_PIPELINE.PRE_BULLET_QUALITY]: "Bullet quality analysis complete",
+  [ENHANCE_PIPELINE.PRE_KEYWORD_GAP]: "Keyword gap analysis complete",
+  [ENHANCE_PIPELINE.PRE_ATS_PARSE]: "ATS parse simulation complete",
+  [ENHANCE_PIPELINE.PRE_JD_BRAIN]: "JD brain analysis complete",
+  [ENHANCE_PIPELINE.PRE_JD_DIRECTIVE]: "Enhance directive built",
+  [ENHANCE_PIPELINE.PRE_CONTEXT_READY]: "Pre-processing done — context ready for engine",
+
+  [ENHANCE_PIPELINE.POST_ATS_BEFORE]: "ATS readiness score before enhance",
+  [ENHANCE_PIPELINE.POST_OVERRIDES]: "Section overrides extracted from enhanced vs base diff",
+  [ENHANCE_PIPELINE.POST_PERSIST]: "job_resume_tailor persisted",
+  [ENHANCE_PIPELINE.POST_COVER_SEED]: "Cover letter seed built and saved",
+  [ENHANCE_PIPELINE.POST_ATS_AFTER]: "ATS readiness score after enhance",
+  [ENHANCE_PIPELINE.POST_PIPELINE_STATE]: "Job tracker status + metadata updated",
 };
 
 /** Extension apply + tailor pipeline steps (40–51). */

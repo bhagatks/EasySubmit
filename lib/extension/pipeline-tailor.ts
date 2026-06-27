@@ -7,12 +7,7 @@ import {
   recordPipelineTailorError,
 } from "@/lib/extension/pipeline-metadata";
 import type { ApplyPipelinePhase } from "@/lib/extension/pipeline-types";
-import { extractJobResumeOverrides } from "@/lib/profile/job-resume-overrides";
-import {
-  updateJobReviewDocuments,
-  upsertJobResumeTailor,
-} from "@/lib/profile/job-resume-tailor";
-import { buildCoverLetterSeedPatch } from "@/lib/job-tracker/build-deterministic-cover-letter";
+import { persistEnhancedResume } from "@/lib/job-tracker/persist-enhanced-resume";
 import { resolveSourceProfileForJob } from "@/lib/profile/copy-profile-for-job";
 import {
   hubRefineryFormFromProfile,
@@ -25,7 +20,7 @@ import {
   summarizeFormDelta,
   summarizeFormForLog,
 } from "@/src/lib/ai/engine/enhance-logger";
-import { TAILOR_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
+import { TAILOR_PIPELINE, ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
 
 const MIN_JD_CHARS = 120;
 
@@ -175,7 +170,7 @@ export async function runPipelineTailor(
   logEnhance("pipeline", "tailor.enhance_result", {
     traceId,
     step: TAILOR_PIPELINE.TAILOR_ENHANCE_RESULT,
-    fallbackUsed: enhanced.fallbackUsed ?? false,
+    engineMode: enhanced.engineMode ?? "ai",
     fallbackSummary: enhanced.fallbackSummary ?? null,
     partialEnhance: enhanced.partialEnhance ?? false,
     changedSections: enhanced.changedSections,
@@ -184,66 +179,41 @@ export async function runPipelineTailor(
     delta: summarizeFormDelta(baseForm, enhanced.form),
   });
 
-  const mergedForm = {
-    ...enhanced.form,
-    skillsText: enhanced.form.skillsText,
-  };
-
-  const { overrides, changedSections } = extractJobResumeOverrides(
-    baseForm,
-    mergedForm,
-    baseTargetTitle,
-    enhanced.targetRole,
-  );
-
-  logEnhance("pipeline", "tailor.overrides", {
+  logEnhance("pipeline", "tailor.persist", {
     traceId,
-    step: TAILOR_PIPELINE.TAILOR_OVERRIDES,
-    changedSections,
-    overrideKeys: Object.keys(overrides),
-    targetTitleOverride: overrides.targetTitle ?? null,
-    summaryInOverrides: overrides.professionalSummary !== undefined,
-    skillsInOverrides: overrides.skillsText !== undefined,
-    experienceEntriesInOverrides: overrides.experience?.length ?? 0,
+    step: TAILOR_PIPELINE.TAILOR_PERSIST,
+    entryId: input.entryId,
+    sourceProfileId: source.id,
   });
 
-  try {
-    logEnhance("pipeline", "tailor.persist", {
-      traceId,
-      step: TAILOR_PIPELINE.TAILOR_PERSIST,
-      entryId: input.entryId,
-      sourceProfileId: source.id,
-    });
+  const persist = await persistEnhancedResume({
+    userId,
+    jobId: input.entryId,
+    enhancedForm: enhanced.form,
+    enhancedTargetRole: enhanced.targetRole,
+    baseForm,
+    baseTargetTitle,
+    sourceProfileId: source.id,
+    jobTitle,
+    company: input.company ?? null,
+    jobDescription: input.jobDescription!.trim(),
+    enhanceTraceId: traceId,
+    traceId,
+  });
 
-    await upsertJobResumeTailor({
-      jobTrackerEntryId: input.entryId,
-      userId,
-      sourceProfileId: source.id,
-      overrides,
-      changedSections,
-      enhanceTraceId: traceId,
-    });
-
-    const coverPatch = buildCoverLetterSeedPatch({
-      form: mergedForm,
-      targetTitle: enhanced.targetRole,
-      company: input.company ?? null,
-      jobTitle,
-      jobDescription: input.jobDescription,
-    });
-    if (coverPatch) {
-      await updateJobReviewDocuments(userId, input.entryId, coverPatch);
-    }
-  } catch {
+  if (!persist.success) {
     const message = "Failed to save tailored resume for this job";
     logEnhance("pipeline", "tailor.persist_failed", {
       traceId,
       step: TAILOR_PIPELINE.TAILOR_FAIL,
       reason: "persist_failed",
+      error: persist.error,
     });
     await recordPipelineTailorError(userId, input.entryId, message, "persist_failed");
     return { success: false, error: message, code: "persist_failed" };
   }
+
+  const { changedSections } = persist;
 
   await updateJobTrackerStatus(userId, input.entryId, "RESUME_READY");
   await mergeJobEntryMetadata(userId, input.entryId, {
@@ -251,6 +221,15 @@ export async function runPipelineTailor(
     pipelineErrorCode: null,
     pipelinePhases: ["capture", "tailor"],
     lastTailoredAt: new Date().toISOString(),
+    sourceProfileId: source.id,
+  });
+
+  logEnhance("pipeline", "post.pipeline_state.done", {
+    traceId,
+    step: ENHANCE_PIPELINE.POST_PIPELINE_STATE,
+    entryId: input.entryId,
+    status: "RESUME_READY",
+    phases: ["capture", "tailor"],
     sourceProfileId: source.id,
   });
 

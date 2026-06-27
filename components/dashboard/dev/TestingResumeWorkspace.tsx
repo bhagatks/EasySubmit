@@ -59,7 +59,7 @@ function RunDiff({ run }: { run: TestRun }) {
         <span>{result.changedSections.length} section(s) changed</span>
         <span>·</span>
         <span>{result.aiMode === "customer" ? "BYOK" : "System AI"}</span>
-        {result.fallbackUsed && <span className="text-yellow-400">· fallback</span>}
+        {result.engineMode === "deterministic" && <span className="text-yellow-400">· deterministic</span>}
       </div>
       <div className="grid gap-3">
         <SectionDiff label="Summary" before={before.professionalSummary} after={afterForm.professionalSummary} />

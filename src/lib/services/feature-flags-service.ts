@@ -2,7 +2,6 @@ import { prisma } from "@/lib/prisma";
 
 /** Stable DB keys — use snake_case for ops/SQL. */
 export const FEATURE_FLAG_KEYS = {
-  enhanceWithAiOnboarding: "enhance_with_ai_onboarding",
   enhanceWithAiResumeProfile: "enhance_with_ai_resume_profile",
   extensionGlobalSwitch: "extension_global_switch",
   extensionAutoApply: "extension_auto_apply",
@@ -31,11 +30,6 @@ export const FEATURE_FLAG_REGISTRY: Record<
   keyof typeof FEATURE_FLAG_KEYS,
   FeatureFlagDefinition
 > = {
-  enhanceWithAiOnboarding: {
-    key: FEATURE_FLAG_KEYS.enhanceWithAiOnboarding,
-    description: "Show Enhance with AI in onboarding Studio (phase 3)",
-    defaultEnabled: true,
-  },
   enhanceWithAiResumeProfile: {
     key: FEATURE_FLAG_KEYS.enhanceWithAiResumeProfile,
     description: "Show Enhance with AI in dashboard resume profile studio",
@@ -60,7 +54,6 @@ export const FEATURE_FLAG_REGISTRY: Record<
 };
 
 export type FeatureFlagsSnapshot = {
-  enhanceWithAiOnboarding: boolean;
   enhanceWithAiResumeProfile: boolean;
   extensionGlobalSwitch: boolean;
   extensionAutoApply: boolean;
@@ -68,7 +61,6 @@ export type FeatureFlagsSnapshot = {
 };
 
 export const FEATURE_FLAGS_DEFAULTS: FeatureFlagsSnapshot = {
-  enhanceWithAiOnboarding: FEATURE_FLAG_REGISTRY.enhanceWithAiOnboarding.defaultEnabled,
   enhanceWithAiResumeProfile: FEATURE_FLAG_REGISTRY.enhanceWithAiResumeProfile.defaultEnabled,
   extensionGlobalSwitch: FEATURE_FLAG_REGISTRY.extensionGlobalSwitch.defaultEnabled,
   extensionAutoApply: FEATURE_FLAG_REGISTRY.extensionAutoApply.defaultEnabled,
@@ -135,11 +127,6 @@ export async function getFeatureFlags(): Promise<FeatureFlagsSnapshot> {
   const byKey = new Map(rows.map((row) => [row.key, row.enabled]));
 
   return {
-    enhanceWithAiOnboarding: resolveEnabled(
-      FEATURE_FLAG_REGISTRY.enhanceWithAiOnboarding.key,
-      FEATURE_FLAG_REGISTRY.enhanceWithAiOnboarding.defaultEnabled,
-      byKey,
-    ),
     enhanceWithAiResumeProfile: resolveEnabled(
       FEATURE_FLAG_REGISTRY.enhanceWithAiResumeProfile.key,
       FEATURE_FLAG_REGISTRY.enhanceWithAiResumeProfile.defaultEnabled,
@@ -201,9 +188,3 @@ export function isSystemAiEnabled(flags: Pick<FeatureFlagsSnapshot, "systemAiEna
   return flags.systemAiEnabled;
 }
 
-/** Onboarding studio — requires feature flag and system AI enabled. */
-export function isEnhanceOnboardingVisible(
-  flags: FeatureFlagsSnapshot,
-): boolean {
-  return flags.enhanceWithAiOnboarding && isSystemAiEnabled(flags);
-}

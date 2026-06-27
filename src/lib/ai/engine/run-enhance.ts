@@ -65,10 +65,12 @@ export type RunEnhanceSuccess = {
   matchScore?: number;
   partialEnhance?: boolean;
   partialEnhanceMessage?: string;
-  /** True when AI failed and the deterministic engine was used instead. */
+  /** Which engine produced the output. */
   fallbackUsed?: boolean;
   fallbackSummary?: string;
   fallbackChanges?: DeterministicEnhanceResult["changes"];
+  /** True when user has AI disabled in settings. */
+  aiDisabled?: boolean;
 };
 
 export type RunEnhanceFailure = {
@@ -424,7 +426,7 @@ export async function runResumeEnhance(
       pass: "generate",
     });
 
-    let finalBody = normalizeEnhancedBody(pass1Body, input.form);
+    let finalBody = normalizeEnhancedBody(pass1Body, input.form, traceId, input.userId ?? "unknown");
 
     if (ctx.jobDescription) {
       const optimizeCtx: CandidateContext = {
@@ -451,7 +453,7 @@ export async function runResumeEnhance(
 
         const pass2Body = parseEnhancedResumeBody(pass2.text);
         if (pass2Body) {
-          finalBody = normalizeEnhancedBody(pass2Body, input.form);
+          finalBody = normalizeEnhancedBody(pass2Body, input.form, traceId, input.userId ?? "unknown");
           logEnhance("engine", "run.parse_ok", {
             traceId,
             step: ENHANCE_PIPELINE.ENGINE_MERGE,

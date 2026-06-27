@@ -11,6 +11,6 @@ export const SYSTEM_AI_DAILY_CALL_LIMIT = AI_ENGINE_DEFAULTS.quotas.system.daily
 export const SYSTEM_GEMINI_MODEL =
   process.env.EASYSUBMIT_SYSTEM_GEMINI_MODEL?.trim() || AI_ENGINE_DEFAULTS.system.modelId;
 
-export type AiSourcePreference = "auto" | "customer" | "system";
+export type AiSourcePreference = "auto" | "customer" | "system" | "disabled";
 
 export type AiRouteMode = "customer" | "system";

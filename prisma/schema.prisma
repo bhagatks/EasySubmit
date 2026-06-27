@@ -29,7 +29,7 @@ model User {
   /// Active BYOK provider (e.g. `anthropic`, `openai`, `gemini`).
   activeProvider   String?
   /// `auto` | `customer` | `system` — which AI key powers enhance flows.
-  aiSourcePreference String       @default("auto")
+  aiSourcePreference String       @default("disabled")
   aiEnhancementsToday Int         @default(0)
   aiCallsToday        Int         @default(0)
   aiQuotaResetAt      DateTime    @default(now())

@@ -1,3 +1,4 @@
+import { isAiGloballyEnabled } from "@/lib/ai/ai-global-enabled";
 import { prisma } from "@/lib/prisma";
 import type { ResumeProfilePickerMode } from "@/lib/generated/prisma/client";
 import {
@@ -10,6 +11,7 @@ export type ExtensionUserPrefs = {
   resumeProfilePickerMode: ResumeProfilePickerMode;
   customizeResume: boolean;
   applicationProfile: ApplicationProfile | null;
+  aiSourcePreference: string;
 };
 
 export async function getExtensionUserPrefs(userId: string): Promise<ExtensionUserPrefs> {
@@ -20,6 +22,7 @@ export async function getExtensionUserPrefs(userId: string): Promise<ExtensionUs
       resumeProfilePickerMode: true,
       customizeResume: true,
       applicationProfile: true,
+      aiSourcePreference: true,
     },
   });
 
@@ -28,5 +31,6 @@ export async function getExtensionUserPrefs(userId: string): Promise<ExtensionUs
     resumeProfilePickerMode: user?.resumeProfilePickerMode ?? "DEFAULT",
     customizeResume: user?.customizeResume ?? true,
     applicationProfile: parseApplicationProfile(user?.applicationProfile ?? null),
+    aiSourcePreference: user?.aiSourcePreference ?? "disabled",
   };
 }

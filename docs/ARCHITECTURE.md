@@ -160,6 +160,10 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 
 | Date | Summary |
 |------|---------|
+| 2026-06-26 | Prod cutover checklist — `docs/PROD_CUTOVER.md` (DB/P3009, Vercel env, Google OAuth prod todo, storage, smoke tests); OAuth local client recreated — prod redirect URIs still required |
+| 2026-06-26 | OAuth setup doc — `docs/oauth-setup.md` (Google Cloud from scratch, redirect URIs, env vars, troubleshooting); linked from `ENV.md` + `FLOW.md` |
+| 2026-06-26 | Login UI — `/login` LinkedIn-first OAuth buttons + muted “LinkedIn is preferred” hint below terms consent |
+| 2026-06-26 | AI settings (Prompt 03) — `aiSourcePreference` adds `disabled`; env `EASYSUBMIT_AI_GLOBALLY_ENABLED` + `NEXT_PUBLIC_AI_GLOBALLY_ENABLED`; router `ai_disabled` / `ai_globally_disabled` → deterministic resume enhance; Settings Enable/Disable toggle; review + extension “Enhance” label when AI off |
 | 2026-06-26 | Deterministic fallback (Option 1) — `EnhancePlan` + `applyEnhancePlan` use JD Brain `mustAddSkills` (not raw keyword-gap tokens); summary flagged, not rewritten on fallback |
 | 2026-06-26 | System AI kill switch — `feature_flags.system_ai_enabled` replaces `app_config` enable gate; user Settings unchanged (AI source, one-click, resume picker) |
 | 2026-06-26 | Skills quality rules — shared `lib/resume/skills-rules.ts` (count gates, banned slot-wasters, prose detection); enforced in AI post-process, deterministic enhancer, readiness score, and StudioSkillsField |

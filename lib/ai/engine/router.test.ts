@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { AI_ENGINE_DEFAULTS } from "@/src/lib/services/ai-engine-config";
 
 vi.mock("@/lib/prisma", () => ({
@@ -37,28 +37,61 @@ describe("resolveEffectiveAiSource", () => {
 });
 
 describe("resolveAiRoute", () => {
+  const originalGlobalAi = process.env.EASYSUBMIT_AI_GLOBALLY_ENABLED;
+
   beforeEach(() => {
     vi.mocked(hasSystemGeminiKeys).mockResolvedValue(true);
     vi.mocked(hasHealthySystemPoolSlot).mockResolvedValue(true);
+    process.env.EASYSUBMIT_AI_GLOBALLY_ENABLED = "true";
+  });
+
+  afterEach(() => {
+    if (originalGlobalAi === undefined) {
+      delete process.env.EASYSUBMIT_AI_GLOBALLY_ENABLED;
+    } else {
+      process.env.EASYSUBMIT_AI_GLOBALLY_ENABLED = originalGlobalAi;
+    }
+  });
+
+  it("returns ai_globally_disabled when global kill switch is off", async () => {
+    process.env.EASYSUBMIT_AI_GLOBALLY_ENABLED = "false";
+
+    const route = await resolveAiRoute({
+      aiSourcePreference: "auto",
+      vaultKeyId: null,
+      activeProvider: null,
+    });
+
+    expect(route).toEqual({ error: "ai_globally_disabled" });
+  });
+
+  it("returns ai_disabled when user preference is disabled", async () => {
+    const route = await resolveAiRoute({
+      aiSourcePreference: "disabled",
+      vaultKeyId: "vault-1",
+      activeProvider: "gemini",
+    });
+
+    expect(route).toEqual({ error: "ai_disabled" });
   });
 
   it("returns system_pool_exhausted when pool is down and user has not opted into BYOK", async () => {
     vi.mocked(hasHealthySystemPoolSlot).mockResolvedValue(false);
 
     const route = await resolveAiRoute({
-      aiSourcePreference: "system",
-      vaultKeyId: "vault-1",
-      activeProvider: "gemini",
+      aiSourcePreference: "auto",
+      vaultKeyId: null,
+      activeProvider: null,
     });
 
-    expect(route).toEqual({ error: "system_pool_exhausted", byokAvailable: true });
+    expect(route).toEqual({ error: "system_pool_exhausted", byokAvailable: false });
   });
 
   it("uses BYOK only when user explicitly allows fallback", async () => {
     vi.mocked(hasHealthySystemPoolSlot).mockResolvedValue(false);
 
     const route = await resolveAiRoute({
-      aiSourcePreference: "system",
+      aiSourcePreference: "auto",
       vaultKeyId: "vault-1",
       activeProvider: "gemini",
       allowByokFallback: true,

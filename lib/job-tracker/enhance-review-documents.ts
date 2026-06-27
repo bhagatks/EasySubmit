@@ -1,16 +1,14 @@
 import { enhanceResumeForUserId } from "@/lib/ai/enhance-resume-for-user";
 import { enhanceCoverLetterForUserId } from "@/lib/ai/enhance-cover-letter-for-user";
-import { buildCoverLetterSeedPatch } from "@/lib/job-tracker/build-deterministic-cover-letter";
 import { computeResumeReadiness } from "@/lib/job-tracker/ats/resume-readiness-score";
 import { generateResumeLatex } from "@/lib/job-tracker/latex/review-latex";
 import { buildCoverLetterDocumentPatch } from "@/lib/job-tracker/persist-cover-letter";
+import { persistEnhancedResume } from "@/lib/job-tracker/persist-enhanced-resume";
 import { refineryFormToPrimeResume } from "@/lib/onboarding/hubResume";
-import { extractJobResumeOverrides } from "@/lib/profile/job-resume-overrides";
 import {
   getMergedResumeForJob,
   getJobResumeTailorForEntry,
   updateJobReviewDocuments,
-  upsertJobResumeTailor,
 } from "@/lib/profile/job-resume-tailor";
 import {
   hubRefineryFormFromProfile,
@@ -18,12 +16,13 @@ import {
 } from "@/lib/profile/studio-form-db";
 import { findProfileForUser } from "@/lib/profile/resume-profile-core";
 import { prisma } from "@/lib/prisma";
-import { createEnhanceTraceId } from "@/src/lib/ai/engine/enhance-logger";
+import { createEnhanceTraceId, logEnhance } from "@/src/lib/ai/engine/enhance-logger";
+import { ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
 
 export type EnhanceResumeActionResult =
   | {
       success: true;
-      fallbackUsed?: boolean;
+      engineMode?: "ai" | "deterministic";
       fallbackSummary?: string;
       aiMode?: "customer" | "system";
       atsDelta?: { before: number; after: number };
@@ -34,7 +33,7 @@ export type EnhanceResumeActionResult =
 export type EnhanceCoverActionResult =
   | {
       success: true;
-      fallbackUsed?: boolean;
+      engineMode?: "ai" | "deterministic";
       fallbackSummary?: string;
       aiMode?: "customer" | "system";
     }
@@ -73,10 +72,18 @@ export async function enhanceJobResumeForUser(
     };
   }
 
+  const traceId = createEnhanceTraceId();
+
   const beforePrime = refineryFormToPrimeResume(merged.form);
   const beforeScore = computeResumeReadiness(beforePrime, merged.targetTitle, description).total;
 
-  const traceId = createEnhanceTraceId();
+  logEnhance("server", "post.ats_before", {
+    traceId,
+    step: ENHANCE_PIPELINE.POST_ATS_BEFORE,
+    userId,
+    jobId,
+    atsScoreBefore: beforeScore,
+  });
   const enhanced = await enhanceResumeForUserId(userId, {
     profileId: merged.sourceProfileId,
     jobEntryId: jobId,
@@ -105,46 +112,50 @@ export async function enhanceJobResumeForUser(
 
   const baseForm = hubRefineryFormFromProfile(source);
   const baseTargetTitle = targetTitleFromProfile(source);
-  const { overrides, changedSections } = extractJobResumeOverrides(
-    baseForm,
-    enhanced.form,
-    baseTargetTitle,
-    enhanced.targetRole,
-  );
 
-  await upsertJobResumeTailor({
-    jobTrackerEntryId: jobId,
+  const persist = await persistEnhancedResume({
     userId,
+    jobId,
+    enhancedForm: enhanced.form,
+    enhancedTargetRole: enhanced.targetRole,
+    baseForm,
+    baseTargetTitle,
     sourceProfileId: merged.sourceProfileId,
-    overrides,
-    changedSections,
+    jobTitle: job.title,
+    company: job.company,
+    jobDescription: description,
     enhanceTraceId: traceId,
+    traceId,
   });
 
+  if (!persist.success) {
+    return { success: false, error: persist.error, code: "persist_failed" };
+  }
+
+  const { changedSections } = persist;
   const resumeLatex = generateResumeLatex(enhanced.form, enhanced.targetRole);
   await updateJobReviewDocuments(userId, jobId, { resumeLatex });
-
-  const coverPatch = buildCoverLetterSeedPatch({
-    form: enhanced.form,
-    targetTitle: enhanced.targetRole,
-    company: job.company,
-    jobTitle: job.title,
-    jobDescription: description,
-  });
-  if (coverPatch) {
-    await updateJobReviewDocuments(userId, jobId, coverPatch);
-  }
 
   const afterPrime = refineryFormToPrimeResume(enhanced.form);
   const afterScore = computeResumeReadiness(afterPrime, enhanced.targetRole, description).total;
 
+  logEnhance("server", "post.ats_after", {
+    traceId,
+    step: ENHANCE_PIPELINE.POST_ATS_AFTER,
+    userId,
+    jobId,
+    atsScoreBefore: beforeScore,
+    atsScoreAfter: afterScore,
+    atsDelta: afterScore - beforeScore,
+  });
+
   return {
     success: true,
-    fallbackUsed: enhanced.fallbackUsed,
+    engineMode: enhanced.engineMode,
     fallbackSummary: enhanced.fallbackSummary,
     aiMode: enhanced.aiMode,
     atsDelta: { before: beforeScore, after: afterScore },
-    enhanceSummary: enhanced.fallbackUsed
+    enhanceSummary: enhanced.engineMode === "deterministic"
       ? enhanced.fallbackSummary
       : changedSections.length > 0
         ? `Updated ${changedSections.length} section${changedSections.length > 1 ? "s" : ""}: ${changedSections.join(", ")}.`
@@ -208,12 +219,8 @@ export async function enhanceJobCoverLetterForUser(
 
   return {
     success: true,
-    ...(enhanced.fallbackUsed
-      ? {
-          fallbackUsed: true,
-          fallbackSummary: enhanced.fallbackSummary,
-          aiMode: enhanced.aiMode,
-        }
-      : {}),
+    engineMode: enhanced.engineMode,
+    fallbackSummary: enhanced.fallbackSummary,
+    aiMode: enhanced.aiMode,
   };
 }

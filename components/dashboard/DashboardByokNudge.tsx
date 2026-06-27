@@ -53,7 +53,7 @@ export function DashboardByokNudge({ vaultKeyId }: DashboardByokNudgeProps) {
       <div className="flex flex-col gap-2 sm:flex-row">
         <Button variant="hero" className="flex-1 rounded-xl" asChild>
           <Link href="/dashboard/keys" onClick={handleDismiss}>
-            Connect AI Keys
+            Connect AI key
           </Link>
         </Button>
         <Button variant="outline" className="flex-1 rounded-xl" onClick={handleDismiss}>

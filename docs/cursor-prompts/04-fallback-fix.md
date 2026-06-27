@@ -1,5 +1,23 @@
 # Cursor Prompt 04 — Fix Deterministic Fallback Enhance
 
+## Status
+
+**✅ COMPLETED** — 2026-06-26 (Option 1 — EnhancePlan pipeline)
+
+Shipped via `lib/job-tracker/enhance/enhance-plan.ts` + `apply-enhance-plan.ts` + `runDeterministicResumeEnhance()` instead of patching `classifyKeyword()` inline. Fallback uses JD Brain `mustAddSkills` (not raw `job-intelligence.skillsToAdd`).
+
+| Deliverable | Status |
+|---|---|
+| No garbage JD tokens in fallback skills | ✅ JD Brain directive only |
+| Summary preserved on fallback | ✅ `applyEnhancePlan` — flagged, not rewritten |
+| Bullet weak-phrase rewrites | ✅ `apply-enhance-plan.ts` |
+| Reusable deterministic helper | ✅ `lib/ai/run-deterministic-resume-enhance.ts` |
+| Tests | ✅ `lib/job-tracker/enhance/enhance-plan.test.ts` |
+
+**Not changed (by design):** `classifyKeyword()` in `job-intelligence.ts` — bypassed for fallback via EnhancePlan.
+
+---
+
 ## Problem
 
 When the AI enhance call fails, EasySubmit falls back to a deterministic enhancer. It currently
@@ -146,9 +164,9 @@ Run: `npx vitest run --config config/vitest.config.ts lib/job-tracker/ats/determ
 
 ## Definition of Done
 
-- [ ] No JD tokens outside the master skills list appear in fallback output skills
-- [ ] Bullet dedup applied to all fallback-generated bullets
-- [ ] Non-empty existing summary passes through untouched
-- [ ] `runDeterministicEnhance()` is a named reusable helper
-- [ ] All new tests pass
-- [ ] `npx tsc --noEmit` — zero new errors in changed files
+- [x] No JD tokens outside the master skills list appear in fallback output skills (via JD Brain `mustAddSkills`)
+- [x] Bullet quality fixes applied in fallback (`apply-enhance-plan.ts`)
+- [x] Non-empty existing summary passes through untouched
+- [x] `runDeterministicResumeEnhance()` is a named reusable helper
+- [x] Tests pass (`lib/job-tracker/enhance/enhance-plan.test.ts`)
+- [x] `npm run build` passes

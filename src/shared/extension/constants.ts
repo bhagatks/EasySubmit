@@ -42,6 +42,7 @@ export const STORAGE_KEYS = {
   selectedProfileId: "easysubmit_selected_profile_id_v1",
   extensionId: "easysubmit_extension_id_v1",
   pendingApplyJobId: "easysubmit_pending_apply_job_id_v1",
+  aiEnabled: "easysubmit_ai_enabled_v1",
 } as const;
 
 export const DEFAULT_API_BASE = "http://localhost:3000";

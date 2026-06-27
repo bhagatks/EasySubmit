@@ -1,70 +1,25 @@
 /**
  * Keyword gap analysis — compares resume content against a job description.
  *
- * Approach: simple but effective token matching. No heavy NLP.
- * Extracts meaningful terms (skills, tools, titles, methodologies),
- * compares case-insensitively, handles acronyms + common variations.
+ * Uses shared deterministic keyword extraction (`keyword-extract.ts`) so JD tokens
+ * are taxonomy-backed — no plain English / page-noise leakage.
  */
 
 import type { PrimeResumeData } from "@/components/onboarding/PrimeResume";
+import {
+  bigramsOf,
+  looksLikeTechTerm,
+  tokenizeJobText,
+} from "@/lib/job-tracker/jd/keyword-extract";
 
-// ─── Stop words ────────────────────────────────────────────────────────────────
-// Common English words that carry no signal for ATS matching.
-
-const STOP_WORDS = new Set([
-  "a","an","the","and","or","but","in","on","at","to","for","of","with",
-  "by","from","as","is","was","are","were","be","been","being","have","has",
-  "had","do","does","did","will","would","could","should","may","might","shall",
-  "can","need","must","this","that","these","those","it","its","we","our",
-  "you","your","they","their","he","she","his","her","us","me","my","i",
-  "not","no","so","if","then","than","when","where","who","which","what",
-  "how","all","each","every","both","few","more","most","other","some",
-  "such","into","about","above","after","before","between","through","during",
-  "also","just","only","very","well","new","good","high","large","small",
-  "over","under","back","still","own","same","right","work","working","worked",
-  "use","using","used","make","made","making","help","helping","helped",
-  "ensure","ensuring","support","supporting","supported","including","include",
-  // HR / job-posting filler — not ATS skills
-  "position","positions","role","roles","opportunity","opportunities",
-  "candidate","candidates","apply","application","applications","hiring","hire",
-  "join","joining","compensation","benefits","benefit","pay","salary","package",
-  "culture","innovation","innovative","passionate","passion","growth","impact",
-  "environment","team","teams","company","organization","business","industry",
-  "experience","experiences","skill","skills","ability","abilities","knowledge",
-  "required","requirements","preferred","plus","bonus","ideal","strong","excellent",
-  "great","key","core","primary","secondary","relevant","related","demonstrated",
-]);
-
-// Minimum token length to consider meaningful
 const MIN_TOKEN_LEN = 2;
 
-// ─── Tokenizer ─────────────────────────────────────────────────────────────────
-
 function tokenize(text: string): string[] {
-  return text
-    .toLowerCase()
-    // preserve C++, C#, .NET, Node.js style terms
-    .replace(/\bnode\.js\b/gi, "nodejs")
-    .replace(/\bvue\.js\b/gi, "vuejs")
-    .replace(/\breact\.js\b/gi, "reactjs")
-    .replace(/\bnext\.js\b/gi, "nextjs")
-    .replace(/\b\.net\b/gi, "dotnet")
-    .replace(/\bc\+\+/gi, "cplusplus")
-    .replace(/\bc#/gi, "csharp")
-    // split on non-alphanumeric (keep hyphenated as one token)
-    .split(/[^a-z0-9#+\-]/g)
-    .map((t) => t.replace(/^[-]+|[-]+$/g, "")) // strip leading/trailing hyphens
-    .filter((t) => t.length >= MIN_TOKEN_LEN && !STOP_WORDS.has(t));
+  return tokenizeJobText(text).filter((t) => t.length >= MIN_TOKEN_LEN);
 }
 
-/** Extract bigrams (two-word phrases) for multi-word tech terms. */
 function bigrams(tokens: string[]): string[] {
-  const result: string[] = [];
-  for (let i = 0; i < tokens.length - 1; i++) {
-    const pair = `${tokens[i]} ${tokens[i + 1]}`;
-    result.push(pair);
-  }
-  return result;
+  return bigramsOf(tokens);
 }
 
 function extractTokenSet(text: string): Set<string> {
@@ -224,15 +179,12 @@ export function analyzeKeywordGap(
   const resumeText = resumeToText(data, targetTitle);
   const resumeTokenSet = extractTokenSet(resumeText);
 
-  // Count token frequency in JD for ranking
   const jdFreq = new Map<string, number>();
   for (const t of [...jdTokens, ...jdBigrams]) {
+    if (!looksLikeTechTerm(t)) continue;
     jdFreq.set(t, (jdFreq.get(t) ?? 0) + 1);
   }
 
-  // Prefer tokens that appear ≥2 times; fall back to ≥1 for short JDs where
-  // few tokens repeat — otherwise candidateKeywords collapses to near-empty
-  // and coveragePercent becomes 0 regardless of resume quality.
   const strictCandidates = Array.from(jdFreq.entries())
     .filter(([, freq]) => freq >= 2)
     .sort((a, b) => b[1] - a[1])

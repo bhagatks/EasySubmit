@@ -198,21 +198,21 @@ function LoginPanel() {
             <button
               type="button"
               disabled={isLoading || !termsAccepted}
-              onClick={() => void handleOAuth("google")}
-              className={SOCIAL_BUTTON_CLASS}
-            >
-              <GoogleIcon />
-              {loadingProvider === "google" ? "Redirecting…" : "Continue with Google"}
-            </button>
-
-            <button
-              type="button"
-              disabled={isLoading || !termsAccepted}
               onClick={() => void handleOAuth("linkedin")}
               className={SOCIAL_BUTTON_CLASS}
             >
               <LinkedInIcon />
               {loadingProvider === "linkedin" ? "Redirecting…" : "Continue with LinkedIn"}
+            </button>
+
+            <button
+              type="button"
+              disabled={isLoading || !termsAccepted}
+              onClick={() => void handleOAuth("google")}
+              className={SOCIAL_BUTTON_CLASS}
+            >
+              <GoogleIcon />
+              {loadingProvider === "google" ? "Redirecting…" : "Continue with Google"}
             </button>
 
             <TermsPrivacyConsent
@@ -224,7 +224,9 @@ function LoginPanel() {
               className="mt-1"
             />
 
-            <p className="mt-2 text-xs text-muted-foreground/65">
+            <p className="mt-3 text-xs text-muted-foreground/65">LinkedIn is preferred</p>
+
+            <p className="mt-1 text-xs text-muted-foreground/65">
               {brandCopyright(new Date().getFullYear())}
             </p>
           </div>

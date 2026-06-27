@@ -39,6 +39,7 @@ import {
   SUMMARY_PLACEHOLDER,
 } from "@/lib/resume/resumeSpec";
 import { validateSummary } from "@/lib/resume/summary-rules";
+import { validateSkillsManual } from "@/lib/resume/skills-rules";
 import {
   buildInitialStudioSectionState,
   STUDIO_EDITOR_SECTION_LABELS,
@@ -234,6 +235,7 @@ export function RefineryPanel({
 }: RefineryPanelProps) {
   const [showRawText, setShowRawText] = useState(false);
   const onboardingCanProceed = useOnboardingStore(selectCanProceedToCalibration);
+  const onboardingSkills = useOnboardingStore((s) => s.studio.skills);
   const isProfileMode = mode === "profile";
   const localSkillCount = studioSkills?.length ?? 0;
   const canProceedToCalibration = isProfileMode
@@ -382,6 +384,13 @@ export function RefineryPanel({
     [summaryValue],
   );
   const showSummaryHints = summaryValue.trim().length > 0;
+
+  const activeSkills = isProfileMode ? (studioSkills ?? []) : onboardingSkills;
+  const skillsValidation = useMemo(
+    () => validateSkillsManual(activeSkills),
+    [activeSkills],
+  );
+  const showSkillsHints = activeSkills.length > 0;
 
   const isValid =
     watched.firstName?.trim().length > 0 &&
@@ -653,6 +662,19 @@ export function RefineryPanel({
             skills={isProfileMode ? studioSkills : undefined}
             onSkillsChange={isProfileMode ? onStudioSkillsChange : undefined}
           />
+          {showSkillsHints ? (
+            <div className="mt-2 space-y-1 text-xs" style={{ color: MUTED }}>
+              <p>{skillsValidation.count} skill{skillsValidation.count !== 1 ? "s" : ""} (target: 6–20)</p>
+              {skillsValidation.countWarning ? (
+                <p style={{ color: "oklch(0.75 0.14 85)" }}>{skillsValidation.countWarning}</p>
+              ) : null}
+              {skillsValidation.banned.length > 0 ? (
+                <p style={{ color: "oklch(0.75 0.14 85)" }}>
+                  Generic soft skills (remove): {skillsValidation.banned.join(", ")}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
         </StudioCollapsibleSection>
 
         <StudioCollapsibleSection

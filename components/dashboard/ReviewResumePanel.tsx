@@ -26,6 +26,7 @@ import { DEFAULT_STUDIO_ZOOM } from "@/lib/resume/studio-preview-zoom";
 type ReviewResumePanelProps = {
   entry: JobTrackerDetail;
   onRefresh: () => void;
+  aiEnabled: boolean;
 };
 
 function PanelPlaceholder({
@@ -47,7 +48,7 @@ function PanelPlaceholder({
 }
 
 type EnhanceFeedback = {
-  fallbackUsed: boolean;
+  engineMode: "ai" | "deterministic";
   atsDelta: { before: number; after: number } | null;
   summary: string | null;
 };
@@ -59,19 +60,19 @@ function EnhanceFeedbackCard({ feedback }: { feedback: EnhanceFeedback }) {
   return (
     <div
       className={
-        feedback.fallbackUsed
+        feedback.engineMode === "deterministic"
           ? "absolute left-2 right-2 top-11 z-10 rounded-xl border border-amber-500/30 bg-[oklch(0.16_0.04_268/0.95)] px-3 py-2.5 text-xs shadow-lg"
           : "absolute left-2 right-2 top-11 z-10 rounded-xl border border-mint/30 bg-[oklch(0.16_0.04_268/0.95)] px-3 py-2.5 text-xs shadow-lg"
       }
     >
       <div className="flex items-start gap-2">
-        {feedback.fallbackUsed ? (
+        {feedback.engineMode === "deterministic" ? (
           <Bot className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" aria-hidden="true" />
         ) : (
           <TrendingUp className="mt-0.5 h-3.5 w-3.5 shrink-0 text-mint" aria-hidden="true" />
         )}
         <div className="min-w-0 flex-1">
-          {feedback.fallbackUsed ? (
+          {feedback.engineMode === "deterministic" ? (
             <p className="font-medium text-amber-300">Enhanced without AI (rules engine)</p>
           ) : (
             <p className="font-medium text-mint">Resume enhanced</p>
@@ -109,7 +110,7 @@ function EnhanceFeedbackCard({ feedback }: { feedback: EnhanceFeedback }) {
   );
 }
 
-export function ReviewResumePanel({ entry, onRefresh }: ReviewResumePanelProps) {
+export function ReviewResumePanel({ entry, onRefresh, aiEnabled }: ReviewResumePanelProps) {
   const preview = entry.tailoredResumePreview;
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -207,12 +208,16 @@ export function ReviewResumePanel({ entry, onRefresh }: ReviewResumePanelProps) 
     },
     {
       id: "enhance",
-      label: "Enhance with AI",
+      label: aiEnabled ? "Enhance with AI" : "Enhance",
       icon: "enhance",
       variant: "outline",
       disabled: !entry.hasTailoredResume,
       busy: busy === "enhance",
-      title: entry.hasTailoredResume ? undefined : "Tailor a resume for this job first",
+      title: aiEnabled
+        ? entry.hasTailoredResume
+          ? undefined
+          : "Tailor a resume for this job first"
+        : "Enable AI in Settings for smarter enhancements",
       onClick: () => {
         void (async () => {
           setBusy("enhance");
@@ -225,7 +230,7 @@ export function ReviewResumePanel({ entry, onRefresh }: ReviewResumePanelProps) 
             return;
           }
           setEnhanceFeedback({
-            fallbackUsed: result.fallbackUsed ?? false,
+            engineMode: result.engineMode ?? "ai",
             atsDelta: result.atsDelta ?? null,
             summary: result.enhanceSummary ?? result.fallbackSummary ?? null,
           });

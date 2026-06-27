@@ -4,6 +4,8 @@
 
 ## Deploy to Vercel (deferred)
 
+**Master checklist:** [`docs/PROD_CUTOVER.md`](./PROD_CUTOVER.md) — DB migrations, Vercel env, OAuth prod setup, storage, smoke tests.
+
 | Step | Status | Notes |
 |------|--------|-------|
 | Fix production build (`npm run build`) | Done | Extension page + lucide `Github` → `Code2` |
@@ -11,15 +13,18 @@
 | Set production env vars in Vercel | Deferred | See `.env.vercel.example` (Supabase `yofgnflcqajqsepbfdkc`) |
 | Set QA/preview env vars (optional) | Deferred | Vercel Preview: use dev Supabase vars from `.env.example` |
 | Set `NEXTAUTH_URL` to prod domain | Deferred | Must match deployed URL exactly |
-| Google OAuth redirect URI | Done | Prod callbacks registered |
-| LinkedIn OAuth redirect URI | Done | Prod callbacks registered |
+| **Google OAuth — prod client + redirect URIs** | **Todo** | Local client recreated Jun 2026 for localhost only; prod needs `https://<domain>/api/auth/callback/google` + Vercel `GOOGLE_*` — see [`PROD_CUTOVER.md`](./PROD_CUTOVER.md) §4, [`oauth-setup.md`](./oauth-setup.md) |
+| LinkedIn OAuth redirect URI (prod) | Verify | Re-check prod callback against live domain |
 | Run Prisma migrate on production DB | Blocked — P3009 | See `docs/MIGRATION_RECOVERY.md` — resolve before prod cutover |
 | Supabase Storage bucket `resumes` | **Cancelled** — PDFs on-demand only, never stored (see `APPLICATION_PROFILE.md`) | — |
 | Supabase Storage bucket `avatars` (public read) + `SUPABASE_SERVICE_ROLE_KEY` | Needed for prod avatar upload | Dev falls back to `public/avatars/`; see `lib/profile/avatar-storage.ts` |
 
 ## Post-deploy smoke test (when prod ships)
 
-- [ ] `/login` — Google OAuth completes → `/onboarding/step-1`
+See also [`PROD_CUTOVER.md`](./PROD_CUTOVER.md) §7.
+
+- [ ] `/login` — Google OAuth completes → `/onboarding`
+- [ ] `/login` — LinkedIn OAuth completes
 - [ ] `/onboarding` — wizard steps advance
 - [ ] Resume upload → `/onboarding/step-4` animation → `/dashboard`
 - [ ] Unauthenticated `/dashboard` → `/login`

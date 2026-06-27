@@ -12,10 +12,10 @@
 - **AI config layer** — `model-discovery.ts`, `model-cache.ts`, `career-grade-models.ts` consume `app.config.ts`; BYOK discovery via `app/actions/ai/discovery-service.ts` + `src/lib/ai/neural-controller.ts`
 - **NextAuth** — Google + LinkedIn OAuth at `/login`; middleware + layout protect `/onboarding` and `/dashboard`
 - **Typed env** — `lib/env.ts`, `types/env.d.ts` for OAuth credentials
-- **Login UI** — Google-only OAuth on deep navy glass card (`LogoIcon` w-12, `size="xl"` CTA); `SessionProvider` via `components/providers/auth-provider.tsx`
+- **Login UI** — Google + LinkedIn OAuth on deep navy glass card (LinkedIn listed first); muted “LinkedIn is preferred” below terms; `SessionProvider` via `components/providers/auth-provider.tsx`
 - **Sign out** — `components/auth/SignOutButton.tsx` + `lib/auth/sign-out-client.ts`; onboarding routes via `OnboardingFlowShell`; dashboard header sign out **Settings only**; other dashboard screens show **BYOK KEY** header CTA when engine is cold
 - **Onboarding hub** — `/onboarding`: 3-phase Unified Workbench with unified top chrome (`OnboardingWorkbenchChrome`: EasySubmit brand + phase label/description + phase actions + Sign Out, progress bar, Identity \| Import \| Studio tabs); finalize CTA **Finalize & continue**; ATS sample PDF/DOCX in Import header actions; Studio header: Raw text, Expand all, Import back, Enhance with AI (when flag + system AI on)
-- **Resume spec** — `docs/resume/RULES.md`; golden templates in `assets/resume/templates/`; `lib/resume/resumeSpec.ts`; **`lib/resume/summary-rules.ts`** + **`lib/resume/skills-rules.ts`** — web Studio + review ATS enforcement (`docs/cursor-prompts/01-summary-rules.md`, `02-skills-rules.md`); extension inline edit audit deferred; **`lib/job-tracker/enhance/`** — EnhancePlan deterministic fallback (JD Brain skills, `04-fallback-fix.md`); **`feature_flags.system_ai_enabled`** — ops kill switch for system AI (`03-ai-settings.md`)
+- **Resume spec** — … **`feature_flags.system_ai_enabled`** — ops kill switch for system pool; **user AI toggle** — Settings Enable/Disable (`aiSourcePreference` `disabled`/`auto`), global env kill switch, deterministic enhance when off (`03-ai-settings.md`)
 - **Open-Resume parser** — PDF via browser Open-Resume engine; **DOCX → PDF** via `docx-to-pdf-wasm` on `/api/resume/convert-docx`, then same PDF parser; heuristic DOCX fallback if conversion parse fails; parsed text normalized via `lib/resume/normalizeResumeText.ts` (junk chars, list markers, smart quotes)
 - **Onboarding workbench** — `/onboarding` is the default post-login entry: 60/40 split (Coordinates → Fuel → Refinery), full-screen shell (no sidebar); `/onboarding/step-1` and `/onboarding/workbench` redirect here
 - **Resume Studio workbench** — shared `ResumeStudioWorkbench` (onboarding phase 3 + dashboard profile edit): 50/50 resizable split; left preview with auto fit-to-pane zoom (first visit), transparent ± overlay, thin page separators; **dashboard only** — right pane **Editor \| Layout** tabs (onboarding uses Identity → Import → Studio breadcrumb only); Editor = collapsible ATS sections (+ custom sections), onboarding expands Header + Skills by default, dashboard all collapsed; Layout = stacked font + page size (US Letter or A4); zoom `easysubmit-studio-zoom-v1`, page size `easysubmit-page-size-v1`
@@ -51,13 +51,13 @@ Focus for now: **`run easy`** + extension on localhost — see [`docs/ENV.md`](.
 run easy    # local dev — see docs/ENV.md
 ```
 
-Deploy production: `run easy prod` — **deferred**; use when ready (checklist in `docs/ACTION_ITEMS.md`).
+Deploy production: `run easy prod` — **deferred**; use when ready.
+
+**Production cutover checklist:** [`docs/PROD_CUTOVER.md`](./PROD_CUTOVER.md) — DB migrations (incl. P3009 recovery), Vercel env, **Google OAuth prod setup**, storage, smoke tests. Summary also in [`docs/ACTION_ITEMS.md`](./ACTION_ITEMS.md).
 
 ## Deploy (Vercel) — deferred
 
-OAuth prod callbacks are registered. Remaining when you ship: Vercel connect, env vars, `NEXTAUTH_URL`, prod migrate (see `MIGRATION_RECOVERY.md`), smoke test.
-
-See `docs/ACTION_ITEMS.md` for the full checklist.
+Local Google OAuth was recreated for localhost (Jun 2026). **Prod still needs:** prod redirect URIs, Vercel `GOOGLE_*` + `NEXTAUTH_*`, P3009 migration fix, then smoke test. Details: [`PROD_CUTOVER.md`](./PROD_CUTOVER.md).
 
 ## Dev
 

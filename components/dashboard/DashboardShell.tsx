@@ -61,7 +61,7 @@ const navItems = [
   { title: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { title: "Resume profiles", href: "/dashboard/resume-profiles", icon: FileText },
   { title: "Job Tracker", href: "/dashboard/job-tracker", icon: Briefcase },
-  { title: "AI Keys", href: "/dashboard/keys", icon: Key },
+  { title: "AI", href: "/dashboard/keys", icon: Key },
   { title: "Settings", href: "/dashboard/settings", icon: Settings },
 ] as const;
 

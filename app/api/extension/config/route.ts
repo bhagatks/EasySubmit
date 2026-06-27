@@ -8,6 +8,7 @@ import { resolveExtensionUserId } from "@/lib/extension/auth-request";
 import { logAiHealth, logAiHealthError, redactUserId } from "@/lib/ai/ai-health-debug";
 import { getAiHealthCheckForUser } from "@/lib/ai/ai-health-status";
 import { getAiReadinessForUser } from "@/lib/ai/ai-readiness-gate-for-user";
+import { isAiGloballyEnabled } from "@/lib/ai/ai-global-enabled";
 
 export async function GET(request: NextRequest) {
   const tokenUserId = verifyExtensionToken(readBearerToken(request.headers.get("authorization")));
@@ -66,5 +67,8 @@ export async function GET(request: NextRequest) {
     aiHealthError,
     systemQuotaExceeded,
     byokKeyInvalid,
+    aiEnabled:
+      isAiGloballyEnabled() &&
+      (userPrefs?.aiSourcePreference ?? "disabled") !== "disabled",
   });
 }

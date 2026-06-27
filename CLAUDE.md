@@ -64,6 +64,13 @@ assets/resume/          ATS golden templates (PDF + DOCX fixtures)
 
 ## Core Business Rules
 
+### Features Framework (enforce for every new feature)
+- **Full rules:** `docs/features-framework.md` — read before building any feature that touches a flag, config, quota, or user setting
+- Entry point: `lib/features/index.ts` → `resolveFeature({ feature, userId, surface })`
+- **Any feature that depends on a feature flag, app config, subscription state, quota, or routing decision MUST be registered here — no exceptions**
+- Never call `getFeatureFlags()`, `getAppConfig()`, `isSubscribed()`, or `resolveAiRoute()` directly in a server action or API route — use `resolveFeature()` instead
+- Registered features today: `enhance`, `subscription`
+
 ### AI routing (enforce in every AI action)
 1. Check `vaultKeyId` — if BYOK key vaulted → use it (unlimited)
 2. Check `aiDailyUnlimited` — if true (BYOK user) → unlimited system AI
@@ -102,6 +109,7 @@ The `/docs` folder is the **system of record**. After any meaningful change:
 
 | Change type | Update |
 |---|---|
+| Enhance pipeline / AI flow / features framework | `docs/enhance-pipeline-design.md` — the design reference for this whole area |
 | Architecture / major module / entry flow | `docs/ARCHITECTURE.md` — changelog row with date + one-line summary |
 | Product-visible feature (dashboard, extension, onboarding) | `docs/PROJECT_STATE.md` |
 | DB schema / Prisma model | `docs/database-schema.md` |
@@ -179,6 +187,10 @@ npm run db:seed
 | Keyword gap analysis | `lib/job-tracker/ats/keyword-gap.ts` |
 | Bullet quality engine | `lib/job-tracker/ats/bullet-quality.ts` |
 | Readiness score | `lib/job-tracker/ats/resume-readiness-score.ts` |
+| Features framework rules | `docs/features-framework.md` |
+| Features framework entry | `lib/features/index.ts` |
+| Enhance feature resolver | `lib/features/resolve-enhance.ts` |
+| Subscription feature resolver | `lib/features/resolve-subscription.ts` |
 | AI routing / enhance | `lib/ai/enhance-resume-for-user.ts` |
 | App config (AI quotas, flags) | `src/lib/config/app.config.ts` |
 | Feature flags | `lib/services/feature-flags-service.ts` |

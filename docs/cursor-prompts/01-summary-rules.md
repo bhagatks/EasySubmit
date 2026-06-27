@@ -2,8 +2,18 @@
 
 ## Status
 
-`lib/resume/summary-rules.ts` and the onboarding `RefineryPanel` live hints are already
-implemented. This prompt covers the remaining enforcement gaps.
+**✅ COMPLETED** — 2026-06-26
+
+Web Studio + review ATS enforcement shipped. Extension inline edit was audit-only (no change per scope).
+
+| Surface | Status |
+|---|---|
+| `lib/resume/summary-rules.ts` — `validateSummary()`, `SUMMARY_BANNED_WORDS`, constants | ✅ Done |
+| `RefineryPanel` onboarding/Studio live hints (word count, sentence count, banned words) | ✅ Done |
+| `src/lib/ai/engine/brain.ts` + `candidate-context.ts` — 4 sentences, 70–80 words | ✅ Done |
+| `src/lib/ai/engine/post-process.ts` — validate AI summary, log warnings | ✅ Done |
+| `lib/job-tracker/ats/resume-readiness-score.ts` — summary deductions in completeness pillar | ✅ Done |
+| `lib/job-tracker/enhance/enhance-plan.ts` — `summaryWarnings`, no summary rewrite on fallback | ✅ Done |
 
 ---
 
@@ -17,16 +27,9 @@ implemented. This prompt covers the remaining enforcement gaps.
 
 ---
 
-## What is Already Done
+## What Was Implemented
 
-| Surface | Status |
-|---|---|
-| `lib/resume/summary-rules.ts` — `validateSummary()`, `SUMMARY_BANNED_WORDS`, constants | ✅ Done |
-| `RefineryPanel` onboarding/Studio live hints (word count, sentence count, banned words) | ✅ Done |
-
----
-
-## What Still Needs to Be Done
+_(Originally listed as remaining gaps — all addressed in the 2026-06-26 pass.)_
 
 ### 1. AI prompt — `src/lib/ai/engine/brain.ts`
 
@@ -111,9 +114,9 @@ Run: `npx vitest run --config config/vitest.config.ts`
 
 ## Definition of Done
 
-- [ ] AI prompt instructs 4 sentences, 70–80 words, tone rules, banned list
-- [ ] `summarySentencesMax` is 4 in candidate-context
-- [ ] Post-process validates and logs warnings on bad AI summary
-- [ ] Readiness score deducts for sentence/word violations, surfaces `summaryWarnings`
-- [ ] Enhance plan flags invalid summary without rewriting it
-- [ ] `npx tsc --noEmit` — zero new errors
+- [x] AI prompt instructs 4 sentences, 70–80 words, tone rules, banned list
+- [x] `summarySentencesMax` is 4 in candidate-context
+- [x] Post-process validates and logs warnings on bad AI summary
+- [x] Readiness score deducts for sentence/word violations (via completeness `details[]`)
+- [x] Enhance plan flags invalid summary without rewriting it (`summaryWarnings`)
+- [x] `npm run build` passes

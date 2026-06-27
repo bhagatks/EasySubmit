@@ -22,6 +22,9 @@ const nextConfig = {
       "pdf-parse",
       "pdfjs-dist",
       "docx-to-pdf-wasm",
+      "wink-nlp",
+      "wink-eng-lite-web-model",
+      "rake-js",
     ],
   },
   // pdfjs-dist is client-only; disable Node canvas/encoding shims that break webpack.
@@ -30,7 +33,13 @@ const nextConfig = {
     config.resolve.alias.canvas = false;
     config.resolve.alias.encoding = false;
     if (isServer) {
-      config.externals = [...(config.externals ?? []), "docx-to-pdf-wasm"];
+      config.externals = [
+        ...(config.externals ?? []),
+        "docx-to-pdf-wasm",
+        "wink-nlp",
+        "wink-eng-lite-web-model",
+        "rake-js",
+      ];
     }
     return config;
   },

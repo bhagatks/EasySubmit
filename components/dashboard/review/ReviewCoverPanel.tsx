@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 type ReviewCoverPanelProps = {
   entry: JobTrackerDetail;
   onRefresh: () => void;
+  aiEnabled: boolean;
 };
 
 function splitName(full: string | undefined): { firstName: string; lastName: string } {
@@ -34,7 +35,7 @@ function splitName(full: string | undefined): { firstName: string; lastName: str
   return { firstName: parts[0]!, lastName: parts.slice(1).join(" ") };
 }
 
-export function ReviewCoverPanel({ entry, onRefresh }: ReviewCoverPanelProps) {
+export function ReviewCoverPanel({ entry, onRefresh, aiEnabled }: ReviewCoverPanelProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -162,11 +163,15 @@ export function ReviewCoverPanel({ entry, onRefresh }: ReviewCoverPanelProps) {
       editAction,
       {
         id: "enhance",
-        label: "Enhance with AI",
+        label: aiEnabled ? "Enhance with AI" : "Enhance",
         icon: "enhance",
         disabled: !entry.hasTailoredResume,
         busy: busy === "enhance",
-        title: entry.hasTailoredResume ? undefined : "Tailor a resume for this job first",
+        title: aiEnabled
+          ? entry.hasTailoredResume
+            ? undefined
+            : "Tailor a resume for this job first"
+          : "Enable AI in Settings for smarter enhancements",
         onClick: () => {
           void (async () => {
             setBusy("enhance");
@@ -178,7 +183,7 @@ export function ReviewCoverPanel({ entry, onRefresh }: ReviewCoverPanelProps) {
               setError(result.error);
               return;
             }
-            if (result.fallbackUsed && result.fallbackSummary) {
+            if (result.engineMode === "deterministic" && result.fallbackSummary) {
               setNotice(result.fallbackSummary);
             }
             onRefresh();

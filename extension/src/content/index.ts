@@ -1754,6 +1754,7 @@ function renderExpandedCard(root: ShadowRoot): void {
         previewLoadState === "idle" &&
         Boolean(previewHtmlCache.resume),
       enhanceBusy: documentEnhanceBusy,
+      aiEnabled: runtimeConfig?.aiEnabled ?? true,
       enhanceByokOffer: documentEnhanceByokOffer === "resume",
       enhanceFallbackFixPath: documentEnhanceFallbackFix?.path ?? null,
       enhanceFallbackFixLabel: documentEnhanceFallbackFix?.label,
@@ -1782,6 +1783,7 @@ function renderExpandedCard(root: ShadowRoot): void {
         previewLoadState === "idle" &&
         Boolean(previewHtmlCache.cover),
       enhanceBusy: documentEnhanceBusy,
+      aiEnabled: runtimeConfig?.aiEnabled ?? true,
       enhanceByokOffer: documentEnhanceByokOffer === "cover",
       enhanceFallbackFixPath: documentEnhanceFallbackFix?.path ?? null,
       enhanceFallbackFixLabel: documentEnhanceFallbackFix?.label,

@@ -25,7 +25,8 @@ import {
 import { runCoverLetterEnhance } from "@/src/lib/ai/engine/run-cover-letter-enhance";
 import { isCustomerQuotaUnlimited } from "@/src/lib/services/ai-engine-config";
 import { getAppConfig } from "@/src/lib/services/config-service";
-import { getFeatureFlags } from "@/src/lib/services/feature-flags-service";
+import { getFeatureFlags, isSystemAiEnabled } from "@/src/lib/services/feature-flags-service";
+import { isAiGloballyEnabled } from "@/lib/ai/ai-global-enabled";
 
 export type EnhanceCoverLetterInput = {
   form: HubRefineryForm;
@@ -44,7 +45,7 @@ export type EnhanceCoverLetterSuccess = {
   success: true;
   body: string;
   aiMode: "customer" | "system";
-  fallbackUsed?: boolean;
+  engineMode?: "ai" | "deterministic";
   fallbackSummary?: string;
 };
 
@@ -129,6 +130,15 @@ export async function enhanceCoverLetterForUserId(
     };
   }
 
+  const preference = (user.aiSourcePreference ?? "disabled") as AiSourcePreference;
+  if (!isAiGloballyEnabled() || preference === "disabled") {
+    return {
+      success: false,
+      error: "Enable AI in Settings to generate a cover letter with AI.",
+      code: "feature_disabled",
+    };
+  }
+
   const readiness = await getAiReadinessForUser(userId, {
     forceSystem: input.forceSystem ?? false,
     estimatedCalls: SYSTEM_QUOTA_DEFAULT_ESTIMATED_CALLS,
@@ -150,7 +160,6 @@ export async function enhanceCoverLetterForUserId(
     userId,
   });
 
-  const preference = (user.aiSourcePreference || "auto") as AiSourcePreference;
   const route = await resolveAiRoute({
     aiSourcePreference: preference,
     vaultKeyId: user.vaultKeyId,
@@ -158,9 +167,17 @@ export async function enhanceCoverLetterForUserId(
     forceSystem: input.forceSystem ?? false,
     allowByokFallback: input.useCustomerKey ?? false,
     aiEngine,
+    systemAiEnabled: featureFlags.systemAiEnabled,
   });
 
   if ("error" in route) {
+    if (route.error === "ai_globally_disabled" || route.error === "ai_disabled") {
+      return {
+        success: false,
+        error: "Enable AI in Settings to generate a cover letter with AI.",
+        code: "feature_disabled",
+      };
+    }
     if (route.error === "no_system_key") {
       return {
         success: false,
@@ -259,16 +276,16 @@ export async function enhanceCoverLetterForUserId(
     userId,
     aiMode: route.mode,
     bodyChars: result.body.length,
-    fallbackUsed: usedFallback,
+    engineMode: usedFallback ? "deterministic" : "ai",
   });
 
   return {
     success: true,
     body: result.body,
     aiMode: route.mode,
+    engineMode: usedFallback ? "deterministic" : "ai",
     ...(usedFallback
       ? {
-          fallbackUsed: true,
           fallbackSummary: result.fallbackSummary,
         }
       : {}),

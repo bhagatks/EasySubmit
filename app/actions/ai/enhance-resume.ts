@@ -10,8 +10,7 @@ import {
   type EnhanceResumeProfileResult,
   type EnhanceResumeProfileSuccess,
 } from "@/lib/ai/enhance-resume-for-user";
-import { getAiReadinessForUser } from "@/lib/ai/ai-readiness-gate-for-user";
-import type { AiReadinessErrorCode } from "@/lib/ai/ai-readiness-gate-for-user";
+import { resolveFeature } from "@/lib/features";
 import { getAppConfig } from "@/src/lib/services/config-service";
 import type { AiSourcePreference } from "@/src/lib/ai/engine/constants";
 import {
@@ -48,19 +47,6 @@ export type EnhancePreflightFailure = {
 
 export type EnhancePreflightResult = EnhancePreflightSuccess | EnhancePreflightFailure;
 
-function mapReadinessPreflightCode(
-  code: AiReadinessErrorCode,
-  systemQuotaCode: "quota_enhancement" | "quota_calls" | null,
-): NonNullable<EnhanceResumeProfileFailure["code"]> {
-  if (code === "quota_exhausted") {
-    return systemQuotaCode ?? "quota_enhancement";
-  }
-  if (code === "key_missing") {
-    return "no_customer_key";
-  }
-  return "provider_error";
-}
-
 /** Validates feature flag, routing, and quota before opening the Enhance dialog. */
 export async function checkEnhanceWithAiPreflight(
   input: EnhancePreflightInput = {},
@@ -72,62 +58,45 @@ export async function checkEnhanceWithAiPreflight(
     return { ok: false, error: "Sign in required.", code: "unauthorized" };
   }
 
-  const variant = input.variant ?? "dashboard";
-  const forceSystem = input.forceSystem ?? false;
+  const surface = input.variant === "onboarding" ? "onboarding" : "job_apply";
 
-  const [user, aiEngine, featureFlags] = await Promise.all([
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: SYSTEM_QUOTA_USER_SELECT,
-    }),
-    getAppConfig("aiEngine"),
-    getFeatureFlags(),
-  ]);
-
-  if (!user) {
-    return { ok: false, error: "Account not found.", code: "unauthorized" };
-  }
-
-  const systemAiEnabled = isSystemAiEnabled(featureFlags);
-
-  const enhanceEnabled =
-    variant === "onboarding"
-      ? featureFlags.enhanceWithAiOnboarding
-      : featureFlags.enhanceWithAiResumeProfile;
-
-  if (!enhanceEnabled) {
-    return {
-      ok: false,
-      error: "Enhance with AI is not available right now.",
-      code: "feature_disabled",
-    };
-  }
-
-  if (!systemAiEnabled) {
-    if (!user.vaultKeyId) {
-      return {
-        ok: false,
-        error: "EasySubmit AI is off — add your API key in AI Keys to use Enhance with AI.",
-        code: "no_customer_key",
-        requiresByokOnly: true,
-      };
-    }
-  }
-
-  const readiness = await getAiReadinessForUser(userId, {
-    forceSystem,
-    estimatedCalls: 1,
+  const enhance = await resolveFeature({
+    feature: "enhance",
+    userId,
+    surface,
   });
 
-  if (!readiness.status.ok) {
+  if (!enhance.available) {
+    const codeMap: Record<string, NonNullable<EnhanceResumeProfileFailure["code"]>> = {
+      globally_disabled: "feature_disabled",
+      feature_disabled: "feature_disabled",
+      user_disabled: "feature_disabled",
+      no_key: "no_customer_key",
+      pool_down: "system_pool_exhausted",
+      quota_exceeded: "quota_enhancement",
+    };
+
+    const requiresByokOnly = enhance.reason === "no_key";
+
     return {
       ok: false,
-      error: readiness.status.message,
-      code: mapReadinessPreflightCode(readiness.status.code, readiness.systemQuota.code),
+      error:
+        enhance.reason === "feature_disabled"
+          ? "Enhance with AI is not available right now."
+          : enhance.reason === "no_key"
+            ? "EasySubmit AI is off — add your API key in AI Keys to use Enhance with AI."
+            : enhance.reason === "pool_down"
+              ? "EasySubmit's shared AI is temporarily unavailable."
+              : enhance.reason === "quota_exceeded"
+                ? "Daily enhancement limit reached. Try again tomorrow."
+                : "Enhance with AI is not available right now.",
+      code: codeMap[enhance.reason ?? ""] ?? "feature_disabled",
+      ...(requiresByokOnly ? { requiresByokOnly: true } : {}),
     };
   }
 
-  return { ok: true, systemAiEnabled };
+  const featureFlags = await getFeatureFlags();
+  return { ok: true, systemAiEnabled: isSystemAiEnabled(featureFlags) };
 }
 
 export type AiQuotaSummary = {
@@ -201,7 +170,7 @@ export async function updateAiSourcePreference(
     return { success: false, error: "Sign in required." };
   }
 
-  if (!["auto", "customer", "system"].includes(preference)) {
+  if (!["auto", "customer", "system", "disabled"].includes(preference)) {
     return { success: false, error: "Invalid AI source preference." };
   }
 

@@ -937,6 +937,7 @@ export type CoverPreviewBodyInput = {
   downloadBusy: "pdf" | "doc" | null;
   enhanceEnabled: boolean;
   enhanceBusy: boolean;
+  aiEnabled?: boolean;
   enhanceByokOffer?: boolean;
   enhanceFallbackFixPath?: string | null;
   enhanceFallbackFixLabel?: string;
@@ -1012,6 +1013,7 @@ export function renderCoverPreviewBody(input: CoverPreviewBodyInput): string {
         downloadBusy: input.downloadBusy,
         enhanceEnabled: !input.editing && input.state === "ready",
         enhanceBusy: input.enhanceBusy,
+        aiEnabled: input.aiEnabled,
       })}
       ${alertMarkup}
       <div class="${scrollClass}">${scrollContent}</div>
@@ -1030,6 +1032,7 @@ export type ResumePreviewBodyInput = {
   downloadBusy: "pdf" | "doc" | null;
   enhanceEnabled: boolean;
   enhanceBusy: boolean;
+  aiEnabled?: boolean;
   enhanceByokOffer?: boolean;
   enhanceFallbackFixPath?: string | null;
   enhanceFallbackFixLabel?: string;
@@ -1093,6 +1096,7 @@ export function renderResumePreviewBody(input: ResumePreviewBodyInput): string {
         downloadBusy: input.downloadBusy,
         enhanceEnabled: !input.editing && input.state === "ready",
         enhanceBusy: input.enhanceBusy,
+        aiEnabled: input.aiEnabled,
       })}
       ${alertMarkup}
       <div class="${scrollClass}">${scrollContent}</div>

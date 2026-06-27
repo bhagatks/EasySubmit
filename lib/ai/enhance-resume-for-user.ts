@@ -1,13 +1,9 @@
 import { recordUsageLogForUser } from "@/app/actions/ai/usage-log";
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
-import { analyzeJobIntelligenceWithOnet } from "@/lib/job-tracker/ats/job-intelligence";
 import { prisma } from "@/lib/prisma";
-import { analyzeJobDescription, hashJobDescription } from "@/lib/job-tracker/jd/jd-brain";
-import { buildResumeEnhanceDirective } from "@/lib/job-tracker/jd/jd-directive";
-import { refineryFormToPrimeResume } from "@/lib/onboarding/hubResume";
-import type { JDIntelligence } from "@/lib/job-tracker/jd/jd-intelligence";
 import type { StudioEditorSectionId } from "@/lib/resume/studio-editor-sections";
-import type { AiSourcePreference } from "@/src/lib/ai/engine/constants";
+import { resolveEnhanceFeature } from "@/lib/features/resolve-enhance";
+import { SYSTEM_QUOTA_USER_SELECT } from "@/lib/ai/system-quota-gate-for-user";
 import {
   logEnhance,
   sanitizeRouteForLog,
@@ -24,11 +20,11 @@ import {
   type AiQuotaMode,
   type QuotaCheckResult,
 } from "@/src/lib/ai/engine/quota";
-import { resolveAiRoute, SYSTEM_POOL_EXHAUSTED_BYOK_BODY, SYSTEM_POOL_EXHAUSTED_HEADLINE, SYSTEM_POOL_EXHAUSTED_NO_BYOK_BODY } from "@/src/lib/ai/engine/router";
+import { type ResolvedAiRoute } from "@/src/lib/ai/engine/router";
 import { runResumeEnhance } from "@/src/lib/ai/engine/run-enhance";
-import { getAiReadinessForUser } from "@/lib/ai/ai-readiness-gate-for-user";
-import type { AiReadinessErrorCode } from "@/lib/ai/ai-readiness-gate-for-user";
-import { SYSTEM_QUOTA_USER_SELECT } from "@/lib/ai/system-quota-gate-for-user";
+import { buildEnhanceIntelligenceContext } from "@/lib/ai/build-enhance-intelligence-context";
+import { runDeterministicResumeEnhance } from "@/lib/ai/run-deterministic-resume-enhance";
+import { SYSTEM_QUOTA_USER_SELECT as _SQU } from "@/lib/ai/system-quota-gate-for-user";
 import {
   resolveQuotaRowWithReset,
   SYSTEM_QUOTA_DEFAULT_ESTIMATED_CALLS,
@@ -37,21 +33,16 @@ import {
 import { getAppConfig } from "@/src/lib/services/config-service";
 import { isCustomerQuotaUnlimited } from "@/src/lib/services/ai-engine-config";
 import { isSubscribed } from "@/src/lib/services/config-service";
-import {
-  getFeatureFlags,
-  isSystemAiEnabled,
-} from "@/src/lib/services/feature-flags-service";
+import type { FeatureSurface } from "@/lib/features/types";
 
 export type EnhanceResumeProfileInput = {
   profileId?: string;
-  /** Job tracker entry ID — used to load/persist JD intelligence cache. */
   jobEntryId?: string;
   form: HubRefineryForm;
   targetRole: string;
   jobDescription?: string;
   rawResumeText?: string | null;
   forceSystem?: boolean;
-  /** User opted in to BYOK for this request (shared pool unavailable). */
   useCustomerKey?: boolean;
   traceId?: string;
   variant?: "dashboard" | "onboarding" | "pipeline";
@@ -71,9 +62,9 @@ export type EnhanceResumeProfileSuccess = {
   aiMode: "customer" | "system";
   partialEnhance?: boolean;
   warning?: string;
-  /** True when AI failed and the deterministic fallback engine ran instead. */
-  fallbackUsed?: boolean;
+  engineMode: "ai" | "deterministic";
   fallbackSummary?: string;
+  aiDisabled?: boolean;
 };
 
 export type EnhanceResumeProfileFailure = {
@@ -99,17 +90,10 @@ export type EnhanceResumeProfileResult =
   | EnhanceResumeProfileSuccess
   | EnhanceResumeProfileFailure;
 
-function mapReadinessFailureCode(
-  code: AiReadinessErrorCode,
-  systemQuotaCode: "quota_enhancement" | "quota_calls" | null,
-): NonNullable<EnhanceResumeProfileFailure["code"]> {
-  if (code === "quota_exhausted") {
-    return systemQuotaCode ?? "quota_enhancement";
-  }
-  if (code === "key_missing") {
-    return "no_customer_key";
-  }
-  return "provider_error";
+function variantToSurface(variant: EnhanceResumeProfileInput["variant"]): FeatureSurface {
+  if (variant === "onboarding") return "onboarding";
+  if (variant === "pipeline") return "extension";
+  return "job_apply";
 }
 
 function customerQuotaBlockedMessage(
@@ -129,21 +113,22 @@ export async function enhanceResumeForUserId(
 ): Promise<EnhanceResumeProfileResult> {
   const startedAt = Date.now();
   const traceId = input.traceId ?? "no-trace";
+  const surface = variantToSurface(input.variant);
 
   logEnhance("server", "action.start", {
     ...summarizeEnhanceRequest(input),
     step: ENHANCE_PIPELINE.SERVER_ACTION_START,
     traceId,
     userId,
+    surface,
   });
 
-  const [user, aiEngine, featureFlags] = await Promise.all([
+  const [user, aiEngine] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
       select: SYSTEM_QUOTA_USER_SELECT,
     }),
     getAppConfig("aiEngine"),
-    getFeatureFlags(),
   ]);
 
   if (!user) {
@@ -156,60 +141,82 @@ export async function enhanceResumeForUserId(
     return { success: false, error: "Account not found.", code: "unauthorized" };
   }
 
-  const variant = input.variant ?? "dashboard";
-  const enhanceEnabled =
-    variant === "onboarding"
-      ? featureFlags.enhanceWithAiOnboarding
-      : featureFlags.enhanceWithAiResumeProfile;
-
-  if (!enhanceEnabled) {
-    logEnhance("server", "action.denied", {
-      traceId,
-      step: ENHANCE_PIPELINE.SERVER_FAIL,
-      reason: "feature_disabled",
-      variant,
-      userId,
-    });
-    return {
-      success: false,
-      error: "Enhance with AI is not available right now.",
-      code: "feature_disabled",
-    };
-  }
-
-  const estimatedCalls = input.jobDescription?.trim()
-    ? SYSTEM_QUOTA_PIPELINE_ESTIMATED_CALLS
-    : SYSTEM_QUOTA_DEFAULT_ESTIMATED_CALLS;
-
-  const readiness = await getAiReadinessForUser(userId, {
-    forceSystem: input.forceSystem ?? false,
-    estimatedCalls,
+  logEnhance("server", "action.auth", {
+    traceId,
+    step: ENHANCE_PIPELINE.SERVER_AUTH,
+    userId,
+    surface,
+    variant: input.variant ?? "dashboard",
   });
 
-  if (!readiness.status.ok) {
-    logEnhance("server", "action.readiness.blocked", {
-      traceId,
-      step: ENHANCE_PIPELINE.SERVER_FAIL,
-      reason: readiness.reason,
-      code: readiness.status.code,
-      userId,
-    });
+  // ── Gate resolution (G1–G6) via features framework ───────────────────────────
+  const enhance = await resolveEnhanceFeature(user, surface, {
+    forceSystem: input.forceSystem,
+    useCustomerKey: input.useCustomerKey,
+  });
+
+  logEnhance("server", "action.gate", {
+    traceId,
+    step: ENHANCE_PIPELINE.SERVER_ROUTE,
+    userId,
+    available: enhance.available,
+    reason: enhance.reason ?? null,
+    mode: enhance.mode,
+  });
+
+  if (!enhance.available) {
+    // Deterministic path: globally disabled or user opted out — silent, not an error
+    if (enhance.reason === "globally_disabled" || enhance.reason === "user_disabled") {
+      return runDeterministicResumeEnhance({
+        userId,
+        user,
+        enhanceInput: input,
+        aiEngine,
+        traceId,
+        aiDisabled: enhance.reason === "user_disabled",
+      });
+    }
+
+    // Hard blocks
+    const codeMap: Record<string, EnhanceResumeProfileFailure["code"]> = {
+      feature_disabled: "feature_disabled",
+      no_key: "no_customer_key",
+      pool_down: "system_pool_exhausted",
+      quota_exceeded: "quota_enhancement",
+    };
+
     return {
       success: false,
-      error: readiness.status.message,
-      code: mapReadinessFailureCode(
-        readiness.status.code,
-        readiness.systemQuota.code,
-      ),
+      error: enhance.reason === "feature_disabled"
+        ? "Enhance with AI is not available right now."
+        : enhance.reason === "no_key"
+          ? "Add an API key in AI Keys to use Enhance with AI."
+          : enhance.reason === "pool_down"
+            ? "EasySubmit's shared AI is temporarily unavailable. Try again later."
+            : "Daily enhancement limit reached. Try again tomorrow.",
+      code: codeMap[enhance.reason ?? ""] ?? "provider_error",
     };
   }
 
+  // ── Build AI route from resolved enhance state ────────────────────────────────
+  const route: ResolvedAiRoute =
+    enhance.mode === "customer"
+      ? {
+          mode: "customer",
+          provider: enhance.provider as Parameters<typeof runResumeEnhance>[0]["route"] extends { mode: "customer"; provider: infer P } ? P : never,
+          modelId: enhance.modelId!,
+          vaultKeyId: enhance.vaultKeyId!,
+        }
+      : { mode: "system", modelId: enhance.modelId! };
+
+  const quotaMode: AiQuotaMode = enhance.mode!;
   const { quotaRow, resetPatch } = resolveQuotaRowWithReset(user);
+  const userIsSubscribed = isSubscribed(user.plan ?? "free", user.subscriptionStatus ?? null);
 
   logEnhance("server", "action.quota.before", {
     traceId,
     step: ENHANCE_PIPELINE.SERVER_QUOTA,
-    preference: user.aiSourcePreference || "auto",
+    quotaMode,
     vaultKeyPresent: Boolean(user.vaultKeyId),
     activeProvider: user.activeProvider,
     quota: summarizeQuotaForLog(quotaRow),
@@ -217,162 +224,31 @@ export async function enhanceResumeForUserId(
     userId,
   });
 
-  const preference = (user.aiSourcePreference || "auto") as AiSourcePreference;
-  const route = await resolveAiRoute({
-    aiSourcePreference: preference,
-    vaultKeyId: user.vaultKeyId,
-    activeProvider: user.activeProvider,
-    forceSystem: input.forceSystem ?? false,
-    allowByokFallback: input.useCustomerKey ?? false,
-    aiEngine,
-    systemAiEnabled: featureFlags.systemAiEnabled,
-  });
+  // ── Pre-processing context ────────────────────────────────────────────────────
+  const estimatedCalls = input.jobDescription?.trim()
+    ? SYSTEM_QUOTA_PIPELINE_ESTIMATED_CALLS
+    : SYSTEM_QUOTA_DEFAULT_ESTIMATED_CALLS;
 
-  logEnhance("server", "action.route", {
+  const { jobIntelligence, enhanceDirective } = await buildEnhanceIntelligenceContext({
+    form: input.form,
+    targetRole: input.targetRole,
+    jobDescription: input.jobDescription,
+    jobEntryId: input.jobEntryId,
     traceId,
-    step: ENHANCE_PIPELINE.SERVER_ROUTE,
-    route: sanitizeRouteForLog(route),
     userId,
   });
 
-  if ("error" in route) {
-    logEnhance("server", "action.route.error", {
-      traceId,
-      step: ENHANCE_PIPELINE.SERVER_FAIL,
-      code: route.error,
-      userId,
-    });
-    if (route.error === "no_system_key") {
-      return {
-        success: false,
-        error: "EasySubmit AI is not configured. Add your own API key in AI Keys.",
-        code: "no_system_key",
-      };
-    }
-    if (route.error === "system_pool_exhausted") {
-      return {
-        success: false,
-        code: "system_pool_exhausted",
-        byokAvailable: route.byokAvailable,
-        error: route.byokAvailable
-          ? `${SYSTEM_POOL_EXHAUSTED_HEADLINE} ${SYSTEM_POOL_EXHAUSTED_BYOK_BODY}`
-          : `${SYSTEM_POOL_EXHAUSTED_HEADLINE} ${SYSTEM_POOL_EXHAUSTED_NO_BYOK_BODY}`,
-      };
-    }
-    return {
-      success: false,
-      error: isSystemAiEnabled(featureFlags)
-        ? "Add an API key in AI Keys or switch to EasySubmit AI in Settings."
-        : "Add an API key in AI Keys to use Enhance with AI.",
-      code: "no_customer_key",
-    };
-  }
-
-  const quotaMode: AiQuotaMode = route.mode;
-  const userIsSubscribed = isSubscribed(user.plan ?? "free", user.subscriptionStatus ?? null);
-
-  if (route.mode === "customer" && !userIsSubscribed && !isCustomerQuotaUnlimited(aiEngine)) {
-    const quotaCheck = checkAiQuota(quotaRow, aiEngine, quotaMode, {
-      isEnhancement: true,
-      estimatedCalls,
-    });
-
-    if (!quotaCheck.ok) {
-      logEnhance("server", "action.quota.blocked", {
-        traceId,
-        step: ENHANCE_PIPELINE.SERVER_FAIL,
-        reason: quotaCheck.reason,
-        quotaMode,
-        userId,
-      });
-      return {
-        success: false,
-        error: customerQuotaBlockedMessage(quotaCheck),
-        code:
-          quotaCheck.reason === "enhancement_limit" ? "quota_enhancement" : "quota_calls",
-      };
-    }
-  }
-
-  // Pre-compute ATS intelligence — feeds tactical prompts and deterministic fallback.
-  // Only when a job description is present (no JD = general enhance, no targeting possible).
-  const jobIntelligence = input.jobDescription?.trim()
-    ? await analyzeJobIntelligenceWithOnet(input.form, input.targetRole, input.jobDescription)
-    : undefined;
-
-  if (jobIntelligence) {
-    logEnhance("server", "action.intelligence", {
-      traceId,
-      step: ENHANCE_PIPELINE.SERVER_JD_INTELLIGENCE,
-      userId,
-      missingKeywords: jobIntelligence.missingKeywords.length,
-      skillsToAdd: jobIntelligence.skillsToAdd,
-      skillsToAddCount: jobIntelligence.skillsToAdd.length,
-      keywordsForContentCount: jobIntelligence.keywordsForContent.length,
-      weakBulletsCount: jobIntelligence.weakBullets.length,
-      coveragePercent: jobIntelligence.coveragePercent,
-      onetMatchedTitle: jobIntelligence.onetMatchedTitle ?? null,
-    });
-  }
-
-  // JD Brain — load cached intelligence or run full analysis, then build directive.
-  let enhanceDirective: import("@/lib/job-tracker/jd/jd-intelligence").ResumeEnhanceDirective | undefined;
-  if (input.jobDescription?.trim()) {
-    let cachedIntel: JDIntelligence | null = null;
-    let cachedHash: string | null = null;
-
-    if (input.jobEntryId) {
-      const entry = await prisma.jobTrackerEntry.findUnique({
-        where: { id: input.jobEntryId },
-        select: { jdIntelligence: true, jdDescriptionHash: true },
-      });
-      cachedIntel = entry?.jdIntelligence as JDIntelligence | null ?? null;
-      cachedHash = entry?.jdDescriptionHash ?? null;
-    }
-
-    const jdResult = await analyzeJobDescription({
-      rawDescription: input.jobDescription,
-      targetRole: input.targetRole,
-      cachedIntelligence: cachedIntel,
-      cachedHash,
-    });
-
-    // Persist updated intelligence back to DB (non-blocking)
-    if (input.jobEntryId && !jdResult.cacheHit) {
-      prisma.jobTrackerEntry
-        .update({
-          where: { id: input.jobEntryId },
-          data: {
-            jdIntelligence: jdResult.intelligence as object,
-            jdDescriptionHash: jdResult.descriptionHash,
-            jdIntelUpdatedAt: new Date(),
-          },
-        })
-        .catch(() => undefined);
-    }
-
-    const primeData = refineryFormToPrimeResume(input.form);
-    enhanceDirective = buildResumeEnhanceDirective(
-      jdResult.intelligence,
-      primeData.skills ?? [],
-    );
-
-    logEnhance("server", "action.directive", {
-      traceId,
-      step: ENHANCE_PIPELINE.SERVER_JD_DIRECTIVE,
-      userId,
-      cacheHit: jdResult.cacheHit,
-      extractedJobTitle: jdResult.intelligence.extractedJobTitle ?? null,
-      mustAddSkillsCount: enhanceDirective.mustAddSkills.length,
-      mustAddSkills: enhanceDirective.mustAddSkills.slice(0, 12),
-      mustWeaveKeywordsCount: enhanceDirective.mustWeaveKeywords.length,
-      summaryTheme: enhanceDirective.summaryTheme ?? null,
-      roleLevel: enhanceDirective.roleLevel,
-    });
-  }
-
+  // ── AI call ───────────────────────────────────────────────────────────────────
   const pricingMap = await getAppConfig("ai_pricing_map");
   const engineStartedAt = Date.now();
+
+  logEnhance("server", "action.engine.start", {
+    traceId,
+    step: ENHANCE_PIPELINE.SERVER_ENGINE,
+    userId,
+    estimatedCalls,
+  });
+
   const result = await runResumeEnhance(
     {
       form: input.form,
@@ -400,7 +276,7 @@ export async function enhanceResumeForUserId(
           tokensUsed: result.tokensUsed,
           apiCallCount: result.apiCallCount,
           changedSections: result.changedSections,
-          fallbackUsed: result.fallbackUsed ?? false,
+          engineMode: result.fallbackUsed ? "deterministic" : "ai",
           partialEnhance: result.partialEnhance ?? false,
           delta: summarizeFormDelta(input.form, result.form),
         }
@@ -421,14 +297,14 @@ export async function enhanceResumeForUserId(
     };
   }
 
-  // Only increment quota when AI actually ran (not deterministic fallback)
   const usedFallback = Boolean(result.fallbackUsed);
 
+  // ── Quota persist + usage log ─────────────────────────────────────────────────
   if (!usedFallback) {
     const increment = incrementQuotaPatch(quotaRow, aiEngine, {
       isEnhancement: true,
       callCount: result.apiCallCount,
-      mode: route.mode,
+      mode: quotaMode,
     });
 
     await prisma.user.update({
@@ -447,7 +323,6 @@ export async function enhanceResumeForUserId(
       });
     }
   } else if (resetPatch) {
-    // Still apply the quota reset even if fallback ran
     await prisma.user.update({ where: { id: userId }, data: resetPatch });
   }
 
@@ -456,17 +331,30 @@ export async function enhanceResumeForUserId(
     : incrementQuotaPatch(quotaRow, aiEngine, {
         isEnhancement: true,
         callCount: result.apiCallCount,
-        mode: route.mode,
+        mode: quotaMode,
       });
 
   const updatedSnapshot = buildQuotaSnapshot(
     { ...quotaRow, ...incrementForSnapshot },
     aiEngine,
-    route.mode,
+    quotaMode,
   );
 
-  const response = {
-    success: true as const,
+  logEnhance("server", "action.persist.done", {
+    traceId,
+    step: ENHANCE_PIPELINE.SERVER_PERSIST,
+    userId,
+    usedFallback,
+    tokensUsed: result.tokensUsed,
+    estimatedCost: result.estimatedCost,
+    quotaAfter: {
+      enhancementsUsed: updatedSnapshot.enhancementsUsed,
+      callsUsed: updatedSnapshot.callsUsed,
+    },
+  });
+
+  const response: EnhanceResumeProfileSuccess = {
+    success: true,
     form: result.form,
     changedSections: result.changedSections,
     targetRole: result.targetRole,
@@ -476,7 +364,7 @@ export async function enhanceResumeForUserId(
       callsUsed: updatedSnapshot.callsUsed,
       callsLimit: updatedSnapshot.callsLimit,
     },
-    aiMode: route.mode,
+    aiMode: quotaMode,
     ...(result.partialEnhance
       ? {
           partialEnhance: true,
@@ -485,12 +373,8 @@ export async function enhanceResumeForUserId(
             "Job-specific optimization was incomplete. Your base enhancement was saved.",
         }
       : {}),
-    ...(usedFallback
-      ? {
-          fallbackUsed: true,
-          fallbackSummary: result.fallbackSummary,
-        }
-      : {}),
+    engineMode: (usedFallback ? "deterministic" : "ai") as "ai" | "deterministic",
+    ...(usedFallback ? { fallbackSummary: result.fallbackSummary } : {}),
   };
 
   logEnhance("server", "action.success", {
@@ -499,7 +383,7 @@ export async function enhanceResumeForUserId(
     userId,
     ...summarizeEnhanceResult({
       changedSections: result.changedSections,
-      aiMode: route.mode,
+      aiMode: quotaMode,
       quota: response.quota,
       tokensUsed: result.tokensUsed,
       modelId: result.modelId,

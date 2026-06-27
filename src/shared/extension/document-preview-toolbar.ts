@@ -20,6 +20,8 @@ export const PREVIEW_TOOLBAR_HINTS = {
   back: "Back",
   edit: "Edit here",
   enhance: "Enhance with AI",
+  enhanceRulesOnly: "Enhance",
+  enhanceRulesOnlyTitle: "Enable AI in Settings for smarter enhancements",
   downloadWord: "Download Word",
   downloadPdf: "Download PDF",
   studioWeb: "Edit in Studio Web",
@@ -39,6 +41,7 @@ export type DocumentPreviewToolbarInput = {
   downloadBusy: "pdf" | "doc" | null;
   enhanceEnabled: boolean;
   enhanceBusy: boolean;
+  aiEnabled?: boolean;
 };
 
 function escapeAttr(value: string): string {
@@ -125,10 +128,19 @@ export function renderDocumentPreviewToolbar(input: DocumentPreviewToolbarInput)
     });
   }
 
+  const enhanceHint = input.aiEnabled === false
+    ? PREVIEW_TOOLBAR_HINTS.enhanceRulesOnlyTitle
+    : PREVIEW_TOOLBAR_HINTS.enhance;
+  const enhanceAriaLabel =
+    input.aiEnabled === false
+      ? PREVIEW_TOOLBAR_HINTS.enhanceRulesOnly
+      : PREVIEW_TOOLBAR_HINTS.enhance;
+
   const enhanceButton = renderIconButton({
     className: "preview-icon-btn preview-enhance-btn",
     attrs: `data-document-enhance="1" data-document-kind="${input.kind}"`,
-    hint: PREVIEW_TOOLBAR_HINTS.enhance,
+    hint: enhanceHint,
+    ariaLabel: enhanceAriaLabel,
     icon: input.enhanceBusy ? ICONS.spinner : ICONS.sparkles,
     disabled: !input.enhanceEnabled || input.enhanceBusy || input.editing,
   });

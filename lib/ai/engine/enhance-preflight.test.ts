@@ -92,7 +92,7 @@ describe("checkEnhanceWithAiPreflight", () => {
     vi.mocked(getAppConfig).mockResolvedValue(aiEngineSystemOff as never);
     vi.mocked(getFeatureFlags).mockResolvedValue({
       ...defaultFlags,
-      enhanceWithAiOnboarding: false,
+      enhanceWithAiResumeProfile: false,
     });
 
     const result = await checkEnhanceWithAiPreflight({ variant: "onboarding" });

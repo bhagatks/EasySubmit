@@ -2,6 +2,28 @@
 // The directive is what gets fed to brain.ts — structured instructions, not raw gaps.
 
 import type { JDIntelligence, ResumeEnhanceDirective } from "@/lib/job-tracker/jd/jd-intelligence";
+import { MASTER_SKILLS } from "@/src/lib/constants/skills";
+import { isBannedSkill, SKILLS_HARD_MAX } from "@/lib/resume/skills-rules";
+
+const MASTER_SKILLS_SET = new Set(MASTER_SKILLS.map((s) => s.toLowerCase()));
+
+function filterMustAddSkills(rawSkills: string[]): string[] {
+  const seen = new Set<string>();
+  const filtered: string[] = [];
+
+  for (const skill of rawSkills) {
+    const normalized = skill.toLowerCase().trim();
+    if (!normalized || !MASTER_SKILLS_SET.has(normalized)) continue;
+    if (isBannedSkill(skill)) continue;
+    if (seen.has(normalized)) continue;
+
+    seen.add(normalized);
+    filtered.push(skill);
+    if (filtered.length >= SKILLS_HARD_MAX) break;
+  }
+
+  return filtered;
+}
 
 // Skills clearly tied to a tech/engineering domain that should be removed when
 // the target role is non-technical (people, ops, finance, legal, etc.)
@@ -29,9 +51,9 @@ export function buildResumeEnhanceDirective(
   const isNonTech = !isTechRole(intelligence);
 
   // Skills gap: must-haves not already in resume
-  const mustAddSkills = intelligence.mustHaveSkills
-    .filter((s) => !resumeSkillsLower.has(s.toLowerCase()))
-    .slice(0, 15);
+  const mustAddSkills = filterMustAddSkills(
+    intelligence.mustHaveSkills.filter((s) => !resumeSkillsLower.has(s.toLowerCase())),
+  );
 
   // Keywords gap: tier1 + tier2 not already in resume
   const allPriorityKeywords = [...intelligence.tier1Keywords, ...intelligence.tier2Keywords];

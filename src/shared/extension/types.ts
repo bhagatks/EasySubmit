@@ -70,6 +70,7 @@ export type ExtensionRuntimeConfig = {
   aiHealthError?: string | null;
   systemQuotaExceeded?: boolean;
   byokKeyInvalid?: boolean;
+  aiEnabled?: boolean;
 };
 
 export type ApplyPipelineResponse = {

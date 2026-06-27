@@ -121,11 +121,15 @@ async function loadRuntimeConfig(): Promise<ExtensionRuntimeConfig> {
   );
   // Pin to the host we actually reached — do not drift to NEXT_PUBLIC_APP_URL from the body.
   await chrome.storage.local.set({ [STORAGE_KEYS.apiBaseUrl]: base });
-  return mergeExtensionRuntimeConfig({
+  const merged = mergeExtensionRuntimeConfig({
     ...data,
     apiBaseUrl: base,
     jobCardEnabled: Boolean(data.jobCardEnabled),
   });
+  await chrome.storage.local.set({
+    [STORAGE_KEYS.aiEnabled]: merged.aiEnabled ?? true,
+  });
+  return merged;
 }
 
 async function gatherAppTabCandidates(appOrigin: string): Promise<AppTabCandidate[]> {

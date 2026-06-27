@@ -12,7 +12,6 @@ import {
 import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { completeOnboarding, completeStep } from "@/app/actions/onboarding";
-import { fetchEnhanceOnboardingAvailable } from "@/app/actions/feature-flags";
 import { getLoginIdentity, getProfileIdentity } from "@/app/actions/profile";
 import { IdentityCanvasGhost } from "@/components/onboarding/hub/IdentityCanvasGhost";
 import { SynthesisTransition } from "@/components/onboarding/SynthesisTransition";
@@ -151,7 +150,6 @@ export default function OnboardingPage() {
   const [profileLastName, setProfileLastName] = useState("");
   const [loginFirstName, setLoginFirstName] = useState("");
   const [loginLastName, setLoginLastName] = useState("");
-  const [enhanceWithAiOnboarding, setEnhanceWithAiOnboarding] = useState(false);
   const [finalizeError, setFinalizeError] = useState<string | null>(null);
   const [studioToolbarUi, setStudioToolbarUi] = useState<RefineryStudioToolbarUi | null>(
     null,
@@ -199,9 +197,6 @@ export default function OnboardingPage() {
     });
   }, []);
 
-  useEffect(() => {
-    void fetchEnhanceOnboardingAvailable().then(setEnhanceWithAiOnboarding);
-  }, []);
 
   useEffect(() => {
     const saved = readWorkbenchSession();
@@ -375,7 +370,7 @@ export default function OnboardingPage() {
       forceSystem: true,
       variant: "onboarding",
       registerHeader: false,
-      enabled: enhanceWithAiOnboarding,
+      enabled: true,
       onApply: handleEnhanceApply,
     });
 
@@ -631,13 +626,11 @@ export default function OnboardingPage() {
             <ArrowLeft className="h-3 w-3" aria-hidden="true" />
             {backLabel}
           </button>
-          {enhanceWithAiOnboarding ? (
-            <EnhanceWithAiButton
-              variant="onboarding"
-              isLoading={isEnhancing}
-              onClick={openEnhanceDialog}
-            />
-          ) : null}
+          <EnhanceWithAiButton
+            variant="onboarding"
+            isLoading={isEnhancing}
+            onClick={openEnhanceDialog}
+          />
         </>
       );
     }
@@ -647,7 +640,6 @@ export default function OnboardingPage() {
     phase,
     studioToolbarUi,
     handleRefineryBack,
-    enhanceWithAiOnboarding,
     isEnhancing,
     openEnhanceDialog,
   ]);

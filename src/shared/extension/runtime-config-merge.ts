@@ -10,6 +10,7 @@ export const EXTENSION_RUNTIME_DEFAULTS: ExtensionRuntimeConfig = {
   autoApplyUserSwitch: true,
   oneClickApplyPlatforms: ["workday"],
   autoApplyEnabled: true,
+  aiEnabled: true,
 };
 
 /** Merge API config with safe defaults so Workday/generic detection keeps working. */
@@ -45,5 +46,6 @@ export function mergeExtensionRuntimeConfig(
     aiHealthError: partial.aiHealthError ?? null,
     systemQuotaExceeded: partial.systemQuotaExceeded ?? false,
     byokKeyInvalid: partial.byokKeyInvalid ?? false,
+    aiEnabled: partial.aiEnabled ?? EXTENSION_RUNTIME_DEFAULTS.aiEnabled,
   };
 }

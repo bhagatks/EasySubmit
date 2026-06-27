@@ -41,6 +41,7 @@ import {
 } from "@/components/dashboard/DashboardWorkspacePage";
 import { StudioCollapsibleSection } from "@/components/resume/StudioCollapsibleSection";
 import { StudioIconButton } from "@/components/resume/StudioIconButton";
+import { isClientAiGloballyEnabled } from "@/lib/ai/ai-global-enabled";
 import {
   SYSTEM_AI_DAILY_CALL_LIMIT,
   SYSTEM_AI_DAILY_ENHANCEMENT_LIMIT,
@@ -67,22 +68,10 @@ const AUTH_PROVIDERS: ProviderMeta[] = [
   { id: "linkedin", label: "LinkedIn" },
 ];
 
-const AI_SOURCE_OPTIONS = [
-  { value: "auto" as const, label: "Auto", hint: "Your key if set, else EasySubmit AI" },
-  { value: "customer" as const, label: "My key", hint: "BYOK only" },
-  { value: "system" as const, label: "EasySubmit AI", hint: "Daily limits apply" },
-];
-
 const PROFILE_PICKER_OPTIONS = [
   { value: "DEFAULT" as const, label: "Default", hint: "Your default profile" },
   { value: "LAST_SELECTED" as const, label: "Last used", hint: "From extension card" },
 ];
-
-const AI_SOURCE_LABELS: Record<(typeof AI_SOURCE_OPTIONS)[number]["value"], string> = {
-  auto: "Auto",
-  customer: "My key",
-  system: "EasySubmit AI",
-};
 
 function SegmentedControl<T extends string>({
   value,
@@ -240,7 +229,7 @@ export function AccountSettings({ initial }: AccountSettingsProps) {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState<AuthProviderId | null>(null);
-  const [aiSource, setAiSource] = useState(initial.aiSourcePreference || "auto");
+  const [aiEnabled, setAiEnabled] = useState(initial.aiSourcePreference !== "disabled");
   const [aiPrefBusy, setAiPrefBusy] = useState(false);
   const [autoApplyUserSwitch, setAutoApplyUserSwitch] = useState(initial.autoApplyUserSwitch);
   const [autoApplyUserSwitchBusy, setAutoApplyUserSwitchBusy] = useState(false);
@@ -265,7 +254,7 @@ export function AccountSettings({ initial }: AccountSettingsProps) {
     }
 
     void (async () => {
-      if (initial.aiSourcePreference !== "auto") {
+      if (initial.aiSourcePreference === "disabled") {
         setAiPrefBusy(true);
         setError(null);
         const result = await updateAiSourcePreference("auto");
@@ -273,17 +262,19 @@ export function AccountSettings({ initial }: AccountSettingsProps) {
         if (!result.success) {
           setError(result.error);
         } else {
-          setAiSource("auto");
+          setAiEnabled(true);
         }
       }
       router.replace("/dashboard/settings", { scroll: false });
     })();
   }, [expanded, initial.aiSourcePreference, router, searchParams, toggleSection]);
 
-  const aiSummaryKeys = `${AI_SOURCE_LABELS[aiSource as keyof typeof AI_SOURCE_LABELS] ?? "Auto"} · ${initial.aiEnhancementsToday}/${SYSTEM_AI_DAILY_ENHANCEMENT_LIMIT} enhancements`;
+  const engineHot = Boolean(initial.vaultKeyId);
+  const aiSummaryKeys = aiEnabled
+    ? `${engineHot ? "Your key active" : "System AI"} · ${initial.aiEnhancementsToday}/${SYSTEM_AI_DAILY_ENHANCEMENT_LIMIT} enhancements`
+    : "AI off · rules engine only";
   const generalSummary = `${autoApplyUserSwitch ? "One-click on" : "One-click off"} · ${profilePickerMode === "DEFAULT" ? "Default resume" : "Last used resume"}`;
 
-  const engineHot = Boolean(initial.vaultKeyId);
   const connectedSet = new Set(initial.connectedProviders);
 
   const saveButton = useMemo(
@@ -337,16 +328,17 @@ export function AccountSettings({ initial }: AccountSettingsProps) {
     await signIn(provider, { callbackUrl: "/dashboard/settings" });
   }
 
-  async function handleAiSourceChange(value: "auto" | "customer" | "system") {
+  async function handleAiToggle(enabled: boolean) {
     setAiPrefBusy(true);
     setError(null);
-    const result = await updateAiSourcePreference(value);
+    const previous = aiEnabled;
+    setAiEnabled(enabled);
+    const result = await updateAiSourcePreference(enabled ? "auto" : "disabled");
     setAiPrefBusy(false);
     if (!result.success) {
+      setAiEnabled(previous);
       setError(result.error);
-      return;
     }
-    setAiSource(value);
   }
 
   async function handleAutoApplyUserSwitchChange(enabled: boolean) {
@@ -486,7 +478,7 @@ export function AccountSettings({ initial }: AccountSettingsProps) {
             title={
               <span className="flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" />
-                AI Keys
+                AI
               </span>
             }
             description={aiSummaryKeys}
@@ -496,19 +488,23 @@ export function AccountSettings({ initial }: AccountSettingsProps) {
             showDragHandle={false}
           >
             <div className="space-y-4">
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">AI source</p>
-                <SegmentedControl
-                  name="AI source"
-                  value={aiSource}
-                  options={AI_SOURCE_OPTIONS}
-                  disabled={aiPrefBusy}
-                  onChange={(value) =>
-                    void handleAiSourceChange(value as "auto" | "customer" | "system")
-                  }
-                />
-              </div>
+              <SettingToggleRow
+                label="AI Enhancement"
+                description={
+                  aiEnabled
+                    ? engineHot
+                      ? "Your key active"
+                      : "System AI · uses daily quota"
+                    : "AI disabled — enhance uses rules engine"
+                }
+                checked={aiEnabled}
+                disabled={aiPrefBusy || !isClientAiGloballyEnabled()}
+                onChange={(enabled) => void handleAiToggle(enabled)}
+                icon={<Sparkles className="h-3.5 w-3.5 text-primary" aria-hidden="true" />}
+              />
 
+              {aiEnabled ? (
+                <>
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/70 bg-background/30 px-3 py-2.5">
                 <div className="min-w-0 text-xs text-muted-foreground">
                   <span className="font-medium text-foreground">Today&apos;s usage</span>
@@ -544,6 +540,8 @@ export function AccountSettings({ initial }: AccountSettingsProps) {
                   Gemini terms
                 </a>
               </p>
+                </>
+              ) : null}
             </div>
           </StudioCollapsibleSection>
 

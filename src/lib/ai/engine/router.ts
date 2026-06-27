@@ -4,6 +4,7 @@ import { isHandshakeProvider, type HandshakeProvider } from "@/src/lib/config/ca
 import type { AiEngineConfig } from "@/src/lib/services/ai-engine-config";
 import { AI_ENGINE_DEFAULTS } from "@/src/lib/services/ai-engine-config";
 import type { AiRouteMode, AiSourcePreference } from "@/src/lib/ai/engine/constants";
+import { isAiGloballyEnabled } from "@/lib/ai/ai-global-enabled";
 import { hasHealthySystemPoolSlot, hasSystemGeminiKeys } from "@/src/lib/ai/engine/system-key-pool";
 
 export type ResolvedAiRoute =
@@ -22,7 +23,9 @@ export type AiRouteResolution =
   | ResolvedAiRoute
   | { error: "no_customer_key" }
   | { error: "no_system_key" }
-  | { error: "system_pool_exhausted"; byokAvailable: boolean };
+  | { error: "system_pool_exhausted"; byokAvailable: boolean }
+  | { error: "ai_globally_disabled" }
+  | { error: "ai_disabled" };
 
 export const SYSTEM_POOL_EXHAUSTED_HEADLINE =
   "EasySubmit's shared AI is temporarily unavailable.";
@@ -34,7 +37,7 @@ export const SYSTEM_POOL_EXHAUSTED_NO_BYOK_BODY =
   "Try again later, or add your API key in AI Keys.";
 
 export function resolveEffectiveAiSource(
-  preference: AiSourcePreference,
+  _preference: AiSourcePreference,
   hasVaultKey: boolean,
   systemAiEnabled: boolean,
   forceSystem = false,
@@ -44,8 +47,6 @@ export function resolveEffectiveAiSource(
   }
 
   if (forceSystem) return "system";
-  if (preference === "system") return "system";
-  if (preference === "customer") return hasVaultKey ? "customer" : "system";
   return hasVaultKey ? "customer" : "system";
 }
 
@@ -85,6 +86,14 @@ export async function resolveAiRoute(input: {
   /** From `feature_flags.system_ai_enabled` — when false, routes to BYOK only. */
   systemAiEnabled?: boolean;
 }): Promise<AiRouteResolution> {
+  if (!isAiGloballyEnabled()) {
+    return { error: "ai_globally_disabled" };
+  }
+
+  if (input.aiSourcePreference === "disabled") {
+    return { error: "ai_disabled" };
+  }
+
   const engine = input.aiEngine ?? AI_ENGINE_DEFAULTS;
   const systemAiEnabled = input.systemAiEnabled ?? true;
   const mode = resolveEffectiveAiSource(

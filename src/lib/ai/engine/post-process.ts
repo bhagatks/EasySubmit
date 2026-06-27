@@ -14,6 +14,8 @@ import {
 } from "@/lib/resume/skills-rules";
 import { stripContactFromForm, type ResumeBodyForm } from "@/src/lib/ai/engine/candidate-context";
 import { sanitizeEnhancedTextFields } from "@/src/lib/ai/engine/format-rules";
+import { logEnhance } from "@/src/lib/ai/engine/enhance-logger";
+import { ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
 
 function stableStringify(value: unknown): string {
   return JSON.stringify(value);
@@ -174,18 +176,31 @@ export function parseEnhancedResumeBody(text: string): Partial<ResumeBodyForm> |
   return null;
 }
 
-export function postProcessProfessionalSummary(summary: string): string {
+export function postProcessProfessionalSummary(
+  summary: string,
+  traceId = "no-trace",
+  userId = "unknown",
+): string {
   const trimmed = summary.trim();
   if (!trimmed) return summary;
 
   const validation = validateSummary(trimmed);
-  if (validation.sentenceError || validation.wordError || validation.bannedWords.length > 0) {
-    console.warn("[enhance] professional summary quality:", {
+  const hasIssues =
+    validation.sentenceError !== null ||
+    validation.wordError !== null ||
+    validation.bannedWords.length > 0;
+
+  if (hasIssues) {
+    logEnhance("engine", "post.summary_rules", {
+      traceId,
+      userId,
+      step: ENHANCE_PIPELINE.ENGINE_MERGE,
       sentenceCount: validation.sentenceCount,
       wordCount: validation.wordCount,
       sentenceError: validation.sentenceError,
       wordError: validation.wordError,
       bannedWords: validation.bannedWords,
+      action: validation.bannedWords.length > 0 ? "strip_banned" : "flag_only",
     });
   }
 
@@ -196,19 +211,25 @@ export function postProcessProfessionalSummary(summary: string): string {
   return stripBannedSummaryWords(trimmed);
 }
 
-export function postProcessSkillsText(skillsText: string): string {
+export function postProcessSkillsText(
+  skillsText: string,
+  traceId = "no-trace",
+  userId = "unknown",
+): string {
   const parsed = parseSkillsText(skillsText);
   if (parsed.length === 0) return skillsText;
 
   const filtered: string[] = [];
+  const removedBanned: string[] = [];
+  const removedProse: string[] = [];
 
   for (const skill of parsed) {
     if (isBannedSkill(skill)) {
-      console.warn("[enhance] removed banned skill:", skill);
+      removedBanned.push(skill);
       continue;
     }
     if (isProseSkill(skill)) {
-      console.warn("[enhance] removed prose skill:", skill);
+      removedProse.push(skill);
       continue;
     }
     filtered.push(skill);
@@ -216,12 +237,19 @@ export function postProcessSkillsText(skillsText: string): string {
 
   const trimmed = filtered.slice(0, 20);
   const validation = validateSkillsSystem(trimmed);
-  if (validation.countWarning || validation.compositionWarning) {
-    console.warn("[enhance] skills quality:", {
-      count: validation.count,
+
+  if (removedBanned.length > 0 || removedProse.length > 0 || validation.countWarning || validation.compositionWarning) {
+    logEnhance("engine", "post.skills_rules", {
+      traceId,
+      userId,
+      step: ENHANCE_PIPELINE.ENGINE_MERGE,
+      removedBanned,
+      removedBannedCount: removedBanned.length,
+      removedProse,
+      removedProseCount: removedProse.length,
+      skillsAfter: trimmed.length,
       countWarning: validation.countWarning,
       compositionWarning: validation.compositionWarning,
-      banned: validation.banned,
     });
   }
 
@@ -231,17 +259,19 @@ export function postProcessSkillsText(skillsText: string): string {
 export function normalizeEnhancedBody(
   raw: Partial<ResumeBodyForm>,
   original: HubRefineryForm,
+  traceId = "no-trace",
+  userId = "unknown",
 ): ResumeBodyForm {
   const base = stripContactFromForm(original);
 
   return {
     professionalSummary:
       typeof raw.professionalSummary === "string"
-        ? postProcessProfessionalSummary(raw.professionalSummary)
+        ? postProcessProfessionalSummary(raw.professionalSummary, traceId, userId)
         : base.professionalSummary,
     skillsText:
       typeof raw.skillsText === "string"
-        ? postProcessSkillsText(raw.skillsText)
+        ? postProcessSkillsText(raw.skillsText, traceId, userId)
         : base.skillsText,
     experience: normalizeExperienceList(raw.experience, base.experience),
     education: Array.isArray(raw.education) ? raw.education : base.education,

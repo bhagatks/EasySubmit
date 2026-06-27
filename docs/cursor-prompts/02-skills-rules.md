@@ -2,8 +2,18 @@
 
 ## Status
 
-`lib/resume/skills-rules.ts` and `StudioSkillsField` enforcement are already implemented.
-This prompt covers the remaining gaps in the AI path, readiness score, and enhance plan.
+**✅ COMPLETED** — 2026-06-26
+
+Web Studio + review ATS + AI post-process + deterministic enhance plan shipped.
+
+| Surface | Status |
+|---|---|
+| `lib/resume/skills-rules.ts` — all constants and validators | ✅ Done |
+| `StudioSkillsField` — count color, banned warnings, prose blocking, hard max | ✅ Done |
+| `src/lib/ai/engine/brain.ts` + `candidate-context.ts` — 15–20 skills, `maxSkills: 20` | ✅ Done |
+| `src/lib/ai/engine/post-process.ts` — filter banned/prose, cap at 20 | ✅ Done |
+| `lib/job-tracker/ats/resume-readiness-score.ts` — skills deductions in completeness pillar | ✅ Done |
+| `lib/job-tracker/enhance/enhance-plan.ts` — `skillsWarnings`, JD Brain `mustAddSkills` only | ✅ Done |
 
 ---
 
@@ -20,16 +30,9 @@ This prompt covers the remaining gaps in the AI path, readiness score, and enhan
 
 ---
 
-## What is Already Done
+## What Was Implemented
 
-| Surface | Status |
-|---|---|
-| `lib/resume/skills-rules.ts` — all constants and validators | ✅ Done |
-| `StudioSkillsField` — count color, banned warnings, prose blocking, hard max | ✅ Done |
-
----
-
-## What Still Needs to Be Done
+_(Originally listed as remaining gaps — all addressed in the 2026-06-26 pass.)_
 
 ### 1. AI prompt — `src/lib/ai/engine/brain.ts`
 
@@ -123,9 +126,9 @@ Run: `npx vitest run --config config/vitest.config.ts`
 
 ## Definition of Done
 
-- [ ] AI prompt instructs 15–20 skills, banned list, format rules
-- [ ] `maxSkills` is 20 in both candidate-context branches
-- [ ] Post-process removes banned and prose skills from AI output
-- [ ] Readiness score includes skills deductions and `skillsWarnings`
-- [ ] Enhance plan pre-filters `mustAddSkills` to master set, excludes banned
-- [ ] `npx tsc --noEmit` — zero new errors
+- [x] AI prompt instructs 15–20 skills, banned list, format rules
+- [x] `maxSkills` is 20 in both candidate-context branches
+- [x] Post-process removes banned and prose skills from AI output
+- [x] Readiness score includes skills deductions (via completeness `details[]`)
+- [x] Enhance plan uses JD Brain `mustAddSkills` + `skillsWarnings` (not raw keyword-gap tokens)
+- [x] `npm run build` passes

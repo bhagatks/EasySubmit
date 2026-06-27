@@ -10,6 +10,7 @@ import type {
   JDDomain,
 } from "@/lib/job-tracker/jd/jd-intelligence";
 import { makeEmptyIntelligence } from "@/lib/job-tracker/jd/jd-intelligence";
+import { extractNlpKeywordsForSection } from "@/lib/job-tracker/jd/jd-nlp-extractor";
 
 // ─── Seniority detection ──────────────────────────────────────────────────────
 
@@ -110,180 +111,19 @@ export function extractYearsExp(requirements: string): number | null {
 
 // ─── Tiered keyword extraction ────────────────────────────────────────────────
 
-// Stop words — HR filler, plain English, and company/context noise that must not appear in skills
-const STOP_WORDS = new Set([
-  // Articles / conjunctions / prepositions
-  "a","an","the","and","or","but","in","on","at","to","for","of","with",
-  "by","from","as","is","was","are","were","be","been","have","has","had",
-  "do","does","did","will","would","could","should","may","might","can",
-  "this","that","these","those","it","its","we","our","you","your","they",
-  "their","not","no","so","if","then","than","when","where","who","which",
-  "what","how","all","each","every","both","more","most","other","some",
-  "into","about","after","before","through","also","just","only","very",
-  // Generic HR / job-posting filler
-  "work","working","use","using","make","ensure","support","including",
-  "position","role","opportunity","candidate","apply","application","hiring",
-  "join","compensation","benefits","pay","salary","culture","innovation",
-  "environment","team","company","organization","business","experience",
-  "skill","ability","knowledge","required","preferred","plus","bonus",
-  "ideal","strong","excellent","great","key","core","related","relevant",
-  // Retail / supply-chain / generic ops words that bleed in from non-tech JDs
-  "walmart","target","amazon","store","stores","associate","associates",
-  "customer","customers","service","services","product","products",
-  "planning","plan","plans","planned","planner",
-  "scheduling","schedule","schedules","scheduled",
-  "workforce","workers","worker","staff","staffing",
-  "leave","absence","absences","attendance","vacation","pto",
-  "compliance","compliant","regulatory","regulation","regulations",
-  "area","areas","region","regions","location","locations","site","sites",
-  "degree","degrees","education","bachelor","master","phd",
-  "qualifications","qualification","qualified","qualify",
-  "execution","executing","execute","executes",
-  "strategies","strategy","strategic","tactics","tactic",
-  "analytical","analysis","analyze","analyses",
-  "attention","focus","focused","detail","details",
-  "problem","problems","solving","solver","solution","solutions",
-  "people","person","persons","individuals","individual",
-  "communication","communicate","communicates","interpersonal",
-  "leadership","leader","leaders","lead","leading","management","managing",
-  "time","times","timely","deadline","deadlines","priorities","priority",
-  "process","processes","procedure","procedures",
-  "data","information","reporting","reports","report","metrics","metric",
-  "develop","developing","development","developer","building","build",
-  "drive","driving","driven","impact","results","result","outcome","outcomes",
-  "collaborate","collaboration","collaborative","cross","functional",
-  "proactive","initiative","ownership","accountability","accountable",
-  "innovative","creativity","creative","critical","thinking",
-]);
-
-// Taxonomy of known tech/professional skills for deterministic classification
-const KNOWN_SKILLS = new Set([
-  // Languages
-  "python","java","javascript","typescript","go","golang","rust","swift","kotlin",
-  "c","cplusplus","csharp","dotnet","scala","ruby","php","r","matlab","julia",
-  // Frontend
-  "react","vue","angular","nextjs","svelte","html","css","tailwind","webpack",
-  "vite","storybook","redux","zustand","graphql",
-  // Backend
-  "nodejs","express","fastapi","django","flask","spring","rails","nestjs","grpc",
-  "rest","microservices","kafka","rabbitmq","celery",
-  // Infrastructure
-  "aws","gcp","azure","docker","kubernetes","terraform","ansible","jenkins",
-  "github","gitlab","ci","cd","linux","bash","nginx","helm","prometheus","grafana",
-  "datadog","splunk","pagerduty","newrelic",
-  // Data
-  "sql","postgresql","mysql","mongodb","redis","elasticsearch","cassandra",
-  "dynamodb","snowflake","bigquery","spark","hadoop","airflow","dbt","pandas",
-  "numpy","pytorch","tensorflow","sklearn","jupyter","tableau","powerbi",
-  // Cloud services
-  "lambda","s3","ec2","rds","sqs","sns","cloudwatch","cloudfront","eks","ecs",
-  // Testing
-  "jest","pytest","junit","cypress","playwright","selenium","vitest",
-  // Architecture
-  "microservices","distributed","serverless","event-driven","soa",
-  // Processes
-  "agile","scrum","kanban","devops","sre","tdd","bdd","ci/cd",
-  // Certs
-  "aws-certified","gcp-certified","cka","ckad","pmp","cissp",
-  // Professional / business / operations skills (non-tech roles)
-  "program-management","project-management","change-management","stakeholder-management",
-  "organizational-design","workforce-planning","people-analytics","talent-management",
-  "performance-management","succession-planning","employee-engagement",
-  "hris","workday-hcm","sap-successfactors","servicenow","salesforce","powerbi",
-  "excel","tableau","looker","google-analytics","mixpanel",
-  "okrs","kpis","balanced-scorecard",
-  "six-sigma","lean","kaizen","process-improvement",
-  "budget-management","p&l","financial-modeling","cost-analysis",
-  "product-management","go-to-market","roadmapping",
-  "content-strategy","seo","sem","paid-media","crm",
-  "supply-chain","logistics","operations-management",
-  "risk-management","audit","sox","gdpr","hipaa",
-  "mergers-acquisitions","due-diligence",
-]);
-
-function tokenizeSection(text: string): string[] {
-  return text
-    .toLowerCase()
-    .replace(/\bnode\.js\b/gi, "nodejs")
-    .replace(/\bvue\.js\b/gi, "vuejs")
-    .replace(/\breact\.js\b/gi, "reactjs")
-    .replace(/\bnext\.js\b/gi, "nextjs")
-    .replace(/\b\.net\b/gi, "dotnet")
-    .replace(/\bc\+\+/gi, "cplusplus")
-    .replace(/\bc#/gi, "csharp")
-    .replace(/\bci\/cd\b/gi, "ci/cd")
-    .split(/[^a-z0-9#+/\-]/)
-    .map((t) => t.replace(/^[-]+|[-]+$/g, ""))
-    .filter((t) => t.length >= 2 && !STOP_WORDS.has(t));
-}
-
-// Returns true for tokens that look like a genuine tech/professional term:
-// must contain a digit, uppercase letter, slash, dot, or be a known skill.
-// Pure lowercase dictionary words (e.g. "planning", "area", "attention") are excluded.
-function looksLikeTechTerm(token: string): boolean {
-  if (KNOWN_SKILLS.has(token)) return true;
-  // Contains a digit (versions, acronyms with numbers)
-  if (/\d/.test(token)) return true;
-  // Contains / or # or + (e.g. c#, c++, ci/cd, s3)
-  if (/[#+/]/.test(token)) return true;
-  // Hyphenated compound (e.g. event-driven, full-stack, open-source)
-  if (/-/.test(token) && token.length >= 6) return true;
-  // Short known acronyms (2-4 uppercase-equivalent chars that are not stop words)
-  if (token.length <= 4) return KNOWN_SKILLS.has(token);
-  return false;
-}
-
-function bigramsOf(tokens: string[]): string[] {
-  const result: string[] = [];
-  for (let i = 0; i < tokens.length - 1; i++) {
-    result.push(`${tokens[i]} ${tokens[i + 1]}`);
-  }
-  return result;
-}
-
-function extractKeywordsFromText(text: string, maxTerms: number): string[] {
-  if (!text.trim()) return [];
-  const tokens = tokenizeSection(text);
-  const bigrams = bigramsOf(tokens);
-  const freq = new Map<string, number>();
-  for (const t of [...tokens, ...bigrams]) {
-    freq.set(t, (freq.get(t) ?? 0) + 1);
-  }
-
-  // Only include known skills or terms that look like tech/professional terms.
-  // This prevents plain English words (company names, HR jargon) from leaking into skill keywords.
-  const candidates = Array.from(freq.entries())
-    .filter(([kw]) => looksLikeTechTerm(kw))
-    .sort((a, b) => {
-      const aKnown = KNOWN_SKILLS.has(a[0]) ? 1 : 0;
-      const bKnown = KNOWN_SKILLS.has(b[0]) ? 1 : 0;
-      if (bKnown !== aKnown) return bKnown - aKnown;
-      return b[1] - a[1];
-    })
-    .slice(0, maxTerms)
-    .map(([kw]) => kw);
-
-  return candidates;
-}
-
 export function extractTieredKeywords(segments: JDSegments): {
   tier1: string[];
   tier2: string[];
   tier3: string[];
 } {
   return {
-    tier1: extractKeywordsFromText(segments.requirements, 30),
-    tier2: extractKeywordsFromText(segments.responsibilities, 25),
-    tier3: extractKeywordsFromText(segments.preferred, 20),
+    tier1: extractNlpKeywordsForSection(segments.requirements).slice(0, 30),
+    tier2: extractNlpKeywordsForSection(segments.responsibilities).slice(0, 25),
+    tier3: extractNlpKeywordsForSection(segments.preferred).slice(0, 20),
   };
 }
 
 // ─── Skills extraction ────────────────────────────────────────────────────────
-
-function extractSkillsFromText(text: string): string[] {
-  const tokens = tokenizeSection(text);
-  return tokens.filter((t) => KNOWN_SKILLS.has(t));
-}
 
 // ─── Degree extraction ────────────────────────────────────────────────────────
 
@@ -374,15 +214,11 @@ export function extractJDIntelligenceSync(
     const preferredCerts = extractCerts(segments.preferred);
 
     const mustHaveSkills = [
-      ...new Set([
-        ...extractSkillsFromText(segments.requirements),
-      ]),
+      ...new Set(extractNlpKeywordsForSection(segments.requirements)),
     ];
 
     const preferredSkills = [
-      ...new Set([
-        ...extractSkillsFromText(segments.preferred),
-      ]),
+      ...new Set(extractNlpKeywordsForSection(segments.preferred)),
     ];
 
     const { tier1, tier2, tier3 } = extractTieredKeywords(segments);

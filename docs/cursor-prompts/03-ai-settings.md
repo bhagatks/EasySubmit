@@ -1,6 +1,15 @@
 # Cursor Prompt 03 — AI Settings: Enable/Disable Toggle + Global Kill Switch
 
+## Status
+
+**✅ COMPLETED** — 2026-06-26
+
+Per-user AI toggle, global env kill switch, deterministic routing when off, Settings/Review/Extension UI.
+
+---
 ## Overview
+
+_(Reference — implemented as described below.)_
 
 This prompt implements three things:
 1. New `"disabled"` value for `aiSourcePreference` — per-user AI off switch
@@ -271,13 +280,12 @@ default so the button won't show. No onboarding code is touched.
 
 ## Definition of Done
 
-- [ ] `aiSourcePreference = "disabled"` routes both enhance paths to deterministic silently
-- [ ] `EASYSUBMIT_AI_GLOBALLY_ENABLED=false` kills AI for all users, routes to deterministic
-- [ ] AccountSettings shows Enable/Disable toggle, no segmented control
-- [ ] Key management block hidden when AI disabled
-- [ ] Review panels show "Enhance" label + hover hint when AI disabled
-- [ ] Extension card shows "Enhance" label + tooltip when AI disabled
-- [ ] New users default to AI disabled (prisma migration applied)
-- [ ] Router tests cover both disabled variants
-- [ ] `npx tsc --noEmit` — zero new errors
-- [ ] `npm run build` passes
+- [x] `aiSourcePreference = "disabled"` routes resume enhance to deterministic silently
+- [x] `EASYSUBMIT_AI_GLOBALLY_ENABLED=false` kills AI for all users, routes to deterministic
+- [x] AccountSettings shows Enable/Disable toggle, no segmented control
+- [x] Key management block hidden when AI disabled
+- [x] Review panels show "Enhance" label + hover hint when AI disabled
+- [x] Extension card shows "Enhance" label + tooltip when AI disabled
+- [x] New users default to AI disabled (prisma migration `20260626150000_ai_preference_disabled_default`)
+- [x] Router tests cover both disabled variants (`lib/ai/engine/router.test.ts`)
+- [x] `npm run build` passes

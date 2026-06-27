@@ -36,6 +36,7 @@ import {
 import { ReviewResumePanel } from "@/components/dashboard/ReviewResumePanel";
 import { ReviewCoverPanel } from "@/components/dashboard/review/ReviewCoverPanel";
 import { AtsPanel } from "@/components/dashboard/review/AtsPanel";
+import { isClientAiGloballyEnabled } from "@/lib/ai/ai-global-enabled";
 import { cn } from "@/lib/utils";
 import { serverActionClientErrorMessage } from "@/lib/server-action-client";
 import { APPLY_JD_MIN_CHARS, applyCaptureBlockReason, canApplyCapture } from "@/src/shared/extension/apply-gate";
@@ -307,8 +308,16 @@ function JobPanel({
   );
 }
 
-function CoverPanel({ entry, onRefresh }: { entry: JobTrackerDetail; onRefresh: () => void }) {
-  return <ReviewCoverPanel entry={entry} onRefresh={onRefresh} />;
+function CoverPanel({
+  entry,
+  onRefresh,
+  aiEnabled,
+}: {
+  entry: JobTrackerDetail;
+  onRefresh: () => void;
+  aiEnabled: boolean;
+}) {
+  return <ReviewCoverPanel entry={entry} onRefresh={onRefresh} aiEnabled={aiEnabled} />;
 }
 
 
@@ -329,6 +338,20 @@ export function ReviewScreen({
   const [jobDirty, setJobDirty] = useState(false);
   const [jobSaving, setJobSaving] = useState(false);
   const [jobSaveError, setJobSaveError] = useState<string | null>(null);
+  const [aiEnabled, setAiEnabled] = useState(isClientAiGloballyEnabled());
+
+  useEffect(() => {
+    if (!open) return;
+    void fetch("/api/user/ai-preference")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { aiSourcePreference?: string } | null) => {
+        if (!data) return;
+        setAiEnabled(
+          isClientAiGloballyEnabled() && data.aiSourcePreference !== "disabled",
+        );
+      })
+      .catch(() => undefined);
+  }, [open]);
 
   const resetJobEditState = useCallback(() => {
     setJobEditing(false);
@@ -615,10 +638,18 @@ export function ReviewScreen({
             />
           ) : null}
           {panel === "resume" ? (
-            <ReviewResumePanel entry={entry} onRefresh={() => jobId && void loadEntry(jobId)} />
+            <ReviewResumePanel
+              entry={entry}
+              onRefresh={() => jobId && void loadEntry(jobId)}
+              aiEnabled={aiEnabled}
+            />
           ) : null}
           {panel === "cover" ? (
-            <CoverPanel entry={entry} onRefresh={() => jobId && void loadEntry(jobId)} />
+            <CoverPanel
+              entry={entry}
+              onRefresh={() => jobId && void loadEntry(jobId)}
+              aiEnabled={aiEnabled}
+            />
           ) : null}
           {panel === "ats" ? <AtsPanel entry={entry} /> : null}
         </div>

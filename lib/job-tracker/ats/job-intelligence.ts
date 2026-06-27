@@ -12,6 +12,7 @@ import { analyzeKeywordGap } from "@/lib/job-tracker/ats/keyword-gap";
 import { analyzeBulletQuality } from "@/lib/job-tracker/ats/bullet-quality";
 import { simulateAtsParse } from "@/lib/job-tracker/ats/ats-parse-simulator";
 import { fetchRoleVocabulary } from "@/lib/job-tracker/ats/onet-service";
+import { isKnownSkillToken } from "@/lib/job-tracker/jd/keyword-extract";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -44,25 +45,10 @@ export type JobIntelligence = {
 };
 
 // ─── Skill vs content classifier ─────────────────────────────────────────────
-// Short single tokens that look like tools/skills go into skillsToAdd.
-// Multi-word phrases or verb-based terms go into keywordsForContent.
-
-const SKILL_INDICATORS = new Set([
-  "python","java","javascript","typescript","react","angular","vue","nextjs",
-  "nodejs","golang","go","rust","swift","kotlin","c","cplusplus","csharp","dotnet",
-  "sql","mysql","postgresql","postgres","mongodb","redis","elasticsearch","kafka",
-  "aws","gcp","azure","docker","kubernetes","terraform","ansible","jenkins","github",
-  "git","linux","bash","rest","graphql","grpc","microservices","agile","scrum","jira",
-  "figma","sketch","tableau","powerbi","salesforce","sap","excel","powerpoint",
-  "pytorch","tensorflow","sklearn","pandas","numpy","spark","hadoop","airflow",
-  "datadog","splunk","pagerduty","zendesk","hubspot","marketo","segment",
-]);
+// Only taxonomy-backed tokens become skillsToAdd — never raw JD English.
 
 function classifyKeyword(kw: string): "skill" | "content" {
-  const normalized = kw.toLowerCase().replace(/\s+/g, "");
-  if (SKILL_INDICATORS.has(normalized)) return "skill";
-  // Multi-word phrases → content; short single tokens → skill
-  if (!kw.includes(" ") && kw.length <= 20) return "skill";
+  if (isKnownSkillToken(kw)) return "skill";
   return "content";
 }
 

@@ -17,8 +17,8 @@ import { SETTINGS_AI_AUTO_HREF } from "@/lib/dashboard/settings-ai-links";
 
 const HINT: Record<string, string> = {
   quota_exhausted: "Daily AI quota used up — add your API key in Settings",
-  key_missing: "Add your API key in AI Keys to continue",
-  key_invalid: "Your API key is failing — verify it in AI Keys",
+  key_missing: "Add your API key in AI Settings to continue",
+  key_invalid: "Your API key is failing — verify it in AI Settings",
   api_error: "AI calls are failing — check Settings",
 };
 
@@ -179,7 +179,7 @@ export function AiHealthAlertBanner() {
     status.code === "key_missing" || status.code === "key_invalid"
       ? "/dashboard/keys"
       : SETTINGS_AI_AUTO_HREF;
-  const fixLabel = fixHref === "/dashboard/keys" ? "AI Keys" : "Settings";
+  const fixLabel = fixHref === "/dashboard/keys" ? "AI Settings" : "Settings";
 
   return (
     <div
