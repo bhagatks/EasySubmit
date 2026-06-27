@@ -5,6 +5,9 @@ import { revalidatePath } from "next/cache";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { parseProfileName } from "@/lib/profile/name";
+import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
+import { parseDateRangeString } from "@/lib/resume/dates";
+import { validateResume } from "@/lib/resume/validation";
 import {
   profileContentPatch,
   profileEmailForUser,
@@ -209,11 +212,75 @@ export async function uploadResumeFuel(formData: FormData) {
   return { success: true, onboardingStep: 2 };
 }
 
+function buildGateForm(data: CompleteOnboardingInput): HubRefineryForm {
+  type ParsedExperience = {
+    title?: string;
+    company?: string;
+    location?: string;
+    dateRange?: string;
+    bullets?: string[];
+  };
+
+  const parsedRoot =
+    typeof data.parsedData === "object" && data.parsedData !== null
+      ? (data.parsedData as { experiences?: ParsedExperience[] })
+      : null;
+  const parsedExperiences = Array.isArray(parsedRoot?.experiences)
+    ? parsedRoot.experiences
+    : [];
+
+  return {
+    firstName: data.firstName ?? "",
+    lastName: data.lastName ?? "",
+    email: data.email ?? "",
+    phone: data.phone ?? "",
+    cityState: [data.city, data.country].filter(Boolean).join(", "),
+    linkedIn: "",
+    professionalSummary: data.summary ?? "",
+    skillsText: (data.skills ?? []).join(", "),
+    experience: parsedExperiences.map((entry, index) => {
+      const range = parseDateRangeString(entry.dateRange);
+      return {
+        id: `exp-${index}`,
+        title: entry.title ?? "",
+        company: entry.company ?? "",
+        location: entry.location ?? "",
+        startMonth: range.start.month,
+        startYear: range.start.year,
+        endMonth: range.end.month,
+        endYear: range.end.year,
+        bullets: (entry.bullets ?? []).join("\n"),
+        hidden: false,
+      };
+    }),
+    education: [],
+    certifications: [],
+    projects: [],
+    languages: [],
+    customSections: [],
+  };
+}
+
 export async function completeOnboarding(data: CompleteOnboardingInput = {}) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user?.id) {
     throw new Error("Unauthorized");
+  }
+
+  const gate = validateResume(buildGateForm(data), data.targetTitle ?? "");
+  if (!gate.canFinalize) {
+    const errors = [
+      ...gate.header.issues,
+      ...gate.targetRole.issues,
+      ...gate.summary.issues,
+      ...gate.skills.issues,
+      ...gate.experience.issues,
+    ].filter((issue) => issue.severity === "error");
+
+    throw new Error(
+      errors.map((issue) => issue.message).join(" ") || "Resume validation failed",
+    );
   }
 
   const userId = session.user.id;

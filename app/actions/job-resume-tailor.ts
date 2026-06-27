@@ -17,6 +17,7 @@ import {
   targetTitleFromProfile,
 } from "@/lib/profile/studio-form-db";
 import { prisma } from "@/lib/prisma";
+import { validateResume } from "@/lib/resume/validation";
 
 export type ProfileDependentJobSummary = {
   id: string;
@@ -82,6 +83,22 @@ export async function saveJobResumeStudio(
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
   if (!userId) return { success: false, error: "Sign in required" };
+
+  const gate = validateResume(input.form, input.targetTitle ?? "");
+  if (!gate.canFinalize) {
+    const errors = [
+      ...gate.header.issues,
+      ...gate.summary.issues,
+      ...gate.skills.issues,
+      ...gate.experience.issues,
+    ]
+      .filter((issue) => issue.severity === "error")
+      .map((issue) => issue.message);
+    return {
+      success: false,
+      error: `Resume has validation errors: ${errors.join(". ")}`,
+    };
+  }
 
   const tailor = await prisma.jobResumeTailor.findFirst({
     where: { jobTrackerEntryId: input.jobId, userId },

@@ -22,6 +22,7 @@ import {
 import { countJobsDependingOnProfile } from "@/lib/profile/job-resume-tailor";
 import { checkUserCanCreateResumeProfile, getResumeProfilesConfig } from "@/lib/profile/resume-profile-limit";
 import { sanitizeString } from "@/lib/profile/sanitize";
+import { validateResume } from "@/lib/resume/validation";
 
 export type ResumeProfileListItem = {
   id: string;
@@ -242,6 +243,22 @@ export async function saveResumeProfileStudio(
   const targetTitle = sanitizeString(input.targetTitle, 160);
   if (!targetTitle) {
     return { success: false, error: "Target role is required to name this profile" };
+  }
+
+  const gate = validateResume(input.form, input.targetTitle ?? "");
+  if (!gate.canFinalize) {
+    const errors = [
+      ...gate.header.issues,
+      ...gate.summary.issues,
+      ...gate.skills.issues,
+      ...gate.experience.issues,
+    ]
+      .filter((issue) => issue.severity === "error")
+      .map((issue) => issue.message);
+    return {
+      success: false,
+      error: `Resume has validation errors: ${errors.join(". ")}`,
+    };
   }
 
   const profile = await findProfileForUser(userId, input.profileId);

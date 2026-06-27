@@ -30,7 +30,6 @@ import { DEFAULT_DIAL_CODE } from "@/lib/phone/countryCodes";
 import {
   formatFullPhone,
   formatNationalNumber,
-  isValidPhoneNumber,
   splitPhoneNumber,
 } from "@/lib/phone/phone";
 import {
@@ -38,8 +37,8 @@ import {
   RESUME_SECTION_TITLES,
   SUMMARY_PLACEHOLDER,
 } from "@/lib/resume/resumeSpec";
-import { validateSummary } from "@/lib/resume/summary-rules";
-import { validateSkillsManual } from "@/lib/resume/skills-rules";
+import { validateResume } from "@/lib/resume/validation";
+import type { ValidationIssue } from "@/lib/resume/validation";
 import {
   buildInitialStudioSectionState,
   STUDIO_EDITOR_SECTION_LABELS,
@@ -59,6 +58,23 @@ export type StudioProfileSaveState = {
 const PRIMARY = "oklch(0.62 0.21 265)";
 const MINT = "oklch(0.82 0.16 165)";
 const MUTED = "oklch(0.45 0.02 268)";
+const ERROR = "oklch(0.55 0.22 25)";
+const WARNING = "oklch(0.75 0.14 85)";
+
+function issueColor(severity: ValidationIssue["severity"]): string {
+  if (severity === "error") return ERROR;
+  if (severity === "warning") return WARNING;
+  return MUTED;
+}
+
+function headerFieldIssues(
+  issues: ValidationIssue[],
+  field: string,
+): ValidationIssue[] {
+  return issues.filter(
+    (issue) => issue.severity === "error" && issue.field === field,
+  );
+}
 
 const INPUT_CLASS =
   "w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm text-[oklch(0.98_0.01_268)] placeholder:text-[oklch(0.45_0.02_268)] transition-colors focus:border-[oklch(0.62_0.21_265_/_0.5)] focus:outline-none focus:ring-1 focus:ring-[oklch(0.62_0.21_265_/_0.35)]";
@@ -372,37 +388,24 @@ export function RefineryPanel({
     return () => subscription.unsubscribe();
   }, [watch, onChange, getValues]);
 
-  const phoneParts = splitPhoneNumber(watched.phone ?? "");
-  const phoneValid = isValidPhoneNumber(
-    phoneParts.dialCode || DEFAULT_DIAL_CODE,
-    phoneParts.nationalNumber,
-  );
   const linkedInValue = watched.linkedIn?.trim() ?? "";
-  const summaryValue = watched.professionalSummary ?? "";
-  const summaryValidation = useMemo(
-    () => validateSummary(summaryValue),
-    [summaryValue],
-  );
-  const showSummaryHints = summaryValue.trim().length > 0;
-
   const activeSkills = isProfileMode ? (studioSkills ?? []) : onboardingSkills;
-  const skillsValidation = useMemo(
-    () => validateSkillsManual(activeSkills),
-    [activeSkills],
+  const validation = useMemo(
+    () =>
+      validateResume(
+        { ...watched, skillsText: activeSkills.join(", ") },
+        isProfileMode
+          ? targetRole
+          : useOnboardingStore.getState().identity.targetRole,
+      ),
+    [watched, activeSkills, isProfileMode, targetRole],
   );
-  const showSkillsHints = activeSkills.length > 0;
-
-  const isValid =
-    watched.firstName?.trim().length > 0 &&
-    phoneValid &&
-    watched.email?.trim().length > 0 &&
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(watched.email?.trim() ?? "");
 
   const isProceedLocked = !canProceedToCalibration;
   const isProceedDisabled =
-    !isValid ||
     isProceedLocked ||
-    (isProfileMode && !targetRole.trim());
+    (isProfileMode && !targetRole.trim()) ||
+    !validation.canFinalize;
 
   const resolvedBackLabel = backLabel ?? getWorkbenchPhase(2)?.label ?? "Import";
   const resolvedFinalizeLabel =
@@ -537,70 +540,105 @@ export function RefineryPanel({
         >
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
-              <input
-                {...register("firstName", { required: true })}
-                className={INPUT_CLASS}
-                placeholder="First name"
-                autoComplete="off"
-                name="es-first-name"
-              />
-              <input
-                {...register("lastName")}
-                className={INPUT_CLASS}
-                placeholder="Last name"
-                autoComplete="off"
-                name="es-last-name"
-              />
-            </div>
-            <Controller
-              control={control}
-              name="cityState"
-              render={({ field }) => (
-                <CityStateField
-                  value={field.value}
-                  onChange={field.onChange}
-                  monoClass={monoClass}
-                  inputClass={INPUT_CLASS}
+              <div>
+                <input
+                  {...register("firstName", { required: true })}
+                  className={INPUT_CLASS}
+                  placeholder="First name"
+                  autoComplete="off"
+                  name="es-first-name"
                 />
-              )}
-            />
-            <Controller
-              control={control}
-              name="phone"
-              render={({ field }) => {
-                const parts = splitPhoneNumber(field.value ?? "");
-                return (
-                  <PhoneField
-                    dialCode={parts.dialCode || DEFAULT_DIAL_CODE}
-                    nationalNumber={formatNationalNumber(
-                      parts.dialCode || DEFAULT_DIAL_CODE,
-                      parts.nationalNumber,
-                    )}
-                    onDialCodeChange={(code) => {
-                      field.onChange(
-                        formatFullPhone(code, parts.nationalNumber),
-                      );
-                    }}
-                    onNationalNumberChange={(value) => {
-                      field.onChange(
-                        formatFullPhone(parts.dialCode || DEFAULT_DIAL_CODE, value),
-                      );
-                    }}
+                {headerFieldIssues(validation.header.issues, "firstName").map((issue) => (
+                  <p key={issue.code} className="mt-1.5 text-xs" style={{ color: ERROR }}>
+                    {issue.message}
+                  </p>
+                ))}
+              </div>
+              <div>
+                <input
+                  {...register("lastName")}
+                  className={INPUT_CLASS}
+                  placeholder="Last name"
+                  autoComplete="off"
+                  name="es-last-name"
+                />
+                {headerFieldIssues(validation.header.issues, "lastName").map((issue) => (
+                  <p key={issue.code} className="mt-1.5 text-xs" style={{ color: ERROR }}>
+                    {issue.message}
+                  </p>
+                ))}
+              </div>
+            </div>
+            <div>
+              <Controller
+                control={control}
+                name="cityState"
+                render={({ field }) => (
+                  <CityStateField
+                    value={field.value}
+                    onChange={field.onChange}
                     monoClass={monoClass}
                     inputClass={INPUT_CLASS}
-                    showIcon={false}
                   />
-                );
-              }}
-            />
-            <input
-              {...register("email", { required: true })}
-              type="email"
-              className={INPUT_CLASS}
-              placeholder="Email"
-              autoComplete="off"
-              name="es-email"
-            />
+                )}
+              />
+              {headerFieldIssues(validation.header.issues, "cityState").map((issue) => (
+                <p key={issue.code} className="mt-1.5 text-xs" style={{ color: ERROR }}>
+                  {issue.message}
+                </p>
+              ))}
+            </div>
+            <div>
+              <Controller
+                control={control}
+                name="phone"
+                render={({ field }) => {
+                  const parts = splitPhoneNumber(field.value ?? "");
+                  return (
+                    <PhoneField
+                      dialCode={parts.dialCode || DEFAULT_DIAL_CODE}
+                      nationalNumber={formatNationalNumber(
+                        parts.dialCode || DEFAULT_DIAL_CODE,
+                        parts.nationalNumber,
+                      )}
+                      onDialCodeChange={(code) => {
+                        field.onChange(
+                          formatFullPhone(code, parts.nationalNumber),
+                        );
+                      }}
+                      onNationalNumberChange={(value) => {
+                        field.onChange(
+                          formatFullPhone(parts.dialCode || DEFAULT_DIAL_CODE, value),
+                        );
+                      }}
+                      monoClass={monoClass}
+                      inputClass={INPUT_CLASS}
+                      showIcon={false}
+                    />
+                  );
+                }}
+              />
+              {headerFieldIssues(validation.header.issues, "phone").map((issue) => (
+                <p key={issue.code} className="mt-1.5 text-xs" style={{ color: ERROR }}>
+                  {issue.message}
+                </p>
+              ))}
+            </div>
+            <div>
+              <input
+                {...register("email", { required: true })}
+                type="email"
+                className={INPUT_CLASS}
+                placeholder="Email"
+                autoComplete="off"
+                name="es-email"
+              />
+              {headerFieldIssues(validation.header.issues, "email").map((issue) => (
+                <p key={issue.code} className="mt-1.5 text-xs" style={{ color: ERROR }}>
+                  {issue.message}
+                </p>
+              ))}
+            </div>
             <input
               {...register("linkedIn")}
               className={INPUT_CLASS}
@@ -629,23 +667,13 @@ export function RefineryPanel({
             className={cn(INPUT_CLASS, "resize-y")}
             placeholder={SUMMARY_PLACEHOLDER}
           />
-          {showSummaryHints ? (
-            <div className="mt-2 space-y-1 text-xs" style={{ color: MUTED }}>
-              <p>
-                {summaryValidation.wordCount} words · {summaryValidation.sentenceCount} sentences
-                (target: 70–80 words, 4 sentences)
-              </p>
-              {summaryValidation.sentenceError ? (
-                <p style={{ color: "oklch(0.75 0.14 85)" }}>{summaryValidation.sentenceError}</p>
-              ) : null}
-              {summaryValidation.wordError ? (
-                <p style={{ color: "oklch(0.75 0.14 85)" }}>{summaryValidation.wordError}</p>
-              ) : null}
-              {summaryValidation.bannedWords.length > 0 ? (
-                <p style={{ color: "oklch(0.75 0.14 85)" }}>
-                  Overused phrases: {summaryValidation.bannedWords.join(", ")}
+          {validation.summary.issues.length > 0 ? (
+            <div className="mt-2 space-y-1 text-xs">
+              {validation.summary.issues.map((issue) => (
+                <p key={issue.code} style={{ color: issueColor(issue.severity) }}>
+                  {issue.message}
                 </p>
-              ) : null}
+              ))}
             </div>
           ) : null}
         </StudioCollapsibleSection>
@@ -662,17 +690,13 @@ export function RefineryPanel({
             skills={isProfileMode ? studioSkills : undefined}
             onSkillsChange={isProfileMode ? onStudioSkillsChange : undefined}
           />
-          {showSkillsHints ? (
-            <div className="mt-2 space-y-1 text-xs" style={{ color: MUTED }}>
-              <p>{skillsValidation.count} skill{skillsValidation.count !== 1 ? "s" : ""} (target: 6–20)</p>
-              {skillsValidation.countWarning ? (
-                <p style={{ color: "oklch(0.75 0.14 85)" }}>{skillsValidation.countWarning}</p>
-              ) : null}
-              {skillsValidation.banned.length > 0 ? (
-                <p style={{ color: "oklch(0.75 0.14 85)" }}>
-                  Generic soft skills (remove): {skillsValidation.banned.join(", ")}
+          {validation.skills.issues.length > 0 ? (
+            <div className="mt-2 space-y-1 text-xs">
+              {validation.skills.issues.map((issue) => (
+                <p key={issue.code} style={{ color: issueColor(issue.severity) }}>
+                  {issue.message}
                 </p>
-              ) : null}
+              ))}
             </div>
           ) : null}
         </StudioCollapsibleSection>
