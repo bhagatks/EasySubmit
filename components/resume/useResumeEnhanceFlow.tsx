@@ -15,6 +15,7 @@ import {
   type EnhanceDialogProgress,
 } from "@/components/resume/EnhanceWithAiFlow";
 import { useEnhanceProgress } from "@/components/resume/useEnhanceProgress";
+import { useRegisterStudioHeaderCenter } from "@/components/resume/StudioHeaderCenter";
 import { AppAlertDialog } from "@/components/ui/app-alert-dialog";
 import { Button } from "@/components/ui/button";
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
@@ -40,9 +41,9 @@ import {
 } from "@/src/lib/ai/engine/enhance-timeout";
 import { DEFAULT_ENHANCE_WITH_AI_TIMEOUT_MS } from "@/src/lib/services/enhance-with-ai-config";
 import type { StudioEditorSectionId } from "@/lib/resume/studio-editor-sections";
-import {
-  useRegisterStudioHeaderCenter,
-} from "@/components/resume/StudioHeaderCenter";
+import { useEnhanceAiEnabled } from "@/lib/ai/use-enhance-ai-enabled";
+import type { EnhanceAnalyticsSurface } from "@/src/shared/analytics/events";
+import { trackEnhanceClicked, trackEnhanceCompleted } from "@/src/shared/analytics/product-events";
 
 export type EnhanceFlowApplyResult = {
   form: HubRefineryForm;
@@ -59,6 +60,7 @@ type UseResumeEnhanceFlowOptions = {
   rawResumeText?: string | null;
   forceSystem?: boolean;
   variant?: "dashboard" | "onboarding";
+  analyticsSurface?: EnhanceAnalyticsSurface;
   onApply: (result: EnhanceFlowApplyResult) => void;
   registerHeader?: boolean;
   /** When false, hides the header button and skips enhance UI wiring. */
@@ -76,10 +78,14 @@ export function useResumeEnhanceFlow({
   rawResumeText,
   forceSystem = false,
   variant = "dashboard",
+  analyticsSurface,
   onApply,
   registerHeader = false,
   enabled = true,
 }: UseResumeEnhanceFlowOptions) {
+  const resolvedSurface: EnhanceAnalyticsSurface =
+    analyticsSurface ?? (variant === "onboarding" ? "onboarding_studio" : "dashboard_studio");
+  const aiEnabled = useEnhanceAiEnabled(enabled);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isPreflightChecking, setIsPreflightChecking] = useState(false);
   const [requiresByokOnly, setRequiresByokOnly] = useState(false);
@@ -179,6 +185,12 @@ export function useResumeEnhanceFlow({
         }),
       });
 
+      trackEnhanceClicked({
+        surface: resolvedSurface,
+        documentKind: "resume",
+        aiEnabled,
+      });
+
       setActiveTraceId(traceId);
       setActiveJobDescription(jobDescription);
       pendingJobDescriptionRef.current = jobDescription;
@@ -239,6 +251,14 @@ export function useResumeEnhanceFlow({
             message: timeoutMessage,
             timeoutMs: err.timeoutMs,
           });
+          trackEnhanceCompleted({
+            surface: resolvedSurface,
+            documentKind: "resume",
+            status: "error",
+            traceId,
+            durationMs,
+            errorCode: "timeout",
+          });
           return;
         }
 
@@ -260,6 +280,14 @@ export function useResumeEnhanceFlow({
           traceId,
           code: "provider_error",
           message: throwMessage,
+        });
+        trackEnhanceCompleted({
+          surface: resolvedSurface,
+          documentKind: "resume",
+          status: "error",
+          traceId,
+          durationMs: Math.round(performance.now() - startedAt),
+          errorCode: "provider_error",
         });
         return;
       }
@@ -284,6 +312,14 @@ export function useResumeEnhanceFlow({
           code: result.code ?? "unknown",
           message: result.error,
         });
+        trackEnhanceCompleted({
+          surface: resolvedSurface,
+          documentKind: "resume",
+          status: "error",
+          traceId,
+          durationMs: Math.round(performance.now() - startedAt),
+          errorCode: result.code ?? null,
+        });
         return;
       }
 
@@ -296,6 +332,14 @@ export function useResumeEnhanceFlow({
           quota: result.quota,
           durationMs: Math.round(performance.now() - startedAt),
         }),
+      });
+
+      trackEnhanceCompleted({
+        surface: resolvedSurface,
+        documentKind: "resume",
+        status: "success",
+        traceId,
+        durationMs: Math.round(performance.now() - startedAt),
       });
 
       const skills = studioSkillsFromForm(result.form);
@@ -348,6 +392,8 @@ export function useResumeEnhanceFlow({
       targetRole,
       timeoutMs,
       variant,
+      resolvedSurface,
+      aiEnabled,
     ],
   );
 
@@ -495,11 +541,12 @@ export function useResumeEnhanceFlow({
     () => (
       <EnhanceWithAiButton
         variant={variant}
+        aiEnabled={aiEnabled}
         isLoading={isLoading || isPreflightChecking || isSwitchingToSystem}
         onClick={handleOpenDialog}
       />
     ),
-    [handleOpenDialog, isLoading, isPreflightChecking, isSwitchingToSystem, variant],
+    [aiEnabled, handleOpenDialog, isLoading, isPreflightChecking, isSwitchingToSystem, variant],
   );
 
   useRegisterStudioHeaderCenter(enabled && registerHeader ? headerButton : null);

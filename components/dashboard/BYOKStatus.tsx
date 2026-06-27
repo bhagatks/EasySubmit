@@ -2,9 +2,10 @@
 
 import { JetBrains_Mono } from "next/font/google";
 import { motion } from "framer-motion";
-import { AlertTriangle, KeyRound } from "lucide-react";
+import { KeyRound } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { trackByokCtaClicked } from "@/src/shared/analytics/product-events";
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
@@ -35,6 +36,7 @@ export function BYOKStatusBadge({ vaultKeyId, className }: BYOKStatusProps) {
   return (
     <Link
       href="/dashboard/keys"
+      onClick={() => trackByokCtaClicked("header_badge")}
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-opacity hover:opacity-90",
         className,
@@ -57,6 +59,7 @@ export function BYOKKeyButton({ className }: { className?: string }) {
   return (
     <Link
       href="/dashboard/keys"
+      onClick={() => trackByokCtaClicked("header_cta")}
       className={cn(
         jetbrainsMono.className,
         "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] transition-opacity hover:opacity-90",
@@ -87,22 +90,14 @@ export function BYOKInactiveNavBadge({ className }: { className?: string }) {
         className,
       )}
       style={{
-        color: WARNING_RED,
-        borderColor: "oklch(0.55 0.22 25 / 0.45)",
-        backgroundColor: "oklch(0.55 0.22 25 / 0.1)",
+        color: "oklch(0.62 0.21 265)",
+        borderColor: "oklch(0.62 0.21 265 / 0.35)",
+        backgroundColor: "oklch(0.62 0.21 265 / 0.08)",
       }}
-      animate={{
-        boxShadow: [
-          "0 0 0 0 oklch(0.55 0.22 25 / 0.35)",
-          "0 0 0 4px oklch(0.55 0.22 25 / 0)",
-          "0 0 0 0 oklch(0.55 0.22 25 / 0.35)",
-        ],
-      }}
-      transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+      animate={{}}
       aria-hidden="true"
     >
-      <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
-      Inactive
+      Add key
     </motion.span>
   );
 }

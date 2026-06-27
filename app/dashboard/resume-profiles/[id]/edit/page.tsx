@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { requireDashboardSession } from "@/lib/auth/require-dashboard-session";
 import { getResumeProfileStudio } from "@/app/actions/resume-profiles";
 import { getProfileDependentJobs } from "@/app/actions/job-resume-tailor";
-import { getFeatureFlags } from "@/src/lib/services/feature-flags-service";
+import { resolveFeature } from "@/lib/features";
 import { ResumeStudioEditor } from "@/components/dashboard/ResumeStudioEditor";
 
 type EditResumeProfilePageProps = {
@@ -23,9 +23,9 @@ export default async function EditResumeProfilePage({
   await requireDashboardSession(session.user.id);
 
   const { id } = await params;
-  const [result, featureFlags, dependents] = await Promise.all([
+  const [result, enhance, dependents] = await Promise.all([
     getResumeProfileStudio(id),
-    getFeatureFlags(),
+    resolveFeature({ feature: "enhance", userId: session.user.id, surface: "resume" }),
     getProfileDependentJobs(id),
   ]);
 
@@ -40,7 +40,7 @@ export default async function EditResumeProfilePage({
         initialTargetTitle={result.targetTitle}
         initialForm={result.form}
         rawResumeText={result.rawResumeText}
-        enhanceWithAiEnabled={featureFlags.enhanceWithAiResumeProfile}
+        enhanceWithAiEnabled={enhance.available}
         dependentJobs={dependents.success ? dependents.jobs : []}
       />
     </div>

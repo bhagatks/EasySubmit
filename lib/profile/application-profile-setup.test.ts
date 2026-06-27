@@ -6,6 +6,7 @@ import {
   isApplicationProfileSetupComplete,
   mergeApplicationProfile,
   syncProfileSetupDraftsFromProfile,
+  validateProfileSetupScreen1,
 } from "@/lib/profile/application-profile-setup";
 
 describe("applicationProfile setup helpers", () => {
@@ -52,6 +53,49 @@ describe("applicationProfile setup helpers", () => {
     expect(merged.workAuth?.authorizedCountry).toBe("US");
     expect(merged.preferences?.workMode).toBe("remote");
     expect(merged.eeo?.gender).toBe("Prefer not to say");
+  });
+
+  it("flags missing salary range on screen 1 validation", () => {
+    const issues = validateProfileSetupScreen1({
+      authorized: "yes",
+      authorizedCountry: "US",
+      requiresSponsorship: "no",
+      salaryMin: "",
+      salaryMax: "",
+      earliestStart: "2_weeks",
+      workMode: "remote",
+    });
+
+    expect(issues.some((issue) => issue.field === "salaryMin")).toBe(true);
+    expect(issues.some((issue) => issue.field === "salaryMax")).toBe(true);
+  });
+
+  it("flags salary max below min on screen 1 validation", () => {
+    const issues = validateProfileSetupScreen1({
+      authorized: "yes",
+      authorizedCountry: "US",
+      requiresSponsorship: "no",
+      salaryMin: "150000",
+      salaryMax: "120000",
+      earliestStart: "2_weeks",
+      workMode: "remote",
+    });
+
+    expect(issues.some((issue) => issue.field === "salaryMax")).toBe(true);
+  });
+
+  it("accepts complete screen 1 draft", () => {
+    const issues = validateProfileSetupScreen1({
+      authorized: "yes",
+      authorizedCountry: "US",
+      requiresSponsorship: "no",
+      salaryMin: "120000",
+      salaryMax: "150000",
+      earliestStart: "2_weeks",
+      workMode: "remote",
+    });
+
+    expect(issues).toHaveLength(0);
   });
 
   it("builds screen 1 patch from draft values", () => {

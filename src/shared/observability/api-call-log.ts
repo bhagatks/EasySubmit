@@ -3,6 +3,16 @@ import type { Prisma } from "@/lib/generated/prisma/client";
 
 export const API_CALL_LOG_PREFIX = "[ApiCall]";
 
+function writeApiCallLog(payload: ReturnType<typeof formatApiCallConsolePayload>): void {
+  if (typeof window === "undefined") {
+    void import("@/lib/logger").then(({ logger }) => {
+      logger.info(payload, API_CALL_LOG_PREFIX);
+    });
+  } else {
+    console.log(API_CALL_LOG_PREFIX, payload);
+  }
+}
+
 const MAX_ERROR_MESSAGE_CHARS = 500;
 
 function truncate(value: string | null | undefined): string | null {
@@ -59,15 +69,21 @@ export function formatApiCallConsolePayload(input: ApiCallLogInput) {
 
 /** Console + async Postgres persist. Server-only persistence (no-op on client). */
 export function logApiCall(input: ApiCallLogInput): void {
-  console.log(API_CALL_LOG_PREFIX, formatApiCallConsolePayload(input));
+  const payload = formatApiCallConsolePayload(input);
+  writeApiCallLog(payload);
 
   if (typeof window !== "undefined") return;
 
   void persistApiCallLog(input).catch((err) => {
-    console.error(API_CALL_LOG_PREFIX, {
-      event: "persist.failed",
-      operation: input.operation,
-      message: err instanceof Error ? err.message : String(err),
+    void import("@/lib/logger").then(({ logger }) => {
+      logger.error(
+        {
+          event: "persist.failed",
+          operation: input.operation,
+          message: err instanceof Error ? err.message : String(err),
+        },
+        API_CALL_LOG_PREFIX,
+      );
     });
   });
 }

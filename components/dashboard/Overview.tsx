@@ -349,8 +349,8 @@ export async function DashboardOverview({
                 ? "Strong · ready to apply"
                 : stats.avgAtsScore >= 60
                   ? "Good · keep refining"
-                  : "Needs work · run engine"
-              : "Run engine refinement"}
+                  : "Needs work · keep refining"
+              : "Apply to a job to see your score"}
           </div>
         </div>
 
@@ -361,19 +361,11 @@ export async function DashboardOverview({
           aiSpendUsd={stats.aiSpendUsd}
         />
 
-        {showSystemQuota && stats.systemQuota ? (
-          <SystemQuotaCard quota={stats.systemQuota} />
-        ) : (
-          <NextActionCard action={stats.nextBestAction} />
-        )}
+        <NextActionCard action={stats.nextBestAction} />
       </div>
 
       {showSystemQuota && stats.systemQuota ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="lg:col-start-4">
-            <NextActionCard action={stats.nextBestAction} />
-          </div>
-        </div>
+        <SystemQuotaCard quota={stats.systemQuota} />
       ) : null}
 
       <div className="grid min-w-0 gap-6 lg:grid-cols-[3fr_2fr]">

@@ -8,8 +8,17 @@ import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
 import { refineryFormToPrimeResume } from "@/lib/onboarding/hubResume";
 import { extractTrailingDateRange } from "@/lib/resume/dates";
 import { SECTION_TITLE } from "@/lib/job-tracker/export/resume-style";
+import {
+  MAX_BULLETS_PER_ROLE,
+  auditExperienceBulletCounts,
+  messageForAboveMaxIssue,
+} from "@/lib/resume/experience-bullet-rules";
+import {
+  estimateYearsExperience,
+  resolvePageBudget,
+} from "@/src/lib/ai/engine/candidate-context";
 
-export const MAX_BULLETS_PER_ROLE = 6;
+export { MAX_BULLETS_PER_ROLE };
 
 export type ResumeContentExperience = {
   id: string;
@@ -128,22 +137,39 @@ function contactFromParts(parts: Array<string | null | undefined>, separator: st
   return parts.map(line).filter(Boolean).join(separator);
 }
 
-function experienceWarnings(entries: ResumeContentExperience[]): string[] {
+function bulletCountWarnings(
+  auditEntries: Array<{ bullets?: string | string[] | null; hidden?: boolean }>,
+  pages: 1 | 2,
+  titleForRoleIndex: (roleIndex: number) => string,
+): string[] {
   const warnings: string[] = [];
-  for (const entry of entries) {
-    if (entry.bulletsTruncated) {
-      warnings.push(
-        `"${entry.title}" has ${entry.originalBulletCount} bullets — only the first ${MAX_BULLETS_PER_ROLE} export (RULES.md §8). Trim in Studio before applying.`,
-      );
-    }
+  for (const issue of auditExperienceBulletCounts(auditEntries, pages)) {
+    if (issue.kind === "below_min") continue;
+    warnings.push(messageForAboveMaxIssue(titleForRoleIndex(issue.roleIndex), issue));
   }
   return warnings;
+}
+
+function estimateYearsFromPrimeExperience(data: PrimeResumeData): number {
+  const currentYear = new Date().getFullYear();
+  let earliest: number | null = null;
+
+  for (const entry of data.experience ?? []) {
+    const match = entry.startDate?.match(/\d{4}/);
+    if (!match) continue;
+    const year = Number.parseInt(match[0]!, 10);
+    if (!Number.isFinite(year)) continue;
+    earliest = earliest === null ? year : Math.min(earliest, year);
+  }
+
+  if (earliest === null) return 0;
+  return Math.max(0, currentYear - earliest);
 }
 
 /** Check §8 hard rules on form data (pre-export / ATS). */
 export function validateResumeForm(form: HubRefineryForm): ResumeContentValidationResult {
   const content = buildResumeContentFromForm(form, "");
-  const violations = content.warnings.filter((w) => w.includes("bullets"));
+  const violations = content.warnings.filter((w) => w.includes("RULES.md §8"));
   return violations.length === 0 ? { valid: true } : { valid: false, violations };
 }
 
@@ -224,7 +250,12 @@ export function buildResumeContentFromForm(
       lines: line(section.content).split("\n").map(line).filter(Boolean),
     }));
 
-  const warnings = experienceWarnings(experience);
+  const pages = resolvePageBudget(estimateYearsExperience(form), targetTitle).pages;
+  const warnings = bulletCountWarnings(
+    form.experience ?? [],
+    pages,
+    (index) => line(form.experience[index]?.title) || `Role ${index + 1}`,
+  );
 
   return {
     name,
@@ -278,7 +309,15 @@ export function buildResumeContentFromPrime(
       dateRange: [line(entry.startDate), line(entry.endDate)].filter(Boolean).join(" – "),
     }));
 
-  const warnings = experienceWarnings(experience);
+  const pages = resolvePageBudget(
+    estimateYearsFromPrimeExperience(data),
+    targetTitle,
+  ).pages;
+  const warnings = bulletCountWarnings(
+    (data.experience ?? []).map((entry) => ({ bullets: entry.bullets ?? [] })),
+    pages,
+    (index) => line(data.experience?.[index]?.title) || `Role ${index + 1}`,
+  );
 
   return {
     name,

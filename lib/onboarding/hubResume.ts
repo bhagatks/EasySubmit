@@ -18,6 +18,7 @@ import {
   normalizeBulletText,
   normalizeResumeLine,
 } from "@/lib/resume/normalizeResumeText";
+import { splitMashedExperienceInForm } from "@/lib/resume/split-mashed-experience";
 
 export type HubRefineryForm = {
   firstName: string;
@@ -139,7 +140,7 @@ export function mergeParsedWithCoordinates(
     coordinates.phone,
   ));
 
-  return {
+  const merged: HubRefineryForm = {
     firstName: pickParsedField(parsedNames.firstName, coordinates.firstName),
     lastName: pickParsedField(parsedNames.lastName, coordinates.lastName),
     cityState: pickParsedField(data.location, coordinates.cityState),
@@ -194,6 +195,8 @@ export function mergeParsedWithCoordinates(
     })),
     customSections: [],
   };
+
+  return splitMashedExperienceInForm(merged);
 }
 
 /** @deprecated Use mergeParsedWithCoordinates */

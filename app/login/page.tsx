@@ -9,8 +9,16 @@ import { MarketTruth } from "@/components/MarketTruth";
 import { TermsPrivacyConsent } from "@/components/legal/terms-privacy-consent";
 import { InlineAlert } from "@/components/ui/inline-alert";
 import { BrandWordmark } from "@/components/ui/brand-wordmark";
+import { LogoIcon } from "@/components/ui/logo";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { BRAND, brandCopyright } from "@/lib/brand";
 import { resolveSafeCallbackUrl } from "@/lib/auth/safe-callback-url";
+import { AnalyticsEvents, captureAnalyticsEvent } from "@/src/shared/analytics";
 import { cn } from "@/lib/utils";
 
 const jetbrainsMono = JetBrains_Mono({
@@ -27,6 +35,8 @@ const SOCIAL_BUTTON_CLASS =
 
 const LOGIN_FRAME_CLASS =
   "relative flex h-full min-h-[min(100dvh-2rem,720px)] w-full max-w-md flex-col overflow-hidden rounded-xl border border-[oklch(0.32_0.04_268_/_0.55)] bg-surface/20 shadow-[inset_0_1px_0_oklch(1_0_0_/_0.05)] lg:max-w-none lg:min-h-0";
+
+const OAUTH_HINT = "LinkedIn is preferred";
 
 function LoginPanelChrome({ children }: { children: React.ReactNode }) {
   return (
@@ -50,24 +60,8 @@ function LoginPanelChrome({ children }: { children: React.ReactNode }) {
         }}
       />
 
-      <div className="relative flex h-full flex-col px-6 py-8 sm:px-8 sm:py-10 lg:px-10">
-        <div className="flex flex-1 flex-col items-center justify-end pb-8 text-center lg:pb-10">
-          <BrandWordmark
-            className="text-xl sm:text-2xl"
-            nameClassName="text-foreground"
-          />
-          <p className="mt-3 max-w-[16rem] text-sm leading-snug text-muted-foreground">
-            {BRAND.tagline}
-          </p>
-          <div
-            className="mt-6 h-px w-16 bg-gradient-to-r from-transparent via-primary/50 to-transparent"
-            aria-hidden
-          />
-        </div>
-
+      <div className="relative flex h-full flex-col items-center justify-start px-6 pt-4 pb-8 sm:px-8 sm:pt-5 sm:pb-10 lg:px-10">
         <div className="mx-auto w-full max-w-sm shrink-0">{children}</div>
-
-        <div className="flex flex-1 flex-col items-center justify-start pt-8 text-center lg:pt-10" />
       </div>
     </div>
   );
@@ -120,6 +114,51 @@ function BrandingPanel() {
   );
 }
 
+function OAuthContinueButton({
+  label,
+  loadingLabel,
+  icon,
+  disabled,
+  isLoading,
+  showHint,
+  onClick,
+}: {
+  label: string;
+  loadingLabel: string;
+  icon: React.ReactNode;
+  disabled: boolean;
+  isLoading: boolean;
+  showHint: boolean;
+  onClick: () => void;
+}) {
+  const button = (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={SOCIAL_BUTTON_CLASS}
+    >
+      {icon}
+      {isLoading ? loadingLabel : label}
+    </button>
+  );
+
+  if (!showHint) {
+    return button;
+  }
+
+  return (
+    <Tooltip delayDuration={150}>
+      <TooltipTrigger asChild>
+        <span className="inline-flex w-full">{button}</span>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="border-0 bg-foreground text-background">
+        {OAUTH_HINT}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 function LoginPanel() {
   const searchParams = useSearchParams();
   const [loadingProvider, setLoadingProvider] = useState<AuthProvider | null>(null);
@@ -140,14 +179,15 @@ function LoginPanel() {
   }, [searchParams]);
 
   const isLoading = loadingProvider !== null;
-  const signedOut = searchParams.get("signedOut") === "1";
-  const hasStatusMessage = signedOut || Boolean(error);
+  const oauthEnabled = termsAccepted && !isLoading;
 
   async function handleOAuth(provider: AuthProvider) {
     if (!termsAccepted) return;
 
     setLoadingProvider(provider);
     setError(null);
+
+    captureAnalyticsEvent(AnalyticsEvents.LOGIN_STARTED, { provider });
 
     try {
       // Clear stale EasySubmit client drafts before OAuth and drop any surviving session cookie.
@@ -173,66 +213,64 @@ function LoginPanel() {
 
   return (
     <section className="relative flex min-h-screen w-full items-stretch justify-center bg-background p-4 sm:p-6 lg:min-h-0 lg:h-full lg:w-[450px] lg:max-w-[450px] lg:shrink-0 lg:border-l lg:border-white/[0.06] lg:p-8">
-      <LoginPanelChrome>
-        <div className="flex flex-col items-center text-center">
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Login</h1>
+      <TooltipProvider>
+        <LoginPanelChrome>
+          <div className="flex flex-col items-center text-center">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Login</h1>
 
-          {signedOut ? (
-            <p className="mt-4 text-sm text-muted-foreground">
-              You&apos;re signed out of EasySubmit. Choose a provider below to sign in
-              again.
-            </p>
-          ) : null}
+            <LogoIcon className="mt-10 h-14 w-14 shrink-0 sm:mt-12 sm:h-16 sm:w-16" aria-hidden="true" />
 
-          {error ? (
-            <InlineAlert surface="glass" variant="error" className="mt-4 text-left">
-              {error}
-            </InlineAlert>
-          ) : null}
-
-          <div
-            className={cn(
-              "flex w-full flex-col gap-3 sm:gap-4",
-              error ? "mt-8" : hasStatusMessage ? "mt-6" : "mt-8 sm:mt-10",
-            )}
-          >
-            <button
-              type="button"
-              disabled={isLoading || !termsAccepted}
-              onClick={() => void handleOAuth("linkedin")}
-              className={SOCIAL_BUTTON_CLASS}
-            >
-              <LinkedInIcon />
-              {loadingProvider === "linkedin" ? "Redirecting…" : "Continue with LinkedIn"}
-            </button>
-
-            <button
-              type="button"
-              disabled={isLoading || !termsAccepted}
-              onClick={() => void handleOAuth("google")}
-              className={SOCIAL_BUTTON_CLASS}
-            >
-              <GoogleIcon />
-              {loadingProvider === "google" ? "Redirecting…" : "Continue with Google"}
-            </button>
-
-            <TermsPrivacyConsent
-              checked={termsAccepted}
-              onCheckedChange={setTermsAccepted}
-              disabled={isLoading}
-              variant="glass"
-              overlayPlacement="login-panel"
-              className="mt-1"
+            <BrandWordmark
+              className="mt-6 text-xl sm:text-2xl"
+              nameClassName="text-foreground"
             />
-
-            <p className="mt-3 text-xs text-muted-foreground/65">LinkedIn is preferred</p>
-
-            <p className="mt-1 text-xs text-muted-foreground/65">
-              {brandCopyright(new Date().getFullYear())}
+            <p className="mt-3 max-w-[16rem] text-sm leading-snug text-muted-foreground">
+              {BRAND.tagline}
             </p>
+
+            {error ? (
+              <InlineAlert surface="glass" variant="error" className="mt-4 w-full text-left">
+                {error}
+              </InlineAlert>
+            ) : null}
+
+            <div className={cn("flex w-full flex-col gap-3 sm:gap-4", error ? "mt-6" : "mt-8")}>
+              <OAuthContinueButton
+                label="Continue with LinkedIn"
+                loadingLabel="Redirecting…"
+                icon={<LinkedInIcon />}
+                disabled={!oauthEnabled}
+                isLoading={loadingProvider === "linkedin"}
+                showHint={oauthEnabled}
+                onClick={() => void handleOAuth("linkedin")}
+              />
+
+              <OAuthContinueButton
+                label="Continue with Google"
+                loadingLabel="Redirecting…"
+                icon={<GoogleIcon />}
+                disabled={!oauthEnabled}
+                isLoading={loadingProvider === "google"}
+                showHint={oauthEnabled}
+                onClick={() => void handleOAuth("google")}
+              />
+
+              <TermsPrivacyConsent
+                checked={termsAccepted}
+                onCheckedChange={setTermsAccepted}
+                disabled={isLoading}
+                variant="glass"
+                overlayPlacement="login-panel"
+                className="mt-1"
+              />
+
+              <p className="mt-3 text-xs text-muted-foreground/65">
+                {brandCopyright(new Date().getFullYear())}
+              </p>
+            </div>
           </div>
-        </div>
-      </LoginPanelChrome>
+        </LoginPanelChrome>
+      </TooltipProvider>
     </section>
   );
 }

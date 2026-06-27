@@ -27,7 +27,8 @@ export function deterministicEnhance(
   form: HubRefineryForm,
   intelligence: JobIntelligence,
   directive?: ResumeEnhanceDirective,
+  targetRole?: string,
 ): DeterministicEnhanceResult {
-  const plan = buildEnhancePlan(form, intelligence, directive);
+  const plan = buildEnhancePlan(form, intelligence, directive, targetRole);
   return applyEnhancePlan(form, plan);
 }

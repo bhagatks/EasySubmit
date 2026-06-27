@@ -1,6 +1,7 @@
 import { BRAND } from "@shared/brand";
 import { extensionPopupButtonCss } from "@shared/brand-buttons";
 import { EXTENSION_MESSAGE } from "@shared/extension/constants";
+import { AnalyticsEvents, captureAnalyticsEvent } from "@shared/analytics";
 import type { ExtensionRuntimeConfig } from "@shared/extension/types";
 
 const statusEl = document.getElementById("status")!;
@@ -25,6 +26,8 @@ function applyBrandToPopup(): void {
 }
 
 applyBrandToPopup();
+
+captureAnalyticsEvent(AnalyticsEvents.EXTENSION_POPUP_OPENED, {});
 
 function setStatus(message: string): void {
   statusEl.textContent = message;
@@ -102,6 +105,7 @@ async function refreshAuthState(): Promise<void> {
 }
 
 showCardBtn.addEventListener("click", () => {
+  captureAnalyticsEvent(AnalyticsEvents.EXTENSION_POPUP_SHOW_CARD, {});
   void (async () => {
     showCardBtn.disabled = true;
     setStatus("Showing job card on this page…");

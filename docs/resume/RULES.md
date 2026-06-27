@@ -79,7 +79,7 @@ Never reorder. Never rename sections creatively ("My Journey" instead of "Profes
 - Date Sanitization: Sanitize all user-input or parsed date-range separator characters down to a single standard en-dash (`–`) or hyphen (`-`) before compilation to ensure predictable ATS parser reading.
 - Line 2: *Company — City, State* (italic)
 - Bullets: **Action verb + task + quantifiable result.** Avoid "Responsible for." Target ~70% of bullets with a number (%, $, time, count).
-- Bullet count scales with page budget (§6) — never more than 6 per role even on long resumes.
+- Bullet count **tapers by role recency** (see §6.3) — never more than **6 per role** (hard cap).
 
 **Education** — same tab-stop pattern: Degree, Major (bold) — right-aligned graduation date. Institution — City, State (italic) below. GPA only if 3.5+, own short line.
 
@@ -114,15 +114,13 @@ Default for most users: **1–2 pages.** Don't default anyone into 3+ pages with
 
 ### 6.3 Content budget by page count
 
-| Pages | Roles shown in detail | Bullets per role | Skills total |
+| Pages | Roles shown in detail | Bullets per role (by recency) | Skills total |
 |---|---|---|---|
-| 1 | 2–3 | 4–5 | 10–15 (hard max 20) |
-| 2 | 3–4 | 5–6 | 15–20 |
-| 3 | 4–5 | 6–7 | 15–20 |
-| 4 | 5+ | 6–7 | 15–20 |
-| 5–6 | as needed | as needed | grouped, ~10–15 per group |
+| 1 | 2–3 | Recent **4–5** (min 3, max 5) · mid **3–4** (min 2, max 3) · older **1–2** (min 1, max 2) | 10–15 (hard max 20) |
+| 2 | 3–4 | Recent **4–5** (min 3, max 6) · mid **3–4** (min 2, max 4) · older **1–2** (min 1, max 2) | 15–20 |
+| 3–6 | 4+ | Same recency taper; hard max **6** per role | grouped, ~10–15 per group |
 
-If content overflows at minimum font/margin sizes, cut bullets from the **oldest/least relevant roles first** — never shrink below the type/margin floors in §1 to force a fit.
+**Recency tiers:** most recent visible role = *recent*; second = *mid*; third and older = *older*. Trim bullets from **oldest/least relevant roles first** when content overflows — never shrink below the type/margin floors in §1 to force a fit.
 
 ### 6.4 No hardcoded role/bullet slots
 Don't build the template with a fixed number of job blocks (e.g. "exactly 3 companies"). The structure must support however many roles the page budget calls for — including 5+ for long-format federal/academic resumes. A rigid slot count silently truncates real candidates' work history.

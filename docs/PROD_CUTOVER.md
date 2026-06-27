@@ -56,8 +56,15 @@ Checklist from `.env.vercel.example`. Set in **Vercel → Settings → Environme
 | `LINKEDIN_CLIENT_SECRET` | Yes | Prod LinkedIn app |
 | `EASYSUBMIT_SYSTEM_GEMINI_API_KEYS` | Optional | Prefer vault import on prod |
 | `EXTENSION_TOKEN_SECRET` | Optional | Falls back to `NEXTAUTH_SECRET` |
+| `NEXT_PUBLIC_POSTHOG_KEY` | Yes (analytics) | **Prod** PostHog project `488042` — see §8 |
+| `NEXT_PUBLIC_POSTHOG_HOST` | Yes (analytics) | `https://us.i.posthog.com` |
+| `NEXT_PUBLIC_ANALYTICS_ENABLED` | Yes (analytics) | `true` |
+| `NEXT_PUBLIC_ANALYTICS_ENV` | Yes (analytics) | `prod` |
+| `NEXT_PUBLIC_ANALYTICS_INTERNAL_USER_IDS` | Optional | Comma-separated user ids to tag `$internal` |
+| `LOG_LEVEL` | Optional | `info` (Pino JSON on Vercel) |
 
-Preview/QA env (optional): separate vars pointing at dev Supabase — see `ACTION_ITEMS.md`.
+Preview/QA env (optional): separate vars pointing at dev Supabase — see `ACTION_ITEMS.md`.  
+Preview PostHog: use **dev** project `488025` and `NEXT_PUBLIC_ANALYTICS_ENV=dev`.
 
 ---
 
@@ -116,6 +123,50 @@ If migrate fails on prod, stop and follow [`MIGRATION_RECOVERY.md`](./MIGRATION_
 - [ ] Unauthenticated `/dashboard` → `/login`
 - [ ] Ignition / BYOK validate + save (confirms vault migration)
 - [ ] Avatar upload on prod (if `avatars` bucket + service role configured)
+- [ ] PostHog Live events — `login_completed` after prod OAuth (project `488042`)
+- [ ] PostHog replay — confirm login/onboarding session records (inputs masked)
+
+---
+
+## 8. PostHog analytics (prod)
+
+Full spec: [`analytics-option-a.md`](./analytics-option-a.md). Code is shipped; **you still configure keys and PostHog UI**.
+
+### PostHog Cloud (project `488042`)
+
+| Step | Status | Notes |
+|------|--------|-------|
+| Prod project exists | Done | ID `488042`, US Cloud |
+| Autocapture | **Todo** | **On** for web (`NEXT_PUBLIC_POSTHOG_AUTOCAPTURE=true`); extension build keeps autocapture off |
+| Session replay | **Todo** | **On**, sample ~10–20% |
+| Error tracking | **Todo** | **On** |
+| Property blocklist | **Todo** | `apiKey`, `password`, `resumeText`, `coverLetter`, `jobDescription`, `token`, … |
+| Replay masking | **Todo** | Mask all inputs |
+
+### Vercel Production env
+
+| Step | Status | Notes |
+|------|--------|-------|
+| `NEXT_PUBLIC_POSTHOG_KEY` | **Todo** | Prod `phc_…` (project 488042) — never commit to git |
+| `NEXT_PUBLIC_POSTHOG_HOST` | **Todo** | `https://us.i.posthog.com` |
+| `NEXT_PUBLIC_ANALYTICS_ENABLED` | **Todo** | `true` |
+| `NEXT_PUBLIC_ANALYTICS_ENV` | **Todo** | `prod` |
+| `NEXT_PUBLIC_POSTHOG_AUTOCAPTURE` | **Todo** | `true` (web dashboard only) |
+| `LOG_LEVEL` | **Todo** | `info` |
+
+### After deploy
+
+| Step | Status | Notes |
+|------|--------|-------|
+| Smoke: Live events on prod login | **Todo** | Filter `environment = prod` |
+| Dashboards | Optional | `POSTHOG_PERSONAL_API_KEY=phx_… npm run analytics:setup` |
+| Chrome extension prod build | **Todo** | Rebuild with prod `NEXT_PUBLIC_*` before CWS publish |
+| Privacy policy copy | Deferred | PostHog/replay disclosure — [`ACTION_ITEMS.md`](./ACTION_ITEMS.md) Phase C |
+| EU cookie consent | Deferred | Evaluate if EU users — [`ACTION_ITEMS.md`](./ACTION_ITEMS.md) Phase C |
+
+### Local dev (do first — before prod)
+
+Use **dev** project `488025` in `.env.local` (same var names, `NEXT_PUBLIC_ANALYTICS_ENV=dev`). See [`analytics-option-a.md`](./analytics-option-a.md) § Setup checklist.
 
 ---
 
@@ -126,4 +177,6 @@ If migrate fails on prod, stop and follow [`MIGRATION_RECOVERY.md`](./MIGRATION_
 | Supabase project | Dev project (your `.env.local`) | `yofgnflcqajqsepbfdkc` |
 | `NEXTAUTH_URL` | `http://localhost:3000` | `https://<prod-domain>` |
 | Google OAuth client | Localhost redirect URIs | Prod domain redirect URIs |
+| PostHog project | `488025` (dev) | `488042` (prod) |
+| `NEXT_PUBLIC_ANALYTICS_ENV` | `dev` | `prod` |
 | DB migrations | `run easy` / `db:migrate` on dev DB | `migrate deploy` via `run easy prod` on prod DB |

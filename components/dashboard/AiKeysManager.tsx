@@ -25,6 +25,7 @@ import {
 } from "@/components/keys/IgnitionBlast";
 import { StudioCollapsibleSection } from "@/components/resume/StudioCollapsibleSection";
 import { StudioIconButton } from "@/components/resume/StudioIconButton";
+import { trackByokCtaClicked } from "@/src/shared/analytics/product-events";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { InlineAlert } from "@/components/ui/inline-alert";
@@ -95,6 +96,7 @@ export function AiKeysManager({ initialKeys }: AiKeysManagerProps) {
   });
 
   const openAddEditor = useCallback(() => {
+    trackByokCtaClicked("ai_keys_add");
     setEditor({ mode: "add" });
     setExpanded((current) => ({ ...current, [VAULT_EDITOR_SECTION_ID]: true }));
   }, [setExpanded]);
@@ -278,6 +280,7 @@ export function AiKeysManager({ initialKeys }: AiKeysManagerProps) {
                     }
                     lockProvider={editor.mode === "edit"}
                     setAsActiveOnSave={editor.mode === "add" ? keys.length === 0 : false}
+                    isFirstKey={editor.mode === "add" && keys.length === 0}
                     manageTitle={
                       editor.mode === "edit"
                         ? `Replace ${getProviderRegistryEntry(editor.provider).label} key`

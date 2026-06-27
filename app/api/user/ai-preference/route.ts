@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth";
+import { isAiGloballyEnabled } from "@/lib/ai/ai-global-enabled";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
@@ -16,5 +17,6 @@ export async function GET() {
 
   return NextResponse.json({
     aiSourcePreference: user?.aiSourcePreference ?? "disabled",
+    aiGloballyEnabled: isAiGloballyEnabled(),
   });
 }

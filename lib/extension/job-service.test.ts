@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import {
   findActiveJobTrackerEntryForUrl,
   getJobTrackerStatusForUrl,
+  loadTailorInputFromEntry,
   saveJobTrackerEntry,
 } from "@/lib/extension/job-service";
 
@@ -232,5 +233,38 @@ describe("findActiveJobTrackerEntryForUrl", () => {
     vi.mocked(prisma.jobTrackerEntry.findFirst).mockResolvedValue(null);
     await findActiveJobTrackerEntryForUrl("user-1", URL);
     expect(prisma.jobTrackerEntry.findFirst).toHaveBeenCalled();
+  });
+});
+
+describe("loadTailorInputFromEntry", () => {
+  it("loads saved row fields for tailor without re-posting the capture payload", async () => {
+    vi.mocked(prisma.jobTrackerEntry.findFirst).mockResolvedValue({
+      canonicalUrl: URL,
+      title: "Engineer",
+      company: "Acme",
+      location: "Remote",
+      salaryText: "$120k",
+      description: LONG_JD,
+      platform: "workday",
+      metadata: { sourceProfileId: "profile-1" },
+    } as never);
+
+    const input = await loadTailorInputFromEntry("user-1", "entry-1");
+
+    expect(input).toEqual({
+      url: URL,
+      title: "Engineer",
+      company: "Acme",
+      location: "Remote",
+      salaryText: "$120k",
+      description: LONG_JD,
+      platform: "workday",
+      sourceProfileId: "profile-1",
+    });
+  });
+
+  it("returns null when the entry is missing", async () => {
+    vi.mocked(prisma.jobTrackerEntry.findFirst).mockResolvedValue(null);
+    await expect(loadTailorInputFromEntry("user-1", "missing")).resolves.toBeNull();
   });
 });

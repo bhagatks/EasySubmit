@@ -1,3 +1,4 @@
+import { isAiGloballyEnabled } from "@/lib/ai/ai-global-enabled";
 import { prisma } from "@/lib/prisma";
 import { getByokKeyGateForUserRow } from "@/lib/ai/byok-key-gate-for-user";
 import { getSystemQuotaGateForUserRow, SYSTEM_QUOTA_USER_SELECT } from "@/lib/ai/system-quota-gate-for-user";
@@ -57,6 +58,32 @@ export async function getAiReadinessForUser(
   options: AiReadinessOptions = {},
 ): Promise<AiReadinessCheckResult> {
   const estimatedCalls = options.estimatedCalls ?? SYSTEM_QUOTA_PIPELINE_ESTIMATED_CALLS;
+
+  const systemQuotaIdle = {
+    applies: false,
+    exceeded: false,
+    reason: null,
+    message: null,
+    code: null,
+    snapshot: null,
+  };
+  const byokKeyIdle = {
+    applies: false,
+    valid: true,
+    reason: null,
+    message: null,
+    code: null,
+    lastJobFailure: null,
+  };
+
+  if (!isAiGloballyEnabled()) {
+    return {
+      status: { ok: false, code: "key_missing", message: "AI is globally disabled." },
+      systemQuota: systemQuotaIdle,
+      byokKey: byokKeyIdle,
+      reason: "ai_globally_disabled",
+    };
+  }
 
   const user = await prisma.user.findUnique({
     where: { id: userId },

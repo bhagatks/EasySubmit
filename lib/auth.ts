@@ -90,6 +90,7 @@ async function applyLoginIdentityToToken(
       name: true,
       image: true,
       onboardingStep: true,
+      planConfirmedAt: true,
     },
   });
 
@@ -107,9 +108,11 @@ async function applyLoginIdentityToToken(
 
   if (dbUser) {
     token.onboardingStep = dbUser.onboardingStep;
+    token.planConfirmedAt = dbUser.planConfirmedAt?.toISOString() ?? null;
     token.image = dbUser.image;
   } else {
     token.onboardingStep = 0;
+    token.planConfirmedAt = null;
   }
 }
 
@@ -247,7 +250,8 @@ export const authOptions: NextAuthOptions = {
         (Boolean(user?.id) ||
           token.firstName == null ||
           token.lastName == null ||
-          token.lastName === "");
+          token.lastName === "" ||
+          token.planConfirmedAt === undefined);
 
       if (userId && shouldHydrateIdentity) {
         await applyLoginIdentityToToken(token, userId, user?.name);
@@ -255,6 +259,10 @@ export const authOptions: NextAuthOptions = {
 
       if (trigger === "update" && session?.onboardingStep !== undefined) {
         token.onboardingStep = session.onboardingStep;
+      }
+
+      if (trigger === "update" && session?.planConfirmedAt !== undefined) {
+        token.planConfirmedAt = session.planConfirmedAt;
       }
 
       if (trigger === "update" && session?.userId !== undefined) {
@@ -283,6 +291,7 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         session.user.id = (token.id as string) ?? session.user.id;
         session.user.onboardingStep = (token.onboardingStep as number) ?? 0;
+        session.user.planConfirmedAt = (token.planConfirmedAt as string | null | undefined) ?? null;
         session.user.firstName = (token.firstName as string | null | undefined) ?? null;
         session.user.lastName = (token.lastName as string | null | undefined) ?? null;
         session.user.name =

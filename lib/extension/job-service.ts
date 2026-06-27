@@ -20,6 +20,48 @@ export type SaveJobTrackerInput = {
   sourceProfileId?: string | null;
 };
 
+/** Matches extension capture cap — avoids unbounded description storage / JSON parse. */
+export const MAX_JOB_DESCRIPTION_CHARS = 48_000;
+
+export async function loadTailorInputFromEntry(
+  userId: string,
+  entryId: string,
+): Promise<SaveJobTrackerInput | null> {
+  const row = await prisma.jobTrackerEntry.findFirst({
+    where: { id: entryId, userId },
+    select: {
+      canonicalUrl: true,
+      title: true,
+      company: true,
+      location: true,
+      salaryText: true,
+      description: true,
+      platform: true,
+      metadata: true,
+    },
+  });
+
+  if (!row) return null;
+
+  const metadata =
+    row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+      ? (row.metadata as Record<string, unknown>)
+      : null;
+  const sourceProfileId =
+    typeof metadata?.sourceProfileId === "string" ? metadata.sourceProfileId : null;
+
+  return {
+    url: row.canonicalUrl,
+    title: row.title,
+    company: row.company,
+    location: row.location,
+    salaryText: row.salaryText,
+    description: row.description,
+    platform: row.platform,
+    sourceProfileId,
+  };
+}
+
 export type JobTrackerStatusResult = {
   saved: boolean;
   id?: string;

@@ -17,6 +17,9 @@ export type EnhancePlan = {
   structuralWarnings: string[];
   summaryWarnings: string[];
   skillsWarnings: string[];
+  targetRole?: string;
+  summaryTheme?: string;
+  roleLevel?: string;
 };
 
 function buildSummaryWarnings(summaryText: string): string[] {
@@ -66,6 +69,7 @@ export function buildEnhancePlan(
   form: HubRefineryForm,
   jobIntelligence: JobIntelligence,
   directive?: ResumeEnhanceDirective,
+  targetRole?: string,
 ): EnhancePlan {
   const skills = parseSkillsText(form.skillsText ?? "");
   const summaryText = form.professionalSummary?.trim() ?? "";
@@ -77,5 +81,8 @@ export function buildEnhancePlan(
     structuralWarnings: jobIntelligence.structuralWarnings,
     summaryWarnings: buildSummaryWarnings(summaryText),
     skillsWarnings: buildSkillsWarnings(skills),
+    targetRole,
+    summaryTheme: directive?.summaryTheme,
+    roleLevel: directive?.roleLevel,
   };
 }

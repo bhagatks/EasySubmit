@@ -11,7 +11,6 @@ export type CandidateContext = {
   senioritySignal: string;
   pageBudget: {
     pages: 1 | 2;
-    maxBulletsPerRole: number;
     maxRolesDetailed: number;
     maxSkills: number;
     summarySentencesMax: number;
@@ -81,7 +80,6 @@ export function resolvePageBudget(years: number, targetRole: string): CandidateC
     return {
       pages: 2,
       maxRolesDetailed: 4,
-      maxBulletsPerRole: 6,
       maxSkills: 20,
       summarySentencesMax: 4,
     };
@@ -90,10 +88,16 @@ export function resolvePageBudget(years: number, targetRole: string): CandidateC
   return {
     pages: 1,
     maxRolesDetailed: 3,
-    maxBulletsPerRole: 5,
     maxSkills: 20,
     summarySentencesMax: 4,
   };
+}
+
+export function inferResumePagesFromForm(
+  form: HubRefineryForm,
+  targetRole = "",
+): 1 | 2 {
+  return resolvePageBudget(estimateYearsExperience(form), targetRole).pages;
 }
 
 export function buildCandidateContext(input: {

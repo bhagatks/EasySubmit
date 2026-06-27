@@ -1,4 +1,7 @@
-import type { SaveJobTrackerInput } from "@/lib/extension/job-service";
+import {
+  MAX_JOB_DESCRIPTION_CHARS,
+  type SaveJobTrackerInput,
+} from "@/lib/extension/job-service";
 import { canApplyCapture } from "@/src/shared/extension/apply-gate";
 import { resolveJobIdentity } from "@/src/shared/extension/job-identity";
 
@@ -16,7 +19,7 @@ export function normalizeSaveJobInput(
   input: SaveJobTrackerInput,
 ): NormalizedSaveJobInput | { error: string } {
   const url = input.url?.trim() ?? "";
-  const description = input.description?.trim() ?? "";
+  const description = (input.description?.trim() ?? "").slice(0, MAX_JOB_DESCRIPTION_CHARS);
 
   if (!canApplyCapture({ url, description })) {
     return { error: "url and job description (min 120 chars) are required" };

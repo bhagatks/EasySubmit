@@ -3,9 +3,10 @@ import { revalidatePath } from "next/cache";
 import { resolveExtensionUserId } from "@/lib/extension/auth-request";
 import { extensionGlobalDisabledResponse } from "@/lib/extension/extension-global-gate";
 import { getExtensionAiApplyBlockForUser } from "@/lib/extension/extension-ai-apply-gate";
-import { tailorJobPipeline, type RunApplyPipelineInput } from "@/lib/extension/apply-pipeline";
+import { tailorJobPipeline } from "@/lib/extension/apply-pipeline";
+import { loadTailorInputFromEntry } from "@/lib/extension/job-service";
 
-type TailorRequestBody = RunApplyPipelineInput & { entryId: string };
+type TailorRequestBody = { entryId: string };
 
 export async function POST(request: NextRequest) {
   const disabled = await extensionGlobalDisabledResponse(request);
@@ -22,7 +23,8 @@ export async function POST(request: NextRequest) {
     return Response.json({ success: false, error: "Invalid JSON body" }, { status: 400 });
   }
 
-  if (!body.entryId?.trim()) {
+  const entryId = body.entryId?.trim();
+  if (!entryId) {
     return Response.json({ success: false, error: "entryId is required" }, { status: 400 });
   }
 
@@ -31,8 +33,13 @@ export async function POST(request: NextRequest) {
     return Response.json({ success: false, error: aiBlock }, { status: 403 });
   }
 
+  const entryInput = await loadTailorInputFromEntry(userId, entryId);
+  if (!entryInput) {
+    return Response.json({ success: false, error: "Job not found" }, { status: 404 });
+  }
+
   try {
-    const result = await tailorJobPipeline(userId, body.entryId, body);
+    const result = await tailorJobPipeline(userId, entryId, entryInput);
     revalidatePath("/dashboard/job-tracker");
     revalidatePath("/dashboard");
     return Response.json({ success: result.success, status: result.status, error: result.error });

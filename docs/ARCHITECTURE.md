@@ -109,7 +109,7 @@ Extension CAPTURE_JOB
 
 Extension subscribes to per-job Supabase Realtime (subscribeJobStatusRealtime)
 
-Extension TAILOR_JOB_ASYNC (fire and forget)
+Extension TAILOR_JOB_ASYNC (fire and forget; body `{ entryId }` only — JD loaded from DB)
   → POST /api/extension/jobs/tailor
       → tailorJobPipeline (lib/extension/apply-pipeline.ts)
           → runPipelineTailor (lib/extension/pipeline-tailor.ts)
@@ -160,6 +160,8 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 
 | Date | Summary |
 |------|---------|
+| 2026-06-27 | Deterministic enhance hardening — no double-verb bullet stacking, `cleanBulletsString` on experience, recency taper in `applyEnhancePlan`, mashed-role split on PDF import (`split-mashed-experience.ts`) |
+| 2026-06-27 | Experience bullet recency rules — `lib/resume/experience-bullet-rules.ts` (recent/mid/older taper, min 3 on recent role); AI enhance prompts, Studio validation, readiness score, export warnings; `RULES.md` §6.3 aligned to max 6 hard cap |
 | 2026-06-26 | Prod cutover checklist — `docs/PROD_CUTOVER.md` (DB/P3009, Vercel env, Google OAuth prod todo, storage, smoke tests); OAuth local client recreated — prod redirect URIs still required |
 | 2026-06-26 | OAuth setup doc — `docs/oauth-setup.md` (Google Cloud from scratch, redirect URIs, env vars, troubleshooting); linked from `ENV.md` + `FLOW.md` |
 | 2026-06-26 | Login UI — `/login` LinkedIn-first OAuth buttons + muted “LinkedIn is preferred” hint below terms consent |
@@ -185,6 +187,8 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 | 2026-06-25 | Extension AI health — red text banner below card header (right-aligned message + dashboard fix link); header icon removed |
 | 2026-06-25 | AI health alert placement — dashboard header rightmost; extension card grip order resume → refresh → settings → close |
 | 2026-06-25 | Extension job card — single expandable card: summary rows (title, company + Job info, Resume/Cover chips, status above CTA); inline scroll views for job details + resume/cover preview; header ↗ opens dashboard review; `GET /api/extension/jobs/:id/preview` |
+| 2026-06-26 | Extension tailor API loads job row by `entryId` only (no duplicate JD JSON in request); dev `run easy` sets `NODE_OPTIONS=--max-old-space-size=4096` |
+| 2026-06-26 | Extension application profile setup gates Apply — mandatory Screen 1 must be saved before pipeline/autofill; setup re-shown on every Apply click until `workAuth` + `preferences` persist |
 | 2026-06-25 | Dashboard AI health alert — `GET /api/user/ai-health` + refresh on tab visibility, focus, pageshow, and 60s poll (replaces client server-action calls) |
 | 2026-06-25 | Global AI health alert — `getAiHealthStatusForUser` / `AiHealthAlert` in dashboard header; `aiHealthError` on extension config + card tooltip; Settings split into AI Keys + General |
 | 2026-06-25 | Extension pipeline hardening — re-capture resets row to CAPTURED; `markJobTrackerApplied` only from READY_TO_APPLY; content script `__easysubmitCleanup` teardown; BYOK health uses `aiMode: customer` in ApiCallLog |
@@ -237,6 +241,7 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 | 2026-06-21 | Chrome extension v0.1.7: job card header dashboard icon + fixed minimize (×) click; session-only position reset on refresh |
 | 2026-06-21 | Chrome extension v0.1: MV3 job card + save API + auth bridge; `npm run build:extension` → `dist/extension/`; `app_config.extensionSites` + `extension_job_card` flag |
 | 2026-06-21 | Job Tracker: `job_tracker_entries` (`JobTrackerEntry`) + `/dashboard/job-tracker` (v1 chronological list); overview stat **Jobs tracked**; `/dashboard/applications` redirects; extension save API planned |
+| 2026-06-27 | Product analytics Option A: PostHog (`src/shared/analytics`, web + extension events, replay/errors); web autocapture via `NEXT_PUBLIC_POSTHOG_AUTOCAPTURE`; Pino server logs; spec `docs/analytics-option-a.md`; dev/prod PostHog projects 488025/488042 |
 | 2026-06-21 | Sign-out fix: `signOutUser` uses NextAuth `callbackUrl` redirect (no race with manual `/login` assign) |
 | 2026-06-21 | Enhance with AI preflight: button click checks feature flag + `aiEngine.quotas.system.enable` + route/quota before job-description dialog |
 | 2026-06-21 | Feature flags: `feature_flags.extra` JSON column for per-flag optional config |

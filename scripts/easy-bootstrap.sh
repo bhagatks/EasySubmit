@@ -27,4 +27,5 @@ echo "→ Building Chrome extension (dist/extension)"
 npm run build:extension
 
 echo "→ Dev server (http://localhost:$PORT)"
+export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=4096}"
 easy_run_with_post_start local npx next dev -p "$PORT"

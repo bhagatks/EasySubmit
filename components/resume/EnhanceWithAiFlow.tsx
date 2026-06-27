@@ -151,6 +151,8 @@ type EnhanceWithAiButtonProps = {
   isLoading?: boolean;
   variant?: "dashboard" | "onboarding";
   className?: string;
+  /** When false, label is "Enhance" (rules engine) instead of "Enhance with AI". */
+  aiEnabled?: boolean;
 };
 
 export function EnhanceWithAiButton({
@@ -159,8 +161,13 @@ export function EnhanceWithAiButton({
   isLoading = false,
   variant = "dashboard",
   className,
+  aiEnabled = true,
 }: EnhanceWithAiButtonProps) {
   const isOnboarding = variant === "onboarding";
+  const label = aiEnabled ? "Enhance with AI" : "Enhance";
+  const title = aiEnabled
+    ? undefined
+    : "Enable AI in Settings for smarter enhancements";
 
   return (
     <Button
@@ -168,6 +175,7 @@ export function EnhanceWithAiButton({
       size="sm"
       disabled={disabled || isLoading}
       onClick={onClick}
+      title={title}
       className={cn(
         "gap-2 rounded-xl font-semibold",
         isOnboarding
@@ -178,7 +186,7 @@ export function EnhanceWithAiButton({
       variant="default"
     >
       <Sparkles className="h-4 w-4 shrink-0" aria-hidden="true" />
-      {isLoading ? "Enhancing…" : "Enhance with AI"}
+      {isLoading ? "Enhancing…" : label}
     </Button>
   );
 }

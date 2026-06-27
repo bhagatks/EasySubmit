@@ -83,6 +83,8 @@ export type IgnitionGateProps = {
     provider: HandshakeProvider;
     providerLabel: string;
   }) => void;
+  /** When true, marks analytics `byok_key_saved.is_first_key`. */
+  isFirstKey?: boolean;
   manageTitle?: string;
   manageDescription?: string;
   /** Manage-mode primary action label (default: Validate & Vault Key). */
@@ -165,6 +167,7 @@ export function IgnitionGate({
   initialProvider,
   lockProvider = false,
   setAsActiveOnSave = true,
+  isFirstKey = false,
   onKeySaved,
   onVaultSuccess,
   manageTitle,
@@ -361,6 +364,7 @@ export function IgnitionGate({
 
     const result = await runDiscovery(provider, trimmedKey, {
       setAsActive: isManageMode ? makeActive : true,
+      isFirstKey,
     });
 
     finishManageSave(result);

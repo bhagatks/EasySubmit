@@ -55,6 +55,7 @@ export async function runDeterministicResumeEnhance(input: {
     input.enhanceInput.form,
     jobIntelligence!,
     enhanceDirective,
+    input.enhanceInput.targetRole,
   );
 
   const cleanedSummary = postProcessProfessionalSummary(

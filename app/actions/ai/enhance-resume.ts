@@ -36,6 +36,8 @@ export type EnhancePreflightInput = {
 export type EnhancePreflightSuccess = {
   ok: true;
   systemAiEnabled: boolean;
+  /** False when global AI is off or user disabled AI — rules-only enhance still allowed. */
+  aiAvailable: boolean;
 };
 
 export type EnhancePreflightFailure = {
@@ -67,10 +69,17 @@ export async function checkEnhanceWithAiPreflight(
   });
 
   if (!enhance.available) {
+    if (enhance.reason === "globally_disabled" || enhance.reason === "user_disabled") {
+      const featureFlags = await getFeatureFlags();
+      return {
+        ok: true,
+        systemAiEnabled: isSystemAiEnabled(featureFlags),
+        aiAvailable: false,
+      };
+    }
+
     const codeMap: Record<string, NonNullable<EnhanceResumeProfileFailure["code"]>> = {
-      globally_disabled: "feature_disabled",
       feature_disabled: "feature_disabled",
-      user_disabled: "feature_disabled",
       no_key: "no_customer_key",
       pool_down: "system_pool_exhausted",
       quota_exceeded: "quota_enhancement",
@@ -96,7 +105,11 @@ export async function checkEnhanceWithAiPreflight(
   }
 
   const featureFlags = await getFeatureFlags();
-  return { ok: true, systemAiEnabled: isSystemAiEnabled(featureFlags) };
+  return {
+    ok: true,
+    systemAiEnabled: isSystemAiEnabled(featureFlags),
+    aiAvailable: true,
+  };
 }
 
 export type AiQuotaSummary = {

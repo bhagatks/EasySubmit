@@ -1,6 +1,7 @@
 import type { CandidateContext } from "@/src/lib/ai/engine/candidate-context";
 import type { JobIntelligence } from "@/lib/job-tracker/ats/job-intelligence";
 import type { ResumeEnhanceDirective } from "@/lib/job-tracker/jd/jd-intelligence";
+import { buildExperienceBulletBudgetPrompt } from "@/lib/resume/experience-bullet-rules";
 import {
   SKILLS_HARD_MIN_SYSTEM,
   SKILLS_HARD_MAX,
@@ -29,7 +30,7 @@ function buildPageBudgetBlock(ctx: CandidateContext): string {
   return `
 PAGE BUDGET (${b.pages} page(s)):
 - Professional Summary — exactly ${SUMMARY_SENTENCE_COUNT} sentences, ${SUMMARY_WORD_MIN}–${SUMMARY_WORD_MAX} words, plain paragraph, no bullets, no "I"/"my." Structure: [Role + years + domain scope] → [Core method/approach] → [Deep specialization + named technologies] → [Signature outcome or organizational impact]. Include at least one quantified claim. Tone: peer-to-practitioner — declarative, precise. Banned words: leverage, spearhead, passionate, dynamic, robust, innovative, cutting-edge, synergy, utilize, facilitate, foster, delve, comprehensive, results-driven, thought leader, proven track record, detail-oriented, self-starter, extensive experience, diverse range of, seasoned professional, highly motivated, visionary, mission-critical.
-- Experience: up to ${b.maxRolesDetailed} roles, max ${b.maxBulletsPerRole} bullets each.
+- ${buildExperienceBulletBudgetPrompt(b.pages, b.maxRolesDetailed)}
 - Skills: ${SKILLS_HARD_MIN_SYSTEM}–${SKILLS_HARD_MAX} items (target range).
 `.trim();
 }
@@ -76,7 +77,7 @@ export function buildEnhanceUserPrompt(
       "Tasks:",
       `1. Rewrite professional summary to the standard: exactly ${SUMMARY_SENTENCE_COUNT} sentences, ${SUMMARY_WORD_MIN}–${SUMMARY_WORD_MAX} words; Role → Method → Specialization → Impact; at least one quantified claim; peer-to-practitioner tone; no banned words. Align title and narrative to the target role. If the JD is for a non-engineering role (e.g. People, Operations, Product, Finance), reframe the candidate's experience in terms of that domain — do not keep an engineering-specific title or framing.`,
       "2. Rebuild the skills list from scratch based on what the TARGET ROLE actually needs. Remove skills irrelevant to the role and replace with role-specific competencies, tools, and methodologies the candidate genuinely has (e.g. for a People/HR role: 'Program Management, Workforce Planning, Organizational Design, People Analytics, Change Management, Agile, AI & Digital Transformation'). Do not carry over the original skills list blindly.",
-      "3. Rewrite each experience bullet as a single clean sentence starting with ONE past-tense action verb. Never start a bullet with two consecutive verbs (e.g. 'Led lead', 'Built define', 'Executed provided' are all wrong — pick one verb). Emphasize outcomes measurable by the target role.",
+      "3. Rewrite each experience bullet as a single clean sentence starting with ONE past-tense action verb. Never start a bullet with two consecutive verbs (e.g. 'Led lead', 'Built define', 'Executed provided' are all wrong — pick one verb). Emphasize outcomes measurable by the target role. Apply the recency bullet budget — most detail on the most recent role; taper older roles to fewer bullets.",
       "4. Tighten education, certifications, projects, languages, custom sections.",
       "5. Preserve all experience/education entry ids, companies, schools, and date fields exactly.",
       ctx.jobDescription

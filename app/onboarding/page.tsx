@@ -59,6 +59,11 @@ import {
 } from "@/lib/onboarding/workbench-session";
 import { formatLanguagesForResume } from "@/lib/onboarding/languages";
 import { parseProfileName } from "@/lib/profile/name";
+import {
+  AnalyticsEvents,
+  captureAnalyticsEvent,
+  type WorkbenchPhaseCode,
+} from "@/src/shared/analytics";
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
@@ -148,6 +153,9 @@ export default function OnboardingPage() {
   >(null);
   const calibrationRanRef = useRef(false);
   const [workbenchReady, setWorkbenchReady] = useState(false);
+  const phaseStartedAtRef = useRef<number>(Date.now());
+  const onboardingStartedAtRef = useRef<number>(Date.now());
+  const lastTrackedPhaseRef = useRef<number | null>(null);
 
   const sessionNameParts = parseProfileName(session?.user?.name);
   const sessionFirstName =
@@ -248,7 +256,20 @@ export default function OnboardingPage() {
   const goToPhase = useCallback((next: number, dir: 1 | -1 = 1) => {
     setDirection(dir);
     setPhase(next);
+    phaseStartedAtRef.current = Date.now();
   }, []);
+
+  useEffect(() => {
+    if (!workbenchReady) return;
+    if (lastTrackedPhaseRef.current === phase) return;
+    lastTrackedPhaseRef.current = phase;
+
+    const workbenchPhase = getWorkbenchPhase(phase);
+    captureAnalyticsEvent(AnalyticsEvents.ONBOARDING_PHASE_VIEWED, {
+      phase,
+      phase_code: (workbenchPhase?.code ?? "UNKNOWN") as WorkbenchPhaseCode | "UNKNOWN",
+    });
+  }, [phase, workbenchReady]);
 
   const handleCoordinatesChange = useCallback((values: CoordinatesValues) => {
     setCoordinates(values);
@@ -302,6 +323,12 @@ export default function OnboardingPage() {
         // Local advance still works if persistence fails transiently.
       }
 
+      captureAnalyticsEvent(AnalyticsEvents.ONBOARDING_PHASE_COMPLETED, {
+        phase: 1,
+        phase_code: "IDENTITY",
+        duration_ms: Date.now() - phaseStartedAtRef.current,
+      });
+
       goToPhase(2);
     },
     [goToPhase, identity, updateSession],
@@ -322,10 +349,15 @@ export default function OnboardingPage() {
       setResumeData(refineryFormToPrimeResume(form));
       setIsScanning(false);
 
+      const enhanceStartedAt = Date.now();
       try {
         const enhanced = await enhanceResumeOnboarding({
           form,
           targetRole: useOnboardingStore.getState().identity.targetRole.trim(),
+        });
+        captureAnalyticsEvent(AnalyticsEvents.ONBOARDING_ENHANCE_COMPLETED, {
+          status: enhanced.success ? "success" : "error",
+          duration_ms: Date.now() - enhanceStartedAt,
         });
         if (enhanced.success) {
           const enhancedSkills = parseSkillsText(enhanced.form.skillsText);
@@ -335,8 +367,18 @@ export default function OnboardingPage() {
           setResumeData(refineryFormToPrimeResume(enhanced.form));
         }
       } catch {
+        captureAnalyticsEvent(AnalyticsEvents.ONBOARDING_ENHANCE_COMPLETED, {
+          status: "error",
+          duration_ms: Date.now() - enhanceStartedAt,
+        });
         // pipeline failure is non-fatal — user sees raw parsed form
       }
+
+      captureAnalyticsEvent(AnalyticsEvents.ONBOARDING_PHASE_COMPLETED, {
+        phase: 2,
+        phase_code: "IMPORT",
+        duration_ms: Date.now() - phaseStartedAtRef.current,
+      });
 
       goToPhase(3);
     },
@@ -459,6 +501,15 @@ export default function OnboardingPage() {
 
           await updateSession({ onboardingStep: 4 });
           clearWorkbenchSession();
+
+          captureAnalyticsEvent(AnalyticsEvents.ONBOARDING_PHASE_COMPLETED, {
+            phase: 3,
+            phase_code: "STUDIO",
+            duration_ms: Date.now() - phaseStartedAtRef.current,
+          });
+          captureAnalyticsEvent(AnalyticsEvents.ONBOARDING_COMPLETED, {
+            duration_ms: Date.now() - onboardingStartedAtRef.current,
+          });
         } catch (err) {
           calibrationRanRef.current = false;
           setIsSynthesizing(false);

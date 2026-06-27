@@ -23,7 +23,8 @@
     "db:import-system-keys": "npx --yes tsx scripts/import-system-keys-to-vault.ts",
     "pool:status": "npx --yes tsx scripts/pool-status.ts",
     "pool:reset": "npx --yes tsx scripts/pool-reset-dev.ts",
-    "ai:usage": "npx --yes tsx scripts/ai-usage-stats.ts"
+    "ai:usage": "npx --yes tsx scripts/ai-usage-stats.ts",
+    "analytics:setup": "node scripts/posthog-setup-dashboards.mjs"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.85",
@@ -55,6 +56,8 @@
     "pdf-parse": "^2.4.5",
     "pdfjs-dist": "^3.11.174",
     "pg": "^8.21.0",
+    "pino": "^10.3.1",
+    "posthog-js": "^1.395.0",
     "rake-js": "^0.1.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -79,6 +82,7 @@
     "esbuild": "^0.25.0",
     "jsdom": "^29.1.1",
     "linkedom": "^0.18.12",
+    "pino-pretty": "^13.1.3",
     "postcss": "^8.5.3",
     "prisma": "^7.8.0",
     "sharp": "^0.34.5",

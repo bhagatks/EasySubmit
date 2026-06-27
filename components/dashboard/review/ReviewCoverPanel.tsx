@@ -18,6 +18,7 @@ import {
   canExportReviewDocument,
   canOpenLatexEditor,
 } from "@/lib/job-tracker/review-readiness";
+import { trackEnhanceClicked, trackEnhanceCompleted } from "@/src/shared/analytics/product-events";
 import type { JobTrackerDetail } from "@/lib/job-tracker/types";
 import { DEFAULT_STUDIO_ZOOM } from "@/lib/resume/studio-preview-zoom";
 import { cn } from "@/lib/utils";
@@ -174,15 +175,34 @@ export function ReviewCoverPanel({ entry, onRefresh, aiEnabled }: ReviewCoverPan
           : "Enable AI in Settings for smarter enhancements",
         onClick: () => {
           void (async () => {
+            const startedAt = Date.now();
+            trackEnhanceClicked({
+              surface: "review_cover",
+              documentKind: "cover_letter",
+              aiEnabled,
+            });
             setBusy("enhance");
             setError(null);
             setNotice(null);
             const result = await enhanceJobCoverLetter(entry.id);
             setBusy(null);
             if (!result.success) {
+              trackEnhanceCompleted({
+                surface: "review_cover",
+                documentKind: "cover_letter",
+                status: "error",
+                durationMs: Date.now() - startedAt,
+                errorCode: result.code ?? null,
+              });
               setError(result.error);
               return;
             }
+            trackEnhanceCompleted({
+              surface: "review_cover",
+              documentKind: "cover_letter",
+              status: "success",
+              durationMs: Date.now() - startedAt,
+            });
             if (result.engineMode === "deterministic" && result.fallbackSummary) {
               setNotice(result.fallbackSummary);
             }

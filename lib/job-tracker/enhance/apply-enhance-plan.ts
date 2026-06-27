@@ -8,6 +8,15 @@ import {
   SKILLS_HARD_MAX,
 } from "@/lib/resume/skills-rules";
 import type { EnhancePlan } from "@/lib/job-tracker/enhance/enhance-plan";
+import { buildDeterministicSummary } from "@/lib/job-tracker/enhance/build-deterministic-summary";
+import { taperExperienceEntries } from "@/lib/resume/experience-bullet-rules";
+import {
+  bulletHasStrongOpening,
+  normalizeBulletOpeningVerb,
+} from "@/lib/resume/resume-bullet-verbs";
+import { splitMashedExperienceInForm } from "@/lib/resume/split-mashed-experience";
+import { cleanBulletLine, cleanBulletsString } from "@/src/lib/ai/engine/format-rules";
+import { inferResumePagesFromForm } from "@/src/lib/ai/engine/candidate-context";
 
 const WEAK_PHRASE_FIX: Array<{
   pattern: RegExp;
@@ -85,11 +94,21 @@ function rewriteBullet(
   }
 
   if (issues.includes("weak-verb") && !changed) {
-    const domainMatch = DOMAIN_VERBS.find(({ pattern }) => pattern.test(result));
-    const verb = domainMatch?.verb ?? "Executed";
-    result = `${verb} ${lcFirst(result)}`;
-    changed = true;
+    if (bulletHasStrongOpening(result)) {
+      const normalized = normalizeBulletOpeningVerb(result);
+      if (normalized !== result) {
+        result = normalized;
+        changed = true;
+      }
+    } else {
+      const domainMatch = DOMAIN_VERBS.find(({ pattern }) => pattern.test(result));
+      const verb = domainMatch?.verb ?? "Executed";
+      result = `${verb} ${lcFirst(result)}`;
+      changed = true;
+    }
   }
+
+  result = cleanBulletLine(result);
 
   if (changed) {
     result = ucFirst(result);
@@ -164,12 +183,34 @@ function rewriteWeakBullets(
   };
 }
 
+function cleanExperienceBullets(form: HubRefineryForm): HubRefineryForm {
+  return {
+    ...form,
+    experience: (form.experience ?? []).map((exp) => ({
+      ...exp,
+      bullets: cleanBulletsString(exp.bullets ?? "")
+        .split("\n")
+        .map((line) => normalizeBulletOpeningVerb(line))
+        .filter(Boolean)
+        .join("\n"),
+    })),
+  };
+}
+
 function buildChangeSummary(
   plan: EnhancePlan,
   skillsAdded: string[],
   bulletsRewritten: number,
+  bulletsTrimmed: number,
+  summaryRewritten: boolean,
 ): string {
   const summaryParts: string[] = [];
+
+  if (summaryRewritten) {
+    summaryParts.push("Summary rewritten to 4-sentence standard");
+  } else {
+    summaryParts.push(...plan.summaryWarnings);
+  }
 
   if (skillsAdded.length > 0) {
     summaryParts.push(
@@ -178,11 +219,16 @@ function buildChangeSummary(
   }
 
   summaryParts.push(...plan.skillsWarnings);
-  summaryParts.push(...plan.summaryWarnings);
 
   if (bulletsRewritten > 0) {
     summaryParts.push(
       `Strengthened ${bulletsRewritten} weak bullet${bulletsRewritten > 1 ? "s" : ""} with action verbs`,
+    );
+  }
+
+  if (bulletsTrimmed > 0) {
+    summaryParts.push(
+      `Trimmed ${bulletsTrimmed} bullet${bulletsTrimmed > 1 ? "s" : ""} to match recency page budget`,
     );
   }
 
@@ -199,12 +245,12 @@ function buildChangeSummary(
   return summaryParts.join(". ") + ".";
 }
 
-/** Apply an EnhancePlan without AI — summary is flagged, never rewritten. */
+/** Apply an EnhancePlan without AI — rewrites summary when it fails validation. */
 export function applyEnhancePlan(
   form: HubRefineryForm,
   plan: EnhancePlan,
 ): DeterministicEnhanceResult {
-  let updatedForm = { ...form };
+  let updatedForm = splitMashedExperienceInForm({ ...form });
   const preInjectionSkills = parseSkillsText(updatedForm.skillsText ?? "");
   const skillsAdded: string[] = [];
 
@@ -227,11 +273,39 @@ export function applyEnhancePlan(
   }
 
   const bulletResult = rewriteWeakBullets(updatedForm, plan.weakBullets);
-  updatedForm = bulletResult.form;
+  updatedForm = cleanExperienceBullets(bulletResult.form);
+
+  const pages = inferResumePagesFromForm(updatedForm, plan.targetRole ?? "");
+  const tapered = taperExperienceEntries(updatedForm.experience ?? [], pages);
+  updatedForm = { ...updatedForm, experience: tapered.entries };
+  const bulletsTrimmed = tapered.bulletsTrimmed;
+
+  let summaryRewritten = false;
+  if (plan.summaryWarnings.length > 0) {
+    const mergedSkills = parseSkillsText(updatedForm.skillsText ?? "");
+    const rewritten = buildDeterministicSummary({
+      currentSummary: updatedForm.professionalSummary ?? "",
+      skills: mergedSkills,
+      experience: updatedForm.experience ?? [],
+      targetRole: plan.targetRole ?? "",
+      summaryTheme: plan.summaryTheme,
+      roleLevel: plan.roleLevel,
+    });
+    if (rewritten !== (updatedForm.professionalSummary ?? "").trim()) {
+      updatedForm = { ...updatedForm, professionalSummary: rewritten };
+      summaryRewritten = true;
+    }
+  }
 
   return {
     form: updatedForm,
-    summary: buildChangeSummary(plan, skillsAdded, bulletResult.bulletsRewritten),
+    summary: buildChangeSummary(
+      plan,
+      skillsAdded,
+      bulletResult.bulletsRewritten,
+      bulletsTrimmed,
+      summaryRewritten,
+    ),
     changes: {
       skillsAdded,
       bulletsRewritten: bulletResult.bulletsRewritten,

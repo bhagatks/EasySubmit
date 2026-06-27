@@ -18,6 +18,10 @@
 | Run Prisma migrate on production DB | Blocked — P3009 | See `docs/MIGRATION_RECOVERY.md` — resolve before prod cutover |
 | Supabase Storage bucket `resumes` | **Cancelled** — PDFs on-demand only, never stored (see `APPLICATION_PROFILE.md`) | — |
 | Supabase Storage bucket `avatars` (public read) + `SUPABASE_SERVICE_ROLE_KEY` | Needed for prod avatar upload | Dev falls back to `public/avatars/`; see `lib/profile/avatar-storage.ts` |
+| **PostHog analytics — local dev** | **In progress** | A1 done — dev key in `.env.local` (project `488025`); complete A2–A7 in [`analytics-option-a.md`](./analytics-option-a.md) |
+| **PostHog analytics — Vercel prod** | **Todo** | Prod key (project `488042`) + §8 in [`PROD_CUTOVER.md`](./PROD_CUTOVER.md) |
+| **PostHog UI settings** (both projects) | **Todo** | Web autocapture on (UI + env); replay on; errors on; blocklist; masking |
+| **PostHog dashboards** (optional) | **Todo** | `POSTHOG_PERSONAL_API_KEY=phx_… npm run analytics:setup` |
 
 ## Post-deploy smoke test (when prod ships)
 
@@ -28,8 +32,16 @@ See also [`PROD_CUTOVER.md`](./PROD_CUTOVER.md) §7.
 - [ ] `/onboarding` — wizard steps advance
 - [ ] Resume upload → `/onboarding/step-4` animation → `/dashboard`
 - [ ] Unauthenticated `/dashboard` → `/login`
+- [ ] PostHog — prod `login_completed` visible (project `488042`, filter `environment = prod`)
 
 ## Follow-up (not blocking deploy)
+
+### Analytics — Phase C (legal / compliance)
+
+| Item | Status | Notes |
+|------|--------|-------|
+| **Privacy policy — PostHog / session replay** | **Todo** | Update `legal-documents-defaults` (or `app_config.legalDocuments`) to disclose product analytics, session replay, and error tracking. See [`analytics-option-a.md`](./analytics-option-a.md) Phase C. |
+| **EU cookie consent banner** | **Todo** | Evaluate if required for target regions; wire opt-in before PostHog init if yes. Not needed for US-only beta unless legal says otherwise. |
 
 - Add `@testing-library/react` harness for onboarding UI (see sidepanel rule pattern)
 

@@ -1,4 +1,9 @@
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
+import {
+  auditExperienceBulletCounts,
+  messageForBelowMinIssue,
+} from "@/lib/resume/experience-bullet-rules";
+import { inferResumePagesFromForm } from "@/src/lib/ai/engine/candidate-context";
 import { DEFAULT_DIAL_CODE } from "@/lib/phone/countryCodes";
 import {
   isValidPhoneNumber,
@@ -293,6 +298,17 @@ export function validateExperienceSection(form: HubRefineryForm): SectionValidat
       severity: "error",
       message:
         "Add bullet points to at least one experience entry — ATS systems need content to evaluate.",
+    });
+  }
+
+  const pages = inferResumePagesFromForm(form);
+  for (const issue of auditExperienceBulletCounts(form.experience ?? [], pages)) {
+    if (issue.kind !== "below_min" || issue.count === 0) continue;
+    issues.push({
+      field: `experience[${issue.roleIndex}].bullets`,
+      code: "experience_bullets_below_min",
+      severity: "warning",
+      message: messageForBelowMinIssue(issue.roleIndex + 1, issue),
     });
   }
 

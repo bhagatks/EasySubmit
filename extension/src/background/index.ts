@@ -476,12 +476,23 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (action === EXTENSION_MESSAGE.TAILOR_JOB_ASYNC && message.payload) {
+    const entryId =
+      typeof message.payload === "object" &&
+      message.payload !== null &&
+      "entryId" in message.payload &&
+      typeof (message.payload as { entryId: unknown }).entryId === "string"
+        ? (message.payload as { entryId: string }).entryId.trim()
+        : "";
+    if (!entryId) {
+      sendResponse({ success: false, error: "entryId is required" });
+      return true;
+    }
     // Fire and forget — Realtime pushes status changes to the extension.
     void apiFetch<{ success: boolean; status?: string; error?: string }>(
       "/api/extension/jobs/tailor",
       {
         method: "POST",
-        body: JSON.stringify(message.payload as JobSavePayload & { entryId: string }),
+        body: JSON.stringify({ entryId }),
       },
     ).catch(() => undefined);
     sendResponse({ success: true });

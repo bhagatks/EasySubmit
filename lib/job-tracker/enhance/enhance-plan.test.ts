@@ -87,13 +87,15 @@ describe("buildEnhancePlan", () => {
 });
 
 describe("applyEnhancePlan", () => {
-  it("does not rewrite professionalSummary", () => {
+  it("rewrites professionalSummary when plan flags summary issues", () => {
     const intel = analyzeJobIntelligence(BASE_FORM, "Senior Software Engineer", JD_WITH_MISSING);
     const directive = directiveForJd(BASE_FORM, JD_WITH_MISSING);
     const plan = buildEnhancePlan(BASE_FORM, intel, directive);
     const result = applyEnhancePlan(BASE_FORM, plan);
 
-    expect(result.form.professionalSummary).toBe(BASE_FORM.professionalSummary);
+    expect(plan.summaryWarnings.length).toBeGreaterThan(0);
+    expect(result.form.professionalSummary).not.toBe(BASE_FORM.professionalSummary);
+    expect(result.form.professionalSummary.split(/(?<=[.!?])\s+/).length).toBe(4);
   });
 });
 
@@ -145,6 +147,31 @@ describe("deterministicEnhance", () => {
       .filter(Boolean);
     const uniqueSkills = new Set(skillsList);
     expect(skillsList.length).toBe(uniqueSkills.size);
+  });
+
+  it("rewrites weak bullets without stacking verbs", () => {
+    const form: HubRefineryForm = {
+      ...BASE_FORM,
+      experience: [
+        {
+          ...BASE_FORM.experience[0]!,
+          bullets: [
+            "Lead the 7Now Delivery Platform engineering initiatives",
+            "Define and implement technical direction for mobile apps",
+            "Built monitoring dashboard used by 3 teams",
+          ].join("\n"),
+        },
+      ],
+    };
+
+    const intel = analyzeJobIntelligence(form, "Senior Software Engineer", JD_WITH_MISSING);
+    const directive = directiveForJd(form, JD_WITH_MISSING);
+    const result = deterministicEnhance(form, intel, directive);
+
+    const bullets = (result.form.experience[0]?.bullets ?? "").split("\n").filter(Boolean);
+    expect(bullets.some((b) => /\bLed lead\b/i.test(b))).toBe(false);
+    expect(bullets.some((b) => /\bBuilt define\b/i.test(b))).toBe(false);
+    expect(bullets[0]?.startsWith("Led the 7Now")).toBe(true);
   });
 
   it("rewrites weak bullets", () => {

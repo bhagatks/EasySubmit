@@ -46,6 +46,8 @@ model User {
   /// Work auth, preferences, address, EEO — see `docs/APPLICATION_PROFILE.md`.
   applicationProfile  Json?
   termsAcceptedAt     DateTime?
+  /// Set when user explicitly selects a plan — null means they haven't seen the plan gate yet.
+  planConfirmedAt     DateTime?
   /// `free` | `weekly` | `monthly` | `yearly`
   plan                String         @default("free")
   /// `active` | `canceled` | `past_due` | `trialing` — null for free users

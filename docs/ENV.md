@@ -64,3 +64,18 @@ Login uses NextAuth (Google + LinkedIn). Required vars: `NEXTAUTH_URL`, `NEXTAUT
 **Deploy fails on env pull:** ensure `DATABASE_URL` is set in Vercel Production environment variables.
 
 **OAuth loops locally:** use a fresh incognito/private window, or run `EASY_OPEN_BROWSER=1 run easy` to auto-open one. See [`oauth-setup.md`](./oauth-setup.md) for redirect URI and consent-screen fixes.
+
+## Analytics (PostHog)
+
+See [`docs/analytics-option-a.md`](./analytics-option-a.md).
+
+| Variable | Dev (`.env.local`) | Prod (Vercel) |
+|----------|-------------------|---------------|
+| `NEXT_PUBLIC_POSTHOG_KEY` | Dev project `488025` | Prod project `488042` |
+| `NEXT_PUBLIC_POSTHOG_HOST` | `https://us.i.posthog.com` | same |
+| `NEXT_PUBLIC_ANALYTICS_ENABLED` | `true` | `true` |
+| `NEXT_PUBLIC_ANALYTICS_ENV` | `dev` | `prod` |
+| `NEXT_PUBLIC_POSTHOG_AUTOCAPTURE` | `true` | `true` (web only; extension build forces `false`) |
+| `LOG_LEVEL` | `debug` | `info` |
+
+Dashboard bootstrap (optional): `POSTHOG_PERSONAL_API_KEY=phx_... npm run analytics:setup`

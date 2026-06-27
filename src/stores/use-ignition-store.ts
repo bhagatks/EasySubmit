@@ -24,6 +24,12 @@ import {
   suggestPrimaryFuel,
   type HandshakeProvider,
 } from "@/src/lib/config/career-grade-models";
+import {
+  trackByokHandshakeFailed,
+  trackByokHandshakeStarted,
+  trackByokHandshakeSucceeded,
+  trackByokKeySaved,
+} from "@/src/shared/analytics/product-events";
 import { writeLastDiscoveryTimestamp } from "@/src/lib/ai/discovery-timing";
 import { getCachedModelsForProvider } from "@/src/lib/config/model-cache";
 
@@ -56,7 +62,7 @@ type IgnitionStoreActions = {
   runDiscovery: (
     provider: HandshakeProvider,
     apiKey: string,
-    options?: { setAsActive?: boolean },
+    options?: { setAsActive?: boolean; isFirstKey?: boolean },
   ) => Promise<IgniteEngineVaultResult>;
   restoreDiscoveryFromCache: (
     provider: HandshakeProvider,
@@ -194,6 +200,8 @@ export const useIgnitionStore = create<IgnitionStore>()(
       getPlainApiKey: async () => getDecryptedSessionApiKey(get().apiKey),
 
       runDiscovery: async (provider, apiKey, options) => {
+        trackByokHandshakeStarted(provider);
+
         set({
           provider,
           discoveryStatus: "handshaking",
@@ -211,6 +219,8 @@ export const useIgnitionStore = create<IgnitionStore>()(
         });
 
         if (result.success && result.unlocked) {
+          trackByokHandshakeSucceeded(result.provider);
+          trackByokKeySaved(result.provider, options?.isFirstKey ?? false);
           await get().unlock(apiKey, result.provider, result.models);
           writeLastDiscoveryTimestamp(result.discoveredAt);
           set({
@@ -219,6 +229,7 @@ export const useIgnitionStore = create<IgnitionStore>()(
             discoveredAt: result.discoveredAt,
           });
         } else if (!result.success) {
+          trackByokHandshakeFailed(provider, result.code ?? null);
           const terminalMessage = result.terminalLine ?? result.error;
           set({
             discoveryStatus: "error",

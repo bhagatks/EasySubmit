@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Pencil } from "lucide-react";
 import { useState } from "react";
 import {
   deleteResumeProfile,
@@ -10,6 +11,7 @@ import {
 } from "@/app/actions/resume-profiles";
 import { StudioCollapsibleSection } from "@/components/resume/StudioCollapsibleSection";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { joinProfileName } from "@/lib/profile/name";
 
 type ResumeProfilesListProps = {
@@ -90,12 +92,21 @@ export function ResumeProfilesList({
             onToggle={() => onToggleSection(profile.id)}
             variant="dashboard"
             showDragHandle={false}
+            showChevron={false}
+            headerActions={
+              <Link
+                href={`/dashboard/resume-profiles/${profile.id}/edit`}
+                aria-label={`Edit ${primaryLabel}`}
+                title="Edit profile"
+                className={cn(
+                  "inline-flex h-8 w-8 items-center justify-center rounded-xl border border-border bg-surface text-foreground transition-colors hover:border-mint/40",
+                )}
+              >
+                <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+              </Link>
+            }
           >
             <div className="flex flex-wrap gap-2">
-              <Button variant="hero" size="sm" className="rounded-xl" asChild>
-                <Link href={`/dashboard/resume-profiles/${profile.id}/edit`}>Edit</Link>
-              </Button>
-
               {!profile.isDefault ? (
                 <Button
                   variant="outline"

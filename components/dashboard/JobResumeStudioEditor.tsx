@@ -99,6 +99,7 @@ export function JobResumeStudioEditor({
     profileId: sourceProfileId,
     rawResumeText,
     variant: "dashboard",
+    analyticsSurface: "job_studio",
     registerHeader: false,
     enabled: enhanceWithAiEnabled,
     onApply: handleEnhanceApply,

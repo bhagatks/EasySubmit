@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { requireDashboardSession } from "@/lib/auth/require-dashboard-session";
 import { getJobResumeStudio } from "@/app/actions/job-resume-tailor";
-import { getFeatureFlags } from "@/src/lib/services/feature-flags-service";
+import { resolveFeature } from "@/lib/features";
 import { JobResumeStudioEditor } from "@/components/dashboard/JobResumeStudioEditor";
 
 type JobResumePageProps = {
@@ -21,9 +21,9 @@ export default async function JobResumeStudioPage({ params }: JobResumePageProps
   await requireDashboardSession(session.user.id);
 
   const { id } = await params;
-  const [result, featureFlags] = await Promise.all([
+  const [result, enhance] = await Promise.all([
     getJobResumeStudio(id),
-    getFeatureFlags(),
+    resolveFeature({ feature: "enhance", userId: session.user.id, surface: "job_apply" }),
   ]);
 
   if (!result.success) {
@@ -41,7 +41,7 @@ export default async function JobResumeStudioPage({ params }: JobResumePageProps
           initialTargetTitle={result.targetTitle}
           initialForm={result.form}
           rawResumeText={result.rawResumeText}
-          enhanceWithAiEnabled={featureFlags.enhanceWithAiResumeProfile}
+          enhanceWithAiEnabled={enhance.available}
         />
       </Suspense>
     </div>

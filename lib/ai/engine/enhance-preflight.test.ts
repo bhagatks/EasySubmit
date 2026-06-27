@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@/lib/ai/ai-global-enabled", () => ({
+  isAiGloballyEnabled: vi.fn(() => true),
+}));
+
 vi.mock("next-auth", () => ({
   getServerSession: vi.fn(),
 }));
@@ -18,6 +22,7 @@ vi.mock("@/lib/prisma", () => ({
 
 vi.mock("@/src/lib/services/config-service", () => ({
   getAppConfig: vi.fn(),
+  isSubscribed: vi.fn(() => false),
 }));
 
 vi.mock("@/src/lib/services/feature-flags-service", async (importOriginal) => {
@@ -42,6 +47,7 @@ import { getAppConfig } from "@/src/lib/services/config-service";
 import { getFeatureFlags } from "@/src/lib/services/feature-flags-service";
 import { resolveAiRoute } from "@/src/lib/ai/engine/router";
 import { getAiReadinessForUser } from "@/lib/ai/ai-readiness-gate-for-user";
+import { isAiGloballyEnabled } from "@/lib/ai/ai-global-enabled";
 import { checkEnhanceWithAiPreflight } from "@/app/actions/ai/enhance-resume";
 
 const baseUser = {
@@ -72,6 +78,7 @@ const defaultFlags = {
 
 describe("checkEnhanceWithAiPreflight", () => {
   beforeEach(() => {
+    vi.mocked(isAiGloballyEnabled).mockReturnValue(true);
     vi.mocked(getServerSession).mockReset();
     vi.mocked(prisma.user.findUnique).mockReset();
     vi.mocked(getAppConfig).mockReset();
@@ -95,7 +102,7 @@ describe("checkEnhanceWithAiPreflight", () => {
       enhanceWithAiResumeProfile: false,
     });
 
-    const result = await checkEnhanceWithAiPreflight({ variant: "onboarding" });
+    const result = await checkEnhanceWithAiPreflight({ variant: "dashboard" });
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -111,15 +118,30 @@ describe("checkEnhanceWithAiPreflight", () => {
       ...defaultFlags,
       systemAiEnabled: false,
     });
+    vi.mocked(resolveAiRoute).mockResolvedValue({ error: "no_customer_key" });
 
-    const result = await checkEnhanceWithAiPreflight({ variant: "onboarding" });
+    const result = await checkEnhanceWithAiPreflight({ variant: "dashboard" });
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.code).toBe("no_customer_key");
       expect(result.requiresByokOnly).toBe(true);
     }
-    expect(resolveAiRoute).not.toHaveBeenCalled();
+  });
+
+  it("allows rules-only enhance when global AI is off", async () => {
+    vi.mocked(isAiGloballyEnabled).mockReturnValue(false);
+    vi.mocked(getServerSession).mockResolvedValue({ user: { id: "u1" } } as never);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(baseUser as never);
+    vi.mocked(getAppConfig).mockResolvedValue(aiEngineSystemOff as never);
+    vi.mocked(getFeatureFlags).mockResolvedValue(defaultFlags);
+
+    const result = await checkEnhanceWithAiPreflight({ variant: "dashboard" });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.aiAvailable).toBe(false);
+    }
   });
 
   it("opens path when preflight passes", async () => {
@@ -146,6 +168,7 @@ describe("checkEnhanceWithAiPreflight", () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.systemAiEnabled).toBe(false);
+      expect(result.aiAvailable).toBe(true);
     }
   });
 });

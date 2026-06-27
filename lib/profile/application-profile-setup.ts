@@ -16,6 +16,89 @@ export type ApplicationProfileScreen2Input = {
   disability: string;
 };
 
+export type ProfileSetupScreen1Field =
+  | "authorized"
+  | "authorizedCountry"
+  | "requiresSponsorship"
+  | "salaryMin"
+  | "salaryMax"
+  | "earliestStart"
+  | "workMode";
+
+export type ProfileSetupScreen1ValidationIssue = {
+  field: ProfileSetupScreen1Field;
+  message: string;
+};
+
+export function validateProfileSetupScreen1(
+  draft: ApplicationProfileScreen1Input,
+): ProfileSetupScreen1ValidationIssue[] {
+  const issues: ProfileSetupScreen1ValidationIssue[] = [];
+
+  if (draft.authorized !== "yes" && draft.authorized !== "no") {
+    issues.push({
+      field: "authorized",
+      message: "Select your work authorization status.",
+    });
+  }
+
+  if (!draft.authorizedCountry.trim()) {
+    issues.push({
+      field: "authorizedCountry",
+      message: "Enter the country where you are authorized to work.",
+    });
+  }
+
+  if (draft.requiresSponsorship !== "yes" && draft.requiresSponsorship !== "no") {
+    issues.push({
+      field: "requiresSponsorship",
+      message: "Select whether you need visa sponsorship.",
+    });
+  }
+
+  const minRaw = draft.salaryMin.trim();
+  const maxRaw = draft.salaryMax.trim();
+  const min = Number.parseInt(minRaw, 10);
+  const max = Number.parseInt(maxRaw, 10);
+
+  if (!minRaw || !Number.isFinite(min) || min <= 0) {
+    issues.push({
+      field: "salaryMin",
+      message: "Set a minimum salary with the range slider.",
+    });
+  }
+
+  if (!maxRaw || !Number.isFinite(max) || max <= 0) {
+    issues.push({
+      field: "salaryMax",
+      message: "Set a maximum salary with the range slider.",
+    });
+  } else if (Number.isFinite(min) && min > max) {
+    issues.push({
+      field: "salaryMax",
+      message: "Maximum salary must be at least the minimum.",
+    });
+  }
+
+  const earliestStartOptions = new Set(["immediately", "2_weeks", "1_month", "flexible"]);
+  if (!earliestStartOptions.has(draft.earliestStart)) {
+    issues.push({
+      field: "earliestStart",
+      message: "Select your earliest start date.",
+    });
+  }
+
+  const workModeOptions = new Set(["remote", "hybrid", "onsite", "flexible"]);
+  if (!workModeOptions.has(draft.workMode)) {
+    issues.push({
+      field: "workMode",
+      message: "Select your work mode preference.",
+    });
+  }
+
+  return issues;
+}
+
 const EEO_LABELS: Record<string, string> = {
   prefer_not_to_say: "Prefer not to say",
   woman: "Woman",

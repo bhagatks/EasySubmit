@@ -3,9 +3,10 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { resolveSafeCallbackUrl } from "@/lib/auth/safe-callback-url";
 
-const PUBLIC_PATHS = ["/", "/login", "/terms", "/privacy"] as const;
+const PUBLIC_PATHS = ["/", "/login", "/terms", "/privacy", "/pricing"] as const;
 const PUBLIC_PREFIXES = ["/auth/"] as const;
 const ONBOARDING_PATH = "/onboarding";
+const PLAN_PATH = "/select-plan";
 const DASHBOARD_PATH = "/dashboard";
 const COMPLETED_ONBOARDING_STEP = 4;
 
@@ -84,6 +85,21 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  const planConfirmedAt = token?.planConfirmedAt as string | null | undefined;
+  const planConfirmed = Boolean(planConfirmedAt);
+
+  // Plan gate — runs on every launch for every authenticated user.
+  // Users land here until they explicitly select a plan.
+  if (!planConfirmed && pathname !== PLAN_PATH && !pathname.startsWith("/extension/bridge")) {
+    if (pathname === "/login") {
+      return NextResponse.redirect(new URL(PLAN_PATH, request.url));
+    }
+    // Allow public paths and /api routes through — gate only protected routes.
+    if (!isPublicPath(pathname)) {
+      return NextResponse.redirect(new URL(PLAN_PATH, request.url));
+    }
+  }
+
   const onOnboarding = matchesPath(pathname, ONBOARDING_PATH);
   const onDashboard = matchesPath(pathname, DASHBOARD_PATH);
 
@@ -116,7 +132,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (pathname.startsWith("/extension/bridge")) {
+  if (pathname.startsWith("/extension/bridge") || pathname === PLAN_PATH) {
     return NextResponse.next();
   }
 

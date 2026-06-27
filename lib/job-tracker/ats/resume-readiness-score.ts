@@ -17,6 +17,11 @@ import { analyzeBulletQuality } from "@/lib/job-tracker/ats/bullet-quality";
 import type { JDIntelligence } from "@/lib/job-tracker/jd/jd-intelligence";
 import { validateSummary } from "@/lib/resume/summary-rules";
 import { findBannedSkills, validateSkillsManual } from "@/lib/resume/skills-rules";
+import {
+  RECENT_ROLE_MIN_BULLETS,
+  countExperienceBullets,
+  resolveExperienceBulletBudget,
+} from "@/lib/resume/experience-bullet-rules";
 
 export type ReadinessPillar = {
   label: string;
@@ -118,10 +123,14 @@ function scoreCompleteness(data: PrimeResumeData, targetTitle: string): Readines
     "Add at least one work experience entry.",
   );
 
-  const hasBullets = (data.experience ?? []).some(
-    (e) => (e.bullets ?? []).filter((b) => b.trim()).length >= 2,
+  const recentRole = (data.experience ?? []).find((e) => e.title?.trim() || e.company?.trim());
+  const recentBulletCount = countExperienceBullets(recentRole?.bullets ?? []);
+  const recentBudget = resolveExperienceBulletBudget(0, 1);
+  check(
+    recentBulletCount >= RECENT_ROLE_MIN_BULLETS,
+    3,
+    `Your most recent role needs at least ${RECENT_ROLE_MIN_BULLETS} bullets (aim for ${recentBudget.targetMin}–${recentBudget.targetMax}).`,
   );
-  check(hasBullets, 3, "Add bullet points to your experience entries (aim for 3–5 per role).");
   check(
     (data.education?.filter((e) => e.school?.trim())?.length ?? 0) >= 1,
     2,
@@ -206,6 +215,17 @@ function scoreBulletQuality(data: PrimeResumeData): ReadinessPillar {
     details.push(`Only ${quality.quantificationRate}% of bullets include a measurable result — aim for 70%+.`);
   } else {
     details.push(`${quality.quantificationRate}% of bullets are quantified. ✓`);
+  }
+
+  const recentRole = (data.experience ?? []).find((e) => e.title?.trim() || e.company?.trim());
+  if (recentRole) {
+    const recentCount = countExperienceBullets(recentRole.bullets ?? []);
+    const recentBudget = resolveExperienceBulletBudget(0, 1);
+    if (recentCount > 0 && recentCount < recentBudget.min) {
+      details.push(
+        `Most recent role has ${recentCount} bullet(s) — aim for ${recentBudget.targetMin}–${recentBudget.targetMax}.`,
+      );
+    }
   }
 
   return { label: "Bullet Quality", score: Math.round(pts) as 25, maxScore: 25, details };

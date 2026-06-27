@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useState, type ReactNode } from "react";
 import { ArrowUp, Bot, TrendingUp } from "lucide-react";
 import {
@@ -13,7 +12,6 @@ import { DocumentToolbar, type DocumentToolbarAction } from "@/components/dashbo
 import { ReviewPreviewZoomControls } from "@/components/dashboard/review/ReviewPreviewZoomControls";
 import { ReviewResumePreview } from "@/components/dashboard/review/ReviewResumePreview";
 import { LatexFullscreenEditor } from "@/components/dashboard/review/LatexFullscreenEditor";
-import { Button } from "@/components/ui/button";
 import { base64ToUint8Array, downloadBytes } from "@/lib/job-tracker/export/download-client";
 import {
   canExportReviewDocument,
@@ -22,6 +20,7 @@ import {
 import { jobTrackerReviewStudioUrl } from "@/lib/job-tracker/review-screen-ui";
 import type { JobTrackerDetail } from "@/lib/job-tracker/types";
 import { DEFAULT_STUDIO_ZOOM } from "@/lib/resume/studio-preview-zoom";
+import { trackEnhanceClicked, trackEnhanceCompleted } from "@/src/shared/analytics/product-events";
 
 type ReviewResumePanelProps = {
   entry: JobTrackerDetail;
@@ -166,22 +165,6 @@ export function ReviewResumePanel({ entry, onRefresh, aiEnabled }: ReviewResumeP
               ? "Link a resume profile to this job to see a preview here."
               : "When tailoring runs for this role, your merged resume preview will appear here.")
         }
-        action={
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            {entry.sourceProfileId ? (
-              <Button variant="outline" className="rounded-xl" asChild>
-                <Link href={`/dashboard/resume-profiles/${entry.sourceProfileId}/edit`}>
-                  View base profile
-                </Link>
-              </Button>
-            ) : null}
-            <Button variant="mint" className="rounded-xl" asChild>
-              <Link href={entry.canonicalUrl} target="_blank" rel="noopener noreferrer">
-                Open job posting
-              </Link>
-            </Button>
-          </div>
-        }
       />
     );
   }
@@ -220,15 +203,34 @@ export function ReviewResumePanel({ entry, onRefresh, aiEnabled }: ReviewResumeP
         : "Enable AI in Settings for smarter enhancements",
       onClick: () => {
         void (async () => {
+          const startedAt = Date.now();
+          trackEnhanceClicked({
+            surface: "review_resume",
+            documentKind: "resume",
+            aiEnabled,
+          });
           setBusy("enhance");
           setError(null);
           setEnhanceFeedback(null);
           const result: EnhanceResumeActionResult = await enhanceJobResumeFromReview(entry.id);
           setBusy(null);
           if (!result.success) {
+            trackEnhanceCompleted({
+              surface: "review_resume",
+              documentKind: "resume",
+              status: "error",
+              durationMs: Date.now() - startedAt,
+              errorCode: result.code ?? null,
+            });
             setError(result.error);
             return;
           }
+          trackEnhanceCompleted({
+            surface: "review_resume",
+            documentKind: "resume",
+            status: "success",
+            durationMs: Date.now() - startedAt,
+          });
           setEnhanceFeedback({
             engineMode: result.engineMode ?? "ai",
             atsDelta: result.atsDelta ?? null,

@@ -22,6 +22,7 @@ import { ToastBanner } from "@/components/ui/toast-banner";
 import { Button } from "@/components/ui/button";
 import { BRAND_FULL } from "@/lib/brand";
 import { useRegisterDashboardHeaderActions } from "@/components/dashboard/DashboardWorkspaceHeader";
+import { AnalyticsEvents, captureAnalyticsEvent } from "@/src/shared/analytics";
 
 const APPLIED_ARCHIVE_TOAST_KEY = "easysubmit_applied_archive_toast_v1";
 
@@ -158,6 +159,10 @@ export function JobTrackerWorkspace({ entries, autoArchiveAppliedJobs }: JobTrac
       setReviewJobId(id);
       setReviewPanel(nextPanel);
       lastOpenedJobIdRef.current = id;
+      captureAnalyticsEvent(AnalyticsEvents.REVIEW_SCREEN_OPENED, {
+        entry_id: id,
+        entry_status: entry?.status ?? "unknown",
+      });
       router.replace(buildReviewUrl(id, nextPanel), { scroll: false });
     },
     [activeEntries, archivedEntries, buildReviewUrl, router],
@@ -172,6 +177,7 @@ export function JobTrackerWorkspace({ entries, autoArchiveAppliedJobs }: JobTrac
   const handlePanelChange = useCallback(
     (nextPanel: ReviewScreenPanel) => {
       setReviewPanel(nextPanel);
+      captureAnalyticsEvent(AnalyticsEvents.REVIEW_TAB_CHANGED, { tab: nextPanel });
       if (!reviewJobId) return;
       router.replace(buildReviewUrl(reviewJobId, nextPanel), { scroll: false });
     },

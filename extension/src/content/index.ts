@@ -41,12 +41,15 @@ import {
   applicationProfilePatchFromScreen1,
   applicationProfilePatchFromScreen2,
   syncProfileSetupDraftsFromProfile,
+  validateProfileSetupScreen1,
+  type ProfileSetupScreen1ValidationIssue,
 } from "@/lib/profile/application-profile-setup";
 import { BRAND, renderBrandMarkup } from "@shared/brand";
 import { brandExtensionTokens } from "@shared/brand-colors";
 import { extensionButtonStyles } from "@shared/brand-buttons";
 import { SETTINGS_AI_AUTO_HREF } from "@/lib/dashboard/settings-ai-links";
 import { prepareExtensionEmbedPreview } from "@/lib/extension/extension-preview-html";
+import { downloadBytes } from "@/lib/job-tracker/export/download-client";
 import {
   exposeEasySubmitAnimationGlobals,
   stopEasySubmitAnimation,
@@ -66,6 +69,11 @@ import {
   raceWithEnhanceTimeout,
 } from "@/src/lib/ai/engine/enhance-timeout";
 import { createEnhanceTraceId } from "@/src/lib/ai/engine/enhance-logger";
+import { AnalyticsEvents, captureAnalyticsEvent } from "@shared/analytics";
+import {
+  trackEnhanceClicked,
+  trackEnhanceCompleted,
+} from "@shared/analytics/product-events";
 import {
   escapeHintAttr,
   floatingHintStyles,
@@ -140,6 +148,8 @@ import {
   singleCardLayoutStyles,
   renderProfileSetupScreen1,
   renderProfileSetupScreen2,
+  bindProfileSalaryRangeSlider,
+  bindProfileSetupActionButton,
   readProfileSetupScreen1FromDom,
   readProfileSetupScreen2FromDom,
   defaultProfileSetupScreen1Draft,
@@ -221,6 +231,8 @@ let manualCaptureDraft: ManualCaptureDraft | null = null;
 let profileSetupScreen: 0 | 1 | 2 = 0;
 let profileSetupScreen1Draft: ProfileSetupScreen1Draft = defaultProfileSetupScreen1Draft();
 let profileSetupScreen2Draft: ProfileSetupScreen2Draft = defaultProfileSetupScreen2Draft();
+let profileSetupScreen1ValidationIssues: ProfileSetupScreen1ValidationIssue[] = [];
+let profileSetupContinueBusy = false;
 let cachedApplicationProfile: ApplicationProfile | null = null;
 let cardLaunchMode: "auto" | "manual" = "auto";
 let assistUploadWarnings: string[] = [];
@@ -879,6 +891,13 @@ async function enhanceDocumentPreview(
   }
   void animationUntil;
 
+  const enhanceStartedAt = Date.now();
+  trackEnhanceClicked({
+    surface: "extension",
+    documentKind: kind === "cover" ? "cover_letter" : "resume",
+    aiEnabled: true,
+  });
+
   try {
     const traceId = createEnhanceTraceId();
     const res = await raceWithEnhanceTimeout(
@@ -911,8 +930,24 @@ async function enhanceDocumentPreview(
       saveError = formatDocumentPreviewErrorMessage(
         res?.error ?? "Could not enhance this document.",
       );
+      trackEnhanceCompleted({
+        surface: "extension",
+        documentKind: kind === "cover" ? "cover_letter" : "resume",
+        status: "error",
+        traceId,
+        durationMs: Date.now() - enhanceStartedAt,
+        errorCode: res?.code ?? null,
+      });
       return;
     }
+
+    trackEnhanceCompleted({
+      surface: "extension",
+      documentKind: kind === "cover" ? "cover_letter" : "resume",
+      status: "success",
+      traceId,
+      durationMs: Date.now() - enhanceStartedAt,
+    });
 
     documentEnhanceByokOffer = null;
 
@@ -1070,8 +1105,12 @@ function statusLabel(saved: boolean, status?: string, presentation: CardPresenta
 
 function getHostWidth(): number {
   if (cardCollapsed) return COLLAPSED_SIZE;
-  if (isExpandableCardView(cardView)) return cardPanelWidth;
+  if (usesExpandablePanelLayout()) return cardPanelWidth;
   return CARD_WIDTH;
+}
+
+function usesExpandablePanelLayout(): boolean {
+  return isExpandableCardView(cardView) || profileSetupScreen !== 0;
 }
 
 function isPanelWide(): boolean {
@@ -1645,7 +1684,7 @@ function renderExpandedCard(root: ShadowRoot): void {
     !showAppliedLayout &&
     cardPresentation !== "no_job" &&
     cardView === "summary";
-  const isExpandedView = cardView !== "summary";
+  const isExpandedView = usesExpandablePanelLayout();
   const ctaClass = savedStatus.saved ? "cta cta-saved" : "cta cta-primary";
   const ctaLabel = getPrimaryCtaLabel();
   const ctaIcon = savedStatus.saved
@@ -1660,7 +1699,14 @@ function renderExpandedCard(root: ShadowRoot): void {
 
   let bodyMarkup = "";
   if (profileSetupScreen === 1) {
-    bodyMarkup = renderProfileSetupScreen1(profileSetupScreen1Draft, escapeHtml);
+    bodyMarkup = renderProfileSetupScreen1(
+      profileSetupScreen1Draft,
+      escapeHtml,
+      new Set(profileSetupScreen1ValidationIssues.map((issue) => issue.field)),
+      profileSetupScreen1ValidationIssues,
+      cardSaveError,
+      profileSetupContinueBusy,
+    );
   } else if (profileSetupScreen === 2) {
     bodyMarkup = renderProfileSetupScreen2(profileSetupScreen2Draft, escapeHtml);
   } else if (cardPresentation === "no_job") {
@@ -1876,16 +1922,39 @@ function renderExpandedCard(root: ShadowRoot): void {
   applyPreviewFrameSrcdoc(root);
   syncEnhanceBrandAnimation(root);
 
-  root.querySelector("[data-profile-continue]")?.addEventListener("click", () => {
+  bindProfileSetupActionButton(root, "[data-profile-continue]", () => {
     void onProfileSetupContinue(root);
   });
-  root.querySelector("[data-profile-finish]")?.addEventListener("click", () => {
+  bindProfileSetupActionButton(root, "[data-profile-finish]", () => {
     void onProfileSetupFinish(root, false);
   });
-  root.querySelector("[data-profile-skip-all]")?.addEventListener("click", () => {
+  bindProfileSetupActionButton(root, "[data-profile-skip-all]", () => {
     void onProfileSetupFinish(root, true);
   });
-
+  if (profileSetupScreen === 1) {
+    const revalidateProfileSetupScreen1 = () => {
+      profileSetupScreen1Draft = readProfileSetupScreen1FromDom(root);
+      if (profileSetupScreen1ValidationIssues.length === 0) return;
+      profileSetupScreen1ValidationIssues = validateProfileSetupScreen1(profileSetupScreen1Draft);
+      if (cardHost) renderCard(cardHost.shadow);
+    };
+    bindProfileSalaryRangeSlider(root, () => {
+      profileSetupScreen1Draft = readProfileSetupScreen1FromDom(root);
+      if (profileSetupScreen1ValidationIssues.length === 0) return;
+      profileSetupScreen1ValidationIssues = validateProfileSetupScreen1(profileSetupScreen1Draft);
+      if (cardHost) renderCard(cardHost.shadow);
+    });
+    for (const selector of [
+      "[data-profile-authorized]",
+      "[data-profile-country]",
+      "[data-profile-sponsorship]",
+      "[data-profile-earliest-start]",
+      "[data-profile-work-mode]",
+    ]) {
+      root.querySelector(selector)?.addEventListener("input", revalidateProfileSetupScreen1);
+      root.querySelector(selector)?.addEventListener("change", revalidateProfileSetupScreen1);
+    }
+  }
   if (cardPresentation === "manual_capture") {
     for (const selector of [
       "[data-capture-url]",
@@ -2832,6 +2901,10 @@ function minimizeCard(): void {
   cardHost.position = getCollapsedFixedCardPosition(window.innerWidth, cardHost.position.y);
   applyHostPosition(cardHost.host, cardHost.position);
   renderCard(cardHost.shadow);
+  const capture = getCaptureContext();
+  captureAnalyticsEvent(AnalyticsEvents.EXTENSION_CARD_COLLAPSED, {
+    platform: capture.platform ?? "unknown",
+  });
 }
 
 function expandCard(): void {
@@ -2842,6 +2915,11 @@ function expandCard(): void {
   cardCollapsed = false;
   syncCardHostPosition(previousHostWidth);
   renderCard(cardHost.shadow);
+  const capture = getCaptureContext();
+  captureAnalyticsEvent(AnalyticsEvents.EXTENSION_CARD_OPENED, {
+    platform: capture.platform ?? "unknown",
+    host: location.hostname,
+  });
 }
 
 function onViewportChange(): void {
@@ -3141,11 +3219,20 @@ async function postFieldCapture(payload: FieldCapturePayload, jobEntryId?: strin
 
 async function runAutofillPhase(entryId: string): Promise<void> {
   if (pipelineBusy || autofillRunForEntryId === entryId) return;
+  if (requireApplicationProfileSetupBeforeApply()) return;
   if (savedStatus.status === "READY_TO_APPLY" || savedStatus.status === "APPLIED") {
     pendingPipelinePhase = null;
     await chrome.storage.local.remove(STORAGE_KEYS.pendingApplyJobId);
     return;
   }
+
+  const capture = getCaptureContext();
+  captureAnalyticsEvent(AnalyticsEvents.EXTENSION_AUTOFILL_STARTED, {
+    platform: capture.platform ?? "unknown",
+    entry_id: entryId,
+  });
+  const autofillStartedAt = Date.now();
+  let autofillSucceeded = false;
 
   autofillRunForEntryId = entryId;
   pipelineBusy = true;
@@ -3237,6 +3324,7 @@ async function runAutofillPhase(entryId: string): Promise<void> {
       status: res.status ?? "READY_TO_APPLY",
       id: entryId,
     };
+    autofillSucceeded = true;
     pendingPipelinePhase = null;
     saveError = null;
     await chrome.storage.local.remove(STORAGE_KEYS.pendingApplyJobId);
@@ -3251,6 +3339,12 @@ async function runAutofillPhase(entryId: string): Promise<void> {
         ? error.message
         : "Autofill could not complete. Finish the form manually on Workday.";
   } finally {
+    captureAnalyticsEvent(AnalyticsEvents.EXTENSION_AUTOFILL_COMPLETED, {
+      platform: capture.platform ?? "unknown",
+      entry_id: entryId,
+      status: autofillSucceeded ? "success" : "error",
+      duration_ms: Date.now() - autofillStartedAt,
+    });
     pipelineBusy = false;
     pipelineBusyLabel = null;
     autofillRunForEntryId = null;
@@ -3260,6 +3354,8 @@ async function runAutofillPhase(entryId: string): Promise<void> {
 }
 
 async function maybeContinuePendingAutofill(): Promise<void> {
+  if (needsApplicationProfileSetup()) return;
+
   const stored = await chrome.storage.local.get(STORAGE_KEYS.pendingApplyJobId);
   const pendingId = stored[STORAGE_KEYS.pendingApplyJobId];
   const entryId =
@@ -3391,15 +3487,35 @@ async function refreshRuntimeConfig(): Promise<ExtensionRuntimeConfig> {
   });
   connectedAccountEmail = runtimeConfig.connectedUser?.email ?? null;
   cachedApplicationProfile = runtimeConfig.applicationProfile ?? null;
-  const synced = syncProfileSetupDraftsFromProfile(cachedApplicationProfile);
-  profileSetupScreen1Draft = synced.screen1;
-  profileSetupScreen2Draft = synced.screen2;
-  if (cardHost) renderCard(cardHost.shadow);
+  if (profileSetupScreen === 0) {
+    const synced = syncProfileSetupDraftsFromProfile(cachedApplicationProfile);
+    profileSetupScreen1Draft = synced.screen1;
+    profileSetupScreen2Draft = synced.screen2;
+  }
+  if (cardHost && !profileSetupContinueBusy) renderCard(cardHost.shadow);
   return runtimeConfig;
 }
 
 function needsApplicationProfileSetup(): boolean {
   return !isApplicationProfileSetupComplete(cachedApplicationProfile);
+}
+
+function openApplicationProfileSetupScreen(): void {
+  if (profileSetupScreen !== 0) return;
+  profileSetupScreen = 1;
+  profileSetupScreen1ValidationIssues = [];
+  const synced = syncProfileSetupDraftsFromProfile(cachedApplicationProfile);
+  profileSetupScreen1Draft = synced.screen1;
+  profileSetupScreen2Draft = synced.screen2;
+}
+
+/** Returns true when Apply must wait for mandatory profile setup (Screen 1). */
+function requireApplicationProfileSetupBeforeApply(): boolean {
+  if (!needsApplicationProfileSetup()) return false;
+  openApplicationProfileSetupScreen();
+  cardCollapsed = false;
+  if (cardHost) renderCard(cardHost.shadow);
+  return true;
 }
 
 async function patchApplicationProfile(
@@ -3426,10 +3542,28 @@ async function patchApplicationProfile(
 }
 
 async function onProfileSetupContinue(root: ShadowRoot): Promise<void> {
+  if (profileSetupContinueBusy) return;
+
   profileSetupScreen1Draft = readProfileSetupScreen1FromDom(root);
+  const validationIssues = validateProfileSetupScreen1(profileSetupScreen1Draft);
+  if (validationIssues.length > 0) {
+    profileSetupScreen1ValidationIssues = validationIssues;
+    saveError = null;
+    if (cardHost) renderCard(cardHost.shadow);
+    return;
+  }
+
+  profileSetupScreen1ValidationIssues = [];
+  profileSetupContinueBusy = true;
+  saveError = null;
+  if (cardHost) renderCard(cardHost.shadow);
+
   const patchResult = await patchApplicationProfile(
     applicationProfilePatchFromScreen1(profileSetupScreen1Draft),
   );
+
+  profileSetupContinueBusy = false;
+
   if (!patchResult.success) {
     saveError = patchResult.error ?? "Could not save application profile.";
     if (cardHost) renderCard(cardHost.shadow);
@@ -3504,6 +3638,11 @@ async function startApplyPipeline(): Promise<void> {
 
   const config = runtimeConfig ?? (await ensureRuntimeConfig());
   if (isExtensionApplyBlockedByAiHealth(config)) return;
+
+  const captureForAnalytics = getCaptureContext();
+  captureAnalyticsEvent(AnalyticsEvents.EXTENSION_APPLY_STARTED, {
+    platform: captureForAnalytics.platform ?? "unknown",
+  });
 
   if (cardPresentation === "manual_capture" && cardHost) {
     manualCaptureDraft = readManualCaptureDraftFromDom(cardHost.shadow);
@@ -3580,6 +3719,11 @@ async function startApplyPipeline(): Promise<void> {
 
     // [ES:LOG] EXT → DB event fired: CAPTURED (job saved, pipeline starting)
     console.log("[EasySubmit] db:event CAPTURED", { jobId: captureRes.id, status: captureRes.status });
+    captureAnalyticsEvent(AnalyticsEvents.EXTENSION_JOB_CAPTURED, {
+      platform: capture.platform ?? "unknown",
+      entry_id: captureRes.id,
+      status: captureRes.status ?? "CAPTURED",
+    });
     const jobId = captureRes.id;
     savedStatus = {
       saved: true,
@@ -3602,7 +3746,7 @@ async function startApplyPipeline(): Promise<void> {
     console.log("[EasySubmit] pipeline:tailor-async fired", { jobId, url: payload.url });
     void sendMessage({
       action: EXTENSION_MESSAGE.TAILOR_JOB_ASYNC,
-      payload: { ...payload, entryId: jobId },
+      payload: { entryId: jobId },
     });
   } catch (error) {
     if (isExtensionContextInvalidatedError(error)) {
@@ -3625,6 +3769,11 @@ async function onPrimaryClick(): Promise<void> {
   if (!currentMetadata || pipelineBusy) return;
   if (cardPresentation === "no_job") return;
 
+  await ensureRuntimeConfig();
+  if (isExtensionApplyBlockedByAiHealth(runtimeConfig)) return;
+
+  if (requireApplicationProfileSetupBeforeApply()) return;
+
   if (savedStatus.saved) {
     if (savedStatus.canReapply) {
       await startApplyPipeline();
@@ -3635,15 +3784,6 @@ async function onPrimaryClick(): Promise<void> {
   }
 
   if (!isApplyEnabled()) return;
-
-  await ensureRuntimeConfig();
-  if (isExtensionApplyBlockedByAiHealth(runtimeConfig)) return;
-
-  if (needsApplicationProfileSetup() && profileSetupScreen === 0) {
-    profileSetupScreen = 1;
-    cardCollapsed = false;
-    if (cardHost) renderCard(cardHost.shadow);
-  }
 
   await startApplyPipeline();
 }
@@ -4075,15 +4215,22 @@ if (window.top === window.self) {
             savedStatus = { ...savedStatus, id: jobId };
             pendingPipelinePhase = "autofill";
             const shown = await forceShowCard();
-            if (shown.success) {
-              await applyServerJourneyRefresh("dashboard_start_apply").catch(() => undefined);
-              if (savedStatus.status === "RESUME_READY") {
-                void runAutofillPhase(jobId);
-              } else if (savedStatus.saved) {
-                void pollUntilResumeReady(jobId);
-              } else {
-                void runAutofillPhase(jobId);
-              }
+            if (!shown.success) {
+              sendResponse(shown);
+              return;
+            }
+            await ensureRuntimeConfig();
+            if (requireApplicationProfileSetupBeforeApply()) {
+              sendResponse(shown);
+              return;
+            }
+            await applyServerJourneyRefresh("dashboard_start_apply").catch(() => undefined);
+            if (savedStatus.status === "RESUME_READY") {
+              void runAutofillPhase(jobId);
+            } else if (savedStatus.saved) {
+              void pollUntilResumeReady(jobId);
+            } else {
+              void runAutofillPhase(jobId);
             }
             sendResponse(shown);
           });

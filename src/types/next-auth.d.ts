@@ -17,6 +17,7 @@ declare module "next-auth" {
       name?: string | null;
       image?: string | null;
       onboardingStep: number;
+      planConfirmedAt?: string | null;
     };
   }
 
@@ -35,6 +36,7 @@ declare module "next-auth/jwt" {
     lastName?: string | null;
     name?: string | null;
     onboardingStep?: number;
+    planConfirmedAt?: string | null;
     lastAuthProvider?: string | null;
     image?: string | null;
   }

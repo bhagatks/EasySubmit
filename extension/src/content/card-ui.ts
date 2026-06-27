@@ -16,6 +16,17 @@ import {
   MANUAL_CAPTURE_MESSAGE,
   MANUAL_CAPTURE_TITLE,
 } from "@shared/extension/card-presentation";
+import {
+  formatProfileSalary,
+  formatProfileSalaryRangeLabel,
+  normalizeProfileSalaryRange,
+  salaryRangeFromPercent,
+  salaryRangeToPercent,
+  PROFILE_SALARY_DEFAULT_MAX,
+  PROFILE_SALARY_DEFAULT_MIN,
+  PROFILE_SALARY_RANGE_MAX,
+  PROFILE_SALARY_RANGE_MIN,
+} from "@/lib/profile/application-profile-salary-range";
 
 import {
   CARD_NAV_LABELS,
@@ -68,6 +79,57 @@ export type ProfileSetupScreen2Draft = {
   disability: string;
 };
 
+export type ProfileSetupScreen1ValidationIssue = {
+  field: string;
+  message: string;
+};
+
+function profileSetupSalaryFieldClass(invalidFields: ReadonlySet<string>): string {
+  const invalid = invalidFields.has("salaryMin") || invalidFields.has("salaryMax");
+  return invalid ? "capture-field is-invalid" : "capture-field";
+}
+
+function profileSetupSalaryFieldErrors(
+  invalidFields: ReadonlySet<string>,
+  issues: readonly ProfileSetupScreen1ValidationIssue[],
+  escapeHtml: (value: string) => string,
+): string {
+  const salaryIssues = issues.filter(
+    (issue) =>
+      (issue.field === "salaryMin" || issue.field === "salaryMax") &&
+      invalidFields.has(issue.field),
+  );
+  if (salaryIssues.length === 0) return "";
+  return salaryIssues
+    .map(
+      (issue) => `<p class="profile-field-error">${escapeHtml(issue.message)}</p>`,
+    )
+    .join("");
+}
+
+function profileSetupFieldClass(
+  field: string,
+  invalidFields: ReadonlySet<string>,
+): string {
+  return invalidFields.has(field) ? "capture-field is-invalid" : "capture-field";
+}
+
+function profileSetupRequiredLabel(label: string): string {
+  return `${label} <span class="profile-required" aria-hidden="true">*</span>`;
+}
+
+function profileSetupFieldError(
+  field: string,
+  invalidFields: ReadonlySet<string>,
+  issues: readonly ProfileSetupScreen1ValidationIssue[],
+  escapeHtml: (value: string) => string,
+): string {
+  if (!invalidFields.has(field)) return "";
+  const message = issues.find((issue) => issue.field === field)?.message;
+  if (!message) return "";
+  return `<p class="profile-field-error">${escapeHtml(message)}</p>`;
+}
+
 export function profileSetupStyles(): string {
   const t = brandExtensionTokens();
   return `
@@ -78,8 +140,92 @@ export function profileSetupStyles(): string {
     }
     .profile-setup-skip:hover { text-decoration: underline; }
     .profile-setup-note { font-size: 11px; color: #64748B; margin: 0 0 10px; line-height: 1.4; }
-    .profile-setup-actions { margin-top: 12px; }
+    .profile-setup-actions {
+      position: sticky;
+      bottom: 0;
+      z-index: 2;
+      margin-top: 12px;
+      padding-top: 10px;
+      background: linear-gradient(to bottom, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.96) 28%);
+    }
     .profile-setup-actions .cta { width: 100%; }
+    .profile-setup-error {
+      margin: 0 0 10px;
+      padding: 8px 10px;
+      border-radius: 12px;
+      border: 1px solid rgba(220, 38, 38, 0.25);
+      background: rgba(254, 242, 242, 0.95);
+      font-size: 11px;
+      line-height: 1.4;
+      color: #B91C1C;
+    }
+    .profile-required { color: #DC2626; margin-left: 2px; font-weight: 700; }
+    .capture-field.is-invalid label { color: #DC2626; }
+    .capture-field.is-invalid input,
+    .capture-field.is-invalid select,
+    .capture-field.is-invalid textarea {
+      border-color: #DC2626;
+      box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.12);
+    }
+    .profile-field-error {
+      margin: 4px 0 0;
+      font-size: 10px;
+      line-height: 1.35;
+      color: #DC2626;
+    }
+    .profile-salary-range-values {
+      margin: 0 0 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #1F2937;
+    }
+    .profile-salary-range-hint {
+      margin: 6px 0 0;
+      font-size: 10px;
+      color: #64748B;
+    }
+    .profile-salary-range {
+      position: relative;
+      height: 34px;
+      touch-action: none;
+      user-select: none;
+    }
+    .profile-salary-range-track {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 50%;
+      height: 6px;
+      transform: translateY(-50%);
+      border-radius: 999px;
+      background: #E5E7EB;
+      cursor: pointer;
+    }
+    .profile-salary-range-fill {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      border-radius: 999px;
+      background: ${t.primary};
+    }
+    .profile-salary-thumb {
+      position: absolute;
+      top: 50%;
+      width: 18px;
+      height: 18px;
+      padding: 0;
+      border: 2px solid #fff;
+      border-radius: 999px;
+      background: ${t.primary};
+      box-shadow: 0 1px 4px rgba(15, 23, 42, 0.18);
+      transform: translate(-50%, -50%);
+      cursor: grab;
+      touch-action: none;
+    }
+    .profile-salary-thumb.is-dragging {
+      cursor: grabbing;
+      box-shadow: 0 0 0 4px ${t.a20};
+    }
   `;
 }
 
@@ -88,8 +234,8 @@ export function defaultProfileSetupScreen1Draft(): ProfileSetupScreen1Draft {
     authorized: "yes",
     authorizedCountry: "US",
     requiresSponsorship: "no",
-    salaryMin: "",
-    salaryMax: "",
+    salaryMin: String(PROFILE_SALARY_DEFAULT_MIN),
+    salaryMax: String(PROFILE_SALARY_DEFAULT_MAX),
     earliestStart: "2_weeks",
     workMode: "flexible",
   };
@@ -106,60 +252,200 @@ export function defaultProfileSetupScreen2Draft(): ProfileSetupScreen2Draft {
 export function renderProfileSetupScreen1(
   draft: ProfileSetupScreen1Draft,
   escapeHtml: (value: string) => string,
+  invalidFields: ReadonlySet<string> = new Set(),
+  validationIssues: readonly ProfileSetupScreen1ValidationIssue[] = [],
+  saveError: string | null = null,
+  continueBusy = false,
 ): string {
+  const salaryRange = normalizeProfileSalaryRange(draft.salaryMin, draft.salaryMax);
+  const minPercent = salaryRangeToPercent(salaryRange.min);
+  const maxPercent = salaryRangeToPercent(salaryRange.max);
+
   return `
     <h2 class="profile-setup-title">Application profile</h2>
-    <p class="profile-setup-note">One-time setup — your pipeline is already running in the background.</p>
+    <p class="profile-setup-note">One-time setup — your pipeline is already running in the background. Fields marked <span class="profile-required" aria-hidden="true">*</span> are required.</p>
+    ${saveError ? `<p class="profile-setup-error" role="alert">${escapeHtml(saveError)}</p>` : ""}
     <div class="capture-form">
-      <div class="capture-field">
-        <label for="es-auth-status">Work authorization</label>
+      <div class="${profileSetupFieldClass("authorized", invalidFields)}">
+        <label for="es-auth-status">${profileSetupRequiredLabel("Work authorization")}</label>
         <select id="es-auth-status" data-profile-authorized="1">
           <option value="yes"${draft.authorized === "yes" ? " selected" : ""}>Authorized to work</option>
           <option value="no"${draft.authorized === "no" ? " selected" : ""}>Need authorization</option>
         </select>
+        ${profileSetupFieldError("authorized", invalidFields, validationIssues, escapeHtml)}
       </div>
-      <div class="capture-field">
-        <label for="es-auth-country">Authorized country</label>
+      <div class="${profileSetupFieldClass("authorizedCountry", invalidFields)}">
+        <label for="es-auth-country">${profileSetupRequiredLabel("Authorized country")}</label>
         <input id="es-auth-country" data-profile-country="1" type="text" value="${escapeHtml(draft.authorizedCountry)}" />
+        ${profileSetupFieldError("authorizedCountry", invalidFields, validationIssues, escapeHtml)}
       </div>
-      <div class="capture-field">
-        <label for="es-sponsorship">Visa sponsorship needed?</label>
+      <div class="${profileSetupFieldClass("requiresSponsorship", invalidFields)}">
+        <label for="es-sponsorship">${profileSetupRequiredLabel("Visa sponsorship needed?")}</label>
         <select id="es-sponsorship" data-profile-sponsorship="1">
           <option value="no"${draft.requiresSponsorship === "no" ? " selected" : ""}>No</option>
           <option value="yes"${draft.requiresSponsorship === "yes" ? " selected" : ""}>Yes</option>
         </select>
+        ${profileSetupFieldError("requiresSponsorship", invalidFields, validationIssues, escapeHtml)}
       </div>
-      <div class="capture-field">
-        <label for="es-salary-min">Desired salary (min)</label>
-        <input id="es-salary-min" data-profile-salary-min="1" type="number" min="0" value="${escapeHtml(draft.salaryMin)}" />
+      <div class="${profileSetupSalaryFieldClass(invalidFields)}">
+        <label for="es-salary-range">${profileSetupRequiredLabel("Desired salary range")}</label>
+        <p class="profile-salary-range-values" data-profile-salary-display="1">${escapeHtml(formatProfileSalaryRangeLabel(salaryRange.min, salaryRange.max))}</p>
+        <div class="profile-salary-range" data-profile-salary-range="1" id="es-salary-range">
+          <div class="profile-salary-range-track" data-profile-salary-track="1">
+            <div
+              class="profile-salary-range-fill"
+              data-profile-salary-fill="1"
+              style="left: ${minPercent}%; width: ${Math.max(0, maxPercent - minPercent)}%;"
+            ></div>
+          </div>
+          <button
+            type="button"
+            class="profile-salary-thumb"
+            data-profile-salary-thumb="min"
+            aria-label="Minimum salary ${escapeHtml(formatProfileSalary(salaryRange.min))}"
+            style="left: ${minPercent}%;"
+          ></button>
+          <button
+            type="button"
+            class="profile-salary-thumb"
+            data-profile-salary-thumb="max"
+            aria-label="Maximum salary ${escapeHtml(formatProfileSalary(salaryRange.max))}"
+            style="left: ${maxPercent}%;"
+          ></button>
+        </div>
+        <p class="profile-salary-range-hint">Drag the handles to set your range (${formatProfileSalary(PROFILE_SALARY_RANGE_MIN)}–${formatProfileSalary(PROFILE_SALARY_RANGE_MAX)}).</p>
+        <input type="hidden" data-profile-salary-min="1" value="${salaryRange.min}" />
+        <input type="hidden" data-profile-salary-max="1" value="${salaryRange.max}" />
+        ${profileSetupSalaryFieldErrors(invalidFields, validationIssues, escapeHtml)}
       </div>
-      <div class="capture-field">
-        <label for="es-salary-max">Desired salary (max)</label>
-        <input id="es-salary-max" data-profile-salary-max="1" type="number" min="0" value="${escapeHtml(draft.salaryMax)}" />
-      </div>
-      <div class="capture-field">
-        <label for="es-earliest-start">Earliest start date</label>
+      <div class="${profileSetupFieldClass("earliestStart", invalidFields)}">
+        <label for="es-earliest-start">${profileSetupRequiredLabel("Earliest start date")}</label>
         <select id="es-earliest-start" data-profile-earliest-start="1">
           <option value="immediately"${draft.earliestStart === "immediately" ? " selected" : ""}>Immediately</option>
           <option value="2_weeks"${draft.earliestStart === "2_weeks" ? " selected" : ""}>2 weeks</option>
           <option value="1_month"${draft.earliestStart === "1_month" ? " selected" : ""}>1 month</option>
           <option value="flexible"${draft.earliestStart === "flexible" ? " selected" : ""}>Flexible</option>
         </select>
+        ${profileSetupFieldError("earliestStart", invalidFields, validationIssues, escapeHtml)}
       </div>
-      <div class="capture-field">
-        <label for="es-work-mode">Work mode preference</label>
+      <div class="${profileSetupFieldClass("workMode", invalidFields)}">
+        <label for="es-work-mode">${profileSetupRequiredLabel("Work mode preference")}</label>
         <select id="es-work-mode" data-profile-work-mode="1">
           <option value="remote"${draft.workMode === "remote" ? " selected" : ""}>Remote</option>
           <option value="hybrid"${draft.workMode === "hybrid" ? " selected" : ""}>Hybrid</option>
           <option value="onsite"${draft.workMode === "onsite" ? " selected" : ""}>On-site</option>
           <option value="flexible"${draft.workMode === "flexible" ? " selected" : ""}>Flexible</option>
         </select>
+        ${profileSetupFieldError("workMode", invalidFields, validationIssues, escapeHtml)}
       </div>
     </div>
     <div class="profile-setup-actions">
-      <button type="button" class="cta cta-primary" data-profile-continue="1">Continue</button>
+      <button type="button" class="cta cta-primary" data-profile-continue="1"${continueBusy ? " disabled" : ""}>${continueBusy ? "Saving…" : "Continue"}</button>
     </div>
   `;
+}
+
+export function bindProfileSalaryRangeSlider(
+  root: ParentNode,
+  onChange?: () => void,
+): void {
+  const rangeRoot = root.querySelector("[data-profile-salary-range]") as HTMLElement | null;
+  const track = root.querySelector("[data-profile-salary-track]") as HTMLElement | null;
+  const fill = root.querySelector("[data-profile-salary-fill]") as HTMLElement | null;
+  const minInput = root.querySelector("[data-profile-salary-min]") as HTMLInputElement | null;
+  const maxInput = root.querySelector("[data-profile-salary-max]") as HTMLInputElement | null;
+  const display = root.querySelector("[data-profile-salary-display]") as HTMLElement | null;
+  const thumbMin = root.querySelector('[data-profile-salary-thumb="min"]') as HTMLButtonElement | null;
+  const thumbMax = root.querySelector('[data-profile-salary-thumb="max"]') as HTMLButtonElement | null;
+
+  if (!rangeRoot || !track || !fill || !minInput || !maxInput || !display || !thumbMin || !thumbMax) {
+    return;
+  }
+
+  let minValue = normalizeProfileSalaryRange(minInput.value, maxInput.value).min;
+  let maxValue = normalizeProfileSalaryRange(minInput.value, maxInput.value).max;
+
+  const sync = () => {
+    minInput.value = String(minValue);
+    maxInput.value = String(maxValue);
+    display.textContent = formatProfileSalaryRangeLabel(minValue, maxValue);
+    thumbMin.setAttribute("aria-label", `Minimum salary ${formatProfileSalary(minValue)}`);
+    thumbMax.setAttribute("aria-label", `Maximum salary ${formatProfileSalary(maxValue)}`);
+
+    const minPercent = salaryRangeToPercent(minValue);
+    const maxPercent = salaryRangeToPercent(maxValue);
+    thumbMin.style.left = `${minPercent}%`;
+    thumbMax.style.left = `${maxPercent}%`;
+    fill.style.left = `${minPercent}%`;
+    fill.style.width = `${Math.max(0, maxPercent - minPercent)}%`;
+  };
+
+  const valueFromClientX = (clientX: number): number => {
+    const rect = track.getBoundingClientRect();
+    if (rect.width <= 0) return minValue;
+    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+    return salaryRangeFromPercent(ratio * 100);
+  };
+
+  let activeThumb: "min" | "max" | null = null;
+
+  const stopDrag = () => {
+    if (!activeThumb) return;
+    activeThumb = null;
+    thumbMin.classList.remove("is-dragging");
+    thumbMax.classList.remove("is-dragging");
+    window.removeEventListener("pointermove", onPointerMove);
+    window.removeEventListener("pointerup", onPointerUp);
+    window.removeEventListener("pointercancel", onPointerUp);
+    onChange?.();
+  };
+
+  const onPointerMove = (event: PointerEvent) => {
+    if (!activeThumb) return;
+    const nextValue = valueFromClientX(event.clientX);
+    if (activeThumb === "min") {
+      minValue = Math.min(nextValue, maxValue);
+    } else {
+      maxValue = Math.max(nextValue, minValue);
+    }
+    sync();
+  };
+
+  const onPointerUp = () => {
+    stopDrag();
+  };
+
+  const startDrag = (thumb: "min" | "max", event: PointerEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    activeThumb = thumb;
+    (thumb === "min" ? thumbMin : thumbMax).classList.add("is-dragging");
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
+    onPointerMove(event);
+  };
+
+  thumbMin.addEventListener("pointerdown", (event) => startDrag("min", event));
+  thumbMax.addEventListener("pointerdown", (event) => startDrag("max", event));
+
+  track.addEventListener("pointerdown", (event) => {
+    if (!(event.target instanceof Element)) return;
+    if (event.target.closest('[data-profile-salary-thumb]')) return;
+    event.preventDefault();
+    const nextValue = valueFromClientX(event.clientX);
+    const distanceToMin = Math.abs(nextValue - minValue);
+    const distanceToMax = Math.abs(nextValue - maxValue);
+    if (distanceToMin <= distanceToMax) {
+      minValue = Math.min(nextValue, maxValue);
+    } else {
+      maxValue = Math.max(nextValue, minValue);
+    }
+    sync();
+    onChange?.();
+  });
+
+  sync();
 }
 
 export function renderProfileSetupScreen2(
@@ -209,11 +495,12 @@ export function renderProfileSetupScreen2(
 export function readProfileSetupScreen1FromDom(root: ParentNode): ProfileSetupScreen1Draft {
   const authorized = (root.querySelector("[data-profile-authorized]") as HTMLSelectElement | null)?.value ?? "yes";
   const authorizedCountry =
-    (root.querySelector("[data-profile-country]") as HTMLInputElement | null)?.value.trim() || "US";
+    (root.querySelector("[data-profile-country]") as HTMLInputElement | null)?.value.trim() ?? "";
   const requiresSponsorship =
     (root.querySelector("[data-profile-sponsorship]") as HTMLSelectElement | null)?.value ?? "no";
   const salaryMin = (root.querySelector("[data-profile-salary-min]") as HTMLInputElement | null)?.value ?? "";
   const salaryMax = (root.querySelector("[data-profile-salary-max]") as HTMLInputElement | null)?.value ?? "";
+  const salaryRange = normalizeProfileSalaryRange(salaryMin, salaryMax);
   const earliestStart =
     (root.querySelector("[data-profile-earliest-start]") as HTMLSelectElement | null)?.value ?? "2_weeks";
   const workMode = (root.querySelector("[data-profile-work-mode]") as HTMLSelectElement | null)?.value ?? "flexible";
@@ -221,11 +508,27 @@ export function readProfileSetupScreen1FromDom(root: ParentNode): ProfileSetupSc
     authorized,
     authorizedCountry,
     requiresSponsorship,
-    salaryMin,
-    salaryMax,
+    salaryMin: String(salaryRange.min),
+    salaryMax: String(salaryRange.max),
     earliestStart,
     workMode,
   };
+}
+
+export function bindProfileSetupActionButton(
+  root: ParentNode,
+  selector: string,
+  onActivate: () => void,
+): void {
+  const button = root.querySelector(selector);
+  button?.addEventListener("pointerdown", (event) => {
+    event.stopPropagation();
+  });
+  button?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    event.preventDefault();
+    onActivate();
+  });
 }
 
 export function readProfileSetupScreen2FromDom(root: ParentNode): ProfileSetupScreen2Draft {
@@ -337,6 +640,9 @@ export function panelResizeStyles(): string {
       max-height: none;
       min-height: ${JOB_CARD_PANEL_MIN_HEIGHT}px;
       box-sizing: border-box;
+      overflow-x: hidden;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
     }
     .glossy-stack.is-panel-resizing,
     .glossy-stack.is-panel-resizing * {

@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { AnalyticsRoot } from "@/components/providers/analytics-root";
 import { AuthProvider } from "@/components/providers/auth-provider";
 
 type AppProvidersProps = {
@@ -8,5 +9,9 @@ type AppProvidersProps = {
 };
 
 export function AppProviders({ children }: AppProvidersProps) {
-  return <AuthProvider>{children}</AuthProvider>;
+  return (
+    <AuthProvider>
+      <AnalyticsRoot>{children}</AnalyticsRoot>
+    </AuthProvider>
+  );
 }
