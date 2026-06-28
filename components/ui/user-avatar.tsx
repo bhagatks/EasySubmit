@@ -47,14 +47,14 @@ export function UserAvatar({
     >
       {image ? (
         image.startsWith("blob:") ? (
-          <img src={image} alt="" className="h-full w-full object-cover" />
+          <img src={image} alt="" className="h-full w-full object-cover pointer-events-none" />
         ) : (
           <Image
             key={image}
             src={image}
             alt=""
             fill
-            className="object-cover"
+            className="object-cover pointer-events-none"
             sizes={`${px}px`}
             unoptimized={image.startsWith("/avatars/")}
           />

@@ -18,6 +18,11 @@ const nextConfig = {
     ],
   },
   experimental: {
+    outputFileTracingIncludes: {
+      "/api/resume/convert-docx": [
+        "./node_modules/docx-to-pdf-wasm/build/**",
+      ],
+    },
     serverComponentsExternalPackages: [
       "pdf-parse",
       "pdfjs-dist",
