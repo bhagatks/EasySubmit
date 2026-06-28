@@ -28,7 +28,7 @@ describe("JDSkillsFramework deterministic", () => {
 });
 
 describe("merge-skills-grouped", () => {
-  const form: HubRefineryForm = {
+  const form = {
     professionalSummary: "",
     skillsText: "JavaScript, React",
     experience: [
@@ -38,7 +38,7 @@ describe("merge-skills-grouped", () => {
         bullets: "Built APIs with Python and AWS",
       },
     ],
-  };
+  } as HubRefineryForm;
 
   it("serializes JD | resume groups", () => {
     const text = serializeGroupedSkills({

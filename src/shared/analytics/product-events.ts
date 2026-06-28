@@ -140,3 +140,85 @@ export function trackByokKeySaved(provider: string, isFirstKey: boolean): void {
     is_first_key: isFirstKey,
   });
 }
+
+export type PricingAnalyticsSurface = "landing" | "pricing" | "select_plan";
+
+export function trackPricingCtaClicked(input: {
+  surface: PricingAnalyticsSurface;
+  planId: string;
+  comingSoon?: boolean;
+}): void {
+  captureAnalyticsEvent(AnalyticsEvents.PRICING_CTA_CLICKED, {
+    surface: input.surface,
+    plan_id: input.planId,
+    coming_soon: input.comingSoon ?? false,
+  });
+}
+
+export function trackPlanSelected(input: {
+  planId: string;
+  surface: PricingAnalyticsSurface;
+}): void {
+  captureAnalyticsEvent(AnalyticsEvents.PLAN_SELECTED, {
+    plan_id: input.planId,
+    surface: input.surface,
+  });
+}
+
+export function trackTutorialPlayed(input: {
+  tutorialId: string;
+  action: "youtube_link" | "embed_click";
+}): void {
+  captureAnalyticsEvent(AnalyticsEvents.TUTORIAL_PLAYED, {
+    tutorial_id: input.tutorialId,
+    action: input.action,
+  });
+}
+
+export function trackAtsScoreViewed(input: {
+  entryId: string;
+  hasTailoredResume: boolean;
+  platform?: string | null;
+  surface: "ats_scores" | "review_screen";
+}): void {
+  captureAnalyticsEvent(AnalyticsEvents.ATS_SCORE_VIEWED, {
+    entry_id: input.entryId,
+    has_tailored_resume: input.hasTailoredResume,
+    platform: input.platform ?? undefined,
+    surface: input.surface,
+  });
+}
+
+export function trackAtsGuidelinesSectionViewed(sectionTitle: string): void {
+  captureAnalyticsEvent(AnalyticsEvents.ATS_GUIDELINES_SECTION_VIEWED, {
+    section_title: sectionTitle.slice(0, 80),
+  });
+}
+
+export function trackResumeExported(input: {
+  surface: "review_resume" | "review_cover" | "latex_editor";
+  format: "pdf" | "word" | "latex";
+  entryId?: string | null;
+}): void {
+  captureAnalyticsEvent(AnalyticsEvents.RESUME_EXPORTED, {
+    surface: input.surface,
+    format: input.format,
+    entry_id: input.entryId ?? undefined,
+  });
+}
+
+export function trackStudioTabChanged(input: {
+  surface: "dashboard_studio" | "job_studio";
+  tab: "editor" | "layout";
+}): void {
+  captureAnalyticsEvent(AnalyticsEvents.STUDIO_TAB_CHANGED, {
+    surface: input.surface,
+    tab: input.tab,
+  });
+}
+
+export function trackSettingsSectionViewed(sectionId: string): void {
+  captureAnalyticsEvent(AnalyticsEvents.SETTINGS_SECTION_VIEWED, {
+    section_id: sectionId,
+  });
+}

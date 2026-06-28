@@ -1,6 +1,6 @@
 import type { JobTrackerStatus } from "@/lib/generated/prisma/client";
 import { PIPELINE_SUB_LABELS } from "@/lib/job-tracker/pipeline-sub-labels";
-import { resolveJourneyDisplay } from "@/src/shared/journey-display";
+import { resolveJourneyDisplay, type JourneyDisplay } from "@/src/shared/journey-display";
 
 export type JourneySnapshot = {
   saved: boolean;

@@ -170,7 +170,7 @@ export const LEGAL_DOCUMENTS_DEFAULTS: LegalDocumentsConfig = {
   },
   privacy: {
     title: "Privacy Policy",
-    updatedLabel: "Last updated June 20, 2026",
+    updatedLabel: "Last updated June 27, 2026",
     blocks: [
       {
         kind: "p",
@@ -227,6 +227,24 @@ export const LEGAL_DOCUMENTS_DEFAULTS: LegalDocumentsConfig = {
             value:
               "Device/browser type, IP address, and usage events needed to secure and improve the service (similar to industry-standard analytics practices used by job platforms like Simplify and Teal).",
           },
+        ],
+      },
+      { kind: "h3", text: "Product analytics & session replay" },
+      {
+        kind: "p",
+        inlines: [
+          {
+            kind: "text",
+            value:
+              "We use PostHog to collect product analytics (click events, navigation, feature usage) and session replay (recordings of page interactions used to reproduce bugs and improve usability). PostHog also captures JavaScript exceptions for error tracking. Resume content fields are masked in session recordings — PostHog does not receive your resume text, work history, or personal contact information. For details see ",
+          },
+          {
+            kind: "href",
+            href: "https://posthog.com/privacy",
+            label: "posthog.com/privacy",
+            external: true,
+          },
+          { kind: "text", value: "." },
         ],
       },
       { kind: "h2", text: "2. How we use information" },

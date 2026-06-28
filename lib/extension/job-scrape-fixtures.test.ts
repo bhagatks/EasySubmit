@@ -6,6 +6,7 @@ import { REPORTED_JOB_URLS } from "@/lib/extension/test-fixtures/reported-job-ur
 import { buildScrapeDocument } from "@/lib/extension/test-fixtures/scrape-doc-builder";
 
 const config: ExtensionRuntimeConfig = {
+  extensionGlobalSwitch: true,
   jobCardEnabled: true,
   enabledPlatforms: ["linkedin", "indeed", "greenhouse", "workday", "generic"],
   genericFallbackEnabled: true,

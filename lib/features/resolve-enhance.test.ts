@@ -57,6 +57,7 @@ import { getFeatureFlags } from "@/src/lib/services/feature-flags-service";
 import { resolveAiRoute } from "@/src/lib/ai/engine/router";
 import { checkAiQuota } from "@/src/lib/ai/engine/quota";
 import { isSubscribed } from "@/src/lib/services/config-service";
+import { isCustomerQuotaUnlimited } from "@/src/lib/services/ai-engine-config";
 
 const baseUser: SystemQuotaUserRow = {
   aiSourcePreference: "auto",
@@ -214,5 +215,53 @@ describe("resolveEnhanceFeature", () => {
   it("happy path: extension surface same as job_apply", async () => {
     const result = await resolveEnhanceFeature(baseUser, "extension");
     expect(result.aiAvailable).toBe(true);
+  });
+
+  it("resume surface uses same enhance flag as job_apply", async () => {
+    const result = await resolveEnhanceFeature(baseUser, "resume");
+    expect(result.aiAvailable).toBe(true);
+    expect(result.mode).toBe("system");
+  });
+
+  it("system route skips customer quota gate", async () => {
+    vi.mocked(checkAiQuota).mockReturnValue({
+      ok: false,
+      reason: "enhancement_limit",
+      snapshot: { enhancementsLimit: 5, callsLimit: 10 },
+    } as ReturnType<typeof checkAiQuota>);
+    const result = await resolveEnhanceFeature(baseUser, "job_apply");
+    expect(result.aiAvailable).toBe(true);
+    expect(result.mode).toBe("system");
+  });
+
+  it("accepts traceId without throwing", async () => {
+    await expect(
+      resolveEnhanceFeature(baseUser, "job_apply", { traceId: "trace-123" }),
+    ).resolves.toMatchObject({ aiAvailable: true });
+  });
+
+  it("returns no_key for no_system_key route errors", async () => {
+    vi.mocked(resolveAiRoute).mockResolvedValue({ error: "no_system_key" });
+    const result = await resolveEnhanceFeature(baseUser, "job_apply");
+    expect(result.reason).toBe("no_key");
+  });
+
+  it("honors unlimited customer quota config", async () => {
+    vi.mocked(isCustomerQuotaUnlimited).mockReturnValue(true);
+    vi.mocked(resolveAiRoute).mockResolvedValue({
+      mode: "customer",
+      modelId: "gpt-4o",
+      provider: "openai",
+      vaultKeyId: "vault-1",
+    });
+    vi.mocked(checkAiQuota).mockReturnValue({
+      ok: false,
+      reason: "enhancement_limit",
+      snapshot: { enhancementsLimit: 5, callsLimit: 10 },
+    } as ReturnType<typeof checkAiQuota>);
+    const user = { ...baseUser, vaultKeyId: "vault-1" };
+    const result = await resolveEnhanceFeature(user, "job_apply");
+    expect(result.aiAvailable).toBe(true);
+    expect(result.quota.unlimited).toBe(true);
   });
 });

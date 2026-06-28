@@ -20,6 +20,7 @@ import {
   sanitizeStudioPanelStorage,
 } from "@/lib/resume/studio-panel-storage";
 import { cn } from "@/lib/utils";
+import { trackStudioTabChanged } from "@/src/shared/analytics";
 
 export { STUDIO_PANEL_AUTO_SAVE_ID as STUDIO_SPLIT_STORAGE_KEY } from "@/lib/resume/studio-panel-storage";
 
@@ -33,6 +34,8 @@ type ResumeStudioWorkbenchProps = {
   variant?: "onboarding" | "dashboard";
   /** Editor | Layout tabs on the right panel (dashboard profile edit only). */
   studioTabs?: boolean;
+  /** PostHog surface when `studioTabs` is enabled. */
+  studioAnalyticsSurface?: "dashboard_studio" | "job_studio";
   monoClass?: string;
   panelScrolls?: boolean;
   className?: string;
@@ -74,6 +77,7 @@ export function ResumeStudioWorkbench({
   previewPrefix,
   variant = "dashboard",
   studioTabs = false,
+  studioAnalyticsSurface,
   monoClass,
   className,
   panelScrolls = true,
@@ -100,6 +104,11 @@ export function ResumeStudioWorkbench({
   useEffect(() => {
     sanitizeStudioPanelStorage();
   }, []);
+
+  useEffect(() => {
+    if (!studioTabs || !studioAnalyticsSurface) return;
+    trackStudioTabChanged({ surface: studioAnalyticsSurface, tab: studioPanelTab });
+  }, [studioAnalyticsSurface, studioPanelTab, studioTabs]);
 
   useEffect(() => {
     if (focusPreviewOnLayoutKey === undefined || isDesktop) return;

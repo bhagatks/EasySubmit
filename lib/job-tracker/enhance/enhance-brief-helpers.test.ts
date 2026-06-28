@@ -35,7 +35,7 @@ describe("JD coverage helpers", () => {
   });
 
   it("scores bullet anchors and reports coverage", () => {
-    const form: HubRefineryForm = {
+    const form = {
       professionalSummary: "Engineer with Python experience",
       skillsText: "Python, AWS",
       experience: [
@@ -45,7 +45,7 @@ describe("JD coverage helpers", () => {
           bullets: "Built microservices on AWS using Python",
         },
       ],
-    };
+    } as HubRefineryForm;
     const intel = {
       ...makeEmptyIntelligence(),
       tier1Keywords: ["python", "aws", "microservices"],

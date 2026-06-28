@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { LayoutDashboard } from "lucide-react";
+import { Download, ExternalLink, LayoutDashboard } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { BrandWordmark } from "@/components/ui/brand-wordmark";
 import { Button } from "@/components/ui/button";
@@ -14,16 +14,28 @@ import {
   dashboardHeaderMintPillStyle,
 } from "@/lib/dashboard/dashboard-header-chrome";
 
-export function Navbar() {
+type NavbarProps = {
+  extensionStoreUrl?: string;
+};
+
+function isExternalUrl(href: string): boolean {
+  return /^https?:\/\//i.test(href);
+}
+
+export function Navbar({ extensionStoreUrl = "/extension" }: NavbarProps) {
   const router = useRouter();
   const { status } = useSession();
   const isAuthenticated = status === "authenticated";
+  const storeExternal = isExternalUrl(extensionStoreUrl);
 
   useEffect(() => {
     if (isAuthenticated) {
       router.prefetch("/dashboard");
+      if (!storeExternal) {
+        router.prefetch(extensionStoreUrl);
+      }
     }
-  }, [isAuthenticated, router]);
+  }, [extensionStoreUrl, isAuthenticated, router, storeExternal]);
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/5 bg-background/80 backdrop-blur-md">
@@ -54,6 +66,25 @@ export function Navbar() {
         <div className="flex items-center gap-3">
           {isAuthenticated ? (
             <>
+              <Button variant="outline" size="lg" className="rounded-xl" asChild>
+                {storeExternal ? (
+                  <a
+                    href={extensionStoreUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Add to Chrome"
+                  >
+                    <Download className="h-4 w-4" aria-hidden="true" />
+                    <span className="hidden sm:inline">Add to Chrome</span>
+                    <ExternalLink className="hidden h-3.5 w-3.5 opacity-70 sm:inline" aria-hidden="true" />
+                  </a>
+                ) : (
+                  <Link href={extensionStoreUrl} prefetch aria-label="Add to Chrome">
+                    <Download className="h-4 w-4" aria-hidden="true" />
+                    <span className="hidden sm:inline">Add to Chrome</span>
+                  </Link>
+                )}
+              </Button>
               <Button variant="hero" size="lg" className="rounded-xl" asChild>
                 <Link href="/dashboard" prefetch>
                   <LayoutDashboard className="h-4 w-4" aria-hidden="true" />

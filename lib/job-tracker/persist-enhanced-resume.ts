@@ -6,6 +6,7 @@ import {
 } from "@/lib/profile/job-resume-tailor";
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
 import { logEnhance } from "@/src/lib/ai/engine/enhance-logger";
+import { logEnhanceDiag } from "@/src/lib/ai/engine/enhance-diagnostics";
 import { ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
 
 export type PersistEnhancedResumeInput = {
@@ -50,6 +51,22 @@ export async function persistEnhancedResume(
     changedSections,
     overrideKeys: Object.keys(overrides),
   });
+  logEnhanceDiag({
+    traceId: input.traceId,
+    designStep: "16",
+    track: "resume",
+    pipelineStep: ENHANCE_PIPELINE.POST_OVERRIDES,
+    phase: "done",
+    level: "low",
+    event: "persist.overrides",
+    scope: "server",
+    userId: input.userId,
+    params: {
+      jobId: input.jobId,
+      changedSections,
+      overrideKeyCount: Object.keys(overrides).length,
+    },
+  });
 
   await upsertJobResumeTailor({
     jobTrackerEntryId: input.jobId,
@@ -62,10 +79,14 @@ export async function persistEnhancedResume(
       ? ({
           traceId: input.enhanceMeta.traceId,
           engineMode: input.enhanceMeta.engineMode,
+          aiAttempted: input.enhanceMeta.aiAttempted,
+          aiSucceeded: input.enhanceMeta.aiSucceeded,
           aiBlockCode: input.enhanceMeta.aiBlockCode,
+          warning: input.enhanceMeta.warning,
           coverageAfter: input.enhanceMeta.coverageAfter,
           readinessDelta: input.enhanceMeta.readinessDelta,
           enhanceSummary: input.enhanceMeta.enhanceSummary,
+          coherenceWarnings: input.enhanceMeta.coherenceWarnings,
           persistedAt: new Date().toISOString(),
         } as import("@/lib/generated/prisma/client").Prisma.InputJsonValue)
       : undefined,
@@ -77,6 +98,22 @@ export async function persistEnhancedResume(
     userId: input.userId,
     jobId: input.jobId,
     sourceProfileId: input.sourceProfileId,
+  });
+  logEnhanceDiag({
+    traceId: input.traceId,
+    designStep: "17",
+    track: "persist",
+    pipelineStep: ENHANCE_PIPELINE.POST_PERSIST,
+    phase: "done",
+    level: "high",
+    event: "persist.tailor.done",
+    scope: "server",
+    userId: input.userId,
+    params: {
+      jobId: input.jobId,
+      sourceProfileId: input.sourceProfileId,
+      hasEnhanceMeta: Boolean(input.enhanceMeta),
+    },
   });
 
   const coverPatch = buildCoverLetterSeedPatch({
@@ -94,6 +131,18 @@ export async function persistEnhancedResume(
       step: ENHANCE_PIPELINE.POST_COVER_SEED,
       userId: input.userId,
       jobId: input.jobId,
+    });
+    logEnhanceDiag({
+      traceId: input.traceId,
+      designStep: "18",
+      track: "persist",
+      pipelineStep: ENHANCE_PIPELINE.POST_COVER_SEED,
+      phase: "done",
+      level: "low",
+      event: "persist.cover_seed.done",
+      scope: "server",
+      userId: input.userId,
+      params: { jobId: input.jobId },
     });
   }
 

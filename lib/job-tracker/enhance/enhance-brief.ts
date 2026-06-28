@@ -12,6 +12,7 @@ import type {
 } from "@/lib/job-tracker/jd/jd-intelligence";
 import type { JdSkillsVocabulary } from "@/lib/job-tracker/jd/jd-skills-types";
 import type { EnhancePlan } from "@/lib/job-tracker/enhance/enhance-plan";
+import type { SummaryIdentityResolution } from "@/lib/job-tracker/enhance/resolve-summary-identity";
 
 export type JdAtom = {
   id: string;
@@ -43,6 +44,8 @@ export type ResumeEnhanceBrief = {
   targetRole: string;
   hasJd: boolean;
   jobEntryId?: string;
+  /** AI JD extract calls made during brief build (0 or 1). Counted toward daily quota. */
+  jdAiCallCount: number;
 
   structural: {
     warnings: string[];
@@ -96,6 +99,8 @@ export type ResumeEnhanceBrief = {
   onet: OnetRoleVocabulary;
   readiness: ResumeReadinessResult;
   plan: EnhancePlan;
+  /** Candidate identity for summary sentence 1 (not JD job title). */
+  summaryIdentity: SummaryIdentityResolution;
 };
 
 export type EnhanceSessionMeta = {
@@ -110,4 +115,5 @@ export type EnhanceSessionMeta = {
   coverageAfter?: JdCoverageReport;
   skillsGaps?: string[];
   readinessDelta?: { before: number; after: number };
+  coherenceWarnings?: string[];
 };

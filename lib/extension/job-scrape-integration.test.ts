@@ -9,6 +9,7 @@ import {
 } from "@/lib/extension/test-fixtures/scrape-doc-builder";
 
 const config: ExtensionRuntimeConfig = {
+  extensionGlobalSwitch: true,
   jobCardEnabled: true,
   enabledPlatforms: ["linkedin", "indeed", "greenhouse", "workday", "generic"],
   genericFallbackEnabled: true,

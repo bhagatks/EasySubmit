@@ -40,6 +40,7 @@ const BASE_FORM: HubRefineryForm = {
       id: "edu-0",
       school: "UC Berkeley",
       degree: "B.S. Computer Science",
+      location: "",
       startMonth: "",
       startYear: "2012",
       endMonth: "",
@@ -51,6 +52,7 @@ const BASE_FORM: HubRefineryForm = {
   projects: [],
   languages: [],
   customSections: [],
+  pageLengthPreference: "auto" as const,
 };
 
 const JD_WITH_MISSING = `
@@ -65,6 +67,45 @@ function directiveForJd(form: HubRefineryForm, jd: string) {
   const skills = parseSkillsText(form.skillsText ?? "");
   return buildResumeEnhanceDirective(jdResult.intelligence, skills);
 }
+
+describe("buildEnhancePlan branch coverage", () => {
+  it("returns no summaryWarnings for empty professionalSummary", () => {
+    const form: HubRefineryForm = { ...BASE_FORM, professionalSummary: "" };
+    const intel = analyzeJobIntelligence(form, "Senior Software Engineer", JD_WITH_MISSING);
+    const plan = buildEnhancePlan(form, intel);
+    expect(plan.summaryWarnings).toHaveLength(0);
+  });
+
+  it("warns about word count when summary is too short", () => {
+    const form: HubRefineryForm = {
+      ...BASE_FORM,
+      professionalSummary: "Short summary only one sentence.",
+    };
+    const intel = analyzeJobIntelligence(form, "Senior Software Engineer", JD_WITH_MISSING);
+    const plan = buildEnhancePlan(form, intel);
+    expect(plan.summaryWarnings.some((w) => w.includes("words"))).toBe(true);
+  });
+
+  it("warns about banned words in summary", () => {
+    const form: HubRefineryForm = {
+      ...BASE_FORM,
+      professionalSummary:
+        "I am a passionate results-driven team player who is detail-oriented. I have leveraged synergies across teams. I excel at thinking outside the box on complex problems. I deliver value.",
+    };
+    const intel = analyzeJobIntelligence(form, "Senior Software Engineer", JD_WITH_MISSING);
+    const plan = buildEnhancePlan(form, intel);
+    expect(plan.summaryWarnings.some((w) => w.includes("overused phrases"))).toBe(true);
+  });
+
+  it("includes targetRole and directive fields when provided", () => {
+    const intel = analyzeJobIntelligence(BASE_FORM, "Senior Software Engineer", JD_WITH_MISSING);
+    const directive = directiveForJd(BASE_FORM, JD_WITH_MISSING);
+    const plan = buildEnhancePlan(BASE_FORM, intel, directive, "Staff Engineer");
+    expect(plan.targetRole).toBe("Staff Engineer");
+    expect(plan.summaryTheme).toBe(directive.summaryTheme);
+    expect(plan.roleLevel).toBe(directive.roleLevel);
+  });
+});
 
 describe("buildEnhancePlan", () => {
   it("uses JD Brain mustAddSkills instead of raw keyword-gap tokens", () => {

@@ -77,8 +77,10 @@ import { parseProfileName } from "@/lib/profile/name";
 import {
   AnalyticsEvents,
   captureAnalyticsEvent,
+  trackScreenOverlay,
   type WorkbenchPhaseCode,
 } from "@/src/shared/analytics";
+import type { ScreenId } from "@/src/shared/observability/screen-diagnostics-catalog";
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
@@ -290,6 +292,17 @@ export default function OnboardingPage() {
     captureAnalyticsEvent(AnalyticsEvents.ONBOARDING_PHASE_VIEWED, {
       phase,
       phase_code: (workbenchPhase?.code ?? "UNKNOWN") as WorkbenchPhaseCode | "UNKNOWN",
+    });
+
+    const phaseScreenId: ScreenId =
+      phase === 1
+        ? "onboarding_phase_identity"
+        : phase === 2
+          ? "onboarding_phase_import"
+          : "onboarding_phase_studio";
+    trackScreenOverlay(phaseScreenId, {
+      route: "/onboarding",
+      params: { phase, phaseCode: workbenchPhase?.code ?? "UNKNOWN" },
     });
   }, [phase, workbenchReady]);
 

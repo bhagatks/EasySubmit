@@ -1,5 +1,7 @@
 # Onboarding Flow
 
+> **Screen names & routes:** full inventory in [`SCREENS.md`](./SCREENS.md) (includes marketing landing, dashboard sidebar, Review Screen tabs, extension surfaces).
+
 ## Routes
 
 | Route | Purpose | Auth |
@@ -42,7 +44,7 @@ After Studio, **Finalize & continue** does **not** advance to a fourth onboardin
 3. **Redirect → `/dashboard?setup=1`** — sequential glossy modals via `DashboardSetupPrompts`:
    - **BYOK modal** (`DashboardByokPromptModal` + `IgnitionGate`) when `vaultKeyId` is null — save a key or close.
    - **Extension modal** (`ExtensionInstallPromptModal`) — install link + **Skip for now**; skip, close, or successful extension connect → **Video Tutorials** (not gated by return-visit config flags).
-   - **Video Tutorials** (`/dashboard/tutorials?welcome=1`) — auto-navigate after extension step; **Continue to dashboard** → overview.
+   - **Video Tutorials** (`/dashboard/tutorials?welcome=1`) — auto-navigate after extension step; welcome banner only (sidebar nav to other dashboard routes).
 
 If **`users.vaultKeyId`** is null after setup, the overview still renders in **Cold Engine** state. BYOK remains optional — Settings or header **BYOK KEY** any time.
 

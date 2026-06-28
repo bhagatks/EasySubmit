@@ -5,16 +5,20 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 export function buildWorkspaceExpansionState(
   sectionIds: string[],
   defaultExpanded = false,
+  expandedOverrides?: Record<string, boolean>,
 ): Record<string, boolean> {
-  return Object.fromEntries(sectionIds.map((id) => [id, defaultExpanded]));
+  return Object.fromEntries(
+    sectionIds.map((id) => [id, expandedOverrides?.[id] ?? defaultExpanded]),
+  );
 }
 
 export function useWorkspaceSectionExpansion(
   sectionIds: string[],
   defaultExpanded = false,
+  expandedOverrides?: Record<string, boolean>,
 ) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() =>
-    buildWorkspaceExpansionState(sectionIds, defaultExpanded),
+    buildWorkspaceExpansionState(sectionIds, defaultExpanded, expandedOverrides),
   );
 
   const sectionIdsKey = sectionIds.join("\0");
@@ -28,7 +32,7 @@ export function useWorkspaceSectionExpansion(
 
       for (const id of ids) {
         if (!(id in next)) {
-          next[id] = defaultExpanded;
+          next[id] = expandedOverrides?.[id] ?? defaultExpanded;
           changed = true;
         }
       }
@@ -41,7 +45,7 @@ export function useWorkspaceSectionExpansion(
 
       return changed ? next : current;
     });
-  }, [defaultExpanded, sectionIdsKey]);
+  }, [defaultExpanded, expandedOverrides, sectionIdsKey]);
 
   const allExpanded = useMemo(
     () => sectionIds.length > 0 && sectionIds.every((id) => Boolean(expanded[id])),

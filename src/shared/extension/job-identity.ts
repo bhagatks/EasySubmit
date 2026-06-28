@@ -1,4 +1,5 @@
 import { parseCompanyFromJobHost, parseJobTitleFromUrl } from "./job-url-parse";
+import { isGenericNavigationJobTitle } from "./scrape-helpers";
 import { isWorkdayJobUrl, parseWorkdayCompanyFromUrl } from "./workday-helpers";
 
 export type ResolvedJobIdentity = {
@@ -57,7 +58,11 @@ export function resolveJobIdentity(input: {
   description?: string | null;
 }): ResolvedJobIdentity {
   const scrapedTitle = input.title?.trim() ?? "";
-  if (scrapedTitle.length >= 2 && scrapedTitle !== "Job posting on this page") {
+  if (
+    scrapedTitle.length >= 2 &&
+    scrapedTitle !== "Job posting on this page" &&
+    !isGenericNavigationJobTitle(scrapedTitle)
+  ) {
     const { company, source: companySource } = resolveCompanyFallback(
       input.url,
       input.company,

@@ -13,7 +13,6 @@ const emptyForm = (): HubRefineryForm => ({
   phone: "",
   linkedIn: "",
   cityState: "",
-  targetRole: "Engineer",
   professionalSummary: "Summary text",
   skillsText: "TypeScript, React",
   experience: [
@@ -21,18 +20,24 @@ const emptyForm = (): HubRefineryForm => ({
       id: "1",
       company: "Acme",
       title: "Dev",
+      location: "",
+      startMonth: "",
       startYear: "2020",
+      endMonth: "",
       endYear: "Present",
-      bullets: ["Built things"],
+      bullets: "Built things",
       hidden: false,
     },
     {
       id: "2",
       company: "Hidden Co",
       title: "Intern",
+      location: "",
+      startMonth: "",
       startYear: "2019",
+      endMonth: "",
       endYear: "2020",
-      bullets: [],
+      bullets: "",
       hidden: true,
     },
   ],
@@ -40,6 +45,8 @@ const emptyForm = (): HubRefineryForm => ({
   certifications: [],
   projects: [],
   languages: [],
+  customSections: [],
+  pageLengthPreference: "auto",
 });
 
 describe("enhance-logger", () => {

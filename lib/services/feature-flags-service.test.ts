@@ -20,6 +20,8 @@ import {
   parseFeatureFlagExtra,
 } from "@/src/lib/services/feature-flags-service";
 
+const d = new Date();
+
 describe("parseFeatureFlagExtra", () => {
   it("returns null for non-objects", () => {
     expect(parseFeatureFlagExtra(null)).toBeNull();
@@ -47,8 +49,8 @@ describe("getFeatureFlags", () => {
 
   it("merges database rows over defaults", async () => {
     vi.mocked(prisma.featureFlag.findMany).mockResolvedValue([
-      { key: FEATURE_FLAG_KEYS.enhanceWithAiResumeProfile, enabled: false },
-      { key: FEATURE_FLAG_KEYS.systemAiEnabled, enabled: false },
+      { key: FEATURE_FLAG_KEYS.enhanceWithAiResumeProfile, enabled: false, description: null, extra: null, createdAt: d, updatedAt: d },
+      { key: FEATURE_FLAG_KEYS.systemAiEnabled, enabled: false, description: null, extra: null, createdAt: d, updatedAt: d },
     ]);
 
     await expect(getFeatureFlags()).resolves.toEqual({
@@ -67,8 +69,12 @@ describe("getFeatureFlag", () => {
 
   it("returns enabled and parsed extra", async () => {
     vi.mocked(prisma.featureFlag.findUnique).mockResolvedValue({
+      key: FEATURE_FLAG_KEYS.enhanceWithAiResumeProfile,
       enabled: true,
       extra: { bannerText: "Beta" },
+      description: null,
+      createdAt: d,
+      updatedAt: d,
     });
 
     await expect(getFeatureFlag(FEATURE_FLAG_KEYS.enhanceWithAiResumeProfile)).resolves.toEqual({
@@ -79,8 +85,12 @@ describe("getFeatureFlag", () => {
 
   it("returns null extra when column is empty", async () => {
     vi.mocked(prisma.featureFlag.findUnique).mockResolvedValue({
+      key: FEATURE_FLAG_KEYS.enhanceWithAiResumeProfile,
       enabled: false,
       extra: null,
+      description: null,
+      createdAt: d,
+      updatedAt: d,
     });
 
     await expect(getFeatureFlag(FEATURE_FLAG_KEYS.enhanceWithAiResumeProfile)).resolves.toEqual({
@@ -101,6 +111,9 @@ describe("getFeatureFlagsWithExtra", () => {
         key: FEATURE_FLAG_KEYS.enhanceWithAiResumeProfile,
         enabled: false,
         extra: { note: "test" },
+        description: null,
+        createdAt: d,
+        updatedAt: d,
       },
     ]);
 
@@ -120,8 +133,12 @@ describe("isFeatureEnabled", () => {
 
   it("returns stored value when row exists", async () => {
     vi.mocked(prisma.featureFlag.findUnique).mockResolvedValue({
+      key: FEATURE_FLAG_KEYS.enhanceWithAiResumeProfile,
       enabled: false,
       extra: null,
+      description: null,
+      createdAt: d,
+      updatedAt: d,
     });
 
     await expect(isFeatureEnabled(FEATURE_FLAG_KEYS.enhanceWithAiResumeProfile)).resolves.toBe(

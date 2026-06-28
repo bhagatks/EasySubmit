@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Eye, ShieldCheck, ShieldAlert } from "lucide-react";
 import { simulateAtsParse } from "@/lib/job-tracker/ats/ats-parse-simulator";
 import { analyzeBulletQuality } from "@/lib/job-tracker/ats/bullet-quality";
@@ -9,6 +9,7 @@ import { computeSemanticSimilarity } from "@/lib/job-tracker/ats/semantic-simila
 import { computeResumeReadiness } from "@/lib/job-tracker/ats/resume-readiness-score";
 import { computePlatformScores, type PlatformScoreResult } from "@/lib/job-tracker/ats/platform-score";
 import type { JobTrackerDetail } from "@/lib/job-tracker/types";
+import { trackAtsScoreViewed } from "@/src/shared/analytics";
 import { cn } from "@/lib/utils";
 
 type AtsPanelProps = {
@@ -780,6 +781,19 @@ function AtsPanelBody({ entry, preview, activeSection, onSectionChange, variant 
 export function AtsPanel({ entry, variant = "modal" }: AtsPanelProps) {
   const [activeSection, setActiveSection] = useState<Section>("score");
   const preview = entry.tailoredResumePreview;
+  const trackedEntryRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!preview) return;
+    if (trackedEntryRef.current === entry.id) return;
+    trackedEntryRef.current = entry.id;
+    trackAtsScoreViewed({
+      entryId: entry.id,
+      hasTailoredResume: entry.hasTailoredResume,
+      platform: entry.platform,
+      surface: variant === "inline" ? "ats_scores" : "review_screen",
+    });
+  }, [entry.hasTailoredResume, entry.id, entry.platform, preview, variant]);
 
   if (!preview) {
     return <AtsPanelEmpty />;

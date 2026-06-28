@@ -18,8 +18,13 @@ export type AiEngineCustomerQuotaLimits = AiEngineQuotaLimits & {
 
 export type AiEngineConfig = {
   system: {
-    /** Gemini model id for EasySubmit system AI. */
+    /** Gemini model id for EasySubmit system AI (resume enhance passes). */
     modelId: string;
+    /**
+     * Cheaper/faster model for structured JD extraction (system pool + Gemini BYOK).
+     * System pool uses this model id with vault keys; BYOK Gemini routes override here too.
+     */
+    jdExtractionModelId: string;
     /** Max vaulted system key slots (0 … maxKeySlots-1). */
     maxKeySlots: number;
   };
@@ -31,9 +36,18 @@ export type AiEngineConfig = {
   customerDailyEnhancementCap: number;
 };
 
+import {
+  GEMINI_JD_EXTRACT_MODEL,
+  GEMINI_RESUME_PRIMARY_MODEL,
+} from "@/src/lib/ai/engine/gemini-resilience";
+
+/** Default utility model for system-pool + Gemini BYOK structured JD extraction. */
+export const JD_EXTRACTION_SYSTEM_MODEL_DEFAULT = GEMINI_JD_EXTRACT_MODEL;
+
 export const AI_ENGINE_DEFAULTS: AiEngineConfig = {
   system: {
-    modelId: "gemini-2.5-flash-lite",
+    modelId: GEMINI_RESUME_PRIMARY_MODEL,
+    jdExtractionModelId: JD_EXTRACTION_SYSTEM_MODEL_DEFAULT,
     maxKeySlots: 3,
   },
   quotas: {
@@ -110,13 +124,18 @@ export function parseAiEngineConfig(value: unknown): AiEngineConfig | null {
       ? systemRaw.modelId.trim()
       : AI_ENGINE_DEFAULTS.system.modelId;
 
+  const jdExtractionModelId =
+    typeof systemRaw.jdExtractionModelId === "string" && systemRaw.jdExtractionModelId.trim()
+      ? systemRaw.jdExtractionModelId.trim()
+      : AI_ENGINE_DEFAULTS.system.jdExtractionModelId;
+
   const maxKeySlots = Math.min(
     MAX_SLOT,
     Math.max(MIN_SLOT, parsePositiveInt(systemRaw.maxKeySlots, AI_ENGINE_DEFAULTS.system.maxKeySlots)),
   );
 
   return {
-    system: { modelId, maxKeySlots },
+    system: { modelId, jdExtractionModelId, maxKeySlots },
     quotas: {
       system: parseSystemQuotaLimits(quotasRaw.system, AI_ENGINE_DEFAULTS.quotas.system),
       customer: parseCustomerQuotaLimits(quotasRaw.customer, AI_ENGINE_DEFAULTS.quotas.customer),
@@ -140,4 +159,9 @@ export function isCustomerQuotaUnlimited(config: AiEngineConfig): boolean {
 export function resolveCustomerEnhancementLimit(config: AiEngineConfig): number | null {
   if (isCustomerQuotaUnlimited(config)) return null;
   return config.customerDailyEnhancementCap;
+}
+
+/** System-pool model for JD structured extraction (`generateObject`). */
+export function resolveJdExtractionSystemModel(config: AiEngineConfig): string {
+  return config.system.jdExtractionModelId.trim() || JD_EXTRACTION_SYSTEM_MODEL_DEFAULT;
 }

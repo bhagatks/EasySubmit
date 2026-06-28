@@ -283,5 +283,6 @@ export function normalizeEnhancedBody(
     customSections: Array.isArray(raw.customSections)
       ? raw.customSections
       : base.customSections,
+    pageLengthPreference: base.pageLengthPreference,
   };
 }

@@ -263,6 +263,7 @@ export function JobResumeStudioEditor({
             : "rounded-2xl border border-border",
         )}
         studioTabs
+        studioAnalyticsSurface="job_studio"
         pageLengthPreference={pageLengthPreference}
         onPageLengthPreferenceChange={handlePageLengthPreferenceChange}
         autoPageLengthRecommendation={autoPageLengthRecommendation}

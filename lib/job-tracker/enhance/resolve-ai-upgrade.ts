@@ -24,7 +24,7 @@ const WARNING_MESSAGES: Partial<Record<EnhanceOffReason, string>> = {
 export async function resolveAiUpgrade(
   user: SystemQuotaUserRow,
   surface: FeatureSurface,
-  opts?: { forceSystem?: boolean; useCustomerKey?: boolean },
+  opts?: { forceSystem?: boolean; useCustomerKey?: boolean; traceId?: string },
 ): Promise<AiUpgradeResolution> {
   const enhance = await resolveEnhanceFeature(user, surface, opts);
 

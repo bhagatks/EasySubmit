@@ -7,6 +7,8 @@
  * Static imports (not dynamic) so webpack bundles pdf.js + worker entry
  * with a valid public path — dynamic import() was resolving to /_next/undefined.
  */
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-expect-error — pdfjs-dist/build/pdf.js has no TypeScript declarations
 import * as pdfjs from "pdfjs-dist/build/pdf.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-expect-error — pdf.worker.entry has no TypeScript declarations

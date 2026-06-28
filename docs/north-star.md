@@ -6,6 +6,8 @@
 
 This document captures the target architecture agreed in design sessions. Use it as the single source of truth so we do not re-litigate context in every session.
 
+**Screen inventory:** [`SCREENS.md`](./SCREENS.md) — full route/screen map; enhance trigger surfaces (F1–F7) below cross-reference this doc.
+
 ---
 
 ## 1. North star (one sentence)

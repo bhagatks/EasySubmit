@@ -1,6 +1,7 @@
 import type { JDIntelligence, ResumeEnhanceDirective } from "@/lib/job-tracker/jd/jd-intelligence";
 import type { JdSkillsVocabulary } from "@/lib/job-tracker/jd/jd-skills-types";
 import { tokenizeJobText } from "@/lib/job-tracker/jd/keyword-extract";
+import { canonicalizeJdSkillLabel } from "@/lib/job-tracker/jd/jd-skill-filter";
 import type { JdAtom } from "@/lib/job-tracker/enhance/enhance-brief";
 
 function atomFromLabel(label: string, tier: 1 | 2 | 3, id: string): JdAtom {
@@ -30,15 +31,18 @@ export function buildJdAtomList(
   }
 
   for (const skill of jdVocabulary?.skills ?? []) {
-    add(skill.label, skill.tier ?? 1);
+    const canonical = canonicalizeJdSkillLabel(skill.label);
+    if (canonical) add(canonical, skill.tier ?? 1);
   }
 
   for (const kw of intelligence.tier1Keywords) {
-    add(kw, 1);
+    const canonical = canonicalizeJdSkillLabel(kw);
+    if (canonical) add(canonical, 1);
   }
 
   for (const kw of directive.mustWeaveKeywords.slice(0, 15)) {
-    add(kw, 1);
+    const canonical = canonicalizeJdSkillLabel(kw);
+    if (canonical) add(canonical, 1);
   }
 
   for (const kw of intelligence.tier2Keywords.slice(0, 10)) {

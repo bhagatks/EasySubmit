@@ -381,6 +381,27 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (action === EXTENSION_MESSAGE.GET_JOB_STATS) {
+    void apiFetch<{
+      success: boolean;
+      captured?: number;
+      readyToApply?: number;
+      total?: number;
+      error?: string;
+    }>("/api/extension/stats")
+      .then((data) => sendResponse(data))
+      .catch(() =>
+        sendResponse({
+          success: false,
+          error: "Network error",
+          captured: 0,
+          readyToApply: 0,
+          total: 0,
+        }),
+      );
+    return true;
+  }
+
   if (action === EXTENSION_MESSAGE.GET_RESUME_PROFILES) {
     void apiFetch<import("@shared/extension/types").ExtensionResumeProfilesResponse>(
       "/api/extension/resume-profiles",
@@ -608,6 +629,15 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         method: "PATCH",
         body: JSON.stringify({ body: message.body }),
       },
+    )
+      .then((data) => sendResponse(data))
+      .catch(() => sendResponse({ success: false, error: "Network error" }));
+    return true;
+  }
+
+  if (action === EXTENSION_MESSAGE.GET_KEYWORD_GAP && typeof message.entryId === "string") {
+    void apiFetch<{ success: boolean; topMissing?: string[]; coveragePercent?: number | null; error?: string }>(
+      `/api/extension/jobs/${encodeURIComponent(message.entryId)}/keyword-gap`,
     )
       .then((data) => sendResponse(data))
       .catch(() => sendResponse({ success: false, error: "Network error" }));

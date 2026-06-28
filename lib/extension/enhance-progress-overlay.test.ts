@@ -22,6 +22,15 @@ describe("renderEnhanceProgressOverlay", () => {
     expect(html).toContain('data-document-enhance-cancel="1"');
     expect(html).toContain(ENHANCE_PROGRESS_CANCEL_LABEL);
   });
+
+  it("supports custom pipeline captions without cancel", () => {
+    const html = renderEnhanceProgressOverlay({
+      caption: "Optimizing resume…",
+      showCancel: false,
+    });
+    expect(html).toContain("Optimizing resume…");
+    expect(html).not.toContain('data-document-enhance-cancel="1"');
+  });
 });
 
 describe("triggerEasySubmitAnimation", () => {

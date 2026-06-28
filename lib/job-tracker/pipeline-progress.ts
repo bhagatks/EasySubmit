@@ -14,6 +14,18 @@ export const PIPELINE_STEPS: PipelineStep[] = JOB_TRACKER_KANBAN_COLUMNS.map((co
   status: column.status,
 }));
 
+/** Compact labels for inline pipeline bars (overview cards, list tiles). */
+export const PIPELINE_BAR_STEP_LABELS: Record<string, string> = {
+  captured: "Job captured",
+  "resume-ready": "Resume prepared",
+  "ready-to-apply": "Auto Suggest",
+  applied: "Applied",
+};
+
+export function pipelineBarStepLabel(step: PipelineStep): string {
+  return PIPELINE_BAR_STEP_LABELS[step.id] ?? step.label;
+}
+
 export type PipelineProgress = {
   /** 1–4 segments filled through this step */
   filledThrough: number;
@@ -64,6 +76,19 @@ export function pipelineActiveSegmentLabel(status: JobTrackerStatus): string | n
     case "RESUME_READY":
     case "READY_TO_APPLY":
       return BRAND.autoSuggestCta;
+    default:
+      return null;
+  }
+}
+
+/** Compact active-segment label for inline pipeline bars. */
+export function pipelineActiveBarSegmentLabel(status: JobTrackerStatus): string | null {
+  switch (status) {
+    case "CAPTURED":
+      return "Optimizing resume";
+    case "RESUME_READY":
+    case "READY_TO_APPLY":
+      return "Auto Suggest";
     default:
       return null;
   }

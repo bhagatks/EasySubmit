@@ -7,18 +7,39 @@ const PRIMARY_MUTED = BRAND_COLORS.primaryMuted.hex;
 export const ENHANCE_PROGRESS_CAPTION = "Enhancing with AI…";
 export const ENHANCE_PROGRESS_CANCEL_LABEL = "Cancel";
 
-export function renderEnhanceProgressOverlay(): string {
-  return `<div class="es-enhance-progress" role="status" aria-live="polite" aria-label="${ENHANCE_PROGRESS_CAPTION}">
+export type BrandProgressOverlayOptions = {
+  caption?: string;
+  showCancel?: boolean;
+};
+
+export function renderEnhanceProgressOverlay(options: BrandProgressOverlayOptions = {}): string {
+  const caption = options.caption ?? ENHANCE_PROGRESS_CAPTION;
+  const showCancel = options.showCancel ?? true;
+  const cancelMarkup = showCancel
+    ? `<button type="button" class="es-enhance-cancel-btn" data-document-enhance-cancel="1">${ENHANCE_PROGRESS_CANCEL_LABEL}</button>`
+    : "";
+
+  return `<div class="es-enhance-progress" role="status" aria-live="polite" aria-label="${caption}">
     <div class="es-enhance-progress-inner">
       <div class="easysubmit-animation-box">
         <div class="es-enhance-wordmark" aria-hidden="true">
           <span class="es-enhance-wordmark-name">${BRAND.name}</span><span class="es-enhance-wordmark-suffix">${BRAND.suffix}</span>
         </div>
         <canvas id="brand-canvas" aria-hidden="true"></canvas>
-        <div id="status-subtext">${ENHANCE_PROGRESS_CAPTION}</div>
+        <div id="status-subtext">${caption}</div>
       </div>
-      <button type="button" class="es-enhance-cancel-btn" data-document-enhance-cancel="1">${ENHANCE_PROGRESS_CANCEL_LABEL}</button>
+      ${cancelMarkup}
     </div>
+  </div>`;
+}
+
+export function wrapContentWithBrandProgressOverlay(
+  content: string,
+  options: BrandProgressOverlayOptions = {},
+): string {
+  return `<div class="es-brand-progress-host">
+    <div class="es-brand-progress-dimmed">${content}</div>
+    ${renderEnhanceProgressOverlay(options)}
   </div>`;
 }
 
@@ -137,6 +158,18 @@ export function enhanceProgressOverlayStyles(): string {
       #brand-canvas {
         opacity: 0.96;
       }
+    }
+    .es-brand-progress-host {
+      position: relative;
+      min-height: 168px;
+    }
+    .es-brand-progress-dimmed {
+      opacity: 0.35;
+      filter: saturate(0.85);
+      pointer-events: none;
+    }
+    .es-brand-progress-host .es-enhance-progress {
+      border-radius: 12px;
     }
   `;
 }

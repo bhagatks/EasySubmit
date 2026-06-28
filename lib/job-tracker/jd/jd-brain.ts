@@ -16,6 +16,7 @@ import type { ResolvedAiRoute } from "@/src/lib/ai/engine/router";
 import { makeEmptyIntelligence } from "@/lib/job-tracker/jd/jd-intelligence";
 import { logEnhance } from "@/src/lib/ai/engine/enhance-logger";
 import { ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
+import type { JdExtractionOptions } from "@/lib/job-tracker/jd/jd-ai-extractor";
 
 export type JDAnalysisInput = {
   rawDescription: string;
@@ -26,6 +27,8 @@ export type JDAnalysisInput = {
   useAi?: boolean;
   /** Shared enhance route — BYOK when vault key exists, else system pool. */
   aiRoute?: ResolvedAiRoute | null;
+  /** Quota + model options for AI JD extraction. */
+  jdExtraction?: JdExtractionOptions;
   traceId?: string;
   userId?: string | null;
 };
@@ -35,6 +38,8 @@ export type JDAnalysisResult = {
   intelligence: JDIntelligence;
   cacheHit: boolean;
   descriptionHash: string;
+  /** True when an AI `generateObject` JD extract call ran (not cache / deterministic-only). */
+  aiCallMade: boolean;
 };
 
 export function hashJobDescription(description: string): string {
@@ -69,6 +74,7 @@ export function analyzeJobDescriptionSync(
         intelligence: makeEmptyIntelligence(),
         cacheHit: false,
         descriptionHash,
+        aiCallMade: false,
       };
     }
 
@@ -76,14 +82,15 @@ export function analyzeJobDescriptionSync(
     const segments = segmentJobDescription(cleaned, jsonLdFields);
     const intelligence = extractJDIntelligenceSync(segments, targetRole);
 
-    return { segments, intelligence, cacheHit: false, descriptionHash };
+    return { segments, intelligence, cacheHit: false, descriptionHash, aiCallMade: false };
   } catch {
-    return {
-      segments: buildSegmentsForEmpty(),
-      intelligence: makeEmptyIntelligence(),
-      cacheHit: false,
-      descriptionHash: hashJobDescription(rawDescription),
-    };
+      return {
+        segments: buildSegmentsForEmpty(),
+        intelligence: makeEmptyIntelligence(),
+        cacheHit: false,
+        descriptionHash: hashJobDescription(rawDescription),
+        aiCallMade: false,
+      };
   }
 }
 
@@ -106,7 +113,13 @@ export async function analyzeJobDescription(
     if (cachedHash === descriptionHash && cachedIntelligence) {
       const { cleaned } = cleanJobDescription(rawDescription);
       const segments = segmentJobDescription(cleaned, jsonLdFields);
-      return { segments, intelligence: cachedIntelligence, cacheHit: true, descriptionHash };
+      return {
+        segments,
+        intelligence: cachedIntelligence,
+        cacheHit: true,
+        descriptionHash,
+        aiCallMade: false,
+      };
     }
 
     if (!rawDescription.trim()) {
@@ -115,6 +128,7 @@ export async function analyzeJobDescription(
         intelligence: makeEmptyIntelligence(),
         cacheHit: false,
         descriptionHash,
+        aiCallMade: false,
       };
     }
 
@@ -122,6 +136,7 @@ export async function analyzeJobDescription(
     const { cleaned } = cleanJobDescription(rawDescription);
     const segments = segmentJobDescription(cleaned, jsonLdFields);
     let intelligence = extractJDIntelligenceSync(segments, targetRole);
+    let aiCallMade = false;
 
     // Run AI enrichment if enabled and system AI is available.
     // Dynamic import keeps the prisma/system-key-pool chain out of the sync module graph.
@@ -135,8 +150,10 @@ export async function analyzeJobDescription(
         input.aiRoute,
         input.traceId ?? "no-trace",
         input.userId,
+        input.jdExtraction ?? {},
       );
       if (aiResult.ok) {
+        aiCallMade = true;
         intelligence = mergeAIIntoIntelligence(intelligence, aiResult.intelligence);
         logEnhance("server", "jd.brain.merge", {
           traceId: input.traceId ?? "no-trace",
@@ -154,13 +171,14 @@ export async function analyzeJobDescription(
       }
     }
 
-    return { segments, intelligence, cacheHit: false, descriptionHash };
+    return { segments, intelligence, cacheHit: false, descriptionHash, aiCallMade };
   } catch {
     return {
       segments: buildSegmentsForEmpty(),
       intelligence: makeEmptyIntelligence(),
       cacheHit: false,
       descriptionHash: hashJobDescription(input.rawDescription),
+      aiCallMade: false,
     };
   }
 }

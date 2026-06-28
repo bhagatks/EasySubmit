@@ -141,6 +141,7 @@ export async function runPipelineTailor(
     jobEntryId: input.entryId,
     form: baseForm,
     targetRole: jobTitle,
+    profileTargetTitle: baseTargetTitle,
     jobDescription: input.jobDescription!.trim(),
     rawResumeText: source.resumeRawText,
     traceId,
@@ -199,6 +200,7 @@ export async function runPipelineTailor(
     jobDescription: input.jobDescription!.trim(),
     enhanceTraceId: traceId,
     traceId,
+    enhanceMeta: enhanced.sessionMeta,
   });
 
   if (!persist.success) {

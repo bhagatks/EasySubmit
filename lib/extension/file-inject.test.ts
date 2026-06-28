@@ -36,7 +36,7 @@ describe("file-inject", () => {
           length: this.fileList.length,
           item: (index: number) => this.fileList[index] ?? null,
           0: this.fileList[0],
-        } as FileList;
+        } as unknown as FileList;
       }
     }
 

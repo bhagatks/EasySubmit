@@ -4,6 +4,8 @@
 
 Next.js 14 (App Router) web app + future Chrome extension (MV3). Primary entry after login: `/onboarding`. Marketing site at `/`.
 
+**Screen inventory:** [`docs/SCREENS.md`](./SCREENS.md) — all routes, sidebar labels, Review Screen tabs, extension surfaces, and overlays.
+
 ## Data model
 
 Postgres (Prisma) + Supabase Vault BYOK + client Zustand stores. Login identity (`users`) is separate from career data (`profiles` + `content` JSONB). Job search tracking: `job_tracker_entries` (`JobTrackerEntry`) — see [`docs/JOB_TRACKER.md`](./JOB_TRACKER.md). Per-table audit: [`docs/TABLE_INVENTORY.md`](./TABLE_INVENTORY.md).
@@ -182,6 +184,30 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 
 | Date | Summary |
 |------|---------|
+| 2026-06-28 | **BYOK health + trace accuracy** — `key_invalid` no longer fires when recent BYOK calls include successes; quota errors excluded from key-error health; `enhance:trace` reports partial success when resume enhanced but JD extract failed. |
+| 2026-06-28 | **Gemini model policy + 503 resilience** — JD extract defaults to `gemini-2.5-flash-lite`; resume `generateText` uses `gemini-2.5-flash` with jittered 503 backoff (5×, 2s–45s) and `flash-lite` fallback + prompt clip; system pool resume calls use `route.modelId` not slot model. |
+| 2026-06-28 | **PostHog action events** — pricing CTAs, plan selection, tutorials, ATS score/guidelines, document export, studio tabs, settings sections — see `docs/analytics-option-a.md` |
+| 2026-06-28 | **PostHog screen coverage** — `screen_viewed` on every route + overlay via `trackScreenView` / `trackScreenOverlay` (`src/shared/analytics/screen-events.ts`); pairs with `[ScreenDiag]` — see [`SCREENS.md`](./SCREENS.md) |
+| 2026-06-28 | **Screen diagnostics** — `[ScreenDiag]` high/low/light on every route + overlay (`screen-diagnostics.ts`, `ScreenDiagnosticsTracker`); catalog in [`SCREENS.md`](./SCREENS.md) |
+| 2026-06-28 | **Screen inventory** — [`docs/SCREENS.md`](./SCREENS.md): canonical routes, sidebar labels, Review Screen tabs, extension surfaces; linked from FLOW, ARCHITECTURE, PROJECT_STATE |
+| 2026-06-28 | **BYOK enhance observability** — customer-route model failures now write `api_call_logs` + `[EnhanceDiag]`; `enhanceMeta` persists `aiAttempted`/`aiSucceeded`/`warning`; routing respects `forceSystem` / `aiSourcePreference=system` over vault key |
+| 2026-06-28 | **JD Brain extract fix** — system pool uses `jdExtractionModelId` (not slot resume model) for `generateObject`; Gemini BYOK routes JD extract to utility model; text+JSON fallback on parse fail; extension pipeline persists `enhanceMeta`. |
+| 2026-06-28 | **Enhance diagnostic logging** — `[EnhanceDiag]` per-transaction logs with JD/resume/gate tracks, G1–G6 gate params, `app_config.enhanceDiagnostics` threshold (`light`/`low`/`high`); documented in [`enhance-pipeline-design.md`](./enhance-pipeline-design.md) observability section. |
+| 2026-06-27 | **Enhance QA playbook** — [`docs/enhance-qa-playbook.md`](./enhance-qa-playbook.md): repeated AI on/off review protocol, defect registry (D-01–D-22), Case 001 findings, phased fix plan. |
+| 2026-06-27 | **Enhance QA fixes (Phases 1–6)** — skill filter (`jd-skill-filter.ts`), summary identity/grounding, coherence warnings + ATS cap on cross-domain, domain signals (procurement/medtech), Case 001 regression test; Review UI shows AI-off confirm + coherence notes. |
+| 2026-06-27 | **Cross-domain summary builder** — `cross-domain-summary.ts`: identity + resume-native skills + experience-anchored transferable bridge; JD keywords skills-section only (Rezi/ResumeAdapter career-bridge model). |
+| 2026-06-27 | **AI-off enhance polish** — generic profile title defers to experience role; metric bullet selection (`summary-bullet-pick.ts`); cross-domain JD skills capped (6) with min resume-native slots (5); summary S3/S4 truncation fixes. |
+| 2026-06-27 | Extension scrape loading — popup THIS TAB + GET_TAB_STATUS aligned; API intercept + SPA URL change refresh in-place loading |
+| 2026-06-27 | Extension card — show Reading job details loading state until JD scrape enables Apply (not disabled button + hint) |
+| 2026-06-27 | Extension scrape — reject generic hub titles (`Jobs`, `Careers`, etc.) so card/popup no longer show browse-page nav labels as role names |
+| 2026-06-27 | Extension apply + profile setup — resume interrupted apply after mandatory profile setup finishes (`pendingApplyAfterProfileSetup`) |
+| 2026-06-27 | Extension popup polish — card-matched brand bar, lite frame shell, header icon actions; redundant footer Settings + Open Job Tracker removed |
+| 2026-06-27 | Extension popup Part 2 — launcher redesign (account chip, THIS TAB, stats via `GET_JOB_STATS`, settings link; one-click toggle removed) |
+| 2026-06-27 | Extension Part 1 — force-show → manual capture (Save to tracker CTA, no_job Add manually, loading timeout → manual, `GET_TAB_STATUS` for popup) |
+| 2026-06-27 | Extension popup v1 redesign spec — competitor research + state-machine UI in `docs/EXTENSION_POPUP_REDESIGN.md` (no one-click toggle) |
+| 2026-06-27 | Product decision — one-click apply **will not ship**; see `docs/decisions.md` |
+| 2026-06-27 | Settings proactive expansion — pending action items (missing API key, AI off, incomplete name) auto-expand their section on `/dashboard/settings`; logic in `lib/dashboard/settings-action-items.ts` |
+| 2026-06-27 | JD AI observability — `callEnhanceObjectModel` → `api_call_logs` (`ai.enhance.generate_object`); JD extract quota pre-check + `aiCallsToday` increment; `aiEngine.system.jdExtractionModelId` (BYOK uses vaulted model) |
 | 2026-06-27 | Extension install prompt config — `app_config.extensionInstallPrompt` trigger flags (`dashboardVisit`, `tabFocusReturn`, `periodicRefresh`, all default `false`); `DashboardSetupPrompts` + session dismiss on Skip; `?setup=1` always → tutorials; logic in `lib/dashboard/extension-install-prompt-triggers.ts` |
 | 2026-06-27 | PostHog mirrors every `api_call_logs` row as `api_call_logged`; extension emits `ui_interaction` on card clicks — see `docs/analytics-option-a.md` |
 | 2026-06-27 | `run easy` / `run easy prod` — shared pipeline adds `npm test`, `build:extension`, `npm run posthog:journey` (non-blocking); see `docs/ENV.md` |
@@ -223,6 +249,7 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 | 2026-06-25 | Extension auto-applied fix — confirmation watch only on apply/thank-you URLs; job posting pages no longer false-positive to APPLIED while READY_TO_APPLY |
 | 2026-06-25 | Extension apply gate — `isExtensionApplyBlockedByAiHealth` disables **Apply with EasySubmit.ai** on AI health errors; capture/tailor/pipeline APIs return 403 until fixed |
 | 2026-06-25 | Extension card header — refresh icon re-fetches config, journey status, and resume profiles without a full page reload |
+| 2026-06-28 | BYOK AI health — ignore ApiCallLog + last-job key failures before active vault key `updatedAt`; lookup cutoff by `activeProvider` (fixes stale banner after Replace key); sync `users.vaultKeyId` when replacing active provider; Settings refreshes AI health after vault save |
 | 2026-06-25 | Extension AI health — refresh runtime config on tab focus/visibility so dashboard settings fixes clear the card banner without a full page reload |
 | 2026-06-25 | Extension AI health — red text banner below card header (right-aligned message + dashboard fix link); header icon removed |
 | 2026-06-25 | AI health alert placement — dashboard header rightmost; extension card grip order resume → refresh → settings → close |

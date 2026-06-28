@@ -26,13 +26,13 @@ const baseForm = {
   linkedIn: "",
   professionalSummary: "",
   skillsText: "",
-  skills: [],
   experience: [],
   education: [],
   certifications: [],
   projects: [],
   languages: [],
   customSections: [],
+  pageLengthPreference: "auto" as const,
 };
 
 const pipelineSuccess = {

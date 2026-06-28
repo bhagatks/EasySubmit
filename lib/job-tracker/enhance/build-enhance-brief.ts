@@ -29,6 +29,11 @@ import { inferResumePagesFromForm } from "@/src/lib/ai/engine/candidate-context"
 import type { ResolvedAiRoute } from "@/src/lib/ai/engine/router";
 import { logEnhance } from "@/src/lib/ai/engine/enhance-logger";
 import { ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
+import { logEnhanceDiag } from "@/src/lib/ai/engine/enhance-diagnostics";
+import { resolveQuotaRowWithReset, type SystemQuotaUserRow } from "@/src/lib/ai/engine/system-quota-gate";
+import { getAppConfig } from "@/src/lib/services/config-service";
+import { resolveJdExtractionSystemModel } from "@/src/lib/services/ai-engine-config";
+import { resolveSummaryIdentity } from "@/lib/job-tracker/enhance/resolve-summary-identity";
 
 export type BuildEnhanceBriefInput = {
   form: HubRefineryForm;
@@ -39,8 +44,12 @@ export type BuildEnhanceBriefInput = {
   variant: NonNullable<EnhanceResumeProfileInput["variant"]>;
   traceId: string;
   userId: string;
+  /** User row for JD extract quota pre-check (optional — skips when absent). */
+  quotaUser?: SystemQuotaUserRow | null;
   /** Shared enhance AI route for JD extraction (null → deterministic JD only). */
   aiRoute?: ResolvedAiRoute | null;
+  /** User profile target title — identity anchor (not JD job title). */
+  profileTargetTitle?: string;
 };
 
 function countMashedRoles(form: HubRefineryForm): number {
@@ -130,6 +139,27 @@ export async function buildEnhanceBrief(
     surface: input.surface,
   });
 
+  logEnhanceDiag({
+    traceId: input.traceId,
+    designStep: "9",
+    track: "resume",
+    pipelineStep: ENHANCE_PIPELINE.PRE_BRIEF_START,
+    phase: "start",
+    level: "high",
+    event: "brief.start",
+    scope: "server",
+    userId: input.userId,
+    surface: input.surface,
+    variant: input.variant,
+    params: {
+      hasJd,
+      targetRole: input.targetRole,
+      jobDescriptionChars: trimmedJd.length,
+      summaryValid: !summaryValidation.sentenceError && !summaryValidation.wordError,
+      skillsCount: skillsList.length,
+    },
+  });
+
   const pages = inferResumePagesFromForm(input.form, input.targetRole);
   const onet = await fetchRoleVocabulary(input.targetRole);
 
@@ -138,6 +168,23 @@ export async function buildEnhanceBrief(
     userId: input.userId,
     step: ENHANCE_PIPELINE.PRE_ONET_FETCH,
     matchedTitle: onet.matchedTitle,
+  });
+
+  logEnhanceDiag({
+    traceId: input.traceId,
+    designStep: "3",
+    track: "resume",
+    pipelineStep: ENHANCE_PIPELINE.PRE_ONET_FETCH,
+    phase: "done",
+    level: "low",
+    event: "brief.onet",
+    scope: "server",
+    userId: input.userId,
+    params: {
+      matchedTitle: onet.matchedTitle,
+      onetSkills: onet.skills.length,
+      onetTools: onet.tools.length,
+    },
   });
 
   let jobIntelligence = await analyzeJobIntelligenceWithOnet(
@@ -160,10 +207,35 @@ export async function buildEnhanceBrief(
 
   jobIntelligence = { ...jobIntelligence, weakBullets };
 
+  logEnhanceDiag({
+    traceId: input.traceId,
+    designStep: "6",
+    track: "resume",
+    pipelineStep: ENHANCE_PIPELINE.PRE_BULLET_QUALITY,
+    phase: "done",
+    level: "low",
+    event: "brief.bullet_quality",
+    scope: "server",
+    userId: input.userId,
+    params: {
+      weakBulletCount: weakBullets.length,
+      structuralWarnings: jobIntelligence.structuralWarnings.length,
+    },
+  });
+
   let jdSlice: ResumeEnhanceBrief["jd"];
+  let jdAiCallCount = 0;
 
   if (hasJd) {
     const caches = await loadJdCaches(input.jobEntryId);
+    const aiEngine = input.aiRoute ? await getAppConfig("aiEngine") : null;
+    const quotaContext =
+      input.quotaUser && aiEngine
+        ? {
+            quotaRow: resolveQuotaRowWithReset(input.quotaUser).quotaRow,
+            aiEngine,
+          }
+        : undefined;
 
     const jdSkillsVocabulary = await fetchJdSkillsVocabulary({
       jobDescription: trimmedJd,
@@ -182,14 +254,66 @@ export async function buildEnhanceBrief(
       providers: jdSkillsVocabulary.providersUsed,
     });
 
+    logEnhanceDiag({
+      traceId: input.traceId,
+      designStep: "8",
+      track: "jd",
+      pipelineStep: ENHANCE_PIPELINE.PRE_JD_SKILLS,
+      phase: "done",
+      level: "low",
+      event: "brief.jd_skills",
+      scope: "server",
+      userId: input.userId,
+      flags: {
+        skillsCacheHit: jdSkillsVocabulary.source === "cache",
+        aiRouteAvailable: Boolean(input.aiRoute),
+      },
+      params: {
+        skillsCount: jdSkillsVocabulary.skills.length,
+        source: jdSkillsVocabulary.source,
+        providers: jdSkillsVocabulary.providersUsed,
+      },
+    });
+
     const jdResult = await analyzeJobDescription({
       rawDescription: trimmedJd,
       targetRole: input.targetRole,
       cachedIntelligence: caches.jdIntelligence,
       cachedHash: caches.jdHash,
       aiRoute: input.aiRoute ?? null,
+      jdExtraction: quotaContext
+        ? {
+            quotaContext,
+            systemJdModelId: resolveJdExtractionSystemModel(aiEngine!),
+          }
+        : input.aiRoute && aiEngine
+          ? { systemJdModelId: resolveJdExtractionSystemModel(aiEngine) }
+          : undefined,
       traceId: input.traceId,
       userId: input.userId,
+    });
+    jdAiCallCount = jdResult.aiCallMade ? 1 : 0;
+
+    logEnhanceDiag({
+      traceId: input.traceId,
+      designStep: "8",
+      track: "jd",
+      pipelineStep: ENHANCE_PIPELINE.PRE_JD_BRAIN,
+      phase: "done",
+      level: "low",
+      event: "brief.jd_brain",
+      scope: "server",
+      userId: input.userId,
+      flags: {
+        jdCacheHit: jdResult.cacheHit,
+        jdAiCallMade: jdResult.aiCallMade,
+      },
+      params: {
+        domain: jdResult.intelligence.domain,
+        tier1Count: jdResult.intelligence.tier1Keywords.length,
+        tier2Count: jdResult.intelligence.tier2Keywords.length,
+        mustHaveSkills: jdResult.intelligence.mustHaveSkills.length,
+      },
     });
 
     const directive = buildResumeEnhanceDirective(
@@ -203,6 +327,40 @@ export async function buildEnhanceBrief(
       jdResult.intelligence,
       input.targetRole,
     );
+
+    logEnhanceDiag({
+      traceId: input.traceId,
+      designStep: "4",
+      track: "jd",
+      pipelineStep: ENHANCE_PIPELINE.PRE_KEYWORD_GAP,
+      phase: "done",
+      level: "low",
+      event: "brief.keyword_gap",
+      scope: "server",
+      userId: input.userId,
+      params: {
+        coveragePercent: keywordGap.coveragePercent,
+        topMissing: keywordGap.topMissing.slice(0, 8),
+        missingCount: keywordGap.missing.length,
+      },
+    });
+
+    logEnhanceDiag({
+      traceId: input.traceId,
+      designStep: "10",
+      track: "jd",
+      pipelineStep: ENHANCE_PIPELINE.PRE_JD_DIRECTIVE,
+      phase: "done",
+      level: "low",
+      event: "brief.directive",
+      scope: "server",
+      userId: input.userId,
+      params: {
+        mustAddSkills: directive.mustAddSkills.slice(0, 12),
+        mustRemoveSkills: directive.mustRemoveSkills.slice(0, 8),
+        effectiveTargetRole: directive.effectiveTargetRole,
+      },
+    });
 
     const atoms = buildJdAtomList(jdResult.intelligence, directive, jdSkillsVocabulary);
     const anchorScores = scoreBulletAnchors(input.form, atoms);
@@ -255,6 +413,23 @@ export async function buildEnhanceBrief(
     input.targetRole,
   );
 
+  const jdKeywords = hasJd && jdSlice
+    ? [
+        ...jdSlice.intelligence.tier1Keywords,
+        ...jdSlice.intelligence.tier2Keywords,
+        ...jdSlice.directive.mustAddSkills,
+      ]
+    : [];
+
+  const summaryIdentity = resolveSummaryIdentity({
+    profileTargetTitle: input.profileTargetTitle,
+    form: input.form,
+    currentSummary: summaryText,
+    jdTargetRole: input.targetRole,
+    jdKeywords,
+    jdDomain: jdSlice?.intelligence.domain,
+  });
+
   const jdSkills = hasJd && jdSlice ? jdSlice.directive.mustAddSkills.slice(0, 20) : [];
 
   const brief: ResumeEnhanceBrief = {
@@ -264,6 +439,7 @@ export async function buildEnhanceBrief(
     targetRole: input.targetRole,
     hasJd,
     jobEntryId: input.jobEntryId,
+    jdAiCallCount,
     structural: {
       warnings: jobIntelligence.structuralWarnings,
       mashedRolesFound: countMashedRoles(input.form),
@@ -301,6 +477,7 @@ export async function buildEnhanceBrief(
     onet,
     readiness,
     plan,
+    summaryIdentity,
   };
 
   logEnhance("server", "pre.brief.ready", {
@@ -310,6 +487,27 @@ export async function buildEnhanceBrief(
     readiness: readiness.total,
     coverageBefore: jdSlice?.coverageBefore.coveragePercent ?? null,
     gapsCount: jdSlice?.coverageBefore.gaps.length ?? 0,
+  });
+
+  logEnhanceDiag({
+    traceId: input.traceId,
+    designStep: "9",
+    track: "resume",
+    pipelineStep: ENHANCE_PIPELINE.PRE_BRIEF_READY,
+    phase: "done",
+    level: "high",
+    event: "brief.ready",
+    scope: "server",
+    userId: input.userId,
+    params: {
+      readiness: readiness.total,
+      coverageBefore: jdSlice?.coverageBefore.coveragePercent ?? null,
+      gapsCount: jdSlice?.coverageBefore.gaps.length ?? 0,
+      jdAiCallCount,
+      isCrossDomain: summaryIdentity.isCrossDomain,
+      summaryIdentity: summaryIdentity.identity,
+      skillsToAdd: plan.skillsToAdd.length,
+    },
   });
 
   return brief;

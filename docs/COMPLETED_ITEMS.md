@@ -1,5 +1,8 @@
 | Date | Item |
 |------|------|
+| 2026-06-27 | Enhance QA fixes (Phases 1–6) — `jd-skill-filter`, `resolveSummaryIdentity`, `summary-grounding`, coherence warnings + cross-domain ATS cap, Review UI AI-off confirm; Case 001 regression test (`enhance-qa-case-001.test.ts`); playbook D-01–D-22 marked done |
+| 2026-06-27 | Extension popup Part 2 — launcher UI + `GET_JOB_STATS` API + one-click toggle removed |
+| 2026-06-27 | JD AI observability — `callEnhanceObjectModel` writes `api_call_logs` (`ai.enhance.generate_object`); JD extract pre-checks system/customer quota; JD calls count toward `aiCallsToday`; `app_config.aiEngine.system.jdExtractionModelId` for system pool (BYOK keeps vaulted model) |
 | 2026-06-27 | Extension install prompt — opt-in `app_config.extensionInstallPrompt` triggers (`dashboardVisit`, `tabFocusReturn`, `periodicRefresh`); session dismiss on Skip; `?setup=1` → tutorials on all exits; `lib/dashboard/extension-install-prompt-triggers.ts` + tests |
 | 2026-06-27 | North-star resume enhance — JDSkillsFramework (deterministic + optional ESCO), 3-phase pipeline (`runResumeEnhancePipeline`), soft AI gates (baseline always succeeds), grouped skills, coverage panel, extension warning UX, analytics + pipeline logs; migration `20260627120000_north_star_jd_skills_enhance_meta` |
 | 2026-06-27 | Product analytics Option A — PostHog events (login, onboarding, review, enhance, extension, BYOK), Pino logging, `docs/analytics-option-a.md`, dashboard setup script |

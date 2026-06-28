@@ -257,7 +257,7 @@ async function reportPostHog() {
         projectId,
         `SELECT count(), max(timestamp) FROM events WHERE event='${event}' AND timestamp > now() - INTERVAL 7 DAY`,
       );
-      out[event] = results?.[0]?.[0] ?? 0;
+      out[event] = (results?.[0]?.[0] as string | number) ?? 0;
     }
     return out;
   }
@@ -271,7 +271,7 @@ async function reportPostHog() {
   if (prodId !== devProjectId) {
     try {
       const prodCounts = await countsForProject(prodId);
-      const prodTotal = Object.values(prodCounts).reduce((a, b) => a + Number(b), 0);
+      const prodTotal = Object.values(prodCounts).reduce<number>((a, b) => a + Number(b), 0);
       if (prodTotal > 0) {
         console.log(`\nNote: events in prod project ${prodId} — NEXT_PUBLIC_POSTHOG_KEY may target prod, not dev ${devProjectId}`);
         for (const [event, count] of Object.entries(prodCounts)) {

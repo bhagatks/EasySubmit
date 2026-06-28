@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { canApplyCapture, applyCaptureBlockReason } from "@/src/shared/extension/apply-gate";
+import {
+  canApplyCapture,
+  canManualCaptureSave,
+  applyCaptureBlockReason,
+  manualCaptureBlockReason,
+} from "@/src/shared/extension/apply-gate";
 
 describe("canApplyCapture", () => {
   it("requires url and description >= 120 chars", () => {
@@ -12,5 +17,24 @@ describe("canApplyCapture", () => {
 
   it("returns helpful block reason", () => {
     expect(applyCaptureBlockReason({ url: "", description: "" })).toMatch(/job URL/i);
+  });
+});
+
+describe("canManualCaptureSave", () => {
+  it("requires url, description, and role title", () => {
+    const base = { url: "https://jobs.example.com/1", description: "x".repeat(120) };
+    expect(canManualCaptureSave({ ...base, title: "Senior Engineer" })).toBe(true);
+    expect(canManualCaptureSave({ ...base, title: "" })).toBe(false);
+    expect(canManualCaptureSave({ ...base, title: "A" })).toBe(false);
+  });
+
+  it("returns role block reason after url and description pass", () => {
+    expect(
+      manualCaptureBlockReason({
+        url: "https://jobs.example.com/1",
+        description: "x".repeat(120),
+        title: "",
+      }),
+    ).toMatch(/role title/i);
   });
 });

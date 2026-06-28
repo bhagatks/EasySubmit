@@ -41,13 +41,18 @@ import {
 import { StudioCollapsibleSection } from "@/components/resume/StudioCollapsibleSection";
 import { SettingsVaultKeysPanel } from "@/components/dashboard/SettingsVaultKeysPanel";
 import { isClientAiGloballyEnabled } from "@/lib/ai/ai-global-enabled";
+import {
+  buildSettingsSectionExpansion,
+  resolveSettingsActionItems,
+  SETTINGS_SECTION_IDS,
+  settingsSectionHasActionItems,
+} from "@/lib/dashboard/settings-action-items";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { trackSettingsSectionViewed } from "@/src/shared/analytics";
 import { cn } from "@/lib/utils";
 
 const PROFILE_SAVE_DEBOUNCE_MS = 600;
-
-const SETTINGS_SECTION_IDS = ["account", "ai-keys", "general"];
 
 type AccountSettingsProps = {
   initial: AccountSettingsSnapshot;
@@ -244,7 +249,36 @@ export function AccountSettings({ initial, initialVaultKeys }: AccountSettingsPr
   const [avatarImage, setAvatarImage] = useState(initial.image);
   const { openDocument, overlay, open } = useLegalDocumentOverlay();
 
-  const { expanded, toggleSection } = useDashboardExpandAllControl([...SETTINGS_SECTION_IDS]);
+  const actionItems = useMemo(
+    () =>
+      resolveSettingsActionItems({
+        vaultKeyId: initial.vaultKeyId,
+        aiSourcePreference: initial.aiSourcePreference,
+        firstName: initial.firstName,
+        aiGloballyEnabled: isClientAiGloballyEnabled(),
+      }),
+    [initial.aiSourcePreference, initial.firstName, initial.vaultKeyId],
+  );
+
+  const defaultExpandedSections = useMemo(
+    () => buildSettingsSectionExpansion(SETTINGS_SECTION_IDS, actionItems),
+    [actionItems],
+  );
+
+  const { expanded, toggleSection } = useDashboardExpandAllControl(
+    [...SETTINGS_SECTION_IDS],
+    { defaultExpandedSections },
+  );
+
+  const loggedSettingsSectionsRef = useRef(new Set<string>());
+
+  useEffect(() => {
+    for (const sectionId of SETTINGS_SECTION_IDS) {
+      if (!expanded[sectionId] || loggedSettingsSectionsRef.current.has(sectionId)) continue;
+      loggedSettingsSectionsRef.current.add(sectionId);
+      trackSettingsSectionViewed(sectionId);
+    }
+  }, [expanded]);
 
   useEffect(() => {
     if (appliedAiSourceParam.current) return;
@@ -456,6 +490,7 @@ export function AccountSettings({ initial, initialVaultKeys }: AccountSettingsPr
             onToggle={() => toggleSection("account")}
             variant="dashboard"
             showDragHandle={false}
+            hasError={settingsSectionHasActionItems("account", actionItems)}
           >
             <div className="space-y-4">
               <AvatarUploadField
@@ -523,6 +558,7 @@ export function AccountSettings({ initial, initialVaultKeys }: AccountSettingsPr
             onToggle={() => toggleSection("ai-keys")}
             variant="dashboard"
             showDragHandle={false}
+            hasError={settingsSectionHasActionItems("ai-keys", actionItems)}
           >
             <div className="space-y-4">
               <SettingToggleRow

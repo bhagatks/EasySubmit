@@ -39,4 +39,15 @@ export {
   trackByokHandshakeSucceeded,
   trackByokHandshakeFailed,
   trackByokKeySaved,
+  trackPricingCtaClicked,
+  trackPlanSelected,
+  trackTutorialPlayed,
+  trackAtsScoreViewed,
+  trackAtsGuidelinesSectionViewed,
+  trackResumeExported,
+  trackStudioTabChanged,
+  trackSettingsSectionViewed,
+  type PricingAnalyticsSurface,
 } from "@/src/shared/analytics/product-events";
+
+export { trackScreenOverlay, trackScreenView } from "@/src/shared/analytics/screen-events";

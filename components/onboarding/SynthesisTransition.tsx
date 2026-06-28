@@ -11,6 +11,7 @@ import {
 } from "@/components/onboarding/PrimeResume";
 import { GlossyFullscreenShell } from "@/components/ui/glossy-fullscreen-shell";
 import { cn } from "@/lib/utils";
+import { trackScreenOverlay } from "@/src/shared/analytics";
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
@@ -287,6 +288,8 @@ export function SynthesisTransition({
       completedRef.current = false;
       return;
     }
+
+    trackScreenOverlay("synthesis_transition", { route: "/onboarding" });
 
     const holdMs = Math.max(durationMs, MIN_SYNTHESIS_MS);
 

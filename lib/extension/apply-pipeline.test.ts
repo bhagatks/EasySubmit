@@ -57,6 +57,7 @@ describe("runApplyPipeline", () => {
       autoApplyUserSwitch: true,
       resumeProfilePickerMode: "DEFAULT",
       customizeResume: true,
+      aiSourcePreference: "auto",
       applicationProfile: null,
     });
     vi.mocked(prisma.jobTrackerEntry.findFirst).mockResolvedValue(null);
@@ -194,6 +195,7 @@ describe("runApplyPipeline", () => {
       autoApplyUserSwitch: true,
       resumeProfilePickerMode: "DEFAULT",
       customizeResume: false,
+      aiSourcePreference: "auto",
       applicationProfile: null,
     });
     vi.mocked(saveJobTrackerEntry).mockResolvedValue({
@@ -230,6 +232,7 @@ describe("runApplyPipeline", () => {
       autoApplyUserSwitch: false,
       resumeProfilePickerMode: "DEFAULT",
       customizeResume: true,
+      aiSourcePreference: "auto",
       applicationProfile: null,
     });
     vi.mocked(saveJobTrackerEntry).mockResolvedValue({

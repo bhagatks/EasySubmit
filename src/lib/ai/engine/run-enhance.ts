@@ -1,4 +1,3 @@
-import { generateObject, generateText } from "ai";
 import type { z } from "zod";
 import { withVaultDecryptedSecret } from "@/lib/vault/decrypt-vault-secret";
 import { createAiSdkLanguageModel } from "@/src/lib/ai/ai-sdk-provider";
@@ -28,6 +27,11 @@ import {
   summarizeFormDelta,
   truncateForJourneyLog,
 } from "@/src/lib/ai/engine/enhance-logger";
+import { logEnhanceDiag } from "@/src/lib/ai/engine/enhance-diagnostics";
+import {
+  generateStructuredWithFallback,
+  JD_STRUCTURED_MAX_OUTPUT_TOKENS,
+} from "@/src/lib/ai/engine/structured-extract";
 import { mapEnhanceProviderError } from "@/src/lib/ai/engine/map-enhance-provider-error";
 import {
   executeWithPoolRetry,
@@ -37,8 +41,10 @@ import {
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
 import type { StudioEditorSectionId } from "@/lib/resume/studio-editor-sections";
 import type { JobIntelligence } from "@/lib/job-tracker/ats/job-intelligence";
-import { logApiCall } from "@/src/shared/observability";
-import type { ApiCallStatus } from "@/src/shared/observability";
+import {
+  generateGeminiTextWith503Resilience,
+} from "@/src/lib/ai/engine/gemini-resilience";
+import { logApiCall, type ApiCallStatus } from "@/src/shared/observability";
 
 export type RunEnhanceInput = {
   form: HubRefineryForm;
@@ -111,17 +117,21 @@ function recordEnhanceModelCall(input: {
   errorMessage?: string | null;
   requestPreview?: string | null;
   responsePreview?: string | null;
+  operation?: "ai.enhance.generate_text" | "ai.enhance.generate_object";
+  feature?: "enhance" | "jd_extract";
 }): void {
   const aiMode = input.route.mode;
   const provider =
     input.route.mode === "customer" ? input.route.provider : "gemini";
   const modelId = input.poolCall?.modelId ?? input.route.modelId;
+  const operation = input.operation ?? "ai.enhance.generate_text";
+  const feature = input.feature ?? "enhance";
 
   logApiCall({
     traceId: input.traceId,
     userId: input.userId,
     domain: "ai",
-    operation: "ai.enhance.generate_text",
+    operation,
     provider,
     modelId,
     status: input.status,
@@ -138,13 +148,86 @@ function recordEnhanceModelCall(input: {
     errorMessage: input.errorMessage,
     metadata: {
       pass: input.pass,
-      feature: "enhance",
+      feature,
       aiUsed: true,
       aiCallStatus: input.status === "success" ? "success" : "failure",
       requestPreview: truncateForJourneyLog(input.requestPreview),
       responsePreview: truncateForJourneyLog(input.responsePreview ?? input.errorMessage),
     },
   });
+}
+
+const VAULT_DECRYPT_USER_MESSAGE = "Could not decrypt your API key. Update it in AI Keys.";
+
+function isVaultDecryptUserError(err: unknown): boolean {
+  return err instanceof Error && err.message === VAULT_DECRYPT_USER_MESSAGE;
+}
+
+function logCustomerModelCallFailure(input: {
+  route: ResolvedAiRoute & { mode: "customer" };
+  traceId: string;
+  userId?: string | null;
+  pass: "generate" | "optimize";
+  passStartedAt: number;
+  requestPreview: string;
+  err: unknown;
+  operation?: "ai.enhance.generate_text" | "ai.enhance.generate_object";
+  feature?: "enhance" | "jd_extract";
+  logEvent: "model.call.error" | "model.object.error";
+}): string {
+  const status = (input.err as { status?: number })?.status;
+  const message = input.err instanceof Error ? input.err.message : String(input.err);
+  const mapped = mapEnhanceProviderError(input.err, { aiMode: "customer" });
+  const errorCode = mapped.code;
+
+  logEnhance("engine", input.logEvent, {
+    traceId: input.traceId,
+    pass: input.pass,
+    journey: input.feature === "jd_extract" ? undefined : RESUME_JOURNEY.AI_UPGRADE,
+    aiUsed: true,
+    aiCallStatus: "failure",
+    durationMs: Date.now() - input.passStartedAt,
+    status: status ?? null,
+    message,
+    errorCode,
+    responsePreview: message,
+  });
+  recordEnhanceModelCall({
+    route: input.route,
+    traceId: input.traceId,
+    userId: input.userId,
+    pass: input.pass,
+    durationMs: Date.now() - input.passStartedAt,
+    status: /timeout/i.test(message) ? "timeout" : "error",
+    httpStatus: status ?? null,
+    errorCode,
+    errorMessage: message,
+    requestPreview: input.requestPreview,
+    responsePreview: message,
+    operation: input.operation,
+    feature: input.feature,
+  });
+  logEnhanceDiag({
+    traceId: input.traceId,
+    designStep: "13",
+    track: "engine",
+    pipelineStep: ENHANCE_PIPELINE.ENGINE_ERROR,
+    phase: "fail",
+    level: "high",
+    event: "engine.model.call.error",
+    scope: "engine",
+    userId: input.userId,
+    errorCode,
+    errorMessage: message,
+    flags: {
+      routeMode: "customer",
+      provider: input.route.provider,
+      pass: input.pass,
+      httpStatus: status ?? null,
+    },
+  });
+
+  return errorCode;
 }
 
 const RESUME_DRAFT_TEMPERATURE = 0.1;
@@ -183,25 +266,105 @@ export async function callEnhanceModel(
     userPromptChars: prompt.length,
     requestPreview,
   });
+  logEnhanceDiag({
+    traceId,
+    designStep: "13",
+    track: "engine",
+    pipelineStep:
+      pass === "generate"
+        ? ENHANCE_PIPELINE.ENGINE_PASS_GENERATE
+        : ENHANCE_PIPELINE.ENGINE_PASS_OPTIMIZE,
+    phase: "start",
+    level: "low",
+    event: "engine.model.call.start",
+    scope: "engine",
+    userId,
+    flags: {
+      routeMode: route.mode,
+      provider: route.mode === "customer" ? route.provider : "gemini",
+      pass,
+      preferredSlot: preferredSlot ?? null,
+    },
+    params: {
+      systemPromptChars: system.length,
+      userPromptChars: prompt.length,
+    },
+  });
 
   if (route.mode === "customer") {
-    const vaultRun = await withVaultDecryptedSecret(route.vaultKeyId, async (apiKey) => {
-      const model = createAiSdkLanguageModel(route.provider, apiKey, route.modelId);
-      return generateText({
-        model,
-        system,
-        prompt,
-        maxOutputTokens: 8192,
-        temperature,
+    try {
+      const vaultRun = await withVaultDecryptedSecret(route.vaultKeyId, async (apiKey) => {
+        return generateGeminiTextWith503Resilience({
+          provider: route.provider,
+          apiKey,
+          primaryModelId: route.modelId,
+          system,
+          prompt,
+          maxOutputTokens: 8192,
+          temperature,
+        });
       });
-    });
 
-    if (!vaultRun.ok) {
-      logEnhance("engine", "model.call.error", {
+      if (!vaultRun.ok) {
+        logEnhance("engine", "model.call.error", {
+          traceId,
+          pass,
+          reason: "vault_decrypt_failed",
+          durationMs: Date.now() - passStartedAt,
+        });
+        logEnhanceDiag({
+          traceId,
+          designStep: "13",
+          track: "engine",
+          pipelineStep: ENHANCE_PIPELINE.ENGINE_ERROR,
+          phase: "fail",
+          level: "high",
+          event: "engine.vault_decrypt_failed",
+          scope: "engine",
+          userId,
+          errorCode: "vault_decrypt_failed",
+          errorMessage: "Could not decrypt BYOK API key",
+          flags: {
+            routeMode: route.mode,
+            provider: route.provider,
+            pass,
+          },
+        });
+        recordEnhanceModelCall({
+          route,
+          traceId,
+          userId,
+          pass,
+          durationMs: Date.now() - passStartedAt,
+          status: "error",
+          errorCode: "vault_decrypt_failed",
+          errorMessage: "Could not decrypt BYOK API key",
+          requestPreview,
+          responsePreview: "Could not decrypt BYOK API key",
+        });
+        throw new Error(VAULT_DECRYPT_USER_MESSAGE);
+      }
+
+      const customerResult = {
+        text: vaultRun.result.text,
+        tokensUsed: vaultRun.result.tokensUsed,
+        modelId: vaultRun.result.modelId,
+        estimatedCost: 0,
+      };
+      logEnhance("engine", "model.call.success", {
         traceId,
         pass,
-        reason: "vault_decrypt_failed",
+        journey: RESUME_JOURNEY.AI_UPGRADE,
+        aiUsed: true,
+        aiCallStatus: "success",
         durationMs: Date.now() - passStartedAt,
+        tokensUsed: customerResult.tokensUsed,
+        responseChars: customerResult.text.length,
+        modelId: customerResult.modelId,
+        usedFallbackModel: vaultRun.result.usedFallbackModel,
+        clippedForFallback: vaultRun.result.clippedForFallback,
+        retryCount: vaultRun.result.retryCount,
+        responsePreview: customerResult.text,
       });
       recordEnhanceModelCall({
         route,
@@ -209,54 +372,62 @@ export async function callEnhanceModel(
         userId,
         pass,
         durationMs: Date.now() - passStartedAt,
-        status: "error",
-        errorCode: "vault_decrypt_failed",
-        errorMessage: "Could not decrypt BYOK API key",
+        status: "success",
+        tokensUsed: customerResult.tokensUsed,
+        estimatedCost: customerResult.estimatedCost,
         requestPreview,
-        responsePreview: "Could not decrypt BYOK API key",
+        responsePreview: customerResult.text,
       });
-      throw new Error("Could not decrypt your API key. Update it in AI Keys.");
+      logEnhanceDiag({
+        traceId,
+        designStep: "13",
+        track: "engine",
+        pipelineStep:
+          pass === "generate"
+            ? ENHANCE_PIPELINE.ENGINE_PASS_GENERATE
+            : ENHANCE_PIPELINE.ENGINE_PASS_OPTIMIZE,
+        phase: "done",
+        level: "low",
+        event: "engine.model.call.success",
+        scope: "engine",
+        userId,
+        flags: { routeMode: "customer", provider: route.provider, pass },
+        params: {
+          tokensUsed: customerResult.tokensUsed,
+          responseChars: customerResult.text.length,
+          durationMs: Date.now() - passStartedAt,
+          usedFallbackModel: vaultRun.result.usedFallbackModel,
+          clippedForFallback: vaultRun.result.clippedForFallback,
+          retryCount: vaultRun.result.retryCount,
+        },
+      });
+      return customerResult;
+    } catch (err) {
+      if (isVaultDecryptUserError(err)) {
+        throw err;
+      }
+      logCustomerModelCallFailure({
+        route,
+        traceId,
+        userId,
+        pass,
+        passStartedAt,
+        requestPreview,
+        err,
+        logEvent: "model.call.error",
+      });
+      throw err;
     }
-
-    const customerResult = {
-      text: vaultRun.result.text,
-      tokensUsed: vaultRun.result.usage?.totalTokens ?? 0,
-      modelId: route.modelId,
-      estimatedCost: 0,
-    };
-    logEnhance("engine", "model.call.success", {
-      traceId,
-      pass,
-      journey: RESUME_JOURNEY.AI_UPGRADE,
-      aiUsed: true,
-      aiCallStatus: "success",
-      durationMs: Date.now() - passStartedAt,
-      tokensUsed: customerResult.tokensUsed,
-      responseChars: customerResult.text.length,
-      modelId: customerResult.modelId,
-      responsePreview: customerResult.text,
-    });
-    recordEnhanceModelCall({
-      route,
-      traceId,
-      userId,
-      pass,
-      durationMs: Date.now() - passStartedAt,
-      status: "success",
-      tokensUsed: customerResult.tokensUsed,
-      estimatedCost: customerResult.estimatedCost,
-      requestPreview,
-      responsePreview: customerResult.text,
-    });
-    return customerResult;
   }
 
   try {
+    const executionModelId = route.modelId;
     const poolResult = await executeWithPoolRetry(
-      async ({ apiKey, modelId, slot }) => {
-        const model = createAiSdkLanguageModel("gemini", apiKey, modelId);
-        return generateText({
-          model,
+      async ({ apiKey }) => {
+        return generateGeminiTextWith503Resilience({
+          provider: "gemini",
+          apiKey,
+          primaryModelId: executionModelId,
           system,
           prompt,
           maxOutputTokens: 8192,
@@ -268,14 +439,14 @@ export async function callEnhanceModel(
 
     const systemResult = {
       text: poolResult.result.text,
-      tokensUsed: poolResult.result.usage?.totalTokens ?? 0,
-      modelId: poolResult.modelId,
+      tokensUsed: poolResult.result.tokensUsed,
+      modelId: poolResult.result.modelId,
       estimatedCost: 0,
       poolCall: {
         slot: poolResult.slot,
         label: poolResult.label,
         billingMode: poolResult.billingMode,
-        modelId: poolResult.modelId,
+        modelId: poolResult.result.modelId,
         keySource: poolResult.keySource,
       },
     };
@@ -290,6 +461,9 @@ export async function callEnhanceModel(
       tokensUsed: systemResult.tokensUsed,
       responseChars: systemResult.text.length,
       modelId: systemResult.modelId,
+      usedFallbackModel: poolResult.result.usedFallbackModel,
+      clippedForFallback: poolResult.result.clippedForFallback,
+      retryCount: poolResult.result.retryCount,
       keySlot: poolResult.slot,
       keyLabel: poolResult.label,
       billingMode: poolResult.billingMode,
@@ -307,6 +481,34 @@ export async function callEnhanceModel(
       estimatedCost: systemResult.estimatedCost,
       requestPreview,
       responsePreview: systemResult.text,
+    });
+    logEnhanceDiag({
+      traceId,
+      designStep: "13",
+      track: "engine",
+      pipelineStep:
+        pass === "generate"
+          ? ENHANCE_PIPELINE.ENGINE_PASS_GENERATE
+          : ENHANCE_PIPELINE.ENGINE_PASS_OPTIMIZE,
+      phase: "done",
+      level: "low",
+      event: "engine.model.call.success",
+      scope: "engine",
+      userId,
+      flags: {
+        routeMode: "system",
+        pass,
+        keySlot: poolResult.slot,
+        keyLabel: poolResult.label,
+      },
+      params: {
+        tokensUsed: systemResult.tokensUsed,
+        responseChars: systemResult.text.length,
+        durationMs: Date.now() - passStartedAt,
+        usedFallbackModel: poolResult.result.usedFallbackModel,
+        clippedForFallback: poolResult.result.clippedForFallback,
+        retryCount: poolResult.result.retryCount,
+      },
     });
     return systemResult;
   } catch (err) {
@@ -346,6 +548,25 @@ export async function callEnhanceModel(
       requestPreview,
       responsePreview: message,
     });
+    logEnhanceDiag({
+      traceId,
+      designStep: "13",
+      track: "engine",
+      pipelineStep: ENHANCE_PIPELINE.ENGINE_ERROR,
+      phase: "fail",
+      level: "high",
+      event: "engine.model.call.error",
+      scope: "engine",
+      userId,
+      errorCode,
+      errorMessage: message,
+      flags: {
+        routeMode: route.mode,
+        provider: "system",
+        pass,
+        httpStatus: status ?? null,
+      },
+    });
     throw err;
   }
 }
@@ -367,6 +588,7 @@ export async function callEnhanceObjectModel<T extends z.ZodTypeAny>(
   poolCall?: PoolCallMeta;
 }> {
   const passStartedAt = Date.now();
+  const requestPreview = buildModelCallRequestPreview(system, prompt);
   logEnhance("engine", "model.object.start", {
     traceId,
     step: ENHANCE_PIPELINE.PRE_JD_BRAIN,
@@ -375,82 +597,216 @@ export async function callEnhanceObjectModel<T extends z.ZodTypeAny>(
     preferredSlot: preferredSlot ?? null,
     systemPromptChars: system.length,
     userPromptChars: prompt.length,
+    requestPreview,
   });
 
   if (route.mode === "customer") {
-    const vaultRun = await withVaultDecryptedSecret(route.vaultKeyId, async (apiKey) => {
-      const model = createAiSdkLanguageModel(route.provider, apiKey, route.modelId);
-      return generateObject({
-        model,
-        system,
-        prompt,
-        schema,
-        temperature: 0,
-        maxOutputTokens: 1000,
+    try {
+      const vaultRun = await withVaultDecryptedSecret(route.vaultKeyId, async (apiKey) => {
+        const model = createAiSdkLanguageModel(route.provider, apiKey, route.modelId);
+        return generateStructuredWithFallback({
+          model,
+          system,
+          prompt,
+          schema,
+          maxOutputTokens: JD_STRUCTURED_MAX_OUTPUT_TOKENS,
+        });
       });
-    });
 
-    if (!vaultRun.ok) {
-      throw new Error("Could not decrypt your API key. Update it in AI Keys.");
+      if (!vaultRun.ok) {
+        recordEnhanceModelCall({
+          route,
+          traceId,
+          userId,
+          pass,
+          durationMs: Date.now() - passStartedAt,
+          status: "error",
+          errorCode: "vault_decrypt_failed",
+          errorMessage: "Could not decrypt BYOK API key",
+          requestPreview,
+          responsePreview: "Could not decrypt BYOK API key",
+          operation: "ai.enhance.generate_object",
+          feature: "jd_extract",
+        });
+        throw new Error(VAULT_DECRYPT_USER_MESSAGE);
+      }
+
+      const customerResult = {
+        object: vaultRun.result.object as z.infer<T>,
+        tokensUsed: vaultRun.result.tokensUsed,
+        modelId: route.modelId,
+        estimatedCost: 0,
+        extractMode: vaultRun.result.mode,
+      };
+      const responsePreview = truncateForJourneyLog(JSON.stringify(customerResult.object));
+
+      logEnhance("engine", "model.object.success", {
+        traceId,
+        pass,
+        durationMs: Date.now() - passStartedAt,
+        tokensUsed: customerResult.tokensUsed,
+        modelId: customerResult.modelId,
+        extractMode: customerResult.extractMode,
+      });
+      if (customerResult.extractMode === "text_fallback") {
+        logEnhanceDiag({
+          traceId,
+          designStep: "8",
+          track: "jd",
+          pipelineStep: ENHANCE_PIPELINE.PRE_JD_BRAIN,
+          phase: "done",
+          level: "low",
+          event: "engine.jd_extract.text_fallback",
+          scope: "engine",
+          userId,
+          flags: { routeMode: "customer", provider: route.provider },
+        });
+      }
+      recordEnhanceModelCall({
+        route,
+        traceId,
+        userId,
+        pass,
+        durationMs: Date.now() - passStartedAt,
+        status: "success",
+        tokensUsed: customerResult.tokensUsed,
+        estimatedCost: customerResult.estimatedCost,
+        requestPreview,
+        responsePreview,
+        operation: "ai.enhance.generate_object",
+        feature: "jd_extract",
+      });
+
+      return customerResult;
+    } catch (err) {
+      if (isVaultDecryptUserError(err)) {
+        throw err;
+      }
+      logCustomerModelCallFailure({
+        route,
+        traceId,
+        userId,
+        pass,
+        passStartedAt,
+        requestPreview,
+        err,
+        operation: "ai.enhance.generate_object",
+        feature: "jd_extract",
+        logEvent: "model.object.error",
+      });
+      throw err;
     }
+  }
 
-    const customerResult = {
-      object: vaultRun.result.object as z.infer<T>,
-      tokensUsed: vaultRun.result.usage?.totalTokens ?? 0,
-      modelId: route.modelId,
+  const executionModelId = route.modelId;
+
+  try {
+    const poolResult = await executeWithPoolRetry(
+      async ({ apiKey }) => {
+        const model = createAiSdkLanguageModel("gemini", apiKey, executionModelId);
+        return generateStructuredWithFallback({
+          model,
+          system,
+          prompt,
+          schema,
+          maxOutputTokens: JD_STRUCTURED_MAX_OUTPUT_TOKENS,
+        });
+      },
+      { preferredSlot },
+    );
+
+    const systemResult = {
+      object: poolResult.result.object as z.infer<T>,
+      tokensUsed: poolResult.result.tokensUsed,
+      modelId: executionModelId,
       estimatedCost: 0,
+      poolCall: {
+        slot: poolResult.slot,
+        label: poolResult.label,
+        billingMode: poolResult.billingMode,
+        modelId: executionModelId,
+        keySource: poolResult.keySource,
+      },
     };
+    const responsePreview = truncateForJourneyLog(JSON.stringify(systemResult.object));
 
     logEnhance("engine", "model.object.success", {
       traceId,
       pass,
       durationMs: Date.now() - passStartedAt,
-      tokensUsed: customerResult.tokensUsed,
-      modelId: customerResult.modelId,
+      tokensUsed: systemResult.tokensUsed,
+      modelId: systemResult.modelId,
+      keySlot: poolResult.slot,
+      extractMode: poolResult.result.mode,
+    });
+    if (poolResult.result.mode === "text_fallback") {
+      logEnhanceDiag({
+        traceId,
+        designStep: "8",
+        track: "jd",
+        pipelineStep: ENHANCE_PIPELINE.PRE_JD_BRAIN,
+        phase: "done",
+        level: "low",
+        event: "engine.jd_extract.text_fallback",
+        scope: "engine",
+        userId,
+        flags: { routeMode: "system", keySlot: poolResult.slot },
+      });
+    }
+    recordEnhanceModelCall({
+      route,
+      poolCall: systemResult.poolCall,
+      traceId,
+      userId,
+      pass,
+      durationMs: Date.now() - passStartedAt,
+      status: "success",
+      tokensUsed: systemResult.tokensUsed,
+      estimatedCost: systemResult.estimatedCost,
+      requestPreview,
+      responsePreview,
+      operation: "ai.enhance.generate_object",
+      feature: "jd_extract",
     });
 
-    return customerResult;
+    return systemResult;
+  } catch (err) {
+    const status = (err as { status?: number })?.status;
+    const message = err instanceof Error ? err.message : String(err);
+    let errorCode: string | null = "provider_error";
+
+    if (err instanceof SystemKeyPoolError) {
+      errorCode = err.code;
+    } else {
+      const mapped = mapEnhanceProviderError(err, { aiMode: "system" });
+      errorCode = mapped.code;
+    }
+
+    logEnhance("engine", "model.object.error", {
+      traceId,
+      pass,
+      durationMs: Date.now() - passStartedAt,
+      status: status ?? null,
+      message,
+      errorCode,
+    });
+    recordEnhanceModelCall({
+      route,
+      traceId,
+      userId,
+      pass,
+      durationMs: Date.now() - passStartedAt,
+      status: /timeout/i.test(message) ? "timeout" : "error",
+      httpStatus: status ?? null,
+      errorCode,
+      errorMessage: message,
+      requestPreview,
+      responsePreview: message,
+      operation: "ai.enhance.generate_object",
+      feature: "jd_extract",
+    });
+    throw err;
   }
-
-  const poolResult = await executeWithPoolRetry(
-    async ({ apiKey, modelId }) => {
-      const model = createAiSdkLanguageModel("gemini", apiKey, modelId);
-      return generateObject({
-        model,
-        system,
-        prompt,
-        schema,
-        temperature: 0,
-        maxOutputTokens: 1000,
-      });
-    },
-    { preferredSlot },
-  );
-
-  const systemResult = {
-    object: poolResult.result.object as z.infer<T>,
-    tokensUsed: poolResult.result.usage?.totalTokens ?? 0,
-    modelId: poolResult.modelId,
-    estimatedCost: 0,
-    poolCall: {
-      slot: poolResult.slot,
-      label: poolResult.label,
-      billingMode: poolResult.billingMode,
-      modelId: poolResult.modelId,
-      keySource: poolResult.keySource,
-    },
-  };
-
-  logEnhance("engine", "model.object.success", {
-    traceId,
-    pass,
-    durationMs: Date.now() - passStartedAt,
-    tokensUsed: systemResult.tokensUsed,
-    modelId: systemResult.modelId,
-    keySlot: poolResult.slot,
-  });
-
-  return systemResult;
 }
 
 async function runPass(
@@ -534,6 +890,23 @@ export async function runResumeEnhance(
     route: sanitizeRouteForLog(input.route),
     twoPass: Boolean(input.jobDescription?.trim()),
   });
+  logEnhanceDiag({
+    traceId,
+    designStep: "13",
+    track: "engine",
+    pipelineStep: ENHANCE_PIPELINE.ENGINE_RUN_START,
+    phase: "start",
+    level: "high",
+    event: "engine.run.start",
+    scope: "engine",
+    userId: input.userId,
+    flags: {
+      routeMode: input.route.mode,
+      provider: input.route.mode === "customer" ? input.route.provider : "system",
+      twoPass: Boolean(input.jobDescription?.trim()),
+    },
+    params: { targetRole: originalTarget },
+  });
 
   const ctx = buildCandidateContext({
     form: input.form,
@@ -574,6 +947,20 @@ export async function runResumeEnhance(
         step: ENHANCE_PIPELINE.ENGINE_MERGE,
         pass: "generate",
         responsePreviewChars: Math.min(pass1.text.length, 500),
+      });
+      logEnhanceDiag({
+        traceId,
+        designStep: "13",
+        track: "engine",
+        pipelineStep: ENHANCE_PIPELINE.ENGINE_MERGE,
+        phase: "fail",
+        level: "high",
+        event: "engine.parse_failed",
+        scope: "engine",
+        userId: input.userId,
+        errorCode: "invalid_response",
+        flags: { pass: "generate" },
+        params: { responsePreviewChars: Math.min(pass1.text.length, 500) },
       });
       return {
         ok: false,
@@ -664,6 +1051,25 @@ export async function runResumeEnhance(
       partialEnhance,
       delta: summarizeFormDelta(input.form, merged),
     });
+    logEnhanceDiag({
+      traceId,
+      designStep: "13",
+      track: "engine",
+      pipelineStep: ENHANCE_PIPELINE.ENGINE_MERGE,
+      phase: "done",
+      level: "high",
+      event: "engine.run.success",
+      scope: "engine",
+      userId: input.userId,
+      flags: { partialEnhance },
+      params: {
+        changedSectionCount: changedSections.length,
+        totalTokens,
+        apiCallCount,
+        durationMs: Date.now() - startedAt,
+        modelId: lastModelId,
+      },
+    });
 
     return {
       ok: true,
@@ -699,6 +1105,25 @@ export async function runResumeEnhance(
       code: errorCode,
       aiMode,
       rawMessage: err instanceof Error ? err.message : String(err),
+    });
+
+    logEnhanceDiag({
+      traceId,
+      designStep: "13",
+      track: "engine",
+      pipelineStep: ENHANCE_PIPELINE.ENGINE_ERROR,
+      phase: "fail",
+      level: "high",
+      event: "engine.run.error",
+      scope: "engine",
+      userId: input.userId,
+      errorCode,
+      errorMessage: err instanceof Error ? err.message : String(err),
+      flags: {
+        routeMode: input.route.mode,
+        provider: input.route.mode === "customer" ? input.route.provider : "system",
+        aiMode,
+      },
     });
 
     return {

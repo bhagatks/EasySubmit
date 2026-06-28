@@ -250,6 +250,7 @@ export function ResumeStudioEditor({
         monoClass={jetbrainsMono.className}
         className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-border"
         studioTabs
+        studioAnalyticsSurface="dashboard_studio"
         pageLengthPreference={pageLengthPreference}
         onPageLengthPreferenceChange={handlePageLengthPreferenceChange}
         autoPageLengthRecommendation={autoPageLengthRecommendation}

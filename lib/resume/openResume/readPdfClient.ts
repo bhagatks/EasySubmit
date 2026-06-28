@@ -17,7 +17,7 @@ export async function readPdfClient(fileUrl: string): Promise<TextItems> {
     await page.getOperatorList();
     const commonObjs = page.commonObjs;
 
-    const pageTextItems = textContent.items.map((item) => {
+    const pageTextItems = textContent.items.map((item: Record<string, unknown>) => {
       const {
         str: text,
         transform,

@@ -1,6 +1,9 @@
 /** PostHog product analytics event names — Option A catalog. */
 
 export const AnalyticsEvents = {
+  /** Every screen visit (route + overlay) — pairs with `[ScreenDiag]`. */
+  SCREEN_VIEWED: "screen_viewed",
+
   LOGIN_STARTED: "login_started",
   LOGIN_COMPLETED: "login_completed",
 
@@ -35,6 +38,20 @@ export const AnalyticsEvents = {
   BYOK_HANDSHAKE_SUCCEEDED: "byok_handshake_succeeded",
   BYOK_HANDSHAKE_FAILED: "byok_handshake_failed",
   BYOK_KEY_SAVED: "byok_key_saved",
+
+  PRICING_CTA_CLICKED: "pricing_cta_clicked",
+  PLAN_SELECTED: "plan_selected",
+
+  TUTORIAL_PLAYED: "tutorial_played",
+
+  ATS_SCORE_VIEWED: "ats_score_viewed",
+  ATS_GUIDELINES_SECTION_VIEWED: "ats_guidelines_section_viewed",
+
+  RESUME_EXPORTED: "resume_exported",
+
+  STUDIO_TAB_CHANGED: "studio_tab_changed",
+
+  SETTINGS_SECTION_VIEWED: "settings_section_viewed",
 } as const;
 
 export type AnalyticsEventName = (typeof AnalyticsEvents)[keyof typeof AnalyticsEvents];

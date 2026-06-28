@@ -33,6 +33,7 @@ export type EnhanceResumeActionResult =
       aiSucceeded?: boolean;
       aiBlockCode?: string;
       coverageAfter?: import("@/lib/job-tracker/enhance/enhance-brief").JdCoverageReport;
+      coherenceWarnings?: string[];
     }
   | { success: false; error: string; code?: string; byokAvailable?: boolean };
 
@@ -83,6 +84,12 @@ export async function enhanceJobResumeForUser(
   const beforePrime = refineryFormToPrimeResume(merged.form);
   const beforeScore = computeResumeReadiness(beforePrime, merged.targetTitle, description).total;
 
+  const source = await findProfileForUser(userId, merged.sourceProfileId);
+  if (!source) {
+    return { success: false, error: "Source resume profile not found", code: "no_source_profile" };
+  }
+  const baseTargetTitle = targetTitleFromProfile(source);
+
   logEnhance("server", "post.ats_before", {
     traceId,
     step: ENHANCE_PIPELINE.POST_ATS_BEFORE,
@@ -94,7 +101,8 @@ export async function enhanceJobResumeForUser(
     profileId: merged.sourceProfileId,
     jobEntryId: jobId,
     form: merged.form,
-    targetRole: merged.targetTitle,
+    targetRole: job.title?.trim() || merged.targetTitle,
+    profileTargetTitle: baseTargetTitle,
     jobDescription: description,
     rawResumeText: merged.rawResumeText,
     traceId,
@@ -111,13 +119,7 @@ export async function enhanceJobResumeForUser(
     };
   }
 
-  const source = await findProfileForUser(userId, merged.sourceProfileId);
-  if (!source) {
-    return { success: false, error: "Source resume profile not found", code: "no_source_profile" };
-  }
-
   const baseForm = hubRefineryFormFromProfile(source);
-  const baseTargetTitle = targetTitleFromProfile(source);
 
   const persist = await persistEnhancedResume({
     userId,
@@ -144,7 +146,14 @@ export async function enhanceJobResumeForUser(
   await updateJobReviewDocuments(userId, jobId, { resumeLatex });
 
   const afterPrime = refineryFormToPrimeResume(enhanced.form);
-  const afterScore = computeResumeReadiness(afterPrime, enhanced.targetRole, description).total;
+  let afterScore = computeResumeReadiness(afterPrime, enhanced.targetRole, description).total;
+
+  const isCrossDomain = enhanced.coherenceWarnings?.some((w) =>
+    w.includes("may not match your experience"),
+  );
+  if (isCrossDomain) {
+    afterScore = Math.min(afterScore, beforeScore + 5);
+  }
 
   logEnhance("server", "post.ats_after", {
     traceId,
@@ -169,6 +178,7 @@ export async function enhanceJobResumeForUser(
     aiSucceeded: enhanced.aiSucceeded,
     aiBlockCode: enhanced.aiBlockCode,
     coverageAfter: enhanced.coverageAfter,
+    coherenceWarnings: enhanced.coherenceWarnings,
   };
 }
 

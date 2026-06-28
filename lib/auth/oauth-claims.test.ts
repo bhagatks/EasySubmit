@@ -11,6 +11,48 @@ function buildIdToken(payload: Record<string, unknown>): string {
   return `${header}.${body}.sig`;
 }
 
+describe("claimsFromIdToken edge cases", () => {
+  it("returns empty object for null", () => {
+    expect(claimsFromIdToken(null)).toEqual({});
+  });
+
+  it("returns empty object for token with fewer than 2 segments", () => {
+    expect(claimsFromIdToken("onlyone")).toEqual({});
+  });
+
+  it("returns empty object for invalid base64 payload", () => {
+    expect(claimsFromIdToken("header.!!!.sig")).toEqual({});
+  });
+
+  it("skips non-string claim values", () => {
+    const header = Buffer.from("{}").toString("base64url");
+    const body = Buffer.from(JSON.stringify({ given_name: 123, name: "   " })).toString("base64url");
+    expect(claimsFromIdToken(`${header}.${body}.sig`)).toEqual({
+      name: null,
+      given_name: null,
+      family_name: null,
+    });
+  });
+});
+
+describe("mergeOAuthClaims", () => {
+  it("skips null sources", () => {
+    expect(mergeOAuthClaims(null, { name: "Jane" })).toEqual({ name: "Jane" });
+  });
+});
+
+describe("oauthClaimsFromSignIn", () => {
+  it("uses userImage when profile has no picture", () => {
+    const result = oauthClaimsFromSignIn({ userImage: "http://img.example.com/x.jpg" });
+    expect(result.picture).toBe("http://img.example.com/x.jpg");
+  });
+
+  it("returns null picture when neither profile nor userImage present", () => {
+    const result = oauthClaimsFromSignIn({});
+    expect(result.picture).toBeNull();
+  });
+});
+
 describe("oauth-claims", () => {
   it("extracts given_name and family_name from id_token", () => {
     const token = buildIdToken({

@@ -16,6 +16,8 @@ import {
   type DataRefreshConfig,
 } from "@/src/lib/services/config-service";
 
+const d = new Date();
+
 describe("getAppConfig", () => {
   beforeEach(() => {
     vi.mocked(prisma.appConfig.findMany).mockReset();
@@ -34,10 +36,7 @@ describe("getAppConfig", () => {
 
   it("returns dataRefresh only when keyed accessor is used", async () => {
     vi.mocked(prisma.appConfig.findMany).mockResolvedValue([
-      {
-        key: "dataRefresh",
-        value: { interval: 720 },
-      },
+      { key: "dataRefresh", value: { interval: 720 }, createdAt: d, updatedAt: d },
     ]);
 
     const config = await getAppConfig("dataRefresh");
@@ -50,11 +49,9 @@ describe("getAppConfig", () => {
     vi.mocked(prisma.appConfig.findMany).mockResolvedValue([
       {
         key: "dataRefresh",
-        value: {
-          aiModelsUpdate: 720,
-          interval: 720,
-          description: "Twelve hours",
-        },
+        value: { aiModelsUpdate: 720, interval: 720, description: "Twelve hours" },
+        createdAt: d,
+        updatedAt: d,
       },
     ]);
 
@@ -67,10 +64,7 @@ describe("getAppConfig", () => {
 
   it("falls back to safety default when dataRefresh interval is invalid", async () => {
     vi.mocked(prisma.appConfig.findMany).mockResolvedValue([
-      {
-        key: "dataRefresh",
-        value: { interval: "1440" },
-      },
+      { key: "dataRefresh", value: { interval: "1440" }, createdAt: d, updatedAt: d },
     ]);
 
     const config = await getAppConfig("dataRefresh");
@@ -80,10 +74,7 @@ describe("getAppConfig", () => {
 
   it("includes aiConfig when present", async () => {
     vi.mocked(prisma.appConfig.findMany).mockResolvedValue([
-      {
-        key: "dataRefresh",
-        value: { interval: 1440 },
-      },
+      { key: "dataRefresh", value: { interval: 1440 }, createdAt: d, updatedAt: d },
       {
         key: "aiConfig",
         value: {
@@ -91,6 +82,8 @@ describe("getAppConfig", () => {
           discoveryEnabled: true,
           lastGlobalSync: "2026-06-19T12:00:00.000Z",
         },
+        createdAt: d,
+        updatedAt: d,
       },
     ]);
 
@@ -125,10 +118,7 @@ describe("getAppConfig", () => {
 
   it("loads enhanceWithAi timeout from the database", async () => {
     vi.mocked(prisma.appConfig.findMany).mockResolvedValue([
-      {
-        key: "enhanceWithAi",
-        value: { enhanceWithAiTimeoutMs: 25_000 },
-      },
+      { key: "enhanceWithAi", value: { enhanceWithAiTimeoutMs: 25_000 }, createdAt: d, updatedAt: d },
     ]);
 
     const config = await getAppConfig("enhanceWithAi");
@@ -149,7 +139,7 @@ describe("getAppConfig", () => {
 
     const snapshot = await getAppConfig();
 
-    expect(snapshot.aiEngine.system.modelId).toBe("gemini-2.5-flash-lite");
+    expect(snapshot.aiEngine.system.modelId).toBe("gemini-2.5-flash");
     expect(snapshot.aiEngine.system.maxKeySlots).toBe(3);
     expect(snapshot.aiEngine.quotas.system.enable).toBe(true);
     expect(snapshot.aiEngine.quotas.system.dailyEnhancements).toBe(5);
@@ -170,6 +160,8 @@ describe("getAppConfig", () => {
           },
           customerDailyEnhancementCap: 40,
         },
+        createdAt: d,
+        updatedAt: d,
       },
     ]);
 

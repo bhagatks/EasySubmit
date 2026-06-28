@@ -26,7 +26,7 @@ import {
   dashboardHeaderNeutralPillClassName,
   dashboardHeaderNeutralPillStyle,
 } from "@/lib/dashboard/dashboard-header-chrome";
-import { AnalyticsEvents, captureAnalyticsEvent } from "@/src/shared/analytics";
+import { AnalyticsEvents, captureAnalyticsEvent, trackScreenOverlay } from "@/src/shared/analytics";
 
 const APPLIED_ARCHIVE_TOAST_KEY = "easysubmit_applied_archive_toast_v1";
 
@@ -167,6 +167,15 @@ export function JobTrackerWorkspace({ entries, autoArchiveAppliedJobs }: JobTrac
         entry_id: id,
         entry_status: entry?.status ?? "unknown",
       });
+      trackScreenOverlay("review_screen", {
+        route: `/dashboard/job-tracker?job=${id}`,
+        params: {
+          entryId: id,
+          panel: nextPanel,
+          entryStatus: entry?.status ?? "unknown",
+        },
+        flags: { preferredPanel: preferredPanel ?? null },
+      });
       router.replace(buildReviewUrl(id, nextPanel), { scroll: false });
     },
     [activeEntries, archivedEntries, buildReviewUrl, router],
@@ -182,6 +191,11 @@ export function JobTrackerWorkspace({ entries, autoArchiveAppliedJobs }: JobTrac
     (nextPanel: ReviewScreenPanel) => {
       setReviewPanel(nextPanel);
       captureAnalyticsEvent(AnalyticsEvents.REVIEW_TAB_CHANGED, { tab: nextPanel });
+      trackScreenOverlay("review_screen", {
+        route: reviewJobId ? `/dashboard/job-tracker?job=${reviewJobId}` : "/dashboard/job-tracker",
+        params: { entryId: reviewJobId, panel: nextPanel },
+        flags: { tabChange: true },
+      });
       if (!reviewJobId) return;
       router.replace(buildReviewUrl(reviewJobId, nextPanel), { scroll: false });
     },

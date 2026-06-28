@@ -52,11 +52,13 @@ export function applyEnhancePlan(
   let summaryRewritten = false;
   if (plan.summaryWarnings.length > 0) {
     const mergedSkills = parseSkillsText(updatedForm.skillsText ?? "");
+    const identityFromExperience =
+      updatedForm.experience?.find((e) => !e.hidden && e.title?.trim())?.title?.trim() ?? "";
     const rewritten = buildDeterministicSummary({
       currentSummary: updatedForm.professionalSummary ?? "",
       skills: mergedSkills,
       experience: updatedForm.experience ?? [],
-      targetRole: plan.targetRole ?? "",
+      summaryIdentity: identityFromExperience || plan.targetRole?.trim() || "Professional",
       summaryTheme: plan.summaryTheme,
       roleLevel: plan.roleLevel,
     });

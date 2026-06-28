@@ -251,7 +251,7 @@ Structured telemetry for external API calls (AI providers, discovery handshakes)
 | `traceId` | `string?` | Correlates with client/server Enhance trace (8-char id) |
 | `userId` | `string?` | FK → `users.id` (nullable, `ON DELETE SET NULL`) |
 | `domain` | `string` | `ai` \| `vault` \| `auth` \| `external` |
-| `operation` | `string` | e.g. `ai.enhance.generate_text`, `ai.discovery.models_list` |
+| `operation` | `string` | e.g. `ai.enhance.generate_text`, `ai.enhance.generate_object` (JD extract), `ai.discovery.models_list` |
 | `provider` | `string?` | e.g. `gemini`, `anthropic` |
 | `modelId` | `string?` | Provider model id |
 | `status` | `string` | `success` \| `error` \| `timeout` |
@@ -358,7 +358,7 @@ Upserts all keys below (including `forceUpgrade`). Existing rows are not overwri
 | `aiConfig` | `{ defaultProvider: "openai", discoveryEnabled: true, lastGlobalSync: ISO8601 }` | Global AI discovery defaults |
 | `ai_pricing_map` | `{ default: { inputPer1k, outputPer1k }, models: { [modelId]: rates }, patterns: [{ match, inputPer1k, outputPer1k }] }` | BYOK USD/1K token rates for usage widgets — update without deploy |
 | `enhanceWithAi` | `{ enhanceWithAiTimeoutMs: 90000 }` | Client-side max wait for Enhance with AI server action (ms). Client also bumps timeout to ≥135% of workload estimate. Legacy key `EnhanceWithAITimeout` accepted. Env fallback: `EASYSUBMIT_ENHANCE_WITH_AI_TIMEOUT_MS`. |
-| `aiEngine` | `{ system: { modelId, maxKeySlots }, quotas: { system: { enable, dailyCalls, dailyEnhancements }, customer: { aiDailyUnlimited, dailyCalls, dailyEnhancements } }, customerDailyEnhancementCap }` | `quotas.system.enable` gates EasySubmit system AI; when `false`, all routes require BYOK. `quotas.customer.aiDailyUnlimited` bypasses BYOK daily caps when `true`. System secrets live in Vault (below). |
+| `aiEngine` | `{ system: { modelId, jdExtractionModelId, maxKeySlots }, quotas: { system: { enable, dailyCalls, dailyEnhancements }, customer: { aiDailyUnlimited, dailyCalls, dailyEnhancements } }, customerDailyEnhancementCap }` | `quotas.system.enable` gates EasySubmit system AI; when `false`, all routes require BYOK. `system.jdExtractionModelId` — cheaper model for structured JD extract on system pool only (BYOK uses vaulted model). `quotas.customer.aiDailyUnlimited` bypasses BYOK daily caps when `true`. System secrets live in Vault (below). |
 | `resumeProfiles` | `{ maxProfilesPerCustomer: 20 }` | Max `profiles` rows per user — enforced on dashboard create and job-tailor clone |
 | `legalDocuments` | `{ terms: { title, updatedLabel, blocks[] }, privacy: { … } }` | Terms of Service and Privacy Policy copy for `/terms`, `/privacy`, and login overlay — structured blocks (paragraphs, headings, lists, links); seeded from `src/lib/services/legal-documents-defaults.ts` |
 | `forceUpgrade` | `{ enabled: false, minVersion: "0.2.6", updateUrl: "/extension", message: "…" }` | Extension minimum-version gate — see [Extension force-upgrade](#extension-force-upgrade-app_configforceupgrade) below |

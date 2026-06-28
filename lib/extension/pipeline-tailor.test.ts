@@ -97,6 +97,12 @@ describe("runPipelineTailor", () => {
       },
       aiMode: "customer",
       engineMode: "ai",
+      sessionMeta: {
+        traceId: "trace-pipeline",
+        engineMode: "ai",
+        aiAttempted: true,
+        aiSucceeded: true,
+      },
     });
     vi.mocked(persistEnhancedResume).mockResolvedValue({
       success: true,
@@ -126,7 +132,15 @@ describe("runPipelineTailor", () => {
         profileId: "source-1",
       }),
     );
-    expect(persistEnhancedResume).toHaveBeenCalled();
+    expect(persistEnhancedResume).toHaveBeenCalledWith(
+      expect.objectContaining({
+        enhanceMeta: expect.objectContaining({
+          traceId: "trace-pipeline",
+          engineMode: "ai",
+          aiSucceeded: true,
+        }),
+      }),
+    );
     expect(updateJobTrackerStatus).toHaveBeenCalledWith("user-1", "entry-1", "RESUME_READY");
   });
 

@@ -1,4 +1,4 @@
-import { APPLY_JD_MIN_CHARS } from "@shared/extension/apply-gate";
+import { APPLY_JD_MIN_CHARS, MANUAL_CAPTURE_TITLE_MIN_CHARS } from "@shared/extension/apply-gate";
 import { brandExtensionTokens } from "@shared/brand-colors";
 import { extensionButtonClass } from "@shared/brand-buttons";
 import { JOB_CARD_PANEL_DEFAULT_MAX_HEIGHT, JOB_CARD_PANEL_MIN_HEIGHT } from "@shared/extension/card-position";
@@ -15,6 +15,8 @@ import {
   LOADING_JOB_MESSAGE,
   MANUAL_CAPTURE_MESSAGE,
   MANUAL_CAPTURE_TITLE,
+  NO_JOB_DETECTED_MESSAGE,
+  NO_JOB_DETECTED_TITLE,
 } from "@shared/extension/card-presentation";
 import {
   formatProfileSalary,
@@ -48,6 +50,7 @@ import {
 import {
   enhanceProgressOverlayStyles,
   renderEnhanceProgressOverlay,
+  wrapContentWithBrandProgressOverlay,
 } from "@shared/extension/enhance-progress-overlay";
 
 export { CARD_NAV_LABELS, CARD_STUDIO_LABEL };
@@ -554,6 +557,11 @@ export function manualCaptureStyles(): string {
     .capture-field label {
       display: block; font-size: 11px; font-weight: 600; color: #64748B; margin-bottom: 4px;
     }
+    .capture-field-required label::after {
+      content: " *";
+      color: #B91C1C;
+      font-weight: 700;
+    }
     .capture-field input, .capture-field textarea {
       width: 100%; box-sizing: border-box; border: 1px solid #E5E7EB; border-radius: 12px;
       padding: 8px 10px; font-size: 12px; font-family: inherit; color: #1F2937;
@@ -581,6 +589,37 @@ export function manualCaptureStyles(): string {
       display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600;
       color: ${t.primaryMuted};
     }
+    .keyword-gap-row {
+      margin: 8px 0 0;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: rgba(220, 38, 38, 0.06);
+      border: 1px solid rgba(220, 38, 38, 0.15);
+    }
+    .keyword-gap-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #B91C1C;
+      margin: 0 0 5px;
+    }
+    .keyword-gap-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .keyword-gap-chip {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: rgba(220, 38, 38, 0.10);
+      border: 1px solid rgba(220, 38, 38, 0.20);
+      font-size: 10px;
+      font-weight: 600;
+      color: #991B1B;
+      white-space: nowrap;
+    }
   `;
 }
 
@@ -592,6 +631,7 @@ export function renderManualCaptureBody(
   return `
     <h2 class="title">${escapeHtml(MANUAL_CAPTURE_TITLE)}</h2>
     <p class="card-subtitle">${escapeHtml(MANUAL_CAPTURE_MESSAGE)}</p>
+    <p class="capture-hint">Pick a resume profile in the header before saving.</p>
     <div class="capture-form">
       <div class="capture-field">
         <label for="es-job-url">Job URL</label>
@@ -602,9 +642,10 @@ export function renderManualCaptureBody(
         <textarea id="es-job-description" data-capture-description="1">${escapeHtml(draft.description)}</textarea>
         <p class="capture-hint">${descriptionLength}/${APPLY_JD_MIN_CHARS} characters</p>
       </div>
-      <div class="capture-field">
-        <label for="es-job-title">Role (optional)</label>
-        <input id="es-job-title" data-capture-title="1" type="text" value="${escapeHtml(draft.title)}" />
+      <div class="capture-field capture-field-required">
+        <label for="es-job-title">Role</label>
+        <input id="es-job-title" data-capture-title="1" type="text" value="${escapeHtml(draft.title)}" required />
+        <p class="capture-hint">${draft.title.trim().length}/${MANUAL_CAPTURE_TITLE_MIN_CHARS} characters minimum</p>
       </div>
       <div class="capture-field">
         <label for="es-job-company">Company (optional)</label>
@@ -614,10 +655,109 @@ export function renderManualCaptureBody(
   `;
 }
 
+export type ManualCaptureActionsInput = {
+  ctaDisabled: boolean;
+  applyHint: string | null;
+  saveError: string | null;
+  escapeHtml: (value: string) => string;
+};
+
+export function renderManualCaptureActions(input: ManualCaptureActionsInput): string {
+  const saveErrorMarkup = input.saveError
+    ? `<p class="save-error" role="alert">${input.escapeHtml(input.saveError)}</p>`
+    : "";
+  const applyHintMarkup = input.applyHint
+    ? `<p class="save-error">${input.escapeHtml(input.applyHint)}</p>`
+    : "";
+  const ctaIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>`;
+
+  return `<div class="card-actions">
+    <button type="button" class="cta cta-primary" data-save="1"${input.ctaDisabled ? " disabled" : ""}>${ctaIcon}<span>${input.escapeHtml("Save to tracker")}</span></button>
+    ${applyHintMarkup}
+    ${saveErrorMarkup}
+  </div>`;
+}
+
+export function renderNoJobBody(escapeHtml: (value: string) => string): string {
+  return `
+    <h2 class="title">${escapeHtml(NO_JOB_DETECTED_TITLE)}</h2>
+    <p class="card-notice">${escapeHtml(NO_JOB_DETECTED_MESSAGE)}</p>
+    <div class="card-actions">
+      <button type="button" class="cta cta-primary" data-manual-capture="1">
+        <span>Add manually</span>
+      </button>
+    </div>
+  `;
+}
+
+export function loadingBodyStyles(): string {
+  const t = brandExtensionTokens();
+  return `
+    .body.is-reading {
+      background: linear-gradient(180deg, ${t.a10} 0%, #ffffff 72%);
+    }
+    .loading-panel {
+      position: relative;
+      margin: 2px 0 0;
+      padding: 14px 14px 14px 16px;
+      border-radius: 12px;
+      border: 1px solid ${t.a28};
+      background: ${t.a08};
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+    }
+    .loading-panel-accent {
+      position: absolute;
+      left: 0;
+      top: 10px;
+      bottom: 10px;
+      width: 3px;
+      border-radius: 999px;
+      background: ${t.gradientHex};
+    }
+    .loading-kicker {
+      margin: 0 0 6px;
+      padding-left: 8px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: ${t.primaryMutedHex};
+    }
+    .loading-title {
+      margin: 0 0 6px;
+      padding-left: 8px;
+      font-size: 15px;
+      font-weight: 700;
+      line-height: 1.35;
+      color: ${t.primaryDark};
+    }
+    .loading-subtitle {
+      margin: 0;
+      padding-left: 8px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: ${t.primaryMutedHex};
+    }
+    .glossy-shell.is-reading {
+      box-shadow:
+        0 0 0 1px ${t.a16},
+        0 10px 28px ${t.a12};
+    }
+    .grip.is-reading {
+      background: ${t.a10};
+      border-bottom-color: ${t.a28};
+    }
+  `;
+}
+
 export function renderLoadingBody(escapeHtml: (value: string) => string): string {
   return `
-    <h2 class="title">${escapeHtml(LOADING_JOB_MESSAGE)}</h2>
-    <p class="card-subtitle">Hang tight — we're pulling the job description from this page.</p>
+    <div class="loading-panel" role="status" aria-live="polite">
+      <div class="loading-panel-accent" aria-hidden="true"></div>
+      <p class="loading-kicker">In progress</p>
+      <h2 class="loading-title">${escapeHtml(LOADING_JOB_MESSAGE)}</h2>
+      <p class="loading-subtitle">Hang tight — we're pulling the job description from this page.</p>
+    </div>
   `;
 }
 
@@ -894,6 +1034,9 @@ export type SummaryCardInput = {
   ctaIcon: string;
   applyHint: string | null;
   saveError: string | null;
+  keywordGap?: { topMissing: string[]; coveragePercent: number | null } | null;
+  pipelineProgressActive?: boolean;
+  pipelineProgressLabel?: string | null;
   escapeHtml: (value: string) => string;
 };
 
@@ -909,7 +1052,9 @@ export function renderSummaryCardBody(input: SummaryCardInput): string {
   });
 
   const statusMarkup =
-    input.statusLabel && input.statusLabel !== input.ctaLabel
+    !input.pipelineProgressActive &&
+    input.statusLabel &&
+    input.statusLabel !== input.ctaLabel
       ? `<p class="journey-status">${input.escapeHtml(input.statusLabel)}</p>`
       : "";
 
@@ -932,12 +1077,24 @@ export function renderSummaryCardBody(input: SummaryCardInput): string {
     .filter(Boolean)
     .join("");
 
+  const gap = input.keywordGap;
+  const keywordGapMarkup =
+    gap && gap.topMissing.length > 0
+      ? `<div class="keyword-gap-row">
+           <p class="keyword-gap-label">Missing keywords</p>
+           <div class="keyword-gap-chips">
+             ${gap.topMissing.map((kw) => `<span class="keyword-gap-chip">${input.escapeHtml(kw)}</span>`).join("")}
+           </div>
+         </div>`
+      : "";
+
   const heroBlock = `
     <div class="card-hero">
       <h2 class="title">${input.escapeHtml(input.title)}</h2>
       ${companyRow}
       ${navRow}
       ${statusInHero}
+      ${keywordGapMarkup}
       ${!input.showPrimaryCta && !input.showAppliedActions ? errors : ""}
     </div>`;
 
@@ -951,7 +1108,16 @@ export function renderSummaryCardBody(input: SummaryCardInput): string {
         </div>`
       : "";
 
-  return `${heroBlock}${actionsBlock}`;
+  const body = `${heroBlock}${actionsBlock}`;
+
+  if (!input.pipelineProgressActive) {
+    return body;
+  }
+
+  return wrapContentWithBrandProgressOverlay(body, {
+    caption: input.pipelineProgressLabel ?? "Optimizing resume…",
+    showCancel: false,
+  });
 }
 
 export type JobDetailBodyInput = {
@@ -1268,7 +1434,7 @@ function renderEnhancePreviewScroll(input: {
 
   return {
     scrollClass: "expand-scroll expand-scroll-preview expand-scroll-enhancing",
-    scrollContent: `${frame}${renderEnhanceProgressOverlay()}`,
+    scrollContent: `${frame}${renderEnhanceProgressOverlay({ showCancel: true })}`,
   };
 }
 

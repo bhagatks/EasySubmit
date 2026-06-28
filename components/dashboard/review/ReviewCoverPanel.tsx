@@ -18,7 +18,7 @@ import {
   canExportReviewDocument,
   canOpenLatexEditor,
 } from "@/lib/job-tracker/review-readiness";
-import { trackEnhanceClicked, trackEnhanceCompleted } from "@/src/shared/analytics/product-events";
+import { trackEnhanceClicked, trackEnhanceCompleted, trackResumeExported } from "@/src/shared/analytics/product-events";
 import type { JobTrackerDetail } from "@/lib/job-tracker/types";
 import { DEFAULT_STUDIO_ZOOM } from "@/lib/resume/studio-preview-zoom";
 import { cn } from "@/lib/utils";
@@ -104,6 +104,11 @@ export function ReviewCoverPanel({ entry, onRefresh, aiEnabled }: ReviewCoverPan
         setError(result.error);
         return;
       }
+      trackResumeExported({
+        surface: "review_cover",
+        format,
+        entryId: entry.id,
+      });
       downloadBytes({
         bytes: base64ToUint8Array(result.base64),
         filename: result.filename,

@@ -5,42 +5,219 @@
 body {
   margin: 0;
   width: 320px;
-  padding: 16px;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color: #1f2937;
   background: #f9fafb;
+}
+
+.popup-shell {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(99, 102, 241, 0.12);
+  box-shadow:
+    0 4px 14px rgba(15, 23, 42, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+.brand-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px 8px 12px;
+  background: rgba(99, 102, 241, 0.08);
+  border-bottom: 1px solid rgba(99, 102, 241, 0.12);
+}
+
+.brand-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.brand-bar .brand-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  flex-shrink: 0;
+  display: block;
+  object-fit: cover;
+}
+
+.brand-bar .brand {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #1f2937;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.brand-bar .brand-suffix {
+  color: #6366f1;
+}
+
+.brand-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.brand-bar .header-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #9ca3af;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.brand-bar .header-btn:hover {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.brand-bar .header-btn.is-active {
+  color: #4338ca;
+  background: rgba(99, 102, 241, 0.12);
+}
+
+.brand-bar .header-btn svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+  pointer-events: none;
+}
+
+.brand-bar .header-btn.is-spinning svg {
+  animation: es-popup-refresh-spin 0.8s linear infinite;
+}
+
+@keyframes es-popup-refresh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.popup-body {
+  padding: 12px 16px 16px;
 }
 
 .header {
   display: flex;
   align-items: center;
-  gap: 10px;
   margin-bottom: 12px;
 }
 
-.logo {
-  border-radius: 8px;
-  display: block;
-  object-fit: cover;
+.header-account {
+  justify-content: space-between;
+  gap: 8px;
 }
 
-.eyebrow {
-  margin: 0;
-  font-size: 11px;
+.account-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: oklch(0.82 0.16 165);
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.2);
+}
+
+.account-email {
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  /* Color from extensionPopupBrandCss() in popup.ts */
+  color: #1f2937;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.title {
-  margin: 2px 0 0;
-  font-size: 18px;
-  font-weight: 700;
+.link-btn {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 4px 0;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1f2937;
+  cursor: pointer;
+  transition: color 0.15s ease;
 }
 
-.status {
+.panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-subtitle {
   margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #6b7280;
+}
+
+.this-tab {
+  margin: 0 0 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.section-label {
+  margin: 0 0 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+
+.tab-status {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 500;
+  color: #1f2937;
+}
+
+.upgrade-banner {
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(220, 38, 38, 0.25);
+  background: rgba(220, 38, 38, 0.05);
+}
+
+.upgrade-banner-title {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #b91c1c;
+}
+
+.upgrade-banner-message {
+  margin: 0 0 12px;
   font-size: 13px;
   line-height: 1.45;
   color: #6b7280;
@@ -53,9 +230,15 @@ body {
   padding: 11px 14px;
   border: none;
   border-radius: 12px;
+  font-family: inherit;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+
+.panel .btn:last-child {
+  margin-bottom: 0;
 }
 
 .btn:disabled {
@@ -65,11 +248,6 @@ body {
 
 .btn-primary {
   color: #fff;
-  /* Background from extensionPopupBrandCss() in popup.ts */
-}
-
-.btn-primary:hover:not(:disabled) {
-  /* Hover from extensionPopupBrandCss() in popup.ts */
 }
 
 .btn-secondary {
@@ -82,49 +260,53 @@ body {
   background: #f3f4f6;
 }
 
-.btn-ghost {
-  background: transparent;
-  /* Color from extensionPopupBrandCss() in popup.ts */
-}
-
-.hidden {
-  display: none;
-}
-
-.toggle-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid #e5e7eb;
-  background: #fff;
-  cursor: pointer;
-}
-
-.toggle-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.toggle-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: #1f2937;
-}
-
-.toggle-hint {
+.stats-line {
+  margin: 8px 0 0;
   font-size: 11px;
+  line-height: 1.4;
   color: #6b7280;
 }
 
-.toggle-input {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-  /* accent-color from extensionPopupBrandCss() in popup.ts */
+.hidden {
+  display: none !important;
+}
+
+.loading-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.skeleton-row,
+.skeleton-button {
+  border-radius: 8px;
+  background: linear-gradient(90deg, #eef2ff 0%, #f3f4f6 50%, #eef2ff 100%);
+  background-size: 200% 100%;
+  animation: es-popup-skeleton-pulse 1.2s ease-in-out infinite;
+}
+
+.skeleton-row {
+  height: 14px;
+  width: 72%;
+}
+
+.skeleton-row-sm {
+  height: 10px;
+  width: 38%;
+}
+
+.skeleton-button {
+  height: 42px;
+  width: 100%;
+  margin-top: 4px;
+  border-radius: 12px;
+}
+
+@keyframes es-popup-skeleton-pulse {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
 }

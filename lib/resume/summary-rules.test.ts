@@ -56,9 +56,15 @@ describe("validateSummary", () => {
 });
 
 describe("stripBannedSummaryWords", () => {
-  it("replaces banned phrases with review placeholder", () => {
-    expect(stripBannedSummaryWords("A passionate engineer who will leverage APIs.")).toBe(
-      "A [review] engineer who will [review] APIs.",
+  it("replaces leverage inflections without leaving stray letters", () => {
+    expect(stripBannedSummaryWords("Leverages strategic sourcing for growth.")).toBe(
+      "applies strategic sourcing for growth.",
+    );
+  });
+
+  it("removes passionate and replaces utilize", () => {
+    expect(stripBannedSummaryWords("A passionate engineer who will utilize APIs.")).toBe(
+      "A engineer who will uses APIs.",
     );
   });
 });

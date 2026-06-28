@@ -1,7 +1,7 @@
 import { validateSummary, countSummaryWords } from "@/lib/resume/summary-rules";
 import { isBannedSkill } from "@/lib/resume/skills-rules";
-import { findEmbeddedExperienceHeaderInBullet } from "@/lib/resume/split-mashed-experience";
-import { bulletHasStrongOpening } from "@/lib/resume/resume-bullet-verbs";
+import { buildCrossDomainSummary } from "@/lib/job-tracker/enhance/cross-domain-summary";
+import { pickStrongestExperienceBulletForSummary } from "@/lib/job-tracker/enhance/summary-bullet-pick";
 
 export type DeterministicSummaryInput = {
   currentSummary: string;
@@ -13,10 +13,15 @@ export type DeterministicSummaryInput = {
     startYear?: string;
     endYear?: string;
   }>;
-  targetRole: string;
+  /** Candidate identity for sentence 1 — not the JD job title. */
+  summaryIdentity: string;
   summaryTheme?: string;
   roleLevel?: string;
   domain?: string;
+  /** When false, use leadership/cross-functional phrasing instead of engineering boilerplate. */
+  isTechnicalCandidate?: boolean;
+  /** When true, summary must not adopt JD skills/theme — use resume-native skills only. */
+  isCrossDomain?: boolean;
 };
 
 export function deriveYearsOfExperience(
@@ -31,42 +36,10 @@ export function deriveYearsOfExperience(
   return Math.min(new Date().getFullYear() - earliest, 20);
 }
 
-function isSummarySafeBullet(text: string): boolean {
-  const trimmed = text.trim();
-  if (!trimmed || trimmed.length < 12) return false;
-  if (findEmbeddedExperienceHeaderInBullet(trimmed)) return false;
-  if (!bulletHasStrongOpening(trimmed)) return false;
-  if (
-    /\b(led|built|designed|executed|deployed)\s+(led|lead|build|define|provide|partner|oversee|execute|design|deploy|serve|play|worked|provided)\b/i.test(
-      trimmed,
-    )
-  ) {
-    return false;
-  }
-  if (/[a-z]{4,}[A-Z][a-z]/.test(trimmed)) return false;
-  return true;
-}
-
 function pickStrongestBullet(
   experience: Array<{ bullets: string }>,
 ): string {
-  for (const entry of experience) {
-    const bullets = (entry.bullets ?? "")
-      .split("\n")
-      .map((b) => b.trim().replace(/^[-•*]\s*/, ""))
-      .filter(Boolean);
-
-    if (bullets.length === 0) continue;
-
-    const metricBullet = bullets.find((b) => isSummarySafeBullet(b) && /\d/.test(b));
-    const chosen = metricBullet ?? bullets.find((b) => isSummarySafeBullet(b));
-    if (!chosen) continue;
-
-    const match = chosen.match(/^[^.!?]+[.!?]/);
-    const firstSentence = match ? match[0] : chosen;
-    return firstSentence.endsWith(".") ? firstSentence : firstSentence + ".";
-  }
-  return "";
+  return pickStrongestExperienceBulletForSummary(experience);
 }
 
 const BANNED_REPLACEMENTS: Array<[RegExp, string]> = [
@@ -104,6 +77,10 @@ function sanitizeBanned(text: string): string {
 }
 
 export function buildDeterministicSummary(input: DeterministicSummaryInput): string {
+  if (input.isCrossDomain) {
+    return buildCrossDomainSummary(input);
+  }
+
   const { sentenceError, wordError, bannedWords } = validateSummary(input.currentSummary);
   if (!sentenceError && !wordError && bannedWords.length === 0) {
     return input.currentSummary;
@@ -118,18 +95,21 @@ export function buildDeterministicSummary(input: DeterministicSummaryInput): str
   const s2skills = topSkills.slice(3, 5);
   const theme = input.summaryTheme?.trim() || "deliver measurable business outcomes";
   const domain = input.domain?.trim();
-  const targetRole = input.targetRole?.trim() || "Professional";
+  const identity = input.summaryIdentity?.trim() || "Professional";
+  const technical = input.isTechnicalCandidate !== false;
 
-  // Sentence 1 — Identity
+  // Sentence 1 — Identity (candidate truth, not JD title)
   let s1: string;
   if (years !== undefined && domain) {
-    s1 = `${targetRole} with ${years} years of experience designing and delivering solutions in ${domain}, consistently building for scale and reliability.`;
+    s1 = `${identity} with ${years} years of experience designing and delivering solutions in ${domain}, consistently building for scale and reliability.`;
   } else if (years !== undefined) {
-    s1 = `${targetRole} with ${years} years of experience delivering impactful solutions across complex technical and business environments.`;
+    s1 = technical
+      ? `${identity} with ${years} years of experience delivering impactful solutions across complex technical and business environments.`
+      : `${identity} with ${years} years of experience delivering impactful solutions across complex organizational and business environments.`;
   } else if (domain) {
-    s1 = `${targetRole} with deep expertise in ${domain}, focused on delivering production-grade solutions at scale.`;
+    s1 = `${identity} with deep expertise in ${domain}, focused on delivering production-grade solutions at scale.`;
   } else {
-    s1 = `${targetRole} with deep expertise delivering high-impact solutions across complex technical and cross-functional environments.`;
+    s1 = `${identity} with deep expertise delivering high-impact solutions across complex technical and cross-functional environments.`;
   }
 
   // Sentence 2 — Method
@@ -141,24 +121,34 @@ export function buildDeterministicSummary(input: DeterministicSummaryInput): str
   } else if (s1skills.length === 1) {
     s2 = `Applies ${s1skills[0]} and complementary technologies to ${theme}, driving consistent outcomes in fast-paced production environments.`;
   } else {
-    s2 = `Applies structured engineering practices and analytical rigor to ${theme}, driving consistent outcomes in fast-paced production environments.`;
+    s2 = technical
+      ? `Applies structured engineering practices and analytical rigor to ${theme}, driving consistent outcomes in fast-paced production environments.`
+      : `Applies structured leadership practices and analytical rigor to ${theme}, driving consistent outcomes in fast-paced environments.`;
   }
 
   // Sentence 3 — Specialization
   let s3: string;
+  const depthPhrase = technical
+    ? "systems design and cross-functional delivery"
+    : "program leadership and cross-functional delivery";
+
   if (s2skills.length >= 2) {
-    s3 = `Consistent contributor across ${s2skills[0]} and ${s2skills[1]} domains, with demonstrated depth in systems design and cross-functional delivery.`;
+    s3 = `Consistent contributor across ${s2skills[0]} and ${s2skills[1]} domains, with demonstrated depth in ${depthPhrase}.`;
   } else if (s2skills.length === 1) {
-    s3 = `Consistent contributor across ${s2skills[0]} and adjacent domains, with demonstrated depth in systems design and cross-functional delivery.`;
+    s3 = `Consistent contributor across ${s2skills[0]} and adjacent domains, with demonstrated depth in ${depthPhrase}.`;
   } else if (s1skills.length >= 2) {
-    s3 = `Consistent contributor across ${s1skills[0]} and ${s1skills[1]} ecosystems, with demonstrated depth in systems design and cross-functional delivery.`;
+    s3 = `Consistent contributor across ${s1skills[0]} and ${s1skills[1]} ecosystems, with demonstrated depth in ${depthPhrase}.`;
   } else {
-    s3 = `Consistent contributor across multi-disciplinary initiatives, with demonstrated depth in systems design, delivery, and cross-functional collaboration.`;
+    s3 = `Consistent contributor across multi-disciplinary initiatives, with demonstrated depth in ${depthPhrase}.`;
   }
 
   // Sentence 4 — Impact from experience bullet
   const bulletSentence = pickStrongestBullet(input.experience);
-  const s4 = bulletSentence || "Adept at translating technical requirements into business value within agile, collaborative environments.";
+  const s4 =
+    bulletSentence ||
+    (technical
+      ? "Adept at translating technical requirements into business value within agile, collaborative environments."
+      : "Adept at translating complex requirements into business value within agile, collaborative environments.");
 
   let result = [s1, s2, s3, s4].join(" ");
   result = sanitizeBanned(result);
@@ -175,10 +165,10 @@ export function buildDeterministicSummary(input: DeterministicSummaryInput): str
   }
 
   if (wc < 70) {
-    result = result.replace(
-      "cross-functional delivery.",
-      "cross-functional delivery, technical strategy, and measurable execution.",
-    );
+    const expandTail = technical
+      ? "cross-functional delivery, technical strategy, and measurable execution."
+      : "cross-functional delivery, stakeholder alignment, and measurable execution.";
+    result = result.replace("cross-functional delivery.", expandTail);
     wc = countSummaryWords(result);
   }
 

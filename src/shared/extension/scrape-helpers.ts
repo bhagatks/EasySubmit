@@ -1,5 +1,36 @@
 import { scrapeLinkedInDescription } from "./linkedin-helpers";
 
+const GENERIC_NAVIGATION_JOB_TITLES = new Set([
+  "job",
+  "jobs",
+  "job search",
+  "search jobs",
+  "find jobs",
+  "open jobs",
+  "job openings",
+  "careers",
+  "career",
+  "careers home",
+  "job listings",
+  "browse jobs",
+  "explore jobs",
+  "work with us",
+  "join us",
+  "hiring",
+  "vacancies",
+  "opportunities",
+]);
+
+/** Hub / nav labels that are not a specific role title (e.g. LinkedIn jobs browse h1). */
+export function isGenericNavigationJobTitle(title: string | null | undefined): boolean {
+  const normalized = title?.trim().toLowerCase().replace(/\s+/g, " ") ?? "";
+  if (!normalized || normalized.length > 48) return false;
+  if (GENERIC_NAVIGATION_JOB_TITLES.has(normalized)) return true;
+  if (/^jobs?\s+(at|with|@)\s+/i.test(normalized)) return true;
+  if (/^(search|find|browse|explore)\s+jobs?$/i.test(normalized)) return true;
+  return false;
+}
+
 function text(el: Element | null | undefined): string {
   return el?.textContent?.trim() ?? "";
 }
@@ -168,12 +199,18 @@ export function scrapeTitle(doc: Document, fallbacks: string[]): string {
   const ogTitle = doc.querySelector('meta[property="og:title"]')?.getAttribute("content")?.trim();
   if (ogTitle && ogTitle.length > 2) {
     const cleaned = ogTitle.split("|")[0]?.trim();
-    if (cleaned && cleaned.length > 2) return cleaned;
+    if (cleaned && cleaned.length > 2 && !isGenericNavigationJobTitle(cleaned)) return cleaned;
   }
 
   const h1 = text(doc.querySelector("h1"));
-  if (h1.length > 2) return h1;
-  return firstText(doc, fallbacks);
+  if (h1.length > 2 && !isGenericNavigationJobTitle(h1)) return h1;
+
+  for (const sel of fallbacks) {
+    const value = text(doc.querySelector(sel));
+    if (value.length > 2 && !isGenericNavigationJobTitle(value)) return value;
+  }
+
+  return "";
 }
 
 export function scrapeCompany(doc: Document, selectors: string[]): string | null {

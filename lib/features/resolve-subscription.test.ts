@@ -25,7 +25,7 @@ describe("resolveSubscriptionFeature", () => {
       enabled: true,
       currency: "usd",
       plans: { pro: { dailyEnhancements: 100, price: 19 } },
-    } as Awaited<ReturnType<typeof getAppConfig>>);
+    } as never);
     vi.mocked(isSubscribed).mockReturnValue(false);
   });
 
@@ -68,7 +68,7 @@ describe("resolveSubscriptionFeature", () => {
       enabled: false,
       currency: "usd",
       plans: {},
-    } as Awaited<ReturnType<typeof getAppConfig>>);
+    } as never);
     const result = await resolveSubscriptionFeature(freeUser, "job_apply");
     expect(result.canUpgrade).toBe(false);
   });

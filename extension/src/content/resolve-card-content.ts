@@ -2,6 +2,7 @@ import { detectJobPage } from "@shared/extension/detect-job-page";
 import { buildFallbackJobMetadata } from "@shared/extension/force-metadata";
 import { isJobPage } from "@shared/extension/is-job-page";
 import { canApplyCapture } from "@shared/extension/apply-gate";
+import { resolveManualLaunchPresentation } from "@shared/extension/manual-launch";
 import { hasStrongJobUrlSignal } from "@shared/extension/job-url-parse";
 import { isGreenhouseEmbeddedJobUrl, isGreenhouseBoardJobUrl } from "@shared/extension/greenhouse-helpers";
 import {
@@ -10,6 +11,8 @@ import {
   buildNoJobDetectedMetadata,
   type CardPresentation,
 } from "@shared/extension/card-presentation";
+import { resolveJobIdentity } from "@shared/extension/job-identity";
+import { isGenericNavigationJobTitle } from "@shared/extension/scrape-helpers";
 import type { ExtensionRuntimeConfig, ScrapedJobMetadata } from "@shared/extension/types";
 
 export type ResolveCardContentInput = {
@@ -42,10 +45,15 @@ export function resolveCardContent(
   };
 
   if (input.launch === "manual") {
-    if (canApplyCapture(capture)) {
+    const presentation = resolveManualLaunchPresentation({
+      url: input.url,
+      description: metadata.description,
+      onJobPage,
+    });
+    if (presentation === "job") {
       return { presentation: "job", metadata };
     }
-    if (hasStrongJobUrlSignal(input.url)) {
+    if (presentation === "loading") {
       return { presentation: "loading", metadata: buildLoadingJobMetadata() };
     }
     return { presentation: "manual_capture", metadata: buildManualCaptureMetadata() };
@@ -55,17 +63,39 @@ export function resolveCardContent(
     return { presentation: "no_job", metadata: buildNoJobDetectedMetadata() };
   }
 
-  if (canApplyCapture(capture)) {
-    return { presentation: "job", metadata };
-  }
-
-  if (hasStrongJobUrlSignal(input.url)) {
-    const metadata = buildLoadingJobMetadata();
-    if (isGreenhouseEmbeddedJobUrl(input.url) || isGreenhouseBoardJobUrl(input.url)) {
-      metadata.platform = "greenhouse";
+  if (!canApplyCapture(capture)) {
+    const loadingMetadata = buildLoadingJobMetadata();
+    if (metadata.platform && metadata.platform !== "generic") {
+      loadingMetadata.platform = metadata.platform;
     }
-    return { presentation: "loading", metadata };
+    if (isGreenhouseEmbeddedJobUrl(input.url) || isGreenhouseBoardJobUrl(input.url)) {
+      loadingMetadata.platform = "greenhouse";
+    }
+    return { presentation: "loading", metadata: loadingMetadata };
   }
 
-  return { presentation: "no_job", metadata: buildNoJobDetectedMetadata() };
+  const identity = resolveJobIdentity({
+    url: input.url,
+    title: metadata.title,
+    company: metadata.company,
+    description: metadata.description,
+  });
+  if (isGenericNavigationJobTitle(identity.title)) {
+    if (hasStrongJobUrlSignal(input.url)) {
+      const loadingMetadata = buildLoadingJobMetadata();
+      if (isGreenhouseEmbeddedJobUrl(input.url) || isGreenhouseBoardJobUrl(input.url)) {
+        loadingMetadata.platform = "greenhouse";
+      }
+      return { presentation: "loading", metadata: loadingMetadata };
+    }
+    return { presentation: "no_job", metadata: buildNoJobDetectedMetadata() };
+  }
+  return {
+    presentation: "job",
+    metadata: {
+      ...metadata,
+      title: identity.title,
+      company: identity.company ?? metadata.company,
+    },
+  };
 }

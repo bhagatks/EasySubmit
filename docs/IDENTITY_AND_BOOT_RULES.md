@@ -2,6 +2,8 @@
 
 Canonical rules for separating **login identity** from **resume profile data**, and for routing users on every app load.
 
+**Screen inventory:** [`SCREENS.md`](./SCREENS.md) — marketing landing (`/`), dashboard routes, and extension surfaces.
+
 ## Two data domains (never merge)
 
 | Domain | Table | Purpose | Lifetime |

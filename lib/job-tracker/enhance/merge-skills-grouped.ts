@@ -8,6 +8,7 @@ import {
   parseSkillsText,
   SKILLS_HARD_MAX,
 } from "@/lib/resume/skills-rules";
+import { filterJdSkillLabels, filterSkillsRequiringExperienceAnchor } from "@/lib/job-tracker/jd/jd-skill-filter";
 
 export type GroupedSkills = {
   jdSkills: string[];
@@ -71,6 +72,9 @@ export function buildGroupedSkills(input: {
   targetRole: string;
   onet: OnetRoleVocabulary;
   summaryTheme?: string;
+  experienceBlob?: string;
+  /** When true, cap JD skill injection so resume-native skills are preserved. */
+  isCrossDomain?: boolean;
 }): { grouped: GroupedSkills; skillsText: string; skillsAdded: string[]; overflow?: string[] } {
   const existing = parseSkillsText(input.existingSkillsText);
   const existingLower = new Set(existing.map((s) => s.toLowerCase()));
@@ -93,9 +97,15 @@ export function buildGroupedSkills(input: {
   for (const s of input.mustAddSkills) pushJd(s);
   for (const s of input.keywordSkills) pushJd(s);
 
-  const jdAll = jdCandidates;
-  const jdSkills = jdAll.slice(0, SKILLS_HARD_MAX);
-  const overflow = jdAll.length > SKILLS_HARD_MAX ? jdAll.slice(SKILLS_HARD_MAX) : undefined;
+  const jdFiltered = filterJdSkillLabels(jdCandidates);
+  const jdAnchored = input.experienceBlob
+    ? filterSkillsRequiringExperienceAnchor(jdFiltered, input.experienceBlob)
+    : jdFiltered;
+  const jdSkillCap = input.isCrossDomain ? 6 : SKILLS_HARD_MAX;
+  const minResumeSkills = input.isCrossDomain ? 5 : 0;
+  const jdSkills = jdAnchored.slice(0, jdSkillCap);
+  const overflow =
+    jdAnchored.length > jdSkillCap ? jdAnchored.slice(jdSkillCap) : undefined;
   const jdSet = new Set(jdSkills.map((s) => s.toLowerCase()));
 
   const resumeCandidates = [
@@ -127,7 +137,7 @@ export function buildGroupedSkills(input: {
     return a.skill.localeCompare(b.skill);
   });
 
-  const slotsLeft = Math.max(0, SKILLS_HARD_MAX - jdSkills.length);
+  const slotsLeft = Math.max(minResumeSkills, SKILLS_HARD_MAX - jdSkills.length);
   const resumeSkills = scored.slice(0, slotsLeft).map((s) => s.skill);
 
   const grouped: GroupedSkills = { jdSkills, resumeSkills };

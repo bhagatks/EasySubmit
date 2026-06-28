@@ -64,8 +64,10 @@ export function detectScope(title: string, responsibilities: string): JDScope {
 // ─── Domain detection ─────────────────────────────────────────────────────────
 
 const DOMAIN_SIGNALS: Array<[RegExp, JDDomain]> = [
+  [/\b(?:procurement|strategic\s+sourcing|category\s+management|purchase[- ]to[- ]pay|p2p\s+process|indirect\s+procurement|direct\s+procurement|supplier\s+(?:relationship|management|performance))\b/i, "procurement-supply-chain"],
+  [/\b(?:medical\s+device|medtech|biotech|pharma|iso\s+13485|fda\s+regulations?|cardiac\s+health)\b/i, "medtech-regulatory"],
   [/\b(?:machine\s+learning|ml\s+engineer|deep\s+learning|llm|ai\s+engineer|nlp|computer\s+vision)\b/i, "ml-ai"],
-  [/\b(?:data\s+engineer|etl|pipeline|spark|airflow|kafka|dbt|warehouse|dbt)\b/i, "data-engineering"],
+  [/\b(?:data\s+engineer|etl|data\s+pipeline|spark|airflow|kafka|dbt|data\s+warehouse)\b/i, "data-engineering"],
   [/\b(?:data\s+scientist|data\s+science|statistical\s+model|r\s+programming|jupyter)\b/i, "data-science"],
   [/\b(?:devops|sre|site\s+reliability|platform\s+engineer|infrastructure|kubernetes|terraform|ci\/cd|observability)\b/i, "devops-sre"],
   [/\b(?:frontend|front[- ]end|react|vue|angular|next\.?js|css|html|ui\s+engineer)\b/i, "frontend"],

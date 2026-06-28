@@ -100,9 +100,16 @@ export function stripBannedSummaryWords(text: string): string {
   const banned = [...SUMMARY_BANNED_WORDS].sort((a, b) => b.length - a.length);
 
   for (const phrase of banned) {
-    const pattern = new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
-    out = out.replace(pattern, "[review]");
+    const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = new RegExp(`\\b${escaped}s?\\b`, "gi");
+    out = out.replace(pattern, (match) => {
+      const lower = match.toLowerCase();
+      if (lower.startsWith("leverag")) return "applies";
+      if (lower.startsWith("utiliz")) return "uses";
+      if (lower.startsWith("facilitat")) return "enables";
+      return "";
+    });
   }
 
-  return out.replace(/\s{2,}/g, " ").trim();
+  return out.replace(/\s{2,}/g, " ").replace(/\s+([,.!?])/g, "$1").trim();
 }

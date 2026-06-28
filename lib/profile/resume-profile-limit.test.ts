@@ -23,7 +23,7 @@ describe("resume profile limit", () => {
   beforeEach(() => {
     vi.mocked(prisma.profile.count).mockReset();
     vi.mocked(getAppConfig).mockReset();
-    vi.mocked(getAppConfig).mockResolvedValue({ maxProfilesPerCustomer: 20 });
+    vi.mocked(getAppConfig).mockResolvedValue({ maxProfilesPerCustomer: 20 } as never);
   });
 
   it("formats limit error message", () => {

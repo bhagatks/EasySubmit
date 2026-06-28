@@ -53,6 +53,8 @@ export type ByokKeyGateSignals = {
   route: AiRouteResolution;
   unvaultOk: boolean | null;
   recentApiFailures60m: number;
+  /** Successful customer-route API calls in the same window as failure counting. */
+  recentApiSuccesses60m: number;
   lastJobFailure: LastJobKeyFailure | null;
 };
 
@@ -112,6 +114,14 @@ export function formatByokMissingKeyMessage(preference: AiSourcePreference): str
   return "Add your API key in AI Keys to use AI with your own key.";
 }
 
+export function ignoreStaleKeyFailure(
+  failure: LastJobKeyFailure | null,
+  keyUpdatedAt: Date | null,
+): LastJobKeyFailure | null {
+  if (!failure || !keyUpdatedAt) return failure;
+  return failure.failedAt >= keyUpdatedAt ? failure : null;
+}
+
 /** Pure BYOK gate — same rules for dashboard launch, health alert, and enhance preflight. */
 export function evaluateByokKeyGate(signals: ByokKeyGateSignals): ByokKeyGateResult {
   const notApplicable: ByokKeyGateResult = {
@@ -161,7 +171,7 @@ export function evaluateByokKeyGate(signals: ByokKeyGateSignals): ByokKeyGateRes
       };
     }
 
-    if (signals.recentApiFailures60m >= 1) {
+    if (signals.recentApiFailures60m >= 1 && signals.recentApiSuccesses60m === 0) {
       return {
         applies: true,
         valid: false,

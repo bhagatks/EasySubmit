@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { AnalyticsIdentitySync } from "@/components/providers/analytics-identity-sync";
+import { ScreenDiagnosticsTracker } from "@/components/providers/screen-diagnostics-tracker";
 import {
   captureAnalyticsPageView,
   initAnalyticsGlobalErrorHandlers,
@@ -29,6 +30,7 @@ export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
   return (
     <>
       <AnalyticsPageViewTracker />
+      <ScreenDiagnosticsTracker />
       <AnalyticsIdentitySync />
       {children}
     </>

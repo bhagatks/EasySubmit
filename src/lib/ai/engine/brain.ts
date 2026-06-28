@@ -133,25 +133,32 @@ export function buildEnhanceUserPrompt(
     : "";
 
   const bodyJson = JSON.stringify(ctx.resumeBody, null, 2);
-  const effectiveRole = directive?.effectiveTargetRole ?? ctx.targetRole;
+  const identity = brief?.summaryIdentity?.identity ?? ctx.targetRole;
+  const jdRole = brief?.summaryIdentity?.jdTargetRole ?? directive?.effectiveTargetRole ?? ctx.targetRole;
+  const crossDomain = brief?.summaryIdentity?.isCrossDomain ?? false;
 
   if (pass === "generate") {
     const briefHints = brief?.readiness.topActions.length
       ? `\nBaseline already applied — refine, do not discard grouped skills or bullet weave:\n${brief.readiness.topActions.slice(0, 4).map((a) => `- ${a}`).join("\n")}\n`
       : "";
 
+    const identityRule = crossDomain
+      ? `SUMMARY IDENTITY (required): Open sentence 1 with "${identity}" — the candidate's actual role. Do NOT open with the JD job title "${jdRole}". Do NOT claim procurement/spend/tenure the candidate does not have in their experience bullets.`
+      : `SUMMARY IDENTITY: Open sentence 1 with "${identity}" or a same-track variant supported by experience. JD target role for alignment: ${jdRole}.`;
+
     return [
       "Refine this pre-enhanced resume for the target role. Baseline improvements (skills, bullets, summary) are already applied — improve quality without undoing them.",
       briefHints,
-      `Target role: ${effectiveRole}`,
+      identityRule,
+      `JD target role (keywords/skills only): ${jdRole}`,
       jdBlock || "Mode: general ATS enhancement (no job description).",
       rawSnippet,
       "Current resume body JSON (no contact fields):",
       bodyJson,
       "",
       "Tasks:",
-      `1. Rewrite professional summary to the standard: exactly ${SUMMARY_SENTENCE_COUNT} sentences, ${SUMMARY_WORD_MIN}–${SUMMARY_WORD_MAX} words; Role → Method → Specialization → Impact; at least one quantified claim; peer-to-practitioner tone; no banned words. Align title and narrative to the target role. If the JD is for a non-engineering role (e.g. People, Operations, Product, Finance), reframe the candidate's experience in terms of that domain — do not keep an engineering-specific title or framing.`,
-      "2. Rebuild the skills list from scratch based on what the TARGET ROLE actually needs. Remove skills irrelevant to the role and replace with role-specific competencies, tools, and methodologies the candidate genuinely has (e.g. for a People/HR role: 'Program Management, Workforce Planning, Organizational Design, People Analytics, Change Management, Agile, AI & Digital Transformation'). Do not carry over the original skills list blindly.",
+      `1. Rewrite professional summary to the standard: exactly ${SUMMARY_SENTENCE_COUNT} sentences, ${SUMMARY_WORD_MIN}–${SUMMARY_WORD_MAX} words; Role → Method → Specialization → Impact; at least one quantified claim grounded in experience bullets; peer-to-practitioner tone; no banned words. Never invent spend figures, procurement tenure, or domain credentials not supported by experience.`,
+      "2. Rebuild the skills list from scratch based on what the TARGET ROLE actually needs. Remove skills irrelevant to the role and replace with role-specific competencies, tools, and methodologies the candidate genuinely has. Do not carry over the original skills list blindly.",
       "3. Rewrite each experience bullet as a single clean sentence starting with ONE past-tense action verb. Never start a bullet with two consecutive verbs (e.g. 'Led lead', 'Built define', 'Executed provided' are all wrong — pick one verb). Emphasize outcomes measurable by the target role. Apply the recency bullet budget — most detail on the most recent role; taper older roles to fewer bullets.",
       "4. Tighten education, certifications, projects, languages, custom sections.",
       "5. Preserve all experience/education entry ids, companies, schools, and date fields exactly.",
@@ -183,7 +190,9 @@ export function buildEnhanceUserPrompt(
 
   return [
     "Refine this pre-enhanced resume. Do not discard baseline improvements.",
-    `Target role: ${effectiveRole}`,
+    brief?.summaryIdentity
+      ? `Summary identity: ${brief.summaryIdentity.identity}. JD target: ${brief.summaryIdentity.jdTargetRole}.`
+      : `Target role: ${jdRole}`,
     jdBlock,
     intelligenceBlock,
     briefBlock,

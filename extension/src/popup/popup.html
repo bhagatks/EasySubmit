@@ -4,42 +4,88 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Job Tracker</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        width: 320px;
+        background: #f9fafb;
+      }
+      .popup-shell {
+        border-radius: 12px;
+        overflow: hidden;
+        background: rgba(255, 255, 255, 0.96);
+        border: 1px solid rgba(99, 102, 241, 0.12);
+        box-shadow:
+          0 4px 14px rgba(15, 23, 42, 0.07),
+          inset 0 1px 0 rgba(255, 255, 255, 1);
+      }
+    </style>
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
-    <header class="header">
-      <img src="../icons/icon-128.png" alt="" width="32" height="32" class="logo" decoding="async" />
-      <div>
-        <p class="eyebrow"></p>
-        <h1 class="title"></h1>
+    <div class="popup-shell">
+      <header id="header-brand-bar" class="brand-bar">
+      <div class="brand-bar-left">
+        <img class="brand-icon" src="../icons/icon-128.png" alt="" width="20" height="20" decoding="async" />
+        <span class="brand"><span class="brand-name">EasySubmit</span><span class="brand-suffix">.ai</span></span>
+      </div>
+      <div class="brand-bar-actions">
+        <button id="header-tracker" type="button" class="header-btn is-active" aria-label="Open Job Tracker" title="Open Job Tracker">
+          <svg class="hdr-icon-resume" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/></svg>
+        </button>
+        <button id="header-refresh" type="button" class="header-btn" aria-label="Refresh this tab" title="Refresh this tab">
+          <svg class="hdr-icon-refresh" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+        </button>
+        <button id="header-settings" type="button" class="header-btn" aria-label="Settings" title="Settings">
+          <svg class="hdr-icon-settings" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+        <button id="header-close" type="button" class="header-btn" aria-label="Close" title="Close">×</button>
       </div>
     </header>
 
-    <p id="status" class="status">Checking this tab…</p>
+    <div id="popup-root" class="popup-body">
+      <div id="panel-loading" class="panel" aria-busy="true" aria-live="polite">
+        <div class="loading-skeleton">
+          <div class="skeleton-row skeleton-row-sm"></div>
+          <div class="skeleton-row"></div>
+          <div class="skeleton-button"></div>
+        </div>
+      </div>
 
-    <button id="show-card" type="button" class="btn btn-primary">
-      Show job card on this page
-    </button>
+      <header id="header-connected" class="header header-account hidden">
+        <div class="account-chip">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span id="account-email" class="account-email"></span>
+        </div>
+        <button id="reconnect" type="button" class="link-btn hidden">Reconnect</button>
+      </header>
 
-    <button id="open-tracker" type="button" class="btn btn-secondary">
-      Open Job Tracker
-    </button>
+      <div id="panel-disconnected" class="panel hidden">
+        <p class="panel-subtitle">Sign in to start tracking jobs</p>
+        <button id="connect" type="button" class="btn btn-primary">Connect account</button>
+      </div>
 
-    <label id="one-click-row" class="toggle-row hidden">
-      <span class="toggle-copy">
-        <span class="toggle-label">One-click apply</span>
-        <span class="toggle-hint">Workday — capture, tailor, prepare apply</span>
-      </span>
-      <input id="one-click-toggle" type="checkbox" class="toggle-input" />
-    </label>
+      <div id="panel-force-upgrade" class="panel hidden">
+        <div class="upgrade-banner" role="alert">
+          <p class="upgrade-banner-title">Update required</p>
+          <p id="upgrade-message" class="upgrade-banner-message"></p>
+          <button id="upgrade-extension" type="button" class="btn btn-primary">Update extension</button>
+        </div>
+      </div>
 
-    <button id="connect" type="button" class="btn btn-ghost hidden">
-      Connect account
-    </button>
+      <div id="panel-connected" class="panel hidden">
+        <section class="this-tab" aria-labelledby="this-tab-label">
+          <p id="this-tab-label" class="section-label">This tab</p>
+          <p id="tab-status" class="tab-status">Checking this tab…</p>
+        </section>
 
-    <button id="reconnect" type="button" class="btn btn-ghost hidden">
-      Reconnect account
-    </button>
+        <button id="show-card" type="button" class="btn btn-primary">Show job card</button>
+
+        <p id="stats-line" class="stats-line hidden"></p>
+      </div>
+    </div>
+    </div>
 
     <script type="module" src="popup.js"></script>
   </body>

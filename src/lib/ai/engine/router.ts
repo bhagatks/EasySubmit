@@ -37,17 +37,26 @@ export const SYSTEM_POOL_EXHAUSTED_NO_BYOK_BODY =
   "Try again later, or add your API key in AI Keys.";
 
 export function resolveEffectiveAiSource(
-  _preference: AiSourcePreference,
+  preference: AiSourcePreference,
   hasVaultKey: boolean,
   systemAiEnabled: boolean,
   forceSystem = false,
+  forceCustomer = false,
 ): AiRouteMode {
-  if (hasVaultKey) {
+  if (forceCustomer && hasVaultKey) {
     return "customer";
   }
 
   if (forceSystem && systemAiEnabled) {
     return "system";
+  }
+
+  if (preference === "system" && systemAiEnabled) {
+    return "system";
+  }
+
+  if (preference === "customer" || (preference === "auto" && hasVaultKey)) {
+    return "customer";
   }
 
   if (!systemAiEnabled) {
@@ -89,6 +98,8 @@ export async function resolveAiRoute(input: {
   forceSystem?: boolean;
   /** When true, user explicitly chose to use their vault key (e.g. enhance retry). */
   allowByokFallback?: boolean;
+  /** When true, route to BYOK even if system pool is healthy (extension/dashboard retry). */
+  forceCustomerRoute?: boolean;
   aiEngine?: AiEngineConfig;
   /** From `feature_flags.system_ai_enabled` — when false, routes to BYOK only. */
   systemAiEnabled?: boolean;
@@ -108,6 +119,7 @@ export async function resolveAiRoute(input: {
     Boolean(input.vaultKeyId),
     systemAiEnabled,
     input.forceSystem,
+    input.forceCustomerRoute === true,
   );
 
   if (mode === "system") {

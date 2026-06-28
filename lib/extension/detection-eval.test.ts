@@ -13,6 +13,7 @@ import { buildScrapeDocument } from "@/lib/extension/test-fixtures/scrape-doc-bu
 const emptyDoc = buildScrapeDocument({ url: "https://example.com" });
 
 const config: ExtensionRuntimeConfig = {
+  extensionGlobalSwitch: true,
   jobCardEnabled: true,
   enabledPlatforms: [
     "linkedin",

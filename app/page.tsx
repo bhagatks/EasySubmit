@@ -17,6 +17,7 @@ import { LogoIcon } from "@/components/ui/logo";
 import { Navbar } from "@/components/Navbar";
 import { PricingPlansSection } from "@/components/pricing/PricingPlansSection";
 import { BRAND, brandCopyright } from "@/lib/brand";
+import { getExtensionForceUpgradeConfig } from "@/lib/extension/force-upgrade-gate";
 import {
   FREE_PLAN_VISIBLE_FEATURES,
   PRICING_FAQ,
@@ -43,10 +44,11 @@ const features = FREE_PLAN_VISIBLE_FEATURES.map((title, index) => ({
 
 function Hero() {
   return (
-    <section className="relative max-h-screen overflow-hidden bg-hero">
+    <section className="relative bg-hero">
       <div className="bg-grid absolute inset-0 opacity-60" />
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
-      <div className="relative mx-auto max-w-7xl px-6 pb-16 pt-20 md:pt-24">
+
+      <div className="relative mx-auto flex min-h-[calc(100dvh-4rem)] max-w-7xl flex-col justify-center px-6 pb-10 pt-12 md:pb-12 md:pt-16">
         <div className="mx-auto max-w-3xl text-center">
           <h1 className="font-display text-5xl font-semibold leading-[1.05] tracking-tight md:text-7xl">
             Land interviews.
@@ -72,8 +74,10 @@ function Hero() {
             No credit card. Bring your OpenAI / Anthropic / Gemini / Groq key.
           </p>
         </div>
+      </div>
 
-        <div className="relative mx-auto mt-16 max-w-5xl">
+      <div className="relative mx-auto max-w-7xl px-6 pb-16 pt-4">
+        <div className="relative mx-auto max-w-5xl">
           <div className="absolute -inset-x-20 -top-20 h-72 rounded-full bg-primary/20 blur-3xl" />
           <div className="relative overflow-hidden rounded-2xl border border-border bg-surface shadow-elevated">
             <Image
@@ -81,10 +85,9 @@ function Hero() {
               alt="ATS-optimized resume scanned by AI"
               width={1536}
               height={1152}
-              className="w-full max-h-[52vh] object-cover object-top"
+              className="h-auto w-full"
               priority
             />
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-hero to-transparent" />
           </div>
           <div className="pointer-events-none absolute inset-x-10 -bottom-6 h-12 rounded-full bg-mint/30 blur-2xl" />
         </div>
@@ -95,7 +98,7 @@ function Hero() {
 
 function Features() {
   return (
-    <section id="features" className="relative scroll-mt-20 border-t border-border/60 py-24">
+    <section id="features" className="relative scroll-mt-20 border-t border-border/60 pb-24 pt-12">
       <div className="mx-auto max-w-7xl px-6">
         <div className="mx-auto max-w-2xl text-center">
           <div className="inline-flex items-center gap-2 rounded-full border border-border bg-surface/60 px-3 py-1 text-xs text-muted-foreground">
@@ -327,10 +330,12 @@ function Footer() {
   );
 }
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const forceUpgrade = await getExtensionForceUpgradeConfig();
+
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">
-      <Navbar />
+      <Navbar extensionStoreUrl={forceUpgrade.updateUrl} />
       <main>
         <Hero />
         <Features />

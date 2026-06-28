@@ -257,7 +257,7 @@ describe("buildResumeEnhanceDirective", () => {
       mustHaveSkills: ["python", "kubernetes", "terraform"],
     };
     const directive = buildResumeEnhanceDirective(intel, ["Python", "Docker"]);
-    expect(directive.mustAddSkills).toContain("kubernetes");
+    expect(directive.mustAddSkills).toContain("Kubernetes");
     expect(directive.mustAddSkills).not.toContain("python");
   });
 

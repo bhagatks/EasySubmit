@@ -10,6 +10,12 @@ import {
   removeSkills,
   rewriteWeakBullets,
 } from "@/lib/job-tracker/enhance/apply-enhance-plan-helpers";
+import {
+  experienceBlobFromForm,
+  normalizeExperienceDateFields,
+  postProcessSummaryOutput,
+} from "@/lib/job-tracker/enhance/summary-grounding";
+import { shouldRebuildCrossDomainSummary } from "@/lib/job-tracker/enhance/cross-domain-summary";
 import { parseSkillsText } from "@/lib/resume/skills-rules";
 import { taperExperienceEntries } from "@/lib/resume/experience-bullet-rules";
 import { splitMashedExperienceInForm } from "@/lib/resume/split-mashed-experience";
@@ -18,6 +24,8 @@ import {
   postProcessProfessionalSummary,
   postProcessSkillsText,
 } from "@/src/lib/ai/engine/post-process";
+import { logEnhanceDiag } from "@/src/lib/ai/engine/enhance-diagnostics";
+import { ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
 
 export type BaselineEnhanceResult = {
   form: HubRefineryForm;
@@ -30,6 +38,7 @@ export type BaselineEnhanceResult = {
   };
   coverageAfter?: ReturnType<typeof buildJdCoverageReport>;
   enhanceSummary: string;
+  coherenceWarnings: string[];
 };
 
 export function applyBaselineEnhance(
@@ -38,7 +47,26 @@ export function applyBaselineEnhance(
   traceId: string,
   userId: string,
 ): BaselineEnhanceResult {
+  logEnhanceDiag({
+    traceId,
+    designStep: "11",
+    track: "resume",
+    pipelineStep: ENHANCE_PIPELINE.BASELINE_START,
+    phase: "start",
+    level: "high",
+    event: "baseline.start",
+    scope: "server",
+    userId,
+    params: {
+      isCrossDomain: brief.summaryIdentity.isCrossDomain,
+      skillsToAdd: brief.plan.skillsToAdd.length,
+      weakBullets: brief.experience.weakBullets.length,
+    },
+  });
+
   const plan = brief.plan;
+  const coherenceWarnings: string[] = [];
+  const resumeNativeSkills = parseSkillsText(form.skillsText ?? "");
   let updatedForm = splitMashedExperienceInForm({ ...form });
 
   if (plan.skillsToRemove.length > 0) {
@@ -63,30 +91,52 @@ export function applyBaselineEnhance(
     targetRole: brief.targetRole,
     onet: brief.onet,
     summaryTheme: brief.jd?.directive.summaryTheme,
+    experienceBlob: experienceBlobFromForm(updatedForm.experience ?? []),
+    isCrossDomain: brief.summaryIdentity.isCrossDomain,
   });
 
   updatedForm = { ...updatedForm, skillsText: groupedResult.skillsText };
 
-  const bulletResult = rewriteWeakBullets(updatedForm, plan.weakBullets);
+  const bulletResult = rewriteWeakBullets(updatedForm, plan.weakBullets, brief.jd?.intelligence.domain);
   updatedForm = cleanExperienceBullets(bulletResult.form);
 
   const weaveResult = applyJdCoverageWeave(updatedForm, brief);
   updatedForm = weaveResult.form;
+
+  updatedForm = {
+    ...updatedForm,
+    experience: normalizeExperienceDateFields(updatedForm.experience ?? []),
+  };
 
   const pages = inferResumePagesFromForm(updatedForm, brief.targetRole);
   const tapered = taperExperienceEntries(updatedForm.experience ?? [], pages);
   updatedForm = { ...updatedForm, experience: tapered.entries };
 
   let summaryRewritten = false;
-  if (plan.summaryWarnings.length > 0) {
-    const mergedSkills = parseSkillsText(updatedForm.skillsText ?? "");
+  const mergedSkills = parseSkillsText(updatedForm.skillsText ?? "");
+  const needsSummaryRewrite =
+    brief.summaryIdentity.isCrossDomain
+      ? shouldRebuildCrossDomainSummary(
+          updatedForm.professionalSummary ?? "",
+          resumeNativeSkills,
+          groupedResult.grouped.jdSkills,
+          (form.experience ?? []).map((e) => e.company?.trim()).filter(Boolean) as string[],
+        )
+      : plan.summaryWarnings.length > 0;
+
+  if (needsSummaryRewrite) {
+    const skillsForSummary = brief.summaryIdentity.isCrossDomain
+      ? resumeNativeSkills
+      : mergedSkills;
     const rewritten = buildDeterministicSummary({
       currentSummary: updatedForm.professionalSummary ?? "",
-      skills: mergedSkills,
+      skills: skillsForSummary,
       experience: updatedForm.experience ?? [],
-      targetRole: brief.targetRole,
-      summaryTheme: plan.summaryTheme,
+      summaryIdentity: brief.summaryIdentity.identity,
+      summaryTheme: brief.summaryIdentity.isCrossDomain ? undefined : plan.summaryTheme,
       roleLevel: plan.roleLevel,
+      isTechnicalCandidate: brief.summaryIdentity.isTechnicalCandidate,
+      isCrossDomain: brief.summaryIdentity.isCrossDomain,
     });
     if (rewritten !== (updatedForm.professionalSummary ?? "").trim()) {
       updatedForm = { ...updatedForm, professionalSummary: rewritten };
@@ -94,15 +144,28 @@ export function applyBaselineEnhance(
     }
   }
 
-  updatedForm = {
-    ...updatedForm,
-    professionalSummary: postProcessProfessionalSummary(
+  const experienceBlob = experienceBlobFromForm(updatedForm.experience ?? []);
+  const employerNames = (updatedForm.experience ?? [])
+    .map((e) => e.company?.trim())
+    .filter(Boolean) as string[];
+  const summaryProcessed = postProcessSummaryOutput(
+    postProcessProfessionalSummary(
       updatedForm.professionalSummary ?? "",
       traceId,
       userId,
     ),
+    {
+      identity: brief.summaryIdentity,
+      experienceBlob,
+      employerNames,
+    },
+  );
+  updatedForm = {
+    ...updatedForm,
+    professionalSummary: summaryProcessed.summary,
     skillsText: postProcessSkillsText(updatedForm.skillsText ?? "", traceId, userId),
   };
+  coherenceWarnings.push(...summaryProcessed.warnings);
 
   let coverageAfter: ReturnType<typeof buildJdCoverageReport> | undefined;
   if (brief.jd) {
@@ -123,6 +186,26 @@ export function applyBaselineEnhance(
     summaryRewritten,
   });
 
+  logEnhanceDiag({
+    traceId,
+    designStep: "11",
+    track: "resume",
+    pipelineStep: ENHANCE_PIPELINE.BASELINE_DONE,
+    phase: "done",
+    level: "high",
+    event: "baseline.done",
+    scope: "server",
+    userId,
+    params: {
+      skillsAdded: groupedResult.skillsAdded.length,
+      bulletsRewritten: bulletResult.bulletsRewritten,
+      bulletsWoven: weaveResult.bulletsWoven,
+      summaryRewritten,
+      coverageAfter: coverageAfter?.coveragePercent ?? null,
+      coherenceWarnings: coherenceWarnings.length,
+    },
+  });
+
   return {
     form: updatedForm,
     changes: {
@@ -134,5 +217,6 @@ export function applyBaselineEnhance(
     },
     coverageAfter,
     enhanceSummary,
+    coherenceWarnings,
   };
 }

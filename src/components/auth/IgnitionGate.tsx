@@ -11,8 +11,9 @@ import {
   Terminal,
   Unlock,
 } from "lucide-react";
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { fetchDataRefreshConfig } from "@/app/actions/config";
+import { trackScreenOverlay } from "@/src/shared/analytics";
 import { Button } from "@/components/ui/button";
 import { GlossyFullscreenShell } from "@/components/ui/glossy-fullscreen-shell";
 import { getWorkbenchPhase, workbenchPhaseHeader } from "@/lib/onboarding/workbenchPhases";
@@ -191,6 +192,21 @@ export function IgnitionGate({
     DATA_REFRESH_SAFETY_DEFAULT.interval,
   );
   const [usedCachedDiscovery, setUsedCachedDiscovery] = useState(false);
+  const screenLoggedRef = useRef(false);
+
+  useEffect(() => {
+    if (screenLoggedRef.current) return;
+    screenLoggedRef.current = true;
+    trackScreenOverlay("ignition_gate", {
+      flags: {
+        variant,
+        lockProvider,
+        isFirstKey,
+        isProtectMode,
+        isManageMode,
+      },
+    });
+  }, [variant, lockProvider, isFirstKey, isProtectMode, isManageMode]);
 
   const {
     discoveryStatus,

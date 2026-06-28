@@ -132,12 +132,12 @@ describe("analyzeKeywordGap junk filtering", () => {
 });
 
 describe("analyzeJobIntelligence skillsToAdd", () => {
-  const form: HubRefineryForm = {
+  const form = {
     skillsText: "Python, React",
     professionalSummary: "Engineer with backend experience.",
-    experience: [{ title: "Engineer", company: "Co", bullets: ["Built APIs"], hidden: false }],
+    experience: [{ title: "Engineer", company: "Co", bullets: "Built APIs", hidden: false }],
     education: [],
-  };
+  } as unknown as HubRefineryForm;
 
   it("does not classify junk JD tokens as skills", () => {
     const jd = `

@@ -2,6 +2,8 @@
 
 Last updated: **2026-06-22**
 
+**Screen inventory:** [`SCREENS.md`](./SCREENS.md) — Review Screen tabs, Job Tracker, extension card surfaces.
+
 ---
 
 ## Done

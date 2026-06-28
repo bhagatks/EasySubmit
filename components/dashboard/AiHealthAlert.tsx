@@ -26,9 +26,15 @@ const HINT: Record<AiHealthErrorCode, string> = {
 
 type AiHealthContextValue = {
   status: AiHealthStatus | null;
+  refresh: (trigger: string) => Promise<void>;
 };
 
-const AiHealthContext = createContext<AiHealthContextValue>({ status: null });
+const noopRefresh = async () => {};
+
+const AiHealthContext = createContext<AiHealthContextValue>({
+  status: null,
+  refresh: noopRefresh,
+});
 
 function logClient(event: string, payload?: Record<string, unknown>) {
   if (process.env.NODE_ENV === "production") return;
@@ -141,8 +147,12 @@ export function AiHealthAlertProvider({ children }: { children: ReactNode }) {
   }, [status]);
 
   return (
-    <AiHealthContext.Provider value={{ status }}>{children}</AiHealthContext.Provider>
+    <AiHealthContext.Provider value={{ status, refresh }}>{children}</AiHealthContext.Provider>
   );
+}
+
+export function useAiHealthRefresh() {
+  return useContext(AiHealthContext).refresh;
 }
 
 function useAiHealthStatus() {

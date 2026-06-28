@@ -14,7 +14,6 @@ const baseForm = (): HubRefineryForm => ({
   phone: "",
   linkedIn: "",
   cityState: "Austin, TX",
-  targetRole: "Engineer",
   professionalSummary: "Short summary.",
   skillsText: "TypeScript, React",
   experience: [
@@ -36,6 +35,7 @@ const baseForm = (): HubRefineryForm => ({
   projects: [],
   languages: [],
   customSections: [],
+  pageLengthPreference: "auto",
 });
 
 describe("enhance-progress", () => {

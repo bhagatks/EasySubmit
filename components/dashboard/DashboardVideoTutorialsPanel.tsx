@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ExternalLink } from "lucide-react";
@@ -10,6 +9,7 @@ import {
 } from "@/components/dashboard/DashboardWorkspacePage";
 import { Button } from "@/components/ui/button";
 import type { DashboardTutorialVideo } from "@/lib/dashboard/dashboard-tutorial-videos";
+import { trackTutorialPlayed } from "@/src/shared/analytics";
 
 type DashboardVideoTutorialsPanelProps = {
   videos: DashboardTutorialVideo[];
@@ -33,18 +33,11 @@ export function DashboardVideoTutorialsPanel({ videos }: DashboardVideoTutorials
     <DashboardWorkspacePage
       title="Video Tutorials"
       description="Learn EasySubmit in a few minutes — watch these walkthroughs at your own pace."
-      aside={
-        showWelcome ? (
-          <Button variant="mint" size="sm" className="rounded-xl" asChild>
-            <Link href="/dashboard">Continue to dashboard</Link>
-          </Button>
-        ) : null
-      }
     >
       <DashboardWorkspaceStack className="space-y-4">
         {showWelcome ? (
           <div className="rounded-xl border border-mint/30 bg-mint/5 px-4 py-3 text-sm text-foreground">
-            You&apos;re almost set. Watch a quick tutorial, then continue to your dashboard.
+            You&apos;re almost set. Watch a quick tutorial to get the most out of EasySubmit.
           </div>
         ) : null}
 
@@ -53,6 +46,10 @@ export function DashboardVideoTutorialsPanel({ videos }: DashboardVideoTutorials
             <article
               key={video.id}
               className="overflow-hidden rounded-2xl border border-border bg-surface/60"
+              onPointerDown={(event) => {
+                if ((event.target as HTMLElement).closest("a, button")) return;
+                trackTutorialPlayed({ tutorialId: video.id, action: "embed_click" });
+              }}
             >
               <div className="relative aspect-video w-full bg-black/40">
                 <iframe
@@ -67,7 +64,14 @@ export function DashboardVideoTutorialsPanel({ videos }: DashboardVideoTutorials
               <div className="space-y-2 p-4">
                 <h2 className="font-display text-sm font-semibold text-foreground">{video.title}</h2>
                 <Button variant="outline" size="sm" className="rounded-xl" asChild>
-                  <a href={video.watchUrl} target="_blank" rel="noopener noreferrer">
+                  <a
+                    href={video.watchUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() =>
+                      trackTutorialPlayed({ tutorialId: video.id, action: "youtube_link" })
+                    }
+                  >
                     Open on YouTube
                     <ExternalLink className="h-3.5 w-3.5 opacity-70" aria-hidden="true" />
                   </a>
@@ -76,14 +80,6 @@ export function DashboardVideoTutorialsPanel({ videos }: DashboardVideoTutorials
             </article>
           ))}
         </div>
-
-        {showWelcome ? (
-          <div className="flex justify-end pt-2">
-            <Button variant="mint" className="rounded-xl" asChild>
-              <Link href="/dashboard">Continue to dashboard</Link>
-            </Button>
-          </div>
-        ) : null}
       </DashboardWorkspaceStack>
     </DashboardWorkspacePage>
   );

@@ -50,13 +50,13 @@ describe("buildDeterministicSummary", () => {
       currentSummary: "Too short.",
       skills: MOCK_SKILLS,
       experience: MOCK_EXPERIENCE,
-      targetRole: "Software Engineer",
+      summaryIdentity: "Software Engineer",
     });
     const second = buildDeterministicSummary({
       currentSummary: first,
       skills: MOCK_SKILLS,
       experience: MOCK_EXPERIENCE,
-      targetRole: "Software Engineer",
+      summaryIdentity: "Software Engineer",
     });
     expect(second).toBe(first);
   });
@@ -66,7 +66,7 @@ describe("buildDeterministicSummary", () => {
       currentSummary: "I am a software engineer. I build things.",
       skills: MOCK_SKILLS,
       experience: MOCK_EXPERIENCE,
-      targetRole: "Software Engineer",
+      summaryIdentity: "Software Engineer",
     });
     expect(countSummarySentences(result)).toBe(4);
   });
@@ -76,7 +76,7 @@ describe("buildDeterministicSummary", () => {
       currentSummary: "",
       skills: MOCK_SKILLS,
       experience: MOCK_EXPERIENCE,
-      targetRole: "Software Engineer",
+      summaryIdentity: "Software Engineer",
     });
     expect(countSummarySentences(result)).toBe(4);
   });
@@ -86,7 +86,7 @@ describe("buildDeterministicSummary", () => {
       currentSummary: "Too short.",
       skills: MOCK_SKILLS,
       experience: MOCK_EXPERIENCE,
-      targetRole: "Software Engineer",
+      summaryIdentity: "Software Engineer",
     });
     expect(countSummarySentences(result)).toBe(4);
   });
@@ -96,7 +96,7 @@ describe("buildDeterministicSummary", () => {
       currentSummary: "Too short.",
       skills: MOCK_SKILLS,
       experience: MOCK_EXPERIENCE,
-      targetRole: "Software Engineer",
+      summaryIdentity: "Software Engineer",
     });
     const wc = countSummaryWords(result);
     expect(wc).toBeGreaterThanOrEqual(70);
@@ -108,7 +108,7 @@ describe("buildDeterministicSummary", () => {
       currentSummary: "Proven track record of leveraging innovative solutions.",
       skills: MOCK_SKILLS,
       experience: MOCK_EXPERIENCE,
-      targetRole: "Software Engineer",
+      summaryIdentity: "Software Engineer",
     });
     const lower = result.toLowerCase();
     for (const banned of SUMMARY_BANNED_WORDS) {
@@ -121,7 +121,7 @@ describe("buildDeterministicSummary", () => {
       currentSummary: "Too short.",
       skills: MOCK_SKILLS,
       experience: MOCK_EXPERIENCE,
-      targetRole: "Software Engineer",
+      summaryIdentity: "Software Engineer",
     });
     expect(result).toContain("40%");
   });
@@ -139,7 +139,7 @@ describe("buildDeterministicSummary", () => {
       currentSummary: "Too short.",
       skills: MOCK_SKILLS,
       experience,
-      targetRole: "Software Engineer",
+      summaryIdentity: "Software Engineer",
     });
     expect(result).toContain("Built REST APIs");
   });
@@ -149,7 +149,7 @@ describe("buildDeterministicSummary", () => {
       currentSummary: "Too short.",
       skills: MOCK_SKILLS,
       experience: MOCK_EXPERIENCE,
-      targetRole: "Software Engineer",
+      summaryIdentity: "Software Engineer",
       summaryTheme: "scale enterprise data pipelines",
     });
     expect(result).toContain("scale enterprise data pipelines");
@@ -160,8 +160,34 @@ describe("buildDeterministicSummary", () => {
       currentSummary: "",
       skills: [],
       experience: [],
-      targetRole: "Product Manager",
+      summaryIdentity: "Product Manager",
     });
     expect(countSummarySentences(result)).toBe(4);
+  });
+
+  it("uses resume-native skills and leadership phrasing when cross-domain", () => {
+    const result = buildDeterministicSummary({
+      currentSummary: "Too short.",
+      skills: ["Cloud & DevOps", "Docker", "Full-Stack & APIs", "Gateways", "Mobile Development"],
+      experience: [
+        {
+          title: "Head of Engineering",
+          company: "7-Eleven",
+          bullets:
+            "Led 7Now Delivery Platform and third-party integrations (Uber Eats, Door Dash) for mobile and API teams.",
+          startYear: "2018",
+        },
+      ],
+      summaryIdentity: "Head of Engineering",
+      summaryTheme: "strategic sourcing excellence",
+      isCrossDomain: true,
+      isTechnicalCandidate: true,
+    });
+    expect(result).toContain("Head of Engineering");
+    expect(result).toContain("Cloud & DevOps");
+    expect(result).not.toContain("Procurement");
+    expect(result).not.toContain("systems design");
+    expect(result).toMatch(/transferable strengths/i);
+    expect(result).not.toContain("strategic sourcing excellence");
   });
 });

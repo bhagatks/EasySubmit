@@ -108,6 +108,13 @@ export function bulletHasStrongOpening(text: string): boolean {
   return RESUME_ACTION_VERBS.has(lower) || lower in BASE_TO_PAST_TENSE;
 }
 
+/** True when a bullet contains a real outcome metric — not product names like 7Now. */
+export function bulletHasQuantifiedMetric(text: string): boolean {
+  return /\b\d+\s*%|\b\d+x\b|\$\d|\b(?:increased|decreased|reduced|improved|grew|saved|boosted|cut|accelerated)\s+(?:by\s+)?\d+/i.test(
+    text,
+  );
+}
+
 /** Normalize leading verb to past tense; never stack a second verb. */
 export function normalizeBulletOpeningVerb(text: string): string {
   const trimmed = text.trim().replace(/^[-•*]\s*/, "");

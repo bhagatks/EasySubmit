@@ -40,6 +40,7 @@ POSTHOG_PROD_PROJECT_ID=488042
 |------|------|
 | `src/shared/analytics/` | Event catalog, sanitize, PostHog browser client |
 | `src/shared/analytics/product-events.ts` | Typed helpers (enhance, BYOK) |
+| `src/shared/analytics/screen-events.ts` | `trackScreenView` / `trackScreenOverlay` — ScreenDiag + PostHog |
 | `components/providers/analytics-*.tsx` | Provider, pageviews, identify, errors |
 | `lib/logger.ts` | Pino (dev pretty / prod JSON) |
 | `scripts/posthog-setup-dashboards.mjs` | Creates PostHog dashboards via API |
@@ -47,6 +48,13 @@ POSTHOG_PROD_PROJECT_ID=488042
 ## Event catalog
 
 All events include `environment` (`dev`|`prod`) and `internal` (bool). **`identify(userId)` only** — no email, name, or resume text.
+
+### Screens (all routes + overlays)
+- **`screen_viewed`** — emitted on every screen visit via `trackScreenView()` (routes) or `trackScreenOverlay()` (modals, extension). Pairs with dev console `[ScreenDiag]`.
+- Properties: `{ screen_id, screen_label, zone, route?, …safe params/flags }` — see `docs/SCREENS.md` for full inventory.
+- **`$pageview`** — still fires on web route changes (PostHog standard); use `screen_viewed` for screen-level funnels.
+
+Helpers: `src/shared/analytics/screen-events.ts` · route wiring: `components/providers/screen-diagnostics-tracker.tsx`
 
 ### Auth
 - `login_started` — `{ provider }`
@@ -98,6 +106,18 @@ Surfaces: `review_resume`, `review_cover`, `onboarding_studio`, `dashboard_studi
 - `byok_cta_clicked` — `{ source }`
 - `byok_handshake_started` / `byok_handshake_succeeded` / `byok_handshake_failed`
 - `byok_key_saved` — `{ provider, is_first_key }`
+
+### Pricing & plans
+- `pricing_cta_clicked` — `{ surface, plan_id, coming_soon }` — surface: `landing` | `pricing` | `select_plan`
+- `plan_selected` — `{ plan_id, surface }`
+
+### Dashboard engagement
+- `tutorial_played` — `{ tutorial_id, action }` — action: `youtube_link` | `embed_click`
+- `ats_score_viewed` — `{ entry_id, has_tailored_resume, platform?, surface }` — surface: `ats_scores` | `review_screen`
+- `ats_guidelines_section_viewed` — `{ section_title }`
+- `resume_exported` — `{ surface, format, entry_id? }` — surface: `review_resume` | `review_cover` | `latex_editor`; format: `pdf` | `word` | `latex`
+- `studio_tab_changed` — `{ surface, tab }` — surface: `dashboard_studio` | `job_studio`; tab: `editor` | `layout`
+- `settings_section_viewed` — `{ section_id }` — `account` | `ai-keys` | `general`
 
 ## Postgres ↔ PostHog correlation
 

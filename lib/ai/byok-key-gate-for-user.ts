@@ -1,10 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { unvaultUserApiKey } from "@/lib/vault/user-key-vault";
 import type { AiSourcePreference } from "@/src/lib/ai/engine/constants";
+import { getActiveVaultKeyUpdatedAt } from "@/lib/vault/user-key-vault";
 import {
   byokKeyGateApplies,
   byokKeyGateNotApplicable,
   evaluateByokKeyGate,
+  ignoreStaleKeyFailure,
   isKeyRelatedPipelineError,
   parsePipelineMetadataError,
   type ByokKeyGateResult,
@@ -88,6 +90,10 @@ async function loadByokGateSignals(
   }
 
   const since60 = new Date(Date.now() - 60 * 60 * 1000);
+  const keyUpdatedAt = await getActiveVaultKeyUpdatedAt(userId, user);
+  const failureSince =
+    keyUpdatedAt && keyUpdatedAt > since60 ? keyUpdatedAt : since60;
+
   const recentApiFailures60m = byokKeyGateApplies(preference, user.vaultKeyId)
     ? await prisma.apiCallLog.count({
         where: {
@@ -95,14 +101,26 @@ async function loadByokGateSignals(
           aiMode: "customer",
           status: "error",
           errorCode: { in: [...BYOK_API_LOG_ERROR_CODES] },
-          createdAt: { gte: since60 },
+          createdAt: { gte: failureSince },
         },
       })
     : 0;
 
-  const lastJobFailure = byokKeyGateApplies(preference, user.vaultKeyId)
+  const recentApiSuccesses60m = byokKeyGateApplies(preference, user.vaultKeyId)
+    ? await prisma.apiCallLog.count({
+        where: {
+          userId,
+          aiMode: "customer",
+          status: "success",
+          createdAt: { gte: failureSince },
+        },
+      })
+    : 0;
+
+  const lastJobFailureRaw = byokKeyGateApplies(preference, user.vaultKeyId)
     ? await findLastKeyRelatedJobFailure(userId)
     : null;
+  const lastJobFailure = ignoreStaleKeyFailure(lastJobFailureRaw, keyUpdatedAt);
 
   return {
     preference,
@@ -111,6 +129,7 @@ async function loadByokGateSignals(
     route,
     unvaultOk,
     recentApiFailures60m,
+    recentApiSuccesses60m,
     lastJobFailure,
   };
 }

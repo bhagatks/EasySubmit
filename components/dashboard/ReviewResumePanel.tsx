@@ -21,7 +21,7 @@ import { jobTrackerReviewStudioUrl } from "@/lib/job-tracker/review-screen-ui";
 import type { JobTrackerDetail } from "@/lib/job-tracker/types";
 import { DEFAULT_STUDIO_ZOOM } from "@/lib/resume/studio-preview-zoom";
 import { EnhanceCoveragePanel } from "@/components/dashboard/review/EnhanceCoveragePanel";
-import { trackEnhanceClicked, trackEnhanceCompleted } from "@/src/shared/analytics/product-events";
+import { trackEnhanceClicked, trackEnhanceCompleted, trackResumeExported } from "@/src/shared/analytics/product-events";
 
 type ReviewResumePanelProps = {
   entry: JobTrackerDetail;
@@ -52,6 +52,7 @@ type EnhanceFeedback = {
   atsDelta: { before: number; after: number } | null;
   summary: string | null;
   warning?: string | null;
+  coherenceWarnings?: string[] | null;
   coverageAfter?: import("@/lib/job-tracker/enhance/enhance-brief").JdCoverageReport | null;
 };
 
@@ -103,12 +104,24 @@ function EnhanceFeedbackCard({ feedback }: { feedback: EnhanceFeedback }) {
             </div>
           ) : null}
 
+          {improved &&
+          feedback.coherenceWarnings?.some((w) => w.includes("may not match your experience")) ? (
+            <p className="mt-1 text-amber-300/90">
+              Keyword match improved, but this role may not align with your experience.
+            </p>
+          ) : null}
+
           {feedback.summary ? (
             <p className="mt-1 text-muted-foreground">{feedback.summary}</p>
           ) : null}
           {feedback.warning ? (
             <p className="mt-1 text-amber-300/90">{feedback.warning}</p>
           ) : null}
+          {feedback.coherenceWarnings?.map((note) => (
+            <p key={note} className="mt-1 text-amber-300/90">
+              {note}
+            </p>
+          ))}
         </div>
       </div>
     </div>
@@ -137,6 +150,11 @@ export function ReviewResumePanel({ entry, onRefresh, aiEnabled }: ReviewResumeP
         setError(result.error);
         return;
       }
+      trackResumeExported({
+        surface: "review_resume",
+        format,
+        entryId: entry.id,
+      });
       downloadBytes({
         bytes: base64ToUint8Array(result.base64),
         filename: result.filename,
@@ -209,6 +227,14 @@ export function ReviewResumePanel({ entry, onRefresh, aiEnabled }: ReviewResumeP
         : "Enable AI in Settings for smarter enhancements",
       onClick: () => {
         void (async () => {
+          if (
+            !aiEnabled &&
+            !window.confirm(
+              "AI is off — rule-based enhance will rewrite summary and skills from the job description. Your experience bullets stay as-is. Continue?",
+            )
+          ) {
+            return;
+          }
           const startedAt = Date.now();
           trackEnhanceClicked({
             surface: "review_resume",
@@ -250,6 +276,7 @@ export function ReviewResumePanel({ entry, onRefresh, aiEnabled }: ReviewResumeP
               : result.atsDelta ?? null,
             summary: result.enhanceSummary ?? result.fallbackSummary ?? null,
             warning: result.warning ?? null,
+            coherenceWarnings: result.coherenceWarnings ?? null,
             coverageAfter: result.coverageAfter ?? null,
           });
           onRefresh();

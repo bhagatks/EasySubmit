@@ -20,6 +20,7 @@ export function createAiSdkLanguageModel(
   }
 
   if (provider === "gemini") {
+    // Default baseURL is https://generativelanguage.googleapis.com/v1beta
     return createGoogleGenerativeAI({ apiKey: key })(modelId);
   }
 

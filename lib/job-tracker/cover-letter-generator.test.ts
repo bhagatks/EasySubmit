@@ -81,10 +81,10 @@ describe("cover-letter-generator", () => {
   });
 
   it("handles missing input with error codes", () => {
-    expect(generateCoverLetter(null).code).toBe("invalid_input");
-    expect(
-      generateCoverLetter({ resumeData: parsed.resume, jdData: undefined as never }).code,
-    ).toBe("missing_jd");
+    const r1 = generateCoverLetter(null);
+    expect(!r1.ok && r1.code).toBe("invalid_input");
+    const r2 = generateCoverLetter({ resumeData: parsed.resume, jdData: undefined as never });
+    expect(!r2.ok && r2.code).toBe("missing_jd");
   });
 
   it("assembles contact header and signature in markdown", () => {

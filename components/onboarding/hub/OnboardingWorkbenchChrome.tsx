@@ -77,7 +77,7 @@ export function OnboardingWorkbenchHeader({
   );
 }
 
-function PhaseProgressBar({ phase }: { phase: number }) {
+export function PhaseProgressBar({ phase }: { phase: number }) {
   const progress = (phase / WORKBENCH_PHASE_COUNT) * 100;
 
   return (

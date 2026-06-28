@@ -27,6 +27,8 @@ export type JDDomain =
   | "mobile"
   | "data-science"
   | "qa-testing"
+  | "procurement-supply-chain"
+  | "medtech-regulatory"
   | "other";
 
 export type JDImpactDimension =

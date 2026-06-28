@@ -25,6 +25,16 @@ describe("normalizeSaveJobInput", () => {
     expect("error" in result).toBe(false);
     if ("error" in result) return;
     expect(result.title.length).toBeGreaterThan(2);
-    expect(result.description.length).toBeGreaterThanOrEqual(120);
+    expect(result.description!.length).toBeGreaterThanOrEqual(120);
+  });
+
+  it("requires explicit title for manual capture", () => {
+    const result = normalizeSaveJobInput({
+      url: "https://jobs.example.com/1",
+      title: "",
+      description: "x".repeat(150),
+      metadata: { captureMode: "manual" },
+    });
+    expect(result).toEqual({ error: "role title is required for manual capture" });
   });
 });

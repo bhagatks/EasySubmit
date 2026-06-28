@@ -1,12 +1,14 @@
 # Workday One-Click Apply — E2E Spec & Work Breakdown
 
-Last updated: **2026-06-22**
+> **CANCELLED (2026-06-27)** — One-click apply **will not ship**. See [`decisions.md`](./decisions.md). This document is kept for historical context only (pipeline code, flags, and popup toggle are legacy). v1 prod: save → review/tailor in tracker → user applies manually.
+
+Last updated: **2026-06-27** (cancelled)
 
 Anchor ATS: **Workday** (`*.myworkdayjobs.com`). Other platforms stay **Save to Tracker** until autofill ships per platform.
 
 ---
 
-## Product definition
+## Product definition (historical — do not implement)
 
 **One-click apply** (user setting, default **on**): on a supported Workday job page, the extension primary CTA runs the full EasySubmit pipeline with no manual steps except the final submit on Workday.
 

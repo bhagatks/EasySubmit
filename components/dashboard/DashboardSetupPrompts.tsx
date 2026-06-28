@@ -22,6 +22,7 @@ import {
 } from "@/lib/dashboard/dashboard-setup-prompt-storage";
 import { isExtensionConnectedForDashboard } from "@/lib/extension/extension-dashboard-connection";
 import type { ExtensionInstallPromptConfig } from "@/src/lib/services/extension-install-prompt-config";
+import { trackScreenOverlay } from "@/src/shared/analytics";
 
 type DashboardSetupPromptsProps = {
   vaultKeyId?: string | null;
@@ -115,6 +116,22 @@ function DashboardSetupPromptsInner({
     },
     [proceedToTutorials],
   );
+
+  useEffect(() => {
+    if (!byokOpen) return;
+    trackScreenOverlay("byok_setup_modal", {
+      route: pathname,
+      flags: { setupFlow: setupFlowActiveRef.current, isSetupEntry },
+    });
+  }, [byokOpen, isSetupEntry, pathname]);
+
+  useEffect(() => {
+    if (!extensionOpen) return;
+    trackScreenOverlay("extension_install_modal", {
+      route: pathname,
+      flags: { setupFlow: setupFlowActiveRef.current, isSetupEntry },
+    });
+  }, [extensionOpen, isSetupEntry, pathname]);
 
   useEffect(() => {
     setSessionDismissed(isExtensionInstallDismissed(window.sessionStorage));

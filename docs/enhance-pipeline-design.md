@@ -1,6 +1,8 @@
 # Enhance Pipeline — Design Reference
 
-Captured from design session 2026-06-26. Updated 2026-06-26 with validation framework + onboarding auto-enhance. Read this before touching any AI enhance, features framework, or onboarding/job-apply flow code.
+Captured from design session 2026-06-26. Updated 2026-06-28 with diagnostic logging (`[EnhanceDiag]`) + threshold config. Read this before touching any AI enhance, features framework, or onboarding/job-apply flow code.
+
+**QA / regression:** Repeated AI on/off testing protocol, defect registry, and case history → [`docs/enhance-qa-playbook.md`](./enhance-qa-playbook.md).
 
 ---
 
@@ -68,6 +70,8 @@ Multi-word phrase extraction from JD, keeps noun/proper-noun only. Implemented i
 
 ### Step 8 — JD Brain / JD Intelligence *(job apply + extension only)*
 `analyzeJobDescription()` in `lib/job-tracker/jd/jd-brain.ts`. Deep analysis of raw JD — extracted job title, seniority, must-have skills, tier1/tier2 keywords, target verbs, impact dimensions, culture signals, domain. Has a **cache** — checks `jdIntelligence` + `jdDescriptionHash` on the job entry; skips re-analysis on hash match, writes back on miss. Skipped on onboarding.
+
+AI enrichment (`extractJDIntelligenceWithAI`) pre-checks daily quota (1 call), logs to `api_call_logs` as `ai.enhance.generate_object`, and counts toward `aiCallsToday`. System pool uses `app_config.aiEngine.system.jdExtractionModelId` (default `gemini-2.5-flash-lite`); Gemini BYOK JD routes use the same utility model id with the user's vaulted key. Resume `generateText` passes use `gemini-2.5-flash` with 503 jittered backoff (5 retries, 2s–45s) then fallback to `gemini-2.5-flash-lite` with prompt clipping (`src/lib/ai/engine/gemini-resilience.ts`).
 
 ### Step 9 — Summary + Skills Rules Validate *(pre-processing Step 4 from diagrams)*
 Enforces 4-sentence summary, 70–80 words, banned words, skills hard max. `post-process.ts` strips banned summary words and banned/prose skills, logs every rule trigger with `logEnhance`. Runs on all surfaces.
@@ -255,6 +259,98 @@ Complete. `enhance-resume-for-user.ts` calls `resolveEnhanceFeature()` exclusive
 5. **Tests for features framework**
 6. **Step 5: fast-rake + wink-nlp** keyword extraction
 7. **Steps 9 + 14: Rules enforcement** on summary + skills
+
+---
+
+## Observability — diagnostic logging (`[EnhanceDiag]`)
+
+Every enhance transaction is traceable in the dev terminal via structured logs prefixed **`[EnhanceDiag]`** (separate from legacy **`[EnhanceAI]`**).
+
+### Config — `app_config.enhanceDiagnostics`
+
+| Field | Values | Default | Purpose |
+|-------|--------|---------|---------|
+| `enabled` | `boolean` | `true` | Master switch for diagnostic console lines |
+| `logThreshold` | `light` \| `low` \| `high` | `light` | Minimum event severity to print |
+
+**Threshold semantics** (higher config = fewer lines):
+
+| Config | Emits |
+|--------|--------|
+| `light` | **All** events — step internals, flag values, counts (early-stage default) |
+| `low` | `low` + `high` — step completions with key params |
+| `high` | **Critical only** — boundaries, gate blocks, failures |
+
+Env overrides (local dev, no DB write):
+
+- `EASYSUBMIT_ENHANCE_DIAGNOSTICS_ENABLED=false`
+- `EASYSUBMIT_ENHANCE_DIAGNOSTICS_THRESHOLD=high`
+
+Example DB row:
+
+```json
+{
+  "enabled": true,
+  "logThreshold": "light"
+}
+```
+
+### Event severity on each log line
+
+| Level | When to use | Examples |
+|-------|-------------|----------|
+| `light` | Verbose internals | Gate passed, cache hit, O\*NET counts |
+| `low` | Step done + params | JD brain domain, keyword gap %, directive skills |
+| `high` | Boundaries & failures | `session.start`, `pipeline.complete`, `gate.block`, `engine.run.error` |
+
+### Tracks (grep helpers)
+
+| Track | Design steps | What failed here |
+|-------|--------------|------------------|
+| `jd` | 4, 5, 8, 10 | Keyword gap, NLP, JD brain, directive |
+| `resume` | 1–3, 6–7, 9, 11–16, 19 | Form load, O\*NET, bullets, baseline, diff |
+| `gate` | 0, 11, G1–G6 | AI off, feature flags, route, quota |
+| `engine` | 13 | Model calls, BYOK decrypt, provider errors |
+| `persist` | 17–18, 21 | Tailor row, cover letter, quota |
+| `pipeline` | 20 | Extension apply phases |
+
+### Standard log fields
+
+Every `[EnhanceDiag]` line includes:
+
+- `traceId` — correlate with PostHog + `api_call_logs`
+- `designStep` — `"8"`, `"13"`, `"G5"`, … (matches step matrix above)
+- `track` — `jd` \| `resume` \| `gate` \| `engine` \| …
+- `phase` — `start` \| `done` \| `skip` \| `fail` \| `block`
+- `step` — runtime pipeline id (e.g. `27c_ai_upgrade_fail`)
+- `flags` — gate inputs, route mode, cache hits, feature flags
+- `params` — counts, previews, error payloads
+- `errorCode` / `errorMessage` — on `fail` / `block`
+
+### Failure triage (read logs top → bottom for one `traceId`)
+
+| Symptom in UI | Grep terminal | Likely design step |
+|---------------|---------------|-------------------|
+| “AI disabled in settings” | `gate.block` + `G3` | Step 11 / G3 |
+| Baseline only, no API rows | `engine.run.error` or `pipeline.ai.fail` | Step 13 |
+| `provider_error`, `api_call_count: 0` | `engine.vault_decrypt_failed` or `engine.model.call.error` (BYOK provider throw — now logged to `api_call_logs`) | Step 13 / G5 BYOK |
+| JD skills empty | `brief.jd_skills` | Step 8 |
+| Keyword gap chip wrong | `brief.keyword_gap` | Step 4 |
+| Quota block | `gate.block` + `G6` | Step 21 / G6 |
+
+### Code map
+
+| Module | Role |
+|--------|------|
+| `src/lib/services/enhance-diagnostics-config.ts` | `app_config` parse + threshold filter |
+| `src/lib/ai/engine/enhance-diagnostics-catalog.ts` | Design step ↔ pipeline step registry |
+| `src/lib/ai/engine/enhance-diagnostics.ts` | `logEnhanceDiag`, `logEnhanceGate`, session |
+| `lib/features/resolve-enhance.ts` | G1–G6 gate logs |
+| `lib/job-tracker/enhance/build-enhance-brief.ts` | JD + resume pre-process logs |
+| `lib/job-tracker/enhance/run-resume-enhance-pipeline.ts` | Transaction wrapper + outcome |
+| `src/lib/ai/engine/run-enhance.ts` | Model call start/success/fail + parse errors |
+
+PostHog `resume_journey_step` remains unchanged; diagnostics are **dev terminal first** (same gating as `[EnhanceAI]` — off in production deploys).
 
 ---
 

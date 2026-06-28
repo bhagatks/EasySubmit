@@ -36,6 +36,22 @@ See also [`PROD_CUTOVER.md`](./PROD_CUTOVER.md) §7.
 
 ## Follow-up (not blocking deploy)
 
+### Pricing & plan marketing copy (v1.0) — **complete**
+
+Single source: `lib/pricing/plan-display.ts` + `components/pricing/PricingPlansSection.tsx`.
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Shared plan copy + cards | **Done** | `PRICING_PAGE_COPY`, FAQ (3), 5 visible + expandable lists (18 free / 19 paid), savings under M/Y price, paid “Coming Soon” when `!subscriptions.enabled` |
+| `/pricing` | **Done** | `PricingPlansSection showFaq` |
+| `/select-plan` | **Done** | Same plans/copy + footers as pricing |
+| Landing `/` | **Done** | Hero + metadata + features from `FREE_PLAN_VISIBLE_FEATURES`; full 4-card grid via `PricingPlansSection` |
+| `/extension` | **Done** | Subhead/footers from `PRICING_PAGE_COPY`; feature tiles use free-plan strings; link to `/pricing` |
+| `app_config` display features JSON | **Done** | Feature strings in `plan-display.ts` |
+| `/dashboard/billing` + live subscribe CTAs | **Done** | |
+| Upgrade nudge UI (`resolve-subscription`) | **Done** | |
+| FAQ “What is EasySubmit AI?” | **Done** | |
+
 ### North-star resume enhance — implementation tracker
 
 **Spec:** [`docs/north-star.md`](./north-star.md) (§2.1 frameworks, §23 JDSkillsFramework, §24 work inventory)
@@ -58,21 +74,42 @@ See also [`PROD_CUTOVER.md`](./PROD_CUTOVER.md) §7.
 
 #### Open product decisions
 
-- [ ] Quota: does baseline-only count toward daily limit? (§18.2 — provisional: no, only when `aiSucceeded`)
-- [ ] ESCOX self-host vs ESCO-only for v1 (§23.2 — provisional: deterministic + ESCO for v1)
+- [x] Quota: baseline-only does **not** count toward daily limit — only when `aiSucceeded` or `jdAiCallCount > 0`
+- [x] ESCO-only for v1 — ship with deterministic + ESCO; ESCOX deferred until volume warrants self-hosting
 
-### Analytics — Phase C (legal / compliance)
+### Analytics — Phase C (legal / compliance) — **complete**
 
 | Item | Status | Notes |
 |------|--------|-------|
-| **Privacy policy — PostHog / session replay** | **Todo** | Update `legal-documents-defaults` (or `app_config.legalDocuments`) to disclose product analytics, session replay, and error tracking. See [`analytics-option-a.md`](./analytics-option-a.md) Phase C. |
-| **EU cookie consent banner** | **Todo** | Evaluate if required for target regions; wire opt-in before PostHog init if yes. Not needed for US-only beta unless legal says otherwise. |
+| **Privacy policy — PostHog / session replay** | **Done** | Added "Product analytics & session replay" subsection to `legal-documents-defaults.ts` disclosing PostHog analytics, session replay, error tracking, and masking of resume content. Date bumped to June 27, 2026. |
+| **EU cookie consent banner** | **N/A** | US-only beta — GDPR/ePrivacy not applicable until EU users are targeted. |
 
-- Add `@testing-library/react` harness for onboarding UI (see sidepanel rule pattern)
-- **Extension install prompt admin UI** (optional) — toggle `app_config.extensionInstallPrompt` flags from dashboard Settings; today DB-only (Prisma Studio / SQL). Logic tested via `lib/dashboard/extension-install-prompt-triggers.test.ts`.
-- **`callEnhanceObjectModel` system-path logging** — system pool path for `generateObject` (JD extraction) logs `model.object.success` but does NOT call `recordEnhanceModelCall`/`logApiCall` — no `api_call_logs` row for JD extract calls. Add observability parity with the `generateText` path when JD AI extraction volume warrants it.
-- **JD AI extractor quota** — `extractJDIntelligenceWithAI` consumes an AI call but does not decrement or check quota before running. The outer `runResumeEnhancePipeline` quota gate covers the enhance pass; JD extraction runs first and could exhaust capacity without a pre-check. Evaluate whether JD-only calls should count toward `aiCallsToday`.
-- **`JD_EXTRACTION_SYSTEM_MODEL` for BYOK** — when mode is `customer`, `jdExtractionRoute` returns the customer route as-is (their chosen model), ignoring `JD_EXTRACTION_SYSTEM_MODEL = "gemini-1.5-flash"`. Intentional (customers may prefer GPT-4 for extraction) but not documented. Add a comment or expose a config option if this diverges in practice.
+- ~~Add `@testing-library/react` harness for onboarding UI~~ — **Done** (`config/vitest.component.config.ts`, 14 component tests across `OnboardingNextButton`, `OnboardingFlowShell`, `PhaseProgressBar`)
+
+### Enhance QA — AI on/off review playbook
+
+**Playbook (system of record):** [`docs/enhance-qa-playbook.md`](./enhance-qa-playbook.md)
+
+Repeated practice: **base resume → AI off enhance → AI on enhance → review all three.** Case 001 (Bhagath eng profile × iRhythm procurement JD) documented there.
+
+| Phase | Defect IDs | Status |
+|-------|------------|--------|
+| 1 — Deterministic safety (junk skills, filter bypass) | D-01, D-02, D-03, D-18, D-19 | **Done** |
+| 2 — Summary integrity (`[review]s`, fabricated claims, identity swap) | D-04, D-05, D-06, D-08, D-20 | **Done** |
+| 3 — Coherence & UX (cross-domain warn, ATS honesty) | D-07, D-09, D-10, D-11, P-02 | **Done** |
+| 4 — Domain & bullets | D-13, D-14, D-17, D-12 | **Done** |
+| 5 — Merge polish (dates, contact) | D-15, D-16 | **Done** |
+| 6 — Regression lock (fixture + debug doc) | D-22, D-21 | **Done** |
+
+Update defect status in playbook §4 + §7 change log when each phase ships; re-run Case 001 A/B/C.
+
+## JD AI observability (completed 2026-06-27)
+
+| Item | Status |
+|------|--------|
+| `callEnhanceObjectModel` → `api_call_logs` (`ai.enhance.generate_object`) | **Done** |
+| JD extract quota pre-check + count toward `aiCallsToday` | **Done** |
+| `aiEngine.system.jdExtractionModelId` + BYOK model behavior documented | **Done** |
 
 ## JD Brain (completed 2026-06-22)
 
@@ -148,13 +185,13 @@ Full spec: **[`docs/JD_BRAIN_ARCHITECTURE.md`](./JD_BRAIN_ARCHITECTURE.md)**
 **Still pending:**
 - Wire `injectApiInterceptScript()` + `onApiIntercept()` into content script boot (`extension/src/content/index.ts`)
 - Wire answer vault into Workday autofill field-fill loop
-- Real-time keyword gap overlay in card during form fill (Phase C UI)
+- ~~Real-time keyword gap overlay in card during form fill~~ — **Done** (`/api/extension/jobs/[id]/keyword-gap`, `GET_KEYWORD_GAP` message, fetched on `READY_TO_APPLY` transition, rendered as red chip strip in summary card)
 
 ---
 
 ## Job Tracker & Chrome extension
 
-Full specs: **[`docs/JOB_TRACKER.md`](./JOB_TRACKER.md)** · Workday E2E: **[`docs/WORKDAY_ONE_CLICK_APPLY.md`](./WORKDAY_ONE_CLICK_APPLY.md)**
+Full specs: **[`docs/JOB_TRACKER.md`](./JOB_TRACKER.md)** · Workday E2E (cancelled): **[`docs/WORKDAY_ONE_CLICK_APPLY.md`](./WORKDAY_ONE_CLICK_APPLY.md)** · Popup redesign: **[`docs/EXTENSION_POPUP_REDESIGN.md`](./EXTENSION_POPUP_REDESIGN.md)** · Scope: **[`docs/decisions.md`](./decisions.md)**
 
 | Item | Status |
 |------|--------|
@@ -166,12 +203,14 @@ Full specs: **[`docs/JOB_TRACKER.md`](./JOB_TRACKER.md)** · Workday E2E: **[`do
 | Extension reconnect hint on tracker page | Removed — use extension popup / bridge only |
 | Extension API (`/api/extension/jobs`) | Done |
 | MV3 extension + in-page card | Done |
-| **Auto-apply user switch** (`users.autoApplyUserSwitch`) | Done |
-| **Pipeline API** (`POST /api/extension/jobs/pipeline`) | Done — capture → tailor → server `READY_TO_APPLY`; Workday autofill assist optional |
-| **Autofill complete API** (`POST /api/extension/jobs/[id]/autofill-complete`) | Done — metadata only when already `READY_TO_APPLY`; real Workday fill pending |
+| **Auto-apply user switch** (`users.autoApplyUserSwitch`) | Legacy — **do not extend**; remove from Settings/popup (`decisions.md`) |
+| **Pipeline API** (`POST /api/extension/jobs/pipeline`) | Legacy — not v1 user-facing one-click |
+| **Autofill complete API** (`POST /api/extension/jobs/[id]/autofill-complete`) | Done — metadata only; real Workday fill **cancelled** |
 | **Job Tracker Realtime sync** | Done (QA) — publication + RLS applied; `SUPABASE_JWT_SECRET` in `.env.local`; restart dev server to pick up |
 | Workday scraper hardening (W1–W10) | Partial — apply URL canonicalize + company fallback |
 | Enhance AI in pipeline (Phase B) | Done — B1–B7 (B6 partial: card busy label + polling) |
-| Workday autofill port (Phase C) | Partial — stub runner + `READY_TO_APPLY`; field map pending |
-| Extension popup one-click toggle | Done |
-| Extension reconnect UX in popup/settings | Pending — banner removed from job tracker |
+| Workday autofill port (Phase C) | **Cancelled** — one-click apply out of scope |
+| **Part 1 — Manual detection & force capture** | Todo — force show → manual capture; inject script if missing; see `EXTENSION_POPUP_REDESIGN.md` |
+| **Part 2 — Extension popup redesign** | Todo — launcher UI, mini stats, settings; no one-click toggle |
+| Extension popup one-click toggle | **Remove in Part 2** |
+| Extension reconnect UX in popup/settings | Done — popup shows "Connect account" / "Reconnect account" with `OPEN_LOGIN` flow; dashboard banner removal was intentional |

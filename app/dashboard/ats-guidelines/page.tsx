@@ -1,4 +1,5 @@
 import { ShieldCheck, CheckCircle2, XCircle, Cpu, AlertTriangle } from "lucide-react";
+import { AtsGuidelinesSectionTracker } from "@/components/dashboard/AtsGuidelinesSectionTracker";
 
 type GuidelineSection = {
   title: string;
@@ -271,7 +272,10 @@ function GuidelineCard({
         : "border-border bg-surface";
 
   return (
-    <div className={`rounded-xl border p-5 space-y-3 ${borderClass}`}>
+    <div
+      data-guideline-section={section.title}
+      className={`rounded-xl border p-5 space-y-3 ${borderClass}`}
+    >
       <h2 className="font-display text-sm font-semibold text-foreground uppercase tracking-wide">
         {section.title}
       </h2>
@@ -314,7 +318,7 @@ export default function AtsGuidelinesPage() {
 
         <GuidelineCard section={pdfVsDocxRules} />
 
-        <div className="rounded-xl border border-border bg-surface p-5 space-y-4">
+        <div className="rounded-xl border border-border bg-surface p-5 space-y-4" data-guideline-section="Export Format by ATS Platform">
           <h2 className="font-display text-sm font-semibold text-foreground uppercase tracking-wide">
             Export Format by ATS Platform
           </h2>
@@ -347,7 +351,7 @@ export default function AtsGuidelinesPage() {
         <GuidelineCard section={pageLengthAutoRules} />
         <GuidelineCard section={pageLengthStudioRules} />
 
-        <div className="rounded-xl border border-border bg-surface p-5 space-y-4">
+        <div className="rounded-xl border border-border bg-surface p-5 space-y-4" data-guideline-section="Bullet Budget by Page Length">
           <h2 className="font-display text-sm font-semibold text-foreground uppercase tracking-wide">
             Bullet Budget by Page Length
           </h2>
@@ -382,7 +386,10 @@ export default function AtsGuidelinesPage() {
         <GuidelineCard section={easySubmitEnforcement} variant="info" />
         <GuidelineCard section={industryResearchExtras} />
 
-        <div className="rounded-xl border border-warning/30 bg-warning/5 p-5 space-y-3">
+        <div
+          className="rounded-xl border border-warning/30 bg-warning/5 p-5 space-y-3"
+          data-guideline-section="Hard Never List"
+        >
           <h2 className="font-display text-sm font-semibold text-foreground uppercase tracking-wide">
             Hard Never List
           </h2>
@@ -398,6 +405,7 @@ export default function AtsGuidelinesPage() {
 
         <GuidelineCard section={notYetAutomated} variant="warning" />
       </div>
+      <AtsGuidelinesSectionTracker />
     </div>
   );
 }

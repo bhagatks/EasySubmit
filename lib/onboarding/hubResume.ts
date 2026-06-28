@@ -203,6 +203,7 @@ export function mergeParsedWithCoordinates(
       hidden: false,
     })),
     customSections: [],
+    pageLengthPreference: DEFAULT_PAGE_LENGTH_PREFERENCE,
   };
 
   return splitMashedExperienceInForm(merged);

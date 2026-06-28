@@ -53,6 +53,17 @@ export async function vaultUserApiKey(
         activeProvider: provider,
       },
     });
+  } else {
+    const activeUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { activeProvider: true },
+    });
+    if (activeUser?.activeProvider === provider) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { vaultKeyId: vaultSecretId },
+      });
+    }
   }
 
   return { vaultSecretId };
@@ -100,6 +111,38 @@ export type VaultedApiKeyRecord = {
   createdAt: Date;
   updatedAt: Date;
 };
+
+export type ActiveVaultKeyLookup = {
+  vaultKeyId: string | null;
+  activeProvider: string | null;
+};
+
+/** When the active vaulted key was last written — stale failures before this are ignored. */
+export async function getActiveVaultKeyUpdatedAt(
+  userId: string,
+  lookup: ActiveVaultKeyLookup | string | null,
+): Promise<Date | null> {
+  const vaultKeyId = typeof lookup === "object" && lookup !== null ? lookup.vaultKeyId : lookup;
+  const activeProvider =
+    typeof lookup === "object" && lookup !== null ? lookup.activeProvider : null;
+
+  if (activeProvider) {
+    const activeRow = await prisma.userApiKey.findUnique({
+      where: { userId_provider: { userId, provider: activeProvider } },
+      select: { updatedAt: true },
+    });
+    if (activeRow) return activeRow.updatedAt;
+  }
+
+  if (!vaultKeyId) return null;
+
+  const row = await prisma.userApiKey.findFirst({
+    where: { userId, vaultSecretId: vaultKeyId },
+    select: { updatedAt: true },
+  });
+
+  return row?.updatedAt ?? null;
+}
 
 export async function listVaultedUserApiKeys(userId: string) {
   return prisma.userApiKey.findMany({

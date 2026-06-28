@@ -64,6 +64,17 @@ const FORM = {
   lastName: "Lovelace",
   email: "ada@example.com",
   phone: "555-0100",
+  cityState: "",
+  linkedIn: "",
+  professionalSummary: "",
+  skillsText: "",
+  experience: [],
+  education: [],
+  certifications: [],
+  projects: [],
+  languages: [],
+  customSections: [],
+  pageLengthPreference: "auto" as const,
 };
 
 describe("extension job pdf builders", () => {
@@ -79,6 +90,7 @@ describe("extension job pdf builders", () => {
       autoApplyUserSwitch: true,
       resumeProfilePickerMode: "DEFAULT",
       customizeResume: true,
+      aiSourcePreference: "auto",
       applicationProfile: null,
     });
     vi.mocked(getMergedResumeForJob).mockResolvedValue({

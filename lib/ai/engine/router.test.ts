@@ -31,10 +31,21 @@ describe("resolveEffectiveAiSource", () => {
     expect(resolveEffectiveAiSource("auto", false, true, true)).toBe("system");
   });
 
-  it("prefers customer when a vault key exists (over forceSystem and system preference)", () => {
+  it("prefers customer when auto + vault key and system is not forced", () => {
     expect(resolveEffectiveAiSource("auto", true, true)).toBe("customer");
-    expect(resolveEffectiveAiSource("system", true, true, true)).toBe("customer");
-    expect(resolveEffectiveAiSource("auto", true, true, true)).toBe("customer");
+  });
+
+  it("uses system when forceSystem even with vault key", () => {
+    expect(resolveEffectiveAiSource("auto", true, true, true)).toBe("system");
+    expect(resolveEffectiveAiSource("system", true, true, true)).toBe("system");
+  });
+
+  it("uses system when preference is system even with vault key", () => {
+    expect(resolveEffectiveAiSource("system", true, true)).toBe("system");
+  });
+
+  it("forces customer when forceCustomer is true and vault key exists", () => {
+    expect(resolveEffectiveAiSource("system", true, true, false, true)).toBe("customer");
   });
 });
 

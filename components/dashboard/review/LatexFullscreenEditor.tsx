@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { base64ToUint8Array, downloadBytes, copyTextToClipboard } from "@/lib/job-tracker/export/download-client";
 import { exportReviewDocument } from "@/app/actions/review-documents";
+import { trackResumeExported } from "@/src/shared/analytics";
 import type { ReviewDocumentKind } from "@/lib/job-tracker/review-readiness";
 import { cn } from "@/lib/utils";
 
@@ -95,6 +96,11 @@ export function LatexFullscreenEditor({
       setErrors([result.error]);
       return;
     }
+    trackResumeExported({
+      surface: "latex_editor",
+      format: "pdf",
+      entryId: jobId,
+    });
     downloadBytes({
       bytes: base64ToUint8Array(result.base64),
       filename: result.filename,

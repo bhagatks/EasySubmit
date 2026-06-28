@@ -1,14 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { isIdentityPhaseComplete } from "@/lib/onboarding/identity";
+import { isIdentityPhaseComplete, selectIsIdentityComplete } from "@/lib/onboarding/identity";
 
-describe("isIdentityPhaseComplete", () => {
-  it("returns false when targetRole is empty or whitespace", () => {
-    expect(isIdentityPhaseComplete({ targetRole: "" })).toBe(false);
-    expect(isIdentityPhaseComplete({ targetRole: "   " })).toBe(false);
+describe("identity", () => {
+  it("requires non-empty target role", () => {
+    expect(isIdentityPhaseComplete({ targetRole: "Staff Engineer", languages: [] })).toBe(true);
+    expect(isIdentityPhaseComplete({ targetRole: "  ", languages: [] })).toBe(false);
   });
 
-  it("returns true when target role is set (languages not required)", () => {
-    expect(isIdentityPhaseComplete({ targetRole: "Product Manager" })).toBe(true);
-    expect(isIdentityPhaseComplete({ targetRole: "  AI Engineer  " })).toBe(true);
+  it("selectIsIdentityComplete reads from store shape", () => {
+    expect(
+      selectIsIdentityComplete({ identity: { targetRole: "PM", languages: ["English"] } }),
+    ).toBe(true);
   });
 });

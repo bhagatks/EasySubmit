@@ -14,9 +14,18 @@ describe("parseAiEngineConfig", () => {
     expect(AI_ENGINE_DEFAULTS.quotas.customer.aiDailyUnlimited).toBe(true);
   });
 
+  it("defaults resume to gemini-2.5-flash and JD extract to gemini-2.5-flash-lite", () => {
+    expect(AI_ENGINE_DEFAULTS.system.modelId).toBe("gemini-2.5-flash");
+    expect(AI_ENGINE_DEFAULTS.system.jdExtractionModelId).toBe("gemini-2.5-flash-lite");
+  });
+
   it("parses model, enable flag, and quotas", () => {
     const config = parseAiEngineConfig({
-      system: { modelId: "gemini-2.5-flash", maxKeySlots: 3 },
+      system: {
+        modelId: "gemini-2.5-flash",
+        jdExtractionModelId: "gemini-2.5-flash-lite",
+        maxKeySlots: 3,
+      },
       quotas: {
         system: { enable: false, dailyEnhancements: 10, dailyCalls: 40 },
         customer: { aiDailyUnlimited: false, dailyEnhancements: 100, dailyCalls: 500 },
@@ -25,6 +34,7 @@ describe("parseAiEngineConfig", () => {
     });
 
     expect(config?.system.modelId).toBe("gemini-2.5-flash");
+    expect(config?.system.jdExtractionModelId).toBe("gemini-2.5-flash-lite");
     expect(config?.system.maxKeySlots).toBe(3);
     expect(config?.quotas.system.enable).toBe(false);
     expect(config?.quotas.system.dailyEnhancements).toBe(10);

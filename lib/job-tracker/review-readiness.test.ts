@@ -17,7 +17,7 @@ describe("isResumeReviewReady", () => {
   it("blocks when tailor missing or status too early", () => {
     expect(isResumeReviewReady(false, "RESUME_READY")).toBe(false);
     expect(isResumeReviewReady(true, "CAPTURED")).toBe(false);
-    expect(isResumeReviewReady(true, "TAILORING")).toBe(false);
+    expect(isResumeReviewReady(true, "ARCHIVED")).toBe(false);
   });
 });
 

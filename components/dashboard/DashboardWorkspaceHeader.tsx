@@ -124,11 +124,16 @@ export function DashboardExpandAllButton({
 /** Register expand/collapse-all control in the dashboard header. */
 export function useDashboardExpandAllControl(
   sectionIds: string[],
-  options?: { defaultExpanded?: boolean; disabled?: boolean },
+  options?: {
+    defaultExpanded?: boolean;
+    defaultExpandedSections?: Record<string, boolean>;
+    disabled?: boolean;
+  },
 ) {
   const expansion = useWorkspaceSectionExpansion(
     sectionIds,
     options?.defaultExpanded ?? false,
+    options?.defaultExpandedSections,
   );
 
   const expandButton = useMemo(

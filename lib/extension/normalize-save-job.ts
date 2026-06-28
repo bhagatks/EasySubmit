@@ -25,6 +25,18 @@ export function normalizeSaveJobInput(
     return { error: "url and job description (min 120 chars) are required" };
   }
 
+  const captureMode =
+    input.metadata && typeof input.metadata === "object" && !Array.isArray(input.metadata)
+      ? input.metadata.captureMode
+      : null;
+
+  if (captureMode === "manual") {
+    const explicitTitle = input.title?.trim() ?? "";
+    if (explicitTitle.length < 2) {
+      return { error: "role title is required for manual capture" };
+    }
+  }
+
   const identity = resolveJobIdentity({
     url,
     title: input.title,

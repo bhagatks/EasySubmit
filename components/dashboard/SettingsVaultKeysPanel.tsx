@@ -22,6 +22,7 @@ import { InlineAlert } from "@/components/ui/inline-alert";
 import { IgnitionGate } from "@/src/components/auth/IgnitionGate";
 import { HANDSHAKE_PROVIDERS, type HandshakeProvider } from "@/src/lib/config/career-grade-models";
 import { getProviderRegistryEntry } from "@/src/lib/config/app.config";
+import { useAiHealthRefresh } from "@/components/dashboard/AiHealthAlert";
 import { trackByokCtaClicked } from "@/src/shared/analytics/product-events";
 import { useIgnitionStore } from "@/src/stores/use-ignition-store";
 
@@ -49,6 +50,7 @@ export function SettingsVaultKeysPanel({
   openAddRequestId = 0,
 }: SettingsVaultKeysPanelProps) {
   const router = useRouter();
+  const refreshAiHealth = useAiHealthRefresh();
   const [keys, setKeys] = useState(initialKeys);
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [busyProvider, setBusyProvider] = useState<string | null>(null);
@@ -111,6 +113,7 @@ export function SettingsVaultKeysPanel({
       return;
     }
     await refreshKeys();
+    await refreshAiHealth("vault_key_activated");
     router.refresh();
   };
 
@@ -130,6 +133,7 @@ export function SettingsVaultKeysPanel({
     if (!next.some((key) => key.isActive)) {
       useIgnitionStore.getState().resetIgnition();
     }
+    await refreshAiHealth("vault_key_removed");
     router.refresh();
     return true;
   };
@@ -153,12 +157,16 @@ export function SettingsVaultKeysPanel({
   const handleBlastComplete = useCallback(() => {
     setBlastPayload(null);
     closeEditor();
-    void refreshKeys().then(() => router.refresh());
-  }, [closeEditor, refreshKeys, router]);
+    void refreshKeys().then(() => {
+      void refreshAiHealth("vault_key_saved");
+      router.refresh();
+    });
+  }, [closeEditor, refreshAiHealth, refreshKeys, router]);
 
   const handleSaved = async () => {
     setError(null);
     await refreshKeys();
+    await refreshAiHealth("vault_key_saved");
     router.refresh();
   };
 

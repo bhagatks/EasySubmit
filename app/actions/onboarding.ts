@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { parseProfileName } from "@/lib/profile/name";
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
 import { parseDateRangeString } from "@/lib/resume/dates";
+import { DEFAULT_PAGE_LENGTH_PREFERENCE } from "@/lib/resume/page-length-preference";
 import { collectValidationErrorMessages, validateResume } from "@/lib/resume/validation";
 import {
   profileContentPatch,
@@ -258,6 +259,7 @@ function buildGateForm(data: CompleteOnboardingInput): HubRefineryForm {
     projects: [],
     languages: [],
     customSections: [],
+    pageLengthPreference: DEFAULT_PAGE_LENGTH_PREFERENCE,
   };
 }
 

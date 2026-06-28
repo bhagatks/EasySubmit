@@ -7,6 +7,7 @@ import { logAiHealth, redactUserId } from "@/lib/ai/ai-health-debug";
 import type { AiRouteMode, AiSourcePreference } from "@/src/lib/ai/engine/constants";
 import { resolveEffectiveAiSource } from "@/src/lib/ai/engine/router";
 import { getFeatureFlags, isSystemAiEnabled } from "@/src/lib/services/feature-flags-service";
+import { getActiveVaultKeyUpdatedAt } from "@/lib/vault/user-key-vault";
 
 export type AiHealthErrorCode =
   | "quota_exhausted"
@@ -46,14 +47,11 @@ const QUOTA_ERROR_CODES = ["insufficient_quota", "capacity_exhausted", "pool_exh
 
 const KEY_ERROR_CODES = [
   "vault_decrypt_failed",
-  "insufficient_quota",
   "provider_error",
   "invalid_api_key",
   "authentication_failed",
   "permission_denied",
   "api_key_invalid",
-  "rate_limited",
-  "capacity_exhausted",
 ];
 
 function finishCheck(
@@ -175,6 +173,9 @@ async function _checkForUser(userId: string): Promise<AiHealthCheckResult> {
 
   const since60 = new Date(Date.now() - 60 * 60 * 1000);
   const since30 = new Date(Date.now() - 30 * 60 * 1000);
+  const keyUpdatedAt = await getActiveVaultKeyUpdatedAt(userId, user);
+  const errorWindowStart = (cutoff: Date) =>
+    keyUpdatedAt && keyUpdatedAt > cutoff ? keyUpdatedAt : cutoff;
   const logScope = apiLogScopeForRoute(routeMode);
 
   const recentQuotaErrors = await prisma.apiCallLog.count({
@@ -182,7 +183,7 @@ async function _checkForUser(userId: string): Promise<AiHealthCheckResult> {
       userId,
       status: "error",
       errorCode: { in: [...QUOTA_ERROR_CODES] },
-      createdAt: { gte: since60 },
+      createdAt: { gte: errorWindowStart(since60) },
       ...logScope,
     },
   });
@@ -204,15 +205,25 @@ async function _checkForUser(userId: string): Promise<AiHealthCheckResult> {
         userId,
         status: "error",
         errorCode: { in: KEY_ERROR_CODES },
-        createdAt: { gte: since30 },
+        createdAt: { gte: errorWindowStart(since30) },
         ...logScope,
       },
     }),
     prisma.apiCallLog.count({
-      where: { userId, status: "error", createdAt: { gte: since30 }, ...logScope },
+      where: {
+        userId,
+        status: "error",
+        createdAt: { gte: errorWindowStart(since30) },
+        ...logScope,
+      },
     }),
     prisma.apiCallLog.count({
-      where: { userId, status: "success", createdAt: { gte: since30 }, ...logScope },
+      where: {
+        userId,
+        status: "success",
+        createdAt: { gte: errorWindowStart(since30) },
+        ...logScope,
+      },
     }),
   ]);
 

@@ -23,7 +23,7 @@ describe("analytics config", () => {
 
   it("isDevAnalyticsEnvironment is true when env is dev", async () => {
     process.env.NEXT_PUBLIC_ANALYTICS_ENV = "dev";
-    process.env.NODE_ENV = "development";
+    Object.assign(process.env, { NODE_ENV: "development" });
     const { isDevAnalyticsEnvironment, isEnhanceJourneyDebugEnabled } = await import(
       "@/src/shared/analytics/config"
     );

@@ -116,6 +116,14 @@ export type ExtensionResumeProfilesResponse = {
   error?: string;
 };
 
+export type ExtensionJobStatsResponse = {
+  success: boolean;
+  captured?: number;
+  readyToApply?: number;
+  total?: number;
+  error?: string;
+};
+
 export type JobStatusResponse = {
   success: boolean;
   saved: boolean;

@@ -3,6 +3,7 @@ import { detectJobPage } from "@/src/shared/extension/detect-job-page";
 import type { ExtensionRuntimeConfig } from "@/src/shared/extension/types";
 
 const config: ExtensionRuntimeConfig = {
+  extensionGlobalSwitch: true,
   jobCardEnabled: true,
   enabledPlatforms: ["linkedin", "indeed", "greenhouse", "workday", "generic"],
   genericFallbackEnabled: true,

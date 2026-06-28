@@ -44,7 +44,12 @@ describe("normalizeEnhancedBody", () => {
             id: "exp-0",
             title: "Senior Engineer",
             company: "Acme",
-            bullets: ["Built scalable APIs", "Reduced latency 40%"],
+            location: "",
+            startMonth: "",
+            startYear: "2020",
+            endMonth: "",
+            endYear: "Present",
+            bullets: ["Built scalable APIs", "Reduced latency 40%"] as unknown as string,
           },
         ],
       },
@@ -60,10 +65,10 @@ describe("normalizeEnhancedBody", () => {
 });
 
 describe("postProcessProfessionalSummary", () => {
-  it("replaces banned words with review placeholders", () => {
+  it("replaces leverage without review placeholders", () => {
     expect(
-      postProcessProfessionalSummary("A passionate engineer who will leverage APIs."),
-    ).toBe("A [review] engineer who will [review] APIs.");
+      postProcessProfessionalSummary("Leverages APIs to deliver platform reliability."),
+    ).toBe("applies APIs to deliver platform reliability.");
   });
 });
 

@@ -1,30 +1,10 @@
 // Layer 5 — Convert JDIntelligence + current resume skills → ResumeEnhanceDirective.
 // The directive is what gets fed to brain.ts — structured instructions, not raw gaps.
 
-import type { JDIntelligence, ResumeEnhanceDirective } from "@/lib/job-tracker/jd/jd-intelligence";
+import type { JDDomain, JDIntelligence, ResumeEnhanceDirective } from "@/lib/job-tracker/jd/jd-intelligence";
 import type { JdSkillsVocabulary } from "@/lib/job-tracker/jd/jd-skills-types";
-import { MASTER_SKILLS } from "@/src/lib/constants/skills";
-import { isBannedSkill, SKILLS_HARD_MAX } from "@/lib/resume/skills-rules";
-
-const MASTER_SKILLS_SET = new Set(MASTER_SKILLS.map((s) => s.toLowerCase()));
-
-function filterMustAddSkills(rawSkills: string[]): string[] {
-  const seen = new Set<string>();
-  const filtered: string[] = [];
-
-  for (const skill of rawSkills) {
-    const normalized = skill.toLowerCase().trim();
-    if (!normalized || !MASTER_SKILLS_SET.has(normalized)) continue;
-    if (isBannedSkill(skill)) continue;
-    if (seen.has(normalized)) continue;
-
-    seen.add(normalized);
-    filtered.push(skill);
-    if (filtered.length >= SKILLS_HARD_MAX) break;
-  }
-
-  return filtered;
-}
+import { filterJdSkillLabels } from "@/lib/job-tracker/jd/jd-skill-filter";
+import { SKILLS_HARD_MAX } from "@/lib/resume/skills-rules";
 
 // Skills clearly tied to a tech/engineering domain that should be removed when
 // the target role is non-technical (people, ops, finance, legal, etc.)
@@ -38,7 +18,12 @@ const TECH_ONLY_SKILLS = new Set([
   "microservices","serverless","distributed systems",
 ]);
 
-const NON_TECH_DOMAINS = new Set(["other","product-management"]);
+const NON_TECH_DOMAINS = new Set<JDDomain>([
+  "other",
+  "product-management",
+  "procurement-supply-chain",
+  "medtech-regulatory",
+]);
 
 function isTechRole(intelligence: JDIntelligence): boolean {
   return !NON_TECH_DOMAINS.has(intelligence.domain);
@@ -58,9 +43,9 @@ export function buildResumeEnhanceDirective(
     ...intelligence.mustHaveSkills.filter((s) => !resumeSkillsLower.has(s.toLowerCase())),
   ];
 
-  const mustAddSkills = filterMustAddSkills(
+  const mustAddSkills = filterJdSkillLabels(
     rawMustAdd.filter((s) => !resumeSkillsLower.has(s.toLowerCase())),
-  );
+  ).slice(0, SKILLS_HARD_MAX);
 
   // Keywords gap: tier1 + tier2 not already in resume
   const allPriorityKeywords = [...intelligence.tier1Keywords, ...intelligence.tier2Keywords];

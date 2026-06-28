@@ -3,7 +3,7 @@ import { EXTENSION_MESSAGE, STORAGE_KEYS, EXTENSION_ENHANCE_TIMEOUT_MS } from "@
 import { detectJobPage } from "@shared/extension/detect-job-page";
 import { buildFallbackJobMetadata } from "@shared/extension/force-metadata";
 import { isJobPage } from "@shared/extension/is-job-page";
-import { scrapeDescription } from "@shared/extension/scrape-helpers";
+import { isGenericNavigationJobTitle, scrapeDescription } from "@shared/extension/scrape-helpers";
 import { mergeExtensionRuntimeConfig, EXTENSION_RUNTIME_DEFAULTS } from "@shared/extension/runtime-config-merge";
 import {
   JOB_CARD_COLLAPSED_SIZE,
@@ -56,7 +56,8 @@ import {
   triggerEasySubmitAnimation,
   type EasySubmitAnimationController,
 } from "@shared/extension/easysubmit-brand-canvas-animation";
-import { ENHANCE_PROGRESS_CAPTION } from "@shared/extension/enhance-progress-overlay";
+import { ENHANCE_PROGRESS_CAPTION, wrapContentWithBrandProgressOverlay } from "@shared/extension/enhance-progress-overlay";
+import { PIPELINE_SUB_LABELS } from "@/lib/job-tracker/pipeline-sub-labels";
 import {
   DOCUMENT_PREVIEW_AI_SETTINGS_LABEL,
   DOCUMENT_PREVIEW_FIX_KEY_LABEL,
@@ -69,13 +70,15 @@ import {
   raceWithEnhanceTimeout,
 } from "@/src/lib/ai/engine/enhance-timeout";
 import { createEnhanceTraceId } from "@/src/lib/ai/engine/enhance-logger";
-import { AnalyticsEvents, captureAnalyticsEvent } from "@shared/analytics";
 import {
+  AnalyticsEvents,
+  captureAnalyticsEvent,
   trackEnhanceClicked,
   trackEnhanceCompleted,
   trackResumeJourneyStep,
+  trackScreenOverlay,
   trackUiInteraction,
-} from "@shared/analytics/product-events";
+} from "@shared/analytics";
 import {
   escapeHintAttr,
   floatingHintStyles,
@@ -88,17 +91,21 @@ import {
   getExtensionAiHealthBlockMessage,
 } from "@shared/extension/ai-health-banner";
 import {
+  resolveExtensionReconnectBanner,
+  shouldHideSaveErrorForReconnectBanner,
+} from "@shared/extension/reconnect-banner";
+import {
   getExtensionForceUpgradeBlockMessage,
   isExtensionForceUpgradeRequired,
   resolveExtensionForceUpgradeBanner,
 } from "@shared/extension/extension-force-upgrade";
 import {
+  buildLoadingJobMetadata,
   buildManualCaptureMetadata,
-  buildNoJobDetectedMetadata,
-  NO_JOB_DETECTED_MESSAGE,
   type CardPresentation,
 } from "@shared/extension/card-presentation";
-import { canApplyCapture, applyCaptureBlockReason } from "@shared/extension/apply-gate";
+import { presentationToTabStatus, tabStatusLabel, type ExtensionTabStatusPayload } from "@shared/extension/tab-status";
+import { canApplyCapture, applyCaptureBlockReason, canManualCaptureSave, manualCaptureBlockReason } from "@shared/extension/apply-gate";
 import {
   applyJobDetailDraftToMetadata,
   buildJobDetailDraft,
@@ -118,7 +125,6 @@ import {
   type ResumeDetailDraft,
 } from "@shared/extension/resume-detail-edit";
 import { resolveJobIdentity } from "@shared/extension/job-identity";
-import { hasStrongJobUrlSignal } from "@shared/extension/job-url-parse";
 import { detectApplicationConfirmation, shouldWatchForApplicationConfirmation } from "@shared/extension/confirmation-detect";
 import { hasAssistOpenParam, stripAssistOpenParam } from "@shared/extension/assist-open-url";
 import { parseCompanyFromJobHost } from "@shared/extension/job-url-parse";
@@ -139,8 +145,11 @@ import type { ExtensionCardView } from "@shared/extension/card-layout";
 import { buildJobDetailFields, isExpandableCardView } from "@shared/extension/card-layout";
 import {
   manualCaptureStyles,
+  loadingBodyStyles,
   renderLoadingBody,
   renderManualCaptureBody,
+  renderManualCaptureActions,
+  renderNoJobBody,
   renderSummaryCardBody,
   renderJobDetailBody,
   readJobDetailDraftFromDom,
@@ -235,11 +244,13 @@ let journeySyncTimer: ReturnType<typeof setInterval> | null = null;
 let lastJourneySnapshot: JourneySnapshot | null = null;
 let autofillRunForEntryId: string | null = null;
 let manualCaptureDraft: ManualCaptureDraft | null = null;
+let keywordGapData: { topMissing: string[]; coveragePercent: number | null } | null = null;
 let profileSetupScreen: 0 | 1 | 2 = 0;
 let profileSetupScreen1Draft: ProfileSetupScreen1Draft = defaultProfileSetupScreen1Draft();
 let profileSetupScreen2Draft: ProfileSetupScreen2Draft = defaultProfileSetupScreen2Draft();
 let profileSetupScreen1ValidationIssues: ProfileSetupScreen1ValidationIssue[] = [];
 let profileSetupContinueBusy = false;
+let pendingApplyAfterProfileSetup = false;
 let cachedApplicationProfile: ApplicationProfile | null = null;
 let cardLaunchMode: "auto" | "manual" = "auto";
 let assistUploadWarnings: string[] = [];
@@ -254,6 +265,7 @@ type ResumeProfileOption = { id: string; label: string; isDefault: boolean };
 let resumeProfiles: ResumeProfileOption[] = [];
 let selectedProfileId: string | null = null;
 let defaultProfileId: string | null = null;
+let resumeProfilesHeaderFetchPending = false;
 let profilePickerOpen = false;
 let settingsMenuOpen = false;
 let headerRefreshBusy = false;
@@ -295,6 +307,7 @@ let enhanceAnimationController: EasySubmitAnimationController | null = null;
 let enhanceAnimationCanvas: HTMLCanvasElement | null = null;
 let enhanceAnimationUntil: Promise<void> | null = null;
 let resolveEnhanceAnimationUntil: (() => void) | null = null;
+let pipelineProgressAnimationTracked = false;
 
 function resetEnhanceAnimationUntil(): void {
   enhanceAnimationUntil = null;
@@ -314,8 +327,35 @@ function releaseEnhanceAnimationUntil(): void {
   resetEnhanceAnimationUntil();
 }
 
+function isPipelineProgressActive(): boolean {
+  if (pipelineBusy) return true;
+  return Boolean(
+    savedStatus.saved && savedStatus.status === "CAPTURED" && !savedStatus.canReapply,
+  );
+}
+
+function pipelineProgressCaption(): string {
+  const label = pipelineBusyLabel?.trim();
+  if (label) return label;
+  return PIPELINE_SUB_LABELS.optimizingResume;
+}
+
+function syncPipelineProgressAnimation(): void {
+  const active = isPipelineProgressActive();
+  if (active && !pipelineProgressAnimationTracked) {
+    pipelineProgressAnimationTracked = true;
+    if (!documentEnhanceBusy) beginEnhanceAnimationUntil();
+    return;
+  }
+  if (!active && pipelineProgressAnimationTracked) {
+    pipelineProgressAnimationTracked = false;
+    if (!documentEnhanceBusy) releaseEnhanceAnimationUntil();
+  }
+}
+
 function syncEnhanceBrandAnimation(root: ShadowRoot): void {
-  if (!documentEnhanceBusy) {
+  const animationActive = documentEnhanceBusy || isPipelineProgressActive();
+  if (!animationActive) {
     stopEasySubmitAnimation();
     enhanceAnimationController = null;
     enhanceAnimationCanvas = null;
@@ -325,12 +365,16 @@ function syncEnhanceBrandAnimation(root: ShadowRoot): void {
   const canvas = root.querySelector("#brand-canvas") as HTMLCanvasElement | null;
   if (!canvas) return;
 
+  const subtext = documentEnhanceBusy ? ENHANCE_PROGRESS_CAPTION : pipelineProgressCaption();
+  const subtextEl = root.querySelector("#status-subtext") as HTMLElement | null;
+  if (subtextEl) subtextEl.textContent = subtext;
+
   if (enhanceAnimationController && enhanceAnimationCanvas === canvas) return;
 
   stopEasySubmitAnimation();
   enhanceAnimationController = triggerEasySubmitAnimation({
     root,
-    subtext: ENHANCE_PROGRESS_CAPTION,
+    subtext,
     until: enhanceAnimationUntil ?? undefined,
   });
   enhanceAnimationCanvas = canvas;
@@ -467,6 +511,9 @@ function resolveExtensionJourneyDisplayLocal() {
 }
 
 function getPrimaryCtaLabel(): string {
+  if (cardPresentation === "manual_capture" && !savedStatus.saved) {
+    return "Save to tracker";
+  }
   const journey = resolveExtensionJourneyDisplayLocal();
   if (!savedStatus.saved) return BRAND.applyCta;
   if (savedStatus.canReapply) return BRAND.autoSuggestCta;
@@ -1236,6 +1283,7 @@ function cardStyles(): string {
       }
     }
     .header-btn.is-active { color: ${t.primaryMuted}; background: ${t.a12}; }
+    .header-btn.is-unset { color: #B45309; background: rgba(245, 158, 11, 0.08); }
     .header-btn.is-spinning { color: ${t.primaryMuted}; pointer-events: none; }
     .header-btn.is-spinning svg { animation: es-refresh-spin 0.8s linear infinite; }
     @keyframes es-refresh-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -1487,6 +1535,135 @@ function resolveCardContent(
   });
 }
 
+function switchToManualCapture(): void {
+  cardPresentation = "manual_capture";
+  currentMetadata = buildManualCaptureMetadata();
+  manualCaptureDraft = defaultManualCaptureDraft();
+  pinnedUrl = location.href;
+  cardCollapsed = false;
+  stopLoadingHydrationWatch();
+  void (async () => {
+    await refreshResumeProfiles().catch(() => undefined);
+    if (cardHost) {
+      renderCard(cardHost.shadow);
+      setCardVisible(true);
+      return;
+    }
+    await mountCard("body", currentMetadata!, { useDefaultPosition: true });
+  })();
+}
+
+function cardPresentationForTabStatus(): CardPresentation {
+  if (isWaitingForJobScrape()) return "loading";
+  return cardPresentation;
+}
+
+function applyDetectedJobToTabPayload(
+  payload: ExtensionTabStatusPayload,
+  input: {
+    url: string;
+    title?: string | null;
+    company?: string | null;
+    description?: string | null;
+  },
+): void {
+  if (payload.status !== "detected") return;
+  const identity = resolveJobIdentity(input);
+  if (!isGenericNavigationJobTitle(identity.title)) {
+    payload.title = identity.title;
+    payload.company = identity.company;
+  }
+}
+
+function handleJobPageUrlChange(): void {
+  pinnedUrl = null;
+  runtimeConfig = null;
+  interceptedMetadata = null;
+  if (isEasySubmitAppPage()) {
+    idleExtensionOnAppPage();
+    return;
+  }
+  ensureJobSiteDomObservers();
+  if (cardHost && !savedStatus.saved && !pipelineBusy) {
+    cardPresentation = "loading";
+    currentMetadata = buildLoadingJobMetadata();
+    cardCollapsed = false;
+    void updateCard().catch(swallowContextInvalidation);
+    return;
+  }
+  removeCard();
+  scheduleUpdate();
+}
+
+async function buildTabStatusPayload(): Promise<ExtensionTabStatusPayload> {
+  if (window.top !== window.self) {
+    return {
+      status: "restricted",
+      message: "Cannot show the card in this frame.",
+      cardVisible: false,
+    };
+  }
+
+  if (isEasySubmitAppPage()) {
+    return {
+      status: "restricted",
+      message: `The job card is hidden on the ${BRAND.full} dashboard.`,
+      cardVisible: false,
+    };
+  }
+
+  const config = await ensureRuntimeConfig().catch(() => runtimeConfig ?? EXTENSION_RUNTIME_DEFAULTS);
+  if (!isExtensionGlobalSwitchOn(config)) {
+    return {
+      status: "restricted",
+      message: "Extension is disabled platform-wide.",
+      cardVisible: false,
+    };
+  }
+
+  const cardVisible = Boolean(
+    cardHost &&
+      cardHost.host.isConnected &&
+      cardHost.host.style.display !== "none" &&
+      !cardCollapsed,
+  );
+
+  if (cardHost && cardVisible) {
+    const presentation = cardPresentationForTabStatus();
+    const payload = presentationToTabStatus(presentation, {
+      cardVisible: true,
+      saved: savedStatus.saved,
+      jobStatus: savedStatus.status,
+    });
+    if (presentation === "job") {
+      const capture = getCaptureContext();
+      applyDetectedJobToTabPayload(payload, {
+        url: capture.url,
+        title: capture.title,
+        company: capture.company,
+        description: capture.description,
+      });
+    }
+    return payload;
+  }
+
+  const { presentation, metadata } = resolveCardContent(config, cardLaunchMode);
+  const payload = presentationToTabStatus(presentation, {
+    cardVisible: false,
+    saved: savedStatus.saved,
+    jobStatus: savedStatus.status,
+  });
+  if (presentation === "job") {
+    applyDetectedJobToTabPayload(payload, {
+      url: location.href,
+      title: metadata.title,
+      company: metadata.company,
+      description: metadata.description,
+    });
+  }
+  return payload;
+}
+
 function defaultManualCaptureDraft(): ManualCaptureDraft {
   return {
     jobUrl: location.href,
@@ -1520,16 +1697,18 @@ function getCaptureContext(): {
   confidence: number;
 } {
   if (cardPresentation === "manual_capture" && manualCaptureDraft) {
+    const title = manualCaptureDraft.title.trim();
     const identity = resolveJobIdentity({
       url: manualCaptureDraft.jobUrl,
       title: manualCaptureDraft.title,
       company: manualCaptureDraft.company,
       description: manualCaptureDraft.description,
     });
+    const company = manualCaptureDraft.company.trim() || identity.company;
     return {
       url: manualCaptureDraft.jobUrl,
-      title: identity.title,
-      company: identity.company,
+      title,
+      company,
       location: currentMetadata?.location ?? null,
       salaryText: currentMetadata?.salaryText ?? null,
       description: manualCaptureDraft.description,
@@ -1577,8 +1756,25 @@ function isApplyEnabled(): boolean {
   if (savedStatus.saved) return false;
   if (pipelineBusy) return false;
   if (cardPresentation === "loading") return false;
+  if (cardPresentation === "manual_capture" && manualCaptureDraft) {
+    return canManualCaptureSave({
+      url: manualCaptureDraft.jobUrl,
+      description: manualCaptureDraft.description,
+      title: manualCaptureDraft.title,
+    });
+  }
   const capture = getCaptureContext();
   return canApplyCapture({ url: capture.url, description: capture.description });
+}
+
+function isWaitingForJobScrape(): boolean {
+  if (profileSetupScreen !== 0) return false;
+  if (pipelineBusy) return false;
+  if (cardPresentation === "loading") return true;
+  if (cardPresentation !== "job") return false;
+  if (savedStatus.saved && !savedStatus.canReapply) return false;
+  const capture = getCaptureContext();
+  return !canApplyCapture({ url: capture.url, description: capture.description });
 }
 
 
@@ -1591,24 +1787,19 @@ function stopLoadingHydrationWatch(): void {
 
 function startLoadingHydrationWatch(): void {
   stopLoadingHydrationWatch();
-  if (cardPresentation !== "loading") return;
+  if (!isWaitingForJobScrape()) return;
 
   const started = Date.now();
   loadingHydrationTimer = setInterval(() => {
     if (!guardExtensionContext()) return;
-    if (cardPresentation !== "loading") {
+    if (!isWaitingForJobScrape()) {
       stopLoadingHydrationWatch();
       return;
     }
     if (Date.now() - started > 12_000) {
       console.log("[EasySubmit] hydration:timeout — falling back to manual capture", { url: location.href });
       stopLoadingHydrationWatch();
-      if (hasStrongJobUrlSignal(location.href)) {
-        cardPresentation = "manual_capture";
-        currentMetadata = buildManualCaptureMetadata();
-        manualCaptureDraft = defaultManualCaptureDraft();
-        if (cardHost) renderCard(cardHost.shadow);
-      }
+      switchToManualCapture();
       return;
     }
     void updateCard().catch(swallowContextInvalidation);
@@ -1689,6 +1880,7 @@ function renderExpandedCard(root: ShadowRoot): void {
   if (!meta) return;
 
   void maybeRefreshAiHealthConfig();
+  scheduleResumeProfilesForHeader();
 
   if (cardPresentation === "manual_capture" && !manualCaptureDraft) {
     manualCaptureDraft = defaultManualCaptureDraft();
@@ -1717,17 +1909,35 @@ function renderExpandedCard(root: ShadowRoot): void {
     runtimeConfig,
     getExtensionManifestVersion(),
   );
+  const reconnectBanner = forceUpgradeBanner
+    ? null
+    : resolveExtensionReconnectBanner(saveError);
   const aiHealthBanner = forceUpgradeBanner
     ? null
-    : resolveExtensionAiHealthBanner(runtimeConfig, saveError);
-  const cardSaveError = shouldHidePipelineErrorInBody(aiHealthBanner, saveError) ? null : saveError;
+    : reconnectBanner
+      ? null
+      : resolveExtensionAiHealthBanner(runtimeConfig, saveError);
+  const cardSaveError =
+    reconnectBanner || shouldHideSaveErrorForReconnectBanner(reconnectBanner, saveError)
+      ? null
+      : shouldHidePipelineErrorInBody(aiHealthBanner, saveError)
+        ? null
+        : saveError;
   const upgradeBlockMessage = getExtensionForceUpgradeBlockMessage(
     runtimeConfig,
     getExtensionManifestVersion(),
   );
   const aiBlockMessage = upgradeBlockMessage ?? getExtensionAiHealthBlockMessage(runtimeConfig);
-  const captureHint = applyCaptureBlockReason({ url: capture.url, description: capture.description });
+  const captureHint =
+    cardPresentation === "manual_capture" && manualCaptureDraft
+      ? manualCaptureBlockReason({
+          url: manualCaptureDraft.jobUrl,
+          description: manualCaptureDraft.description,
+          title: manualCaptureDraft.title,
+        })
+      : applyCaptureBlockReason({ url: capture.url, description: capture.description });
   const applyHint = !aiBlockMessage && !applyEnabled ? captureHint : null;
+  const waitingForJobScrape = isWaitingForJobScrape();
 
   let bodyMarkup = "";
   if (profileSetupScreen === 1) {
@@ -1742,14 +1952,24 @@ function renderExpandedCard(root: ShadowRoot): void {
   } else if (profileSetupScreen === 2) {
     bodyMarkup = renderProfileSetupScreen2(profileSetupScreen2Draft, escapeHtml);
   } else if (cardPresentation === "no_job") {
-    bodyMarkup = `
-      <h2 class="title">${escapeHtml(meta.title)}</h2>
-      <p class="card-notice">${escapeHtml(NO_JOB_DETECTED_MESSAGE)}</p>
-    `;
-  } else if (cardPresentation === "loading") {
+    bodyMarkup = renderNoJobBody(escapeHtml);
+  } else if (cardPresentation === "loading" || waitingForJobScrape) {
     bodyMarkup = renderLoadingBody(escapeHtml);
   } else if (cardPresentation === "manual_capture" && manualCaptureDraft) {
-    bodyMarkup = renderManualCaptureBody(manualCaptureDraft, escapeHtml);
+    const manualBody =
+      renderManualCaptureBody(manualCaptureDraft, escapeHtml) +
+      renderManualCaptureActions({
+        ctaDisabled: !applyEnabled || pipelineBusy,
+        applyHint,
+        saveError: cardSaveError,
+        escapeHtml,
+      });
+    bodyMarkup = isPipelineProgressActive()
+      ? wrapContentWithBrandProgressOverlay(manualBody, {
+          caption: pipelineProgressCaption(),
+          showCancel: false,
+        })
+      : manualBody;
   } else if (showAppliedLayout && cardView === "summary") {
     bodyMarkup = renderSummaryCardBody({
       title: capture.title,
@@ -1765,6 +1985,7 @@ function renderExpandedCard(root: ShadowRoot): void {
       ctaIcon,
       applyHint: null,
       saveError: cardSaveError,
+      keywordGap: keywordGapData,
       escapeHtml,
     });
   } else if (cardView === "job-detail") {
@@ -1884,11 +2105,19 @@ function renderExpandedCard(root: ShadowRoot): void {
       ctaIcon,
       applyHint,
       saveError: cardSaveError,
+      keywordGap: keywordGapData,
+      pipelineProgressActive: isPipelineProgressActive(),
+      pipelineProgressLabel: pipelineProgressCaption(),
       escapeHtml,
     });
   }
 
-  const bodyClass = isExpandedView ? "body body-expanded" : "body body-summary";
+  const bodyClass = [
+    isExpandedView ? "body body-expanded" : "body body-summary",
+    cardPresentation === "loading" || waitingForJobScrape ? "is-reading" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
   const hostWidth = getHostWidth();
   const panelResizable = isExpandedView;
   const stackClasses = [
@@ -1904,15 +2133,15 @@ function renderExpandedCard(root: ShadowRoot): void {
     : "";
 
   root.innerHTML = `
-    <style>${cardStyles()}${glossyShellStyles(hostWidth)}${manualCaptureStyles()}${profileSetupStyles()}${singleCardLayoutStyles()}${panelResizeStyles()}</style>
+    <style>${cardStyles()}${glossyShellStyles(hostWidth)}${manualCaptureStyles()}${loadingBodyStyles()}${profileSetupStyles()}${singleCardLayoutStyles()}${panelResizeStyles()}</style>
     <div class="${stackClasses}" data-glossy-stack="1"${stackStyle}>
       ${panelResizable ? renderPanelResizeGripMarkup() : ""}
-      <div class="glossy-shell${!savedStatus.saved || savedStatus.status === "APPLIED" ? "" : " is-live"}${isExpandedView ? " is-expanded" : ""}">
+      <div class="glossy-shell${!savedStatus.saved || savedStatus.status === "APPLIED" ? "" : " is-live"}${cardPresentation === "loading" || waitingForJobScrape ? " is-reading" : ""}${isExpandedView ? " is-expanded" : ""}">
         <div class="glossy-shell-sheen" aria-hidden="true"></div>
         <div class="glossy-shell-shimmer" aria-hidden="true"></div>
         <div class="glossy-cards">
           <div class="card white-card" part="card">
-            <div class="grip" data-grip="1">
+            <div class="grip${cardPresentation === "loading" || waitingForJobScrape ? " is-reading" : ""}" data-grip="1">
               <div class="grip-left">
                 <span class="dots">⋮⋮</span>
                 ${renderBrandMarkup({}, extensionIconUrl("128"))}
@@ -1925,7 +2154,8 @@ function renderExpandedCard(root: ShadowRoot): void {
               </div>
             </div>
             ${renderForceUpgradeBannerMarkup(forceUpgradeBanner)}
-            ${forceUpgradeBanner ? "" : renderAiHealthBannerMarkup(aiHealthBanner)}
+            ${forceUpgradeBanner ? "" : renderReconnectBannerMarkup(reconnectBanner)}
+            ${forceUpgradeBanner || reconnectBanner ? "" : renderAiHealthBannerMarkup(aiHealthBanner)}
             <div class="${bodyClass}">${bodyMarkup}</div>
           </div>
         </div>
@@ -1935,6 +2165,10 @@ function renderExpandedCard(root: ShadowRoot): void {
 
   root.querySelector("[data-save]")?.addEventListener("click", () => {
     void onPrimaryClick();
+  });
+
+  root.querySelector("[data-manual-capture]")?.addEventListener("click", () => {
+    switchToManualCapture();
   });
 
   root.querySelector("[data-update-resume]")?.addEventListener("click", () => {
@@ -1948,6 +2182,12 @@ function renderExpandedCard(root: ShadowRoot): void {
       (event.currentTarget as HTMLElement).getAttribute("data-fix-path") ??
       SETTINGS_AI_AUTO_HREF;
     void openDashboardPath(path);
+  });
+
+  root.querySelector("[data-reconnect-account]")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    void sendMessage({ action: EXTENSION_MESSAGE.OPEN_LOGIN });
   });
 
   root.querySelector("[data-force-upgrade-update]")?.addEventListener("click", (event) => {
@@ -1965,7 +2205,6 @@ function renderExpandedCard(root: ShadowRoot): void {
   bindCardViewHandlers(root);
   bindPanelResizeGrip(root);
   applyPreviewFrameSrcdoc(root);
-  syncEnhanceBrandAnimation(root);
 
   bindProfileSetupActionButton(root, "[data-profile-continue]", () => {
     void onProfileSetupContinue(root);
@@ -2523,6 +2762,8 @@ function renderCard(root: ShadowRoot): void {
     return;
   }
   renderExpandedCard(root);
+  syncPipelineProgressAnimation();
+  syncEnhanceBrandAnimation(root);
   if (cardHost) {
     applyHostPosition(cardHost.host, cardHost.position);
   }
@@ -2694,6 +2935,19 @@ async function refreshResumeProfiles(): Promise<void> {
   selectedProfileId = defaultProfileId;
 }
 
+function scheduleResumeProfilesForHeader(): void {
+  if (resumeProfiles.length > 0 || resumeProfilesHeaderFetchPending) return;
+  resumeProfilesHeaderFetchPending = true;
+  void refreshResumeProfiles()
+    .catch(() => undefined)
+    .finally(() => {
+      resumeProfilesHeaderFetchPending = false;
+      if (cardHost && !cardCollapsed) {
+        renderCard(cardHost.shadow);
+      }
+    });
+}
+
 function renderSettingsMenuMarkup(): string {
   const email = connectedAccountEmail?.trim() ?? "";
   const menu = settingsMenuOpen
@@ -2738,6 +2992,11 @@ function maybeRefreshAiHealthConfig(): void {
 }
 
 function refreshRuntimeConfigOnTabResume(): void {
+  if (resolveExtensionAiHealthBanner(runtimeConfig)) {
+    lastAiHealthConfigRefreshAt = Date.now();
+    void refreshRuntimeConfig().catch(() => undefined);
+    return;
+  }
   scheduleRuntimeConfigRefresh(2_000);
 }
 
@@ -2753,6 +3012,22 @@ function renderForceUpgradeBannerMarkup(
         <span class="ai-health-banner-icon">${AI_HEALTH_ALERT_ICON}</span>
         <p class="ai-health-banner-message" title="${hint}">${hint}</p>
         <button type="button" class="ai-health-banner-cta" data-force-upgrade-update="1" data-update-url="${updateUrl}" aria-label="${escapeHtml(banner.ctaLabel)}">${escapeHtml(banner.ctaLabel)}</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderReconnectBannerMarkup(
+  banner: ReturnType<typeof resolveExtensionReconnectBanner>,
+): string {
+  if (!banner) return "";
+  const hint = escapeHtml(banner.message);
+  return `
+    <div class="ai-health-banner" role="alert">
+      <div class="ai-health-banner-inner">
+        <span class="ai-health-banner-icon">${AI_HEALTH_ALERT_ICON}</span>
+        <p class="ai-health-banner-message" title="${hint}">${hint}</p>
+        <button type="button" class="ai-health-banner-cta" data-reconnect-account="1" aria-label="${escapeHtml(banner.ctaLabel)}">${escapeHtml(banner.ctaLabel)}</button>
       </div>
     </div>
   `;
@@ -2776,11 +3051,11 @@ function renderAiHealthBannerMarkup(
 }
 
 function renderProfilePickerMarkup(): string {
-  if (resumeProfiles.length === 0) return "";
-
-  const label = escapeHtml(selectedProfileLabel());
+  const hasProfiles = resumeProfiles.length > 0;
+  const label = hasProfiles ? escapeHtml(selectedProfileLabel()) : "Resume profile";
   const menu = profilePickerOpen
-    ? `<div class="profile-picker-menu" role="listbox" aria-label="Choose resume profile">
+    ? hasProfiles
+      ? `<div class="profile-picker-menu" role="listbox" aria-label="Choose resume profile">
         ${resumeProfiles.length > 1 ? `<p class="profile-picker-heading">${resumeProfiles.length} profiles</p>` : ""}
         ${resumeProfiles
           .map((profile) => {
@@ -2792,12 +3067,24 @@ function renderProfilePickerMarkup(): string {
           })
           .join("")}
       </div>`
+      : `<div class="profile-picker-menu" role="listbox" aria-label="Choose resume profile">
+          <p class="profile-picker-heading profile-picker-empty">${
+            resumeProfilesHeaderFetchPending ? "Loading resume profiles…" : "No resume profiles yet"
+          }</p>
+        </div>`
     : "";
 
   const profileHint = escapeHintAttr(HEADER_HINTS.profile);
+  const stateClass = selectedProfileId && hasProfiles
+    ? " is-active"
+    : hasProfiles
+      ? " is-unset"
+      : resumeProfilesHeaderFetchPending
+        ? ""
+        : " is-unset";
   return `
     <div class="profile-picker-wrap">
-      <button type="button" class="header-btn ${FLOATING_HINT_BUTTON_CLASS}${selectedProfileId ? " is-active" : ""}" data-profile-picker="1" data-hint="${profileHint}" title="${profileHint}" aria-label="Resume profile: ${label}">
+      <button type="button" class="header-btn ${FLOATING_HINT_BUTTON_CLASS}${stateClass}" data-profile-picker="1" data-hint="${profileHint}" title="${profileHint}" aria-label="Resume profile${hasProfiles ? `: ${label}` : ""}">
         ${RESUME_ICON_SVG}
       </button>
       ${menu}
@@ -3147,6 +3434,7 @@ function resetExtensionJourneyToStage0(reason: string): void {
   pipelineBusyLabel = null;
   pendingPipelinePhase = null;
   autofillRunForEntryId = null;
+  keywordGapData = null;
   resetCardViewState();
   stopStatusPolling();
   stopJourneySyncPoll();
@@ -3256,9 +3544,27 @@ async function applyServerJourneyRefresh(reason: string): Promise<void> {
     }
     if (after.status === "READY_TO_APPLY") {
       startConfirmationWatch();
+      if (after.id && !keywordGapData) {
+        void fetchKeywordGap(after.id);
+      }
     } else {
       stopConfirmationWatch();
     }
+  }
+}
+
+async function fetchKeywordGap(entryId: string): Promise<void> {
+  try {
+    const res = await sendMessage<{ success: boolean; topMissing?: string[]; coveragePercent?: number | null }>({
+      action: EXTENSION_MESSAGE.GET_KEYWORD_GAP,
+      entryId,
+    });
+    if (res?.success && res.topMissing && res.topMissing.length > 0) {
+      keywordGapData = { topMissing: res.topMissing, coveragePercent: res.coveragePercent ?? null };
+      if (cardHost) renderCard(cardHost.shadow);
+    }
+  } catch {
+    // Non-critical — card renders without gap data
   }
 }
 
@@ -3632,6 +3938,10 @@ function needsApplicationProfileSetup(): boolean {
 function openApplicationProfileSetupScreen(): void {
   if (profileSetupScreen !== 0) return;
   profileSetupScreen = 1;
+  trackScreenOverlay("application_profile_screen_1", {
+    route: location.href,
+    flags: { entryId: savedStatus.id ?? null },
+  });
   profileSetupScreen1ValidationIssues = [];
   const synced = syncProfileSetupDraftsFromProfile(cachedApplicationProfile);
   profileSetupScreen1Draft = synced.screen1;
@@ -3641,10 +3951,38 @@ function openApplicationProfileSetupScreen(): void {
 /** Returns true when Apply must wait for mandatory profile setup (Screen 1). */
 function requireApplicationProfileSetupBeforeApply(): boolean {
   if (!needsApplicationProfileSetup()) return false;
+  pendingApplyAfterProfileSetup = true;
   openApplicationProfileSetupScreen();
   cardCollapsed = false;
   if (cardHost) renderCard(cardHost.shadow);
   return true;
+}
+
+async function resumeApplyFlowAfterProfileSetup(): Promise<void> {
+  await ensureRuntimeConfig();
+  if (isExtensionForceUpgradeRequired(runtimeConfig, getExtensionManifestVersion())) return;
+  if (isExtensionApplyBlockedByAiHealth(runtimeConfig)) return;
+
+  const stored = await chrome.storage.local.get(STORAGE_KEYS.pendingApplyJobId);
+  const pendingId = stored[STORAGE_KEYS.pendingApplyJobId];
+  const jobId =
+    typeof pendingId === "string" && pendingId.trim() ? pendingId.trim() : null;
+
+  if (jobId) {
+    savedStatus = { ...savedStatus, id: jobId };
+    pendingPipelinePhase = pendingPipelinePhase ?? "autofill";
+    await applyServerJourneyRefresh("dashboard_start_apply").catch(() => undefined);
+    if (savedStatus.status === "RESUME_READY") {
+      void runAutofillPhase(jobId);
+    } else if (savedStatus.saved) {
+      void pollUntilResumeReady(jobId);
+    } else {
+      void runAutofillPhase(jobId);
+    }
+    return;
+  }
+
+  void startApplyPipeline();
 }
 
 async function patchApplicationProfile(
@@ -3700,6 +4038,10 @@ async function onProfileSetupContinue(root: ShadowRoot): Promise<void> {
   }
 
   profileSetupScreen = 2;
+  trackScreenOverlay("application_profile_screen_2", {
+    route: location.href,
+    flags: { entryId: savedStatus.id ?? null },
+  });
   saveError = null;
   if (cardHost) renderCard(cardHost.shadow);
 }
@@ -3720,6 +4062,11 @@ async function onProfileSetupFinish(root: ShadowRoot, skipAll: boolean): Promise
   profileSetupScreen = 0;
   saveError = null;
   if (cardHost) renderCard(cardHost.shadow);
+
+  if (pendingApplyAfterProfileSetup) {
+    pendingApplyAfterProfileSetup = false;
+    void resumeApplyFlowAfterProfileSetup();
+  }
 }
 
 const STATUS_ORDER: Record<string, number> = {
@@ -3776,6 +4123,16 @@ async function startApplyPipeline(): Promise<void> {
 
   if (cardPresentation === "manual_capture" && cardHost) {
     manualCaptureDraft = readManualCaptureDraftFromDom(cardHost.shadow);
+    const blockReason = manualCaptureBlockReason({
+      url: manualCaptureDraft.jobUrl,
+      description: manualCaptureDraft.description,
+      title: manualCaptureDraft.title,
+    });
+    if (blockReason) {
+      saveError = blockReason;
+      if (cardHost) renderCard(cardHost.shadow);
+      return;
+    }
   }
 
   const tokenRes = await sendMessage<{ token: string | null }>({ action: EXTENSION_MESSAGE.GET_AUTH });
@@ -3820,6 +4177,7 @@ async function startApplyPipeline(): Promise<void> {
       confidence: capture.confidence,
       scrapePath: lastScrapeContext?.path ?? null,
       enrichmentsApplied: lastScrapeContext?.enrichments ?? [],
+      captureMode: cardPresentation === "manual_capture" ? "manual" : "auto",
     },
   };
 
@@ -3841,9 +4199,6 @@ async function startApplyPipeline(): Promise<void> {
       saveError =
         captureRes?.error ??
         "Could not save this job. Reconnect the extension from the dashboard, then try again.";
-      if (captureRes?.error?.toLowerCase().includes("unauthorized")) {
-        await sendMessage({ action: EXTENSION_MESSAGE.OPEN_LOGIN });
-      }
       return;
     }
 
@@ -4020,6 +4375,10 @@ async function mountCard(
     applyHostShell(host);
     const shadow = host.attachShadow({ mode: "open" });
     cardHost = { host, shadow, position };
+    trackScreenOverlay("extension_job_card", {
+      route: location.href,
+      params: { title: metadata.title, platform: metadata.platform ?? null },
+    });
     setupExtensionUiAnalyticsDelegation(shadow);
     setupProfilePickerDelegation(shadow);
     setupSettingsMenuDelegation(shadow);
@@ -4038,7 +4397,7 @@ async function mountCard(
   }
 
   setCardVisible(true);
-  if (cardPresentation === "loading") {
+  if (isWaitingForJobScrape()) {
     startLoadingHydrationWatch();
   } else {
     stopLoadingHydrationWatch();
@@ -4134,7 +4493,8 @@ async function updateCard(): Promise<void> {
         scheduleUpdate(TAB_RETURN_GRACE_MS);
         return;
       }
-      removeCard();
+      cardPresentation = presentation;
+      await mountCard("body", metadata);
       return;
     }
     cardPresentation = presentation;
@@ -4204,10 +4564,10 @@ function bootJobPageObservers(): void {
       if (!data.title) return;
       console.log("[EasySubmit] intercept:job-data received", { title: data.title, company: data.company, platform: data.platform });
       interceptedMetadata = interceptedToMetadata(data);
-      // If card is already showing, upgrade it with the richer API data immediately
-      if (currentMetadata && cardHost) {
-        currentMetadata = interceptedMetadata;
-        renderCard(cardHost.shadow);
+      if (cardHost) {
+        void updateCard().catch(swallowContextInvalidation);
+      } else {
+        scheduleUpdate();
       }
     });
   }
@@ -4292,16 +4652,7 @@ function startUrlWatch(): void {
     if (location.href !== lastUrl) {
       console.log("[EasySubmit] lifecycle:url-change", { from: lastUrl, to: location.href });
       lastUrl = location.href;
-      pinnedUrl = null;
-      runtimeConfig = null;
-      interceptedMetadata = null;
-      if (isEasySubmitAppPage()) {
-        idleExtensionOnAppPage();
-        return;
-      }
-      ensureJobSiteDomObservers();
-      removeCard();
-      scheduleUpdate();
+      handleJobPageUrlChange();
     }
   }, 800);
 }
@@ -4344,6 +4695,11 @@ if (window.top === window.self) {
     contentWindow.__easysubmitHandleMessage = (message, sendResponse) => {
       if (message?.action === EXTENSION_MESSAGE.FORCE_SHOW_CARD) {
         void forceShowCard().then(sendResponse);
+        return true;
+      }
+
+      if (message?.action === EXTENSION_MESSAGE.GET_TAB_STATUS) {
+        void buildTabStatusPayload().then(sendResponse);
         return true;
       }
 

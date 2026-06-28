@@ -3,6 +3,7 @@ import { buildFallbackJobMetadata } from "@/src/shared/extension/force-metadata"
 import type { ExtensionRuntimeConfig } from "@/src/shared/extension/types";
 
 const config: ExtensionRuntimeConfig = {
+  extensionGlobalSwitch: true,
   jobCardEnabled: true,
   enabledPlatforms: ["workday", "generic"],
   genericFallbackEnabled: true,

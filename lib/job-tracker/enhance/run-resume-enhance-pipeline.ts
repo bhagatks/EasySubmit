@@ -6,6 +6,11 @@ import type { EnhanceSessionMeta } from "@/lib/job-tracker/enhance/enhance-brief
 import type { EnhanceOffReason } from "@/lib/features/types";
 import type { EnhanceRunResult, ResumeEnhancePipelineInput } from "@/lib/job-tracker/enhance/enhance-result";
 import { resolveAiUpgrade } from "@/lib/job-tracker/enhance/resolve-ai-upgrade";
+import {
+  experienceBlobFromForm,
+  normalizeExperienceDateFields,
+  postProcessSummaryOutput,
+} from "@/lib/job-tracker/enhance/summary-grounding";
 import { diffChangedSections } from "@/src/lib/ai/engine/post-process";
 import {
   buildQuotaSnapshot,
@@ -21,6 +26,11 @@ import {
 import { getAppConfig } from "@/src/lib/services/config-service";
 import { logEnhance, logJourneyStep, RESUME_JOURNEY, resolveJourneyAiCallStatus, summarizeFormDelta } from "@/src/lib/ai/engine/enhance-logger";
 import { ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
+import {
+  beginEnhanceDiagnosticSession,
+  endEnhanceDiagnosticSession,
+  logEnhanceDiag,
+} from "@/src/lib/ai/engine/enhance-diagnostics";
 
 const MIN_JD_CHARS = 120;
 
@@ -32,9 +42,56 @@ export async function runResumeEnhancePipeline(
   input: ResumeEnhancePipelineInput,
 ): Promise<EnhanceRunResult> {
   const { userId, user, traceId } = input;
+  await beginEnhanceDiagnosticSession(traceId);
+
+  try {
+    return await runResumeEnhancePipelineInner(input);
+  } finally {
+    endEnhanceDiagnosticSession(traceId);
+  }
+}
+
+async function runResumeEnhancePipelineInner(
+  input: ResumeEnhancePipelineInput,
+): Promise<EnhanceRunResult> {
+  const { userId, user, traceId } = input;
   const aiEngine = await getAppConfig("aiEngine");
 
+  logEnhanceDiag({
+    traceId,
+    designStep: "2",
+    track: "resume",
+    pipelineStep: ENHANCE_PIPELINE.BASELINE_START,
+    phase: "start",
+    level: "high",
+    event: "pipeline.input",
+    scope: "server",
+    userId,
+    surface: input.surface,
+    variant: input.variant,
+    params: {
+      targetRole: input.targetRole,
+      jobDescriptionChars: input.jobDescription?.trim().length ?? 0,
+      allowAiUpgrade: input.allowAiUpgrade !== false,
+      forceSystem: input.forceSystem ?? false,
+      useCustomerKey: input.useCustomerKey ?? true,
+    },
+  });
+
   if (needsJd(input) && (input.jobDescription?.trim().length ?? 0) < MIN_JD_CHARS) {
+    logEnhanceDiag({
+      traceId,
+      designStep: "2",
+      track: "resume",
+      pipelineStep: ENHANCE_PIPELINE.SERVER_FAIL,
+      phase: "fail",
+      level: "high",
+      event: "pipeline.jd_too_short",
+      scope: "server",
+      userId,
+      errorCode: "provider_error",
+      params: { minChars: MIN_JD_CHARS },
+    });
     return {
       success: false,
       error: "Job description is too short to tailor your resume.",
@@ -63,6 +120,27 @@ export async function runResumeEnhancePipeline(
     aiUpgrade = await resolveAiUpgrade(user, input.surface, {
       forceSystem: input.forceSystem,
       useCustomerKey: input.useCustomerKey,
+      traceId,
+    });
+    logEnhanceDiag({
+      traceId,
+      designStep: "11",
+      track: "gate",
+      pipelineStep: aiUpgrade.aiAllowed
+        ? ENHANCE_PIPELINE.AI_UPGRADE_START
+        : ENHANCE_PIPELINE.AI_UPGRADE_BLOCKED,
+      phase: aiUpgrade.aiAllowed ? "done" : "block",
+      level: "high",
+      event: "pipeline.ai_upgrade_resolution",
+      scope: "server",
+      userId,
+      surface: input.surface,
+      errorCode: aiUpgrade.aiAllowed ? null : (aiUpgrade.reason ?? null),
+      flags: {
+        aiAllowed: aiUpgrade.aiAllowed,
+        routeMode: aiUpgrade.route?.mode ?? null,
+        modelId: aiUpgrade.route?.modelId ?? null,
+      },
     });
   }
 
@@ -71,20 +149,36 @@ export async function runResumeEnhancePipeline(
     brief = await buildEnhanceBrief({
       form: input.form,
       targetRole: input.targetRole,
+      profileTargetTitle: input.profileTargetTitle,
       jobDescription: input.jobDescription,
       jobEntryId: input.jobEntryId,
       surface: input.surface,
       variant: input.variant,
       traceId,
       userId,
+      quotaUser: user,
       aiRoute: aiUpgrade?.route ?? null,
     });
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     logEnhance("server", "pipeline.brief.error", {
       traceId,
       userId,
       step: ENHANCE_PIPELINE.SERVER_FAIL,
-      message: err instanceof Error ? err.message : String(err),
+      message,
+    });
+    logEnhanceDiag({
+      traceId,
+      designStep: "9",
+      track: "jd",
+      pipelineStep: ENHANCE_PIPELINE.SERVER_FAIL,
+      phase: "fail",
+      level: "high",
+      event: "pipeline.brief.error",
+      scope: "server",
+      userId,
+      errorCode: "provider_error",
+      errorMessage: message,
     });
     return {
       success: false,
@@ -129,11 +223,13 @@ export async function runResumeEnhancePipeline(
   let aiAttempted = false;
   let aiSucceeded = false;
   let warning: string | undefined;
+  const coherenceWarnings = [...baseline.coherenceWarnings];
   let aiBlockCode: EnhanceOffReason | "parse_fail" | "timeout" | "provider_error" | undefined;
   let engineMode: "ai" | "deterministic" = "deterministic";
   let partialEnhance: boolean | undefined;
   let aiMode: AiQuotaMode = "system";
   let tokensUsed = 0;
+  let enhanceApiCallCount = 0;
   let apiCallCount = 0;
   let modelId = "deterministic";
   let estimatedCost = 0;
@@ -176,7 +272,8 @@ export async function runResumeEnhancePipeline(
         engineMode = "ai";
         estimatedCost = result.estimatedCost;
         tokensUsed = result.tokensUsed;
-        apiCallCount = result.apiCallCount;
+        enhanceApiCallCount = result.apiCallCount;
+        apiCallCount = result.apiCallCount + brief.jdAiCallCount;
         modelId = result.modelId;
         partialEnhance = result.partialEnhance;
         if (result.partialEnhance) {
@@ -184,6 +281,23 @@ export async function runResumeEnhancePipeline(
             result.partialEnhanceMessage ??
             "Job-specific optimization was incomplete. Baseline enhancements were kept.";
         }
+
+        finalForm = {
+          ...finalForm,
+          experience: normalizeExperienceDateFields(finalForm.experience ?? []),
+        };
+        const summaryGrounded = postProcessSummaryOutput(
+          finalForm.professionalSummary ?? "",
+          {
+            identity: brief.summaryIdentity,
+            experienceBlob: experienceBlobFromForm(finalForm.experience ?? []),
+            employerNames: (finalForm.experience ?? [])
+              .map((e) => e.company?.trim())
+              .filter(Boolean) as string[],
+          },
+        );
+        finalForm = { ...finalForm, professionalSummary: summaryGrounded.summary };
+        coherenceWarnings.push(...summaryGrounded.warnings);
 
         logEnhance("server", "pipeline.ai.success", {
           traceId,
@@ -200,6 +314,23 @@ export async function runResumeEnhancePipeline(
           userId,
           step: ENHANCE_PIPELINE.AI_UPGRADE_FAIL,
           code: result.code,
+        });
+        logEnhanceDiag({
+          traceId,
+          designStep: "13",
+          track: "engine",
+          pipelineStep: ENHANCE_PIPELINE.AI_UPGRADE_FAIL,
+          phase: "fail",
+          level: "high",
+          event: "pipeline.ai.fail",
+          scope: "server",
+          userId,
+          errorCode: aiBlockCode ?? "provider_error",
+          errorMessage: result.error,
+          flags: {
+            routeMode: aiUpgrade.route.mode,
+            provider: aiUpgrade.route.mode === "customer" ? aiUpgrade.route.provider : "system",
+          },
         });
       }
     } else {
@@ -229,11 +360,13 @@ export async function runResumeEnhancePipeline(
   };
 
   const { quotaRow, resetPatch } = resolveQuotaRowWithReset(user);
+  const quotaCallCount = enhanceApiCallCount + brief.jdAiCallCount;
+  const shouldIncrementQuota = aiSucceeded || brief.jdAiCallCount > 0;
 
-  if (aiSucceeded) {
+  if (shouldIncrementQuota) {
     const increment = incrementQuotaPatch(quotaRow, aiEngine, {
-      isEnhancement: true,
-      callCount: apiCallCount,
+      isEnhancement: aiSucceeded,
+      callCount: quotaCallCount,
       mode: aiMode,
     });
 
@@ -256,10 +389,10 @@ export async function runResumeEnhancePipeline(
     await prisma.user.update({ where: { id: userId }, data: resetPatch });
   }
 
-  const incrementForSnapshot = aiSucceeded
+  const incrementForSnapshot = shouldIncrementQuota
     ? incrementQuotaPatch(quotaRow, aiEngine, {
-        isEnhancement: true,
-        callCount: apiCallCount,
+        isEnhancement: aiSucceeded,
+        callCount: quotaCallCount,
         mode: aiMode,
       })
     : { aiEnhancementsToday: quotaRow.aiEnhancementsToday, aiCallsToday: quotaRow.aiCallsToday };
@@ -271,6 +404,12 @@ export async function runResumeEnhancePipeline(
   );
 
   const enhanceSummary = baseline.enhanceSummary;
+
+  const uniqueCoherenceWarnings = [...new Set(coherenceWarnings)];
+  if (uniqueCoherenceWarnings.length > 0) {
+    const note = uniqueCoherenceWarnings.join(" ");
+    warning = warning ? `${warning} ${note}` : note;
+  }
 
   const sessionMeta: EnhanceSessionMeta = {
     traceId,
@@ -284,6 +423,7 @@ export async function runResumeEnhancePipeline(
     coverageAfter: baseline.coverageAfter,
     skillsGaps: baseline.coverageAfter?.gaps.map((g) => g.atom.label),
     readinessDelta,
+    coherenceWarnings: uniqueCoherenceWarnings.length > 0 ? uniqueCoherenceWarnings : undefined,
   };
 
   logJourneyStep("server", "pipeline.complete", {
@@ -303,6 +443,31 @@ export async function runResumeEnhancePipeline(
     status: "success",
     apiCallCount,
     tokensUsed,
+  });
+
+  logEnhanceDiag({
+    traceId,
+    designStep: "15",
+    track: "resume",
+    pipelineStep: ENHANCE_PIPELINE.SERVER_SUCCESS,
+    phase: "done",
+    level: "high",
+    event: "pipeline.complete",
+    scope: "server",
+    userId,
+    surface: input.surface,
+    flags: {
+      engineMode,
+      aiAttempted,
+      aiSucceeded,
+      aiBlockCode: aiBlockCode ?? null,
+    },
+    params: {
+      changedSections,
+      apiCallCount,
+      tokensUsed,
+      readinessDelta,
+    },
   });
 
   return {
@@ -332,6 +497,9 @@ export async function runResumeEnhancePipeline(
     traceId,
     sessionMeta,
     skillsAdded: baseline.changes.skillsAdded,
+    ...(uniqueCoherenceWarnings.length > 0
+      ? { coherenceWarnings: uniqueCoherenceWarnings }
+      : {}),
     ...(input.surface === "onboarding" || !allowAi ? { aiDisabled: true } : {}),
   };
 }

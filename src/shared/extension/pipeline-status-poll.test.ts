@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { pollJobStatusUntil } from "@shared/extension/pipeline-status-poll";
+import { pollJobStatusUntil } from "./pipeline-status-poll";
 
 describe("pollJobStatusUntil", () => {
   it("returns immediately when status is already terminal", async () => {

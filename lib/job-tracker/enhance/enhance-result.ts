@@ -39,6 +39,7 @@ export type EnhanceRunSuccess = {
   sessionMeta: EnhanceSessionMeta;
   skillsAdded: string[];
   aiDisabled?: boolean;
+  coherenceWarnings?: string[];
 };
 
 export type EnhanceRunResult = EnhanceRunSuccess | EnhanceResumeProfileFailure;
@@ -48,6 +49,7 @@ export type ResumeEnhancePipelineInput = {
   user: import("@/src/lib/ai/engine/system-quota-gate").SystemQuotaUserRow;
   form: HubRefineryForm;
   targetRole: string;
+  profileTargetTitle?: string;
   jobDescription?: string;
   jobEntryId?: string;
   rawResumeText?: string | null;

@@ -5,13 +5,28 @@ import type { JDIntelligence, JDImpactDimension, JDSegments } from "@/lib/job-tr
 import { jdAiExtractSchema, type JdAiExtractPayload } from "@/lib/job-tracker/jd/jd-ai-extract-schema";
 import { truncateSegmentsForExtraction } from "@/lib/job-tracker/jd/jd-prompt-segments";
 import { canonicalizeMasterSkills } from "@/lib/job-tracker/jd/skill-canonicalize";
+import type { AiProvider } from "@/src/lib/config/app.config";
 import type { ResolvedAiRoute } from "@/src/lib/ai/engine/router";
 import { callEnhanceObjectModel } from "@/src/lib/ai/engine/run-enhance";
 import { logEnhance } from "@/src/lib/ai/engine/enhance-logger";
 import { ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
+import { checkAiQuota, shouldTrackQuota, type UserQuotaRow } from "@/src/lib/ai/engine/quota";
+import type { AiEngineConfig } from "@/src/lib/services/ai-engine-config";
+import { JD_EXTRACTION_SYSTEM_MODEL_DEFAULT } from "@/src/lib/services/ai-engine-config";
 
-/** Utility model for system-key JD extraction (resume enhance may use a different system model). */
-export const JD_EXTRACTION_SYSTEM_MODEL = "gemini-1.5-flash";
+/** @deprecated Use `resolveJdExtractionSystemModel(aiEngine)` — kept for imports/tests. */
+export const JD_EXTRACTION_SYSTEM_MODEL = JD_EXTRACTION_SYSTEM_MODEL_DEFAULT;
+
+export type JdExtractionQuotaContext = {
+  quotaRow: UserQuotaRow;
+  aiEngine: AiEngineConfig;
+};
+
+export type JdExtractionOptions = {
+  quotaContext?: JdExtractionQuotaContext;
+  /** System-pool model override; defaults to `aiEngine.system.jdExtractionModelId`. */
+  systemJdModelId?: string;
+};
 
 const VALID_IMPACT_DIMS = new Set<JDImpactDimension>([
   "reliability",
@@ -149,11 +164,33 @@ export function mergeAIIntoIntelligence(
   return merged;
 }
 
-function jdExtractionRoute(route: ResolvedAiRoute): ResolvedAiRoute {
-  if (route.mode === "system") {
-    return { mode: "system", modelId: JD_EXTRACTION_SYSTEM_MODEL };
+/** Gemini BYOK enhance models (e.g. 2.5-flash) are unreliable for `generateObject`; use JD utility model. */
+export function resolveJdExtractionCustomerModel(
+  provider: AiProvider,
+  customerEnhanceModelId: string,
+  systemJdModelId: string,
+): string {
+  if (provider === "gemini") {
+    return systemJdModelId;
   }
-  return route;
+  return customerEnhanceModelId;
+}
+
+export function jdExtractionRoute(
+  route: ResolvedAiRoute,
+  systemJdModelId: string = JD_EXTRACTION_SYSTEM_MODEL_DEFAULT,
+): ResolvedAiRoute {
+  if (route.mode === "system") {
+    return { mode: "system", modelId: systemJdModelId };
+  }
+  return {
+    ...route,
+    modelId: resolveJdExtractionCustomerModel(
+      route.provider,
+      route.modelId,
+      systemJdModelId,
+    ),
+  };
 }
 
 const JD_EXTRACTION_SYSTEM =
@@ -167,10 +204,35 @@ export async function extractJDIntelligenceWithAI(
   route: ResolvedAiRoute,
   traceId = "no-trace",
   userId?: string | null,
+  options: JdExtractionOptions = {},
 ): Promise<JDAiExtractResult> {
   try {
+    const systemJdModelId =
+      options.systemJdModelId ??
+      options.quotaContext?.aiEngine.system.jdExtractionModelId ??
+      JD_EXTRACTION_SYSTEM_MODEL_DEFAULT;
+    const executionRoute = jdExtractionRoute(route, systemJdModelId);
+
+    if (options.quotaContext && shouldTrackQuota(options.quotaContext.aiEngine, executionRoute.mode)) {
+      const quotaCheck = checkAiQuota(
+        options.quotaContext.quotaRow,
+        options.quotaContext.aiEngine,
+        executionRoute.mode,
+        { estimatedCalls: 1 },
+      );
+      if (!quotaCheck.ok) {
+        logEnhance("server", "jd.extract.quota_blocked", {
+          traceId,
+          userId,
+          step: ENHANCE_PIPELINE.PRE_JD_BRAIN,
+          routeMode: executionRoute.mode,
+          reason: quotaCheck.reason,
+        });
+        return { ok: false, reason: "quota" };
+      }
+    }
+
     const prompt = buildJDExtractionPrompt(segments, targetRole);
-    const executionRoute = jdExtractionRoute(route);
 
     const result = await callEnhanceObjectModel(
       executionRoute,

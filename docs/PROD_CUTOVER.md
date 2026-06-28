@@ -14,15 +14,16 @@ Prod Supabase project: **`yofgnflcqajqsepbfdkc`** (see `.env.vercel.example`).
 
 | Step | Status | Notes |
 |------|--------|-------|
-| Resolve failed Prisma migration (P3009) | **Blocked** | [`MIGRATION_RECOVERY.md`](./MIGRATION_RECOVERY.md) — init migration stuck as failed |
-| `prisma migrate deploy` on prod DB | Pending | Runs automatically in `run easy prod` after Vercel env pull |
-| Verify `npx prisma migrate status` | Pending | Must show **Database schema is up to date** |
-| Vault SQL functions (`vault_user_key`, etc.) | Verify | Re-apply `scripts/vault-functions-only.sql` if Ignition BYOK fails |
-| Pending migrations after local work | Check | e.g. `20260626150000_ai_preference_disabled_default` — ensure committed migrations exist before deploy |
-| Job Tracker Realtime (optional) | QA done locally | Run `scripts/sql/job-tracker-realtime-setup.sql` on **prod** Supabase if Realtime needed |
+| **Unlock P3009 — mark init as applied** | **Do first** | Point `DATABASE_URL` at prod, then: `npx prisma migrate resolve --applied 20260618043606_init` — tables already exist, this just clears the stuck flag |
+| Apply remaining migrations | Pending | `npm run db:migrate` — if another migration fails with "already exists", mark it applied too and re-run |
+| Verify migration status | Pending | `npx prisma migrate status` must show **Database schema is up to date** |
+| Vault SQL functions (`vault_user_key`, etc.) | Verify | Re-apply `scripts/vault-functions-only.sql` if Ignition BYOK fails after migrate |
+| Pending migrations after local work | Check | `20260627120000_north_star_jd_skills_enhance_meta`, `20260627140000_extension_install_prompt_config` — confirm committed before deploy |
+| Job Tracker Realtime (optional) | QA done locally | Run `scripts/sql/job-tracker-realtime-setup.sql` on prod Supabase if Realtime needed |
 | System Gemini keys in vault | Optional | `npm run db:import-system-keys` against prod when using system AI |
 
-**Do not** run `migrate resolve --applied` on prod without confirming the DB already matches that migration (see recovery doc).
+> Full P3009 recovery guide: [`MIGRATION_RECOVERY.md`](./MIGRATION_RECOVERY.md)  
+> **Do not** use `migrate reset` on prod — drops data.
 
 ---
 

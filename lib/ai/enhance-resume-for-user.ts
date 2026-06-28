@@ -10,6 +10,7 @@ import {
   summarizeEnhanceRequest,
   summarizeEnhanceResult,
 } from "@/src/lib/ai/engine/enhance-logger";
+import { logEnhanceDiag } from "@/src/lib/ai/engine/enhance-diagnostics";
 import { ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
 import type { FeatureSurface } from "@/lib/features/types";
 
@@ -22,6 +23,7 @@ export type EnhanceResumeProfileInput = {
   rawResumeText?: string | null;
   forceSystem?: boolean;
   useCustomerKey?: boolean;
+  profileTargetTitle?: string;
   traceId?: string;
   variant?: "dashboard" | "onboarding" | "pipeline";
 };
@@ -51,6 +53,7 @@ export type EnhanceResumeProfileSuccess = {
   coverageAfter?: EnhanceSessionMeta["coverageAfter"];
   readinessDelta?: EnhanceSessionMeta["readinessDelta"];
   sessionMeta?: EnhanceSessionMeta;
+  coherenceWarnings?: string[];
 };
 
 export type EnhanceResumeProfileFailure = {
@@ -115,6 +118,20 @@ export async function enhanceResumeForUserId(
       reason: "user_not_found",
       userId,
     });
+    logEnhanceDiag({
+      traceId,
+      designStep: "0",
+      track: "gate",
+      pipelineStep: ENHANCE_PIPELINE.SERVER_FAIL,
+      phase: "fail",
+      level: "high",
+      event: "action.denied",
+      scope: "server",
+      userId,
+      errorCode: "unauthorized",
+      errorMessage: "user_not_found",
+      surface,
+    });
     return { success: false, error: "Account not found.", code: "unauthorized" };
   }
 
@@ -126,6 +143,7 @@ export async function enhanceResumeForUserId(
     user,
     form: input.form,
     targetRole: input.targetRole,
+    profileTargetTitle: input.profileTargetTitle,
     jobDescription: input.jobDescription,
     jobEntryId: input.jobEntryId,
     rawResumeText: input.rawResumeText,
@@ -161,6 +179,7 @@ export async function enhanceResumeForUserId(
     ...(result.aiBlockCode ? { aiBlockCode: result.aiBlockCode } : {}),
     ...(result.partialEnhance ? { partialEnhance: true } : {}),
     ...(result.aiDisabled ? { aiDisabled: true } : {}),
+    ...(result.coherenceWarnings?.length ? { coherenceWarnings: result.coherenceWarnings } : {}),
   };
 
   logEnhance("server", "action.success", {
