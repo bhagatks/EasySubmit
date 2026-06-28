@@ -1,0 +1,6 @@
+---
+description: Mandatory structured logging for new features, pipelines, and server actions
+alwaysApply: true
+---
+
+@docs/rules/observability-logging.md

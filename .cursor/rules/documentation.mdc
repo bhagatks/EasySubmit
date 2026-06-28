@@ -1,0 +1,6 @@
+---
+description: Keep docs in sync when architecture or major flows change
+alwaysApply: true
+---
+
+@docs/rules/documentation.md

@@ -1,0 +1,6 @@
+---
+description: Sidepanel completion gate — docs + unit tests before marking user-visible work done
+alwaysApply: true
+---
+
+@docs/rules/sidepanel-completion.md

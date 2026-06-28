@@ -1,0 +1,31 @@
+---
+description: ATS resume formatting rules and golden template fixtures
+globs: lib/resume/**,components/onboarding/PrimeResume.tsx,components/onboarding/hub/RefineryPanel.tsx,lib/onboarding/hubResume.ts,app/api/resume/**
+alwaysApply: false
+---
+
+# EasySubmit Resume Format (canonical)
+
+**Rules document:** `docs/resume/RULES.md`  
+**Golden fixtures:** `assets/resume/templates/` (PDF + DOCX)  
+**Code constants:** `lib/resume/resumeSpec.ts` — section order, titles, API download paths  
+**Server paths:** `lib/resume/resumeFixtures.server.ts` — fixture file paths
+
+## Section order (fixed — never reorder)
+
+1. Header — Full Name, then `City, State | Phone | Email | LinkedIn URL`
+2. Professional Summary — plain paragraph, no bullets
+3. Skills — comma/bullet block, omit if empty
+4. Professional Experience — reverse chronological; tab-line title + date
+5. Education — reverse chronological
+6. Optional: Certifications, Projects, Languages — only if content exists
+
+## Hard never list (see rules §8)
+
+No multi-column, tables, text boxes, header/footer fields, images, hidden text, unicode bullets, creative section names, or skill ratings.
+
+## When changing preview or refinery UI
+
+- Import section titles from `RESUME_SECTION_TITLES` in `lib/resume/resumeSpec.ts`
+- Match `PrimeResume` section order to `RESUME_SECTION_ORDER`
+- Parser changes: validate against `assets/resume/templates/ATS_Universal_Resume_Template.pdf` (`npm run validate:ats-template`)

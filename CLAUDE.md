@@ -1,5 +1,17 @@
 # EasySubmit — Claude Code Rules
 
+## Shared Rules
+
+The following files in `docs/rules/` are the single source of truth — both Claude Code and Cursor read from them. Do not duplicate their content here.
+
+| Rule | File |
+|---|---|
+| Observability & logging | `docs/rules/observability-logging.md` |
+| Documentation maintenance | `docs/rules/documentation.md` |
+| Sidepanel completion gate | `docs/rules/sidepanel-completion.md` |
+
+---
+
 ## Project Identity
 
 - **Brand:** EasySubmit.ai
@@ -105,6 +117,8 @@ assets/resume/          ATS golden templates (PDF + DOCX fixtures)
 
 ## Documentation Rules
 
+Full rules: **`docs/rules/documentation.md`** — both Claude Code and Cursor read from this file.
+
 The `/docs` folder is the **system of record**. After any meaningful change:
 
 | Change type | Update |
@@ -130,7 +144,8 @@ The `/docs` folder is the **system of record**. After any meaningful change:
 1. **Tests** — run `npx vitest run --config config/vitest.config.ts` and fix failures. Add tests for any new shared logic in `lib/` or `src/shared/`.
 2. **Types** — run `npx tsc --noEmit` and confirm zero new errors in changed files.
 3. **Docs** — update the relevant doc files above.
-4. **Build** — confirm `npm run build` passes before claiming a feature is done.
+4. **Logging** — full logging rules in `docs/rules/observability-logging.md` (shared with Cursor). Short version: log `start`/`done`/`fail` for every step; use `logEnhanceDiag` + catalog for the enhance pipeline.
+5. **Build** — confirm `npm run build` passes before claiming a feature is done.
 
 ---
 

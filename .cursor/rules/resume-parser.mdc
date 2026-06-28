@@ -1,0 +1,26 @@
+---
+description: Blueprints and constraints for implementing the dual-route (Deterministic/AI) resume parser module in EasySubmit
+globs: "src/parser/**/*"
+alwaysApply: false
+---
+# Resume Parser Implementation Rule
+
+## Objective
+Implement a multi-route resume parser architecture supporting an AI toggle. The system must accept a file upload and return a uniform, scannable JSON payload.
+
+## Architecture Guidelines
+- **Strict Typing:** All data flowing out of both parsing routes must perfectly match the `NormalizedResume` interface defined in `src/parser/types.ts`.
+- **Zero-AI Route (Manual):** Use `pdfjs-dist` to pull plain text strings and `mammoth` for DOCX streams. Do NOT implement complex visual coordinate row-sorting mathematics from scratch; treat text pages sequentially and use OpenResume keyword-matching strings.
+- **AI-Enabled Route:** Flatten the file into a uniform text string, then call the Google Gemini API with `responseMimeType: "application/json"` and a rigorous structural `responseSchema`.
+- **Storage Hook:** Ensure toggle states (`isAiEnabled`) and secret configurations (`geminiApiKey`) pull directly from `chrome.storage.local`.
+
+## Directory Schema Reference
+Ensure the files match this flat modular pattern:
+- `src/parser/types.ts` — `ResumeData`, `ResumeExperience`, `NormalizedResume`
+- `src/parser/textNormalizer.ts` — `normalizeText`
+- `src/parser/dateExtractor.ts` — `DATE_RANGE_REGEX`, `extractDateRange`
+- `src/parser/experienceExtractor.ts` — state-machine role/bullet extraction
+- `src/parser/resumeParser.ts` — `parseResume` orchestrator + `mapResumeDataToNormalizedResume`
+- `src/parser/index.ts`
+- `src/parser/engines/deterministicEngine.ts`
+- `src/parser/engines/aiEngine.ts`
