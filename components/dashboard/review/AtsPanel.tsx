@@ -1,11 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Eye } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Eye, ShieldCheck, ShieldAlert } from "lucide-react";
 import { simulateAtsParse } from "@/lib/job-tracker/ats/ats-parse-simulator";
 import { analyzeBulletQuality } from "@/lib/job-tracker/ats/bullet-quality";
 import { analyzeKeywordGap } from "@/lib/job-tracker/ats/keyword-gap";
 import { computeResumeReadiness } from "@/lib/job-tracker/ats/resume-readiness-score";
+import { computePlatformScores, type PlatformScoreResult } from "@/lib/job-tracker/ats/platform-score";
 import type { JobTrackerDetail } from "@/lib/job-tracker/types";
 import { cn } from "@/lib/utils";
 
@@ -15,27 +16,95 @@ type AtsPanelProps = {
 
 // ─── Score ring ───────────────────────────────────────────────────────────────
 
-function ScoreRing({ score, grade }: { score: number; grade: string }) {
-  const radius = 36;
-  const circumference = 2 * Math.PI * radius;
+function ScoreRing({ score, size = "lg" }: { score: number; size?: "lg" | "sm" }) {
+  const r = size === "lg" ? 36 : 26;
+  const viewBox = size === "lg" ? "0 0 96 96" : "0 0 68 68";
+  const cx = size === "lg" ? 48 : 34;
+  const strokeW = size === "lg" ? 7 : 5;
+  const circumference = 2 * Math.PI * r;
   const filled = (score / 100) * circumference;
   const color =
-    score >= 90 ? "#34d399" : score >= 75 ? "#60a5fa" : score >= 60 ? "#fbbf24" : "#f87171";
+    score >= 80 ? "#34d399" : score >= 65 ? "#60a5fa" : score >= 50 ? "#fbbf24" : "#f87171";
 
   return (
-    <div className="relative flex h-24 w-24 shrink-0 items-center justify-center">
-      <svg className="absolute inset-0 -rotate-90" viewBox="0 0 96 96" aria-hidden="true">
-        <circle cx="48" cy="48" r={radius} fill="none" stroke="currentColor" strokeWidth="7" className="text-border/40" />
+    <div
+      className={cn(
+        "relative flex shrink-0 items-center justify-center",
+        size === "lg" ? "h-24 w-24" : "h-[68px] w-[68px]",
+      )}
+    >
+      <svg className="absolute inset-0 -rotate-90" viewBox={viewBox} aria-hidden="true">
+        <circle cx={cx} cy={cx} r={r} fill="none" stroke="currentColor" strokeWidth={strokeW} className="text-border/40" />
         <circle
-          cx="48" cy="48" r={radius} fill="none" strokeWidth="7"
+          cx={cx} cy={cx} r={r} fill="none" strokeWidth={strokeW}
           stroke={color} strokeLinecap="round"
           strokeDasharray={`${filled} ${circumference}`}
           style={{ transition: "stroke-dasharray 0.6s ease" }}
         />
       </svg>
       <div className="text-center">
-        <p className="font-display text-2xl font-bold leading-none text-foreground">{score}</p>
-        <p className="mt-0.5 text-xs font-semibold" style={{ color }}>{grade}</p>
+        <p
+          className={cn(
+            "font-display font-bold leading-none text-foreground",
+            size === "lg" ? "text-2xl" : "text-lg",
+          )}
+        >
+          {score}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Platform card ─────────────────────────────────────────────────────────────
+
+function PlatformCard({ result }: { result: PlatformScoreResult }) {
+  const color =
+    result.score >= 80 ? "#34d399" : result.score >= 65 ? "#60a5fa" : result.score >= 50 ? "#fbbf24" : "#f87171";
+
+  const barColor = (v: number) =>
+    v >= 80 ? "bg-emerald-500" : v >= 60 ? "bg-blue-400" : v >= 40 ? "bg-amber-400" : "bg-red-500";
+
+  const breakdown = [
+    { label: "Formatting", value: result.breakdown.formatting },
+    { label: "Keywords", value: result.breakdown.keywords },
+    { label: "Sections", value: result.breakdown.sections },
+    { label: "Experience", value: result.breakdown.experience },
+    { label: "Education", value: result.breakdown.education },
+  ];
+
+  return (
+    <div className="rounded-xl border border-border/60 bg-surface/40 p-3 flex flex-col gap-2.5 min-w-0">
+      <div className="flex items-center gap-2.5">
+        <ScoreRing score={result.score} size="sm" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-foreground truncate">{result.name}</p>
+          <p className="text-[10px] text-muted-foreground truncate">{result.vendor}</p>
+          <div className="mt-1 flex items-center gap-1.5">
+            {result.passes ? (
+              <span className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-500">
+                <ShieldCheck className="h-2.5 w-2.5" /> PASSES
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 rounded-full bg-red-500/15 px-1.5 py-0.5 text-[10px] font-medium text-red-400">
+                <ShieldAlert className="h-2.5 w-2.5" /> AT RISK
+              </span>
+            )}
+            <span className="text-[10px] font-semibold" style={{ color }}>{result.grade}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-1.5 border-t border-border/40 pt-2">
+        {breakdown.map(({ label, value }) => (
+          <div key={label} className="flex items-center gap-2">
+            <span className="w-[70px] shrink-0 text-[10px] text-muted-foreground">{label}</span>
+            <div className="h-1 flex-1 overflow-hidden rounded-full bg-border/40">
+              <div className={cn("h-full rounded-full transition-all duration-500", barColor(value))} style={{ width: `${value}%` }} />
+            </div>
+            <span className="w-6 shrink-0 text-right text-[10px] font-medium text-foreground/70">{value}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -309,6 +378,137 @@ function AtsParseView({
   );
 }
 
+// ─── Severity badge ───────────────────────────────────────────────────────────
+
+function SeverityBadge({ severity }: { severity: "critical" | "high" | "medium" | "low" }) {
+  const styles = {
+    critical: "bg-red-500/15 text-red-400 border-red-500/30",
+    high: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+    medium: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+    low: "bg-border/40 text-muted-foreground border-border/60",
+  };
+  return (
+    <span className={cn("shrink-0 rounded border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide", styles[severity])}>
+      {severity}
+    </span>
+  );
+}
+
+// ─── Resume overview ──────────────────────────────────────────────────────────
+
+function ResumeOverviewCard({
+  data, targetTitle,
+}: {
+  data: import("@/components/onboarding/PrimeResume").PrimeResumeData;
+  targetTitle: string;
+}) {
+  const overview = useMemo(() => {
+    const parsed = simulateAtsParse(data, targetTitle);
+    const wordCount = Math.round(parsed.totalChars / 5);
+    const pages = Math.max(1, Math.ceil(wordCount / 450));
+    const detectedSections = parsed.sections.map((s) => s.title).filter((t) => t !== "Header");
+    return {
+      wordCount,
+      pages,
+      sectionCount: parsed.sections.length,
+      detectedSections,
+      skillCount: (data.skills ?? []).filter(Boolean).length,
+      positionCount: (data.experience ?? []).filter((e) => e.title?.trim()).length,
+      educationCount: (data.education ?? []).filter((e) => e.school?.trim()).length,
+      hasName: Boolean(data.fullName?.trim()),
+      hasEmail: Boolean(data.email?.trim()),
+      hasPhone: Boolean(data.phone?.trim()),
+      hasLinkedIn: Boolean(data.linkedIn?.trim()),
+      topSkills: (data.skills ?? []).filter(Boolean).slice(0, 8),
+    };
+  }, [data, targetTitle]);
+
+  const contactItems = [
+    { label: "Name", ok: overview.hasName },
+    { label: "Email", ok: overview.hasEmail },
+    { label: "Phone", ok: overview.hasPhone },
+    { label: "LinkedIn", ok: overview.hasLinkedIn },
+  ];
+
+  return (
+    <div className="rounded-xl border border-border/60 bg-surface/40 p-4 space-y-3">
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Resume Overview</p>
+
+      <div className="grid grid-cols-3 gap-2 text-center">
+        {[
+          { value: overview.wordCount, label: "words" },
+          { value: overview.pages, label: overview.pages === 1 ? "page" : "pages" },
+          { value: overview.sectionCount, label: "sections" },
+        ].map(({ value, label }) => (
+          <div key={label} className="rounded-lg border border-border/40 bg-surface/60 py-2">
+            <p className="font-display text-lg font-bold text-foreground">{value}</p>
+            <p className="text-[10px] text-muted-foreground">{label}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 text-center">
+        {[
+          { value: overview.skillCount, label: "skills" },
+          { value: overview.positionCount, label: overview.positionCount === 1 ? "position" : "positions" },
+          { value: overview.educationCount, label: "education" },
+        ].map(({ value, label }) => (
+          <div key={label} className="rounded-lg border border-border/40 bg-surface/60 py-2">
+            <p className="font-display text-lg font-bold text-foreground">{value}</p>
+            <p className="text-[10px] text-muted-foreground">{label}</p>
+          </div>
+        ))}
+      </div>
+
+      {overview.detectedSections.length > 0 && (
+        <div>
+          <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Detected Sections</p>
+          <div className="flex flex-wrap gap-1">
+            {overview.detectedSections.map((s) => (
+              <span key={s} className="rounded-full border border-border/60 bg-surface/60 px-2 py-0.5 text-[10px] text-foreground/80">
+                {s}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {overview.topSkills.length > 0 && (
+        <div>
+          <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Extracted Skills</p>
+          <div className="flex flex-wrap gap-1">
+            {overview.topSkills.map((s) => (
+              <span key={s} className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] text-primary">
+                {s}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div>
+        <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Contact Info</p>
+        <div className="flex flex-wrap gap-1.5">
+          {contactItems.map(({ label, ok }) => (
+            <span
+              key={label}
+              className={cn(
+                "flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px]",
+                ok
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-500"
+                  : "border-red-500/30 bg-red-500/10 text-red-400",
+              )}
+            >
+              {ok ? <CheckCircle2 className="h-2.5 w-2.5" /> : <AlertTriangle className="h-2.5 w-2.5" />}
+              {label}
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main panel ───────────────────────────────────────────────────────────────
 
 type Section = "score" | "keywords" | "bullets" | "parse";
@@ -344,6 +544,28 @@ function AtsPanelBody({ entry, preview, activeSection, onSectionChange }: AtsPan
     [data, targetTitle, jobDescription],
   );
 
+  const bulletQuality = useMemo(() => analyzeBulletQuality(data), [data]);
+
+  const platformScores = useMemo(() => {
+    const formattingScore = Math.round((readiness.pillars.atsCompliance.score / 25) * 100);
+    const keywordScore = Math.round((readiness.pillars.keywords.score / 25) * 100);
+    const sectionsScore = Math.round((readiness.pillars.completeness.score / 25) * 100);
+    const experienceScore = Math.round((readiness.pillars.bulletQuality.score / 25) * 100);
+    const hasEdu = (data.education ?? []).filter((e) => e.school?.trim()).length >= 1;
+    const hasDegree = hasEdu && Boolean(data.education![0]!.degree?.trim());
+    const educationScore = hasEdu ? (hasDegree ? 100 : 75) : 0;
+    return computePlatformScores({
+      formattingScore,
+      keywordScore,
+      sectionsScore,
+      experienceScore,
+      educationScore,
+      quantificationRate: bulletQuality.quantificationRate,
+    });
+  }, [readiness, bulletQuality, data]);
+
+  const passCount = platformScores.filter((p) => p.passes).length;
+
   const navItems: Array<{ id: Section; label: string }> = [
     { id: "score", label: "Score" },
     { id: "keywords", label: "Keywords" },
@@ -372,10 +594,12 @@ function AtsPanelBody({ entry, preview, activeSection, onSectionChange }: AtsPan
       </div>
 
       {activeSection === "score" && (
-        <div className="space-y-4">
+        <div className="space-y-5">
+
+          {/* Hero score + platforms passed */}
           <div className="flex items-center gap-5 rounded-xl border border-border/60 bg-surface/40 px-4 py-4">
-            <ScoreRing score={readiness.total} grade={readiness.grade} />
-            <div className="min-w-0">
+            <ScoreRing score={readiness.total} size="lg" />
+            <div className="min-w-0 flex-1">
               <p className="font-display text-base font-semibold text-foreground">Resume Readiness</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 {readiness.total >= 90
@@ -386,36 +610,76 @@ function AtsPanelBody({ entry, preview, activeSection, onSectionChange }: AtsPan
                       ? "Fair — significant gaps to address before applying."
                       : "Needs work — follow the action items below."}
               </p>
-              {!jobDescription.trim() ? (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Save this job from a posting page to unlock keyword coverage scoring.
-                </p>
-              ) : null}
+            </div>
+            <div className="shrink-0 text-center">
+              <p className="font-display text-2xl font-bold text-foreground">{passCount}/6</p>
+              <p className="text-[10px] text-muted-foreground">Systems Passed</p>
+              <div className={cn(
+                "mt-1 rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                passCount >= 5 ? "bg-emerald-500/15 text-emerald-500" :
+                passCount >= 3 ? "bg-amber-500/15 text-amber-400" : "bg-red-500/15 text-red-400",
+              )}>
+                {passCount >= 5 ? "General Readiness" : passCount >= 3 ? "Partial Readiness" : "Not Ready"}
+              </div>
             </div>
           </div>
 
-          {readiness.topActions.length > 0 && (
-            <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-primary">Top actions</p>
-              <ol className="space-y-1.5 list-decimal list-inside">
-                {readiness.topActions.map((action, i) => (
-                  <li key={i} className="text-sm text-foreground/90">{action}</li>
+          {/* Priority focus areas */}
+          <div>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Priority Focus Areas</p>
+            <div className="space-y-2">
+              {Object.values(readiness.pillars)
+                .slice()
+                .sort((a, b) => (a.score / a.maxScore) - (b.score / b.maxScore))
+                .map((pillar) => (
+                  <PillarBar
+                    key={pillar.label}
+                    label={pillar.label}
+                    score={pillar.score}
+                    maxScore={pillar.maxScore}
+                    details={pillar.details}
+                  />
                 ))}
-              </ol>
+            </div>
+          </div>
+
+          {/* Per-platform score cards */}
+          <div>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Platform Scores</p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {platformScores.map((result) => (
+                <PlatformCard key={result.id} result={result} />
+              ))}
+            </div>
+          </div>
+
+          {/* Severity-tagged top actions */}
+          {readiness.topActions.length > 0 && (
+            <div>
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Optimization Suggestions</p>
+              <div className="space-y-2">
+                {readiness.topActions.map((action, i) => (
+                  <div
+                    key={i}
+                    className="flex items-start gap-2.5 rounded-xl border border-border/60 bg-surface/40 px-3 py-2.5"
+                  >
+                    <AlertTriangle className={cn(
+                      "mt-0.5 h-3.5 w-3.5 shrink-0",
+                      action.severity === "critical" ? "text-red-400" :
+                      action.severity === "high" ? "text-amber-400" :
+                      action.severity === "medium" ? "text-blue-400" : "text-muted-foreground",
+                    )} />
+                    <p className="min-w-0 flex-1 text-sm text-foreground/90">{action.message}</p>
+                    <SeverityBadge severity={action.severity} />
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
-          <div className="space-y-2">
-            {Object.values(readiness.pillars).map((pillar) => (
-              <PillarBar
-                key={pillar.label}
-                label={pillar.label}
-                score={pillar.score}
-                maxScore={pillar.maxScore}
-                details={pillar.details}
-              />
-            ))}
-          </div>
+          {/* Resume overview */}
+          <ResumeOverviewCard data={data} targetTitle={targetTitle} />
+
         </div>
       )}
 

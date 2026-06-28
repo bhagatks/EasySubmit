@@ -32,6 +32,13 @@ export type ReadinessPillar = {
   details: string[]; // what contributed or was missing
 };
 
+export type ActionSeverity = "critical" | "high" | "medium" | "low";
+
+export type PrioritizedAction = {
+  message: string;
+  severity: ActionSeverity;
+};
+
 export type ResumeReadinessResult = {
   total: number;       // 0–100
   grade: "A" | "B" | "C" | "D" | "F";
@@ -41,7 +48,7 @@ export type ResumeReadinessResult = {
     bulletQuality: ReadinessPillar;
     atsCompliance: ReadinessPillar;
   };
-  topActions: string[]; // ordered action items to improve score
+  topActions: PrioritizedAction[];
 };
 
 // ─── Pillar: Completeness ─────────────────────────────────────────────────────
@@ -273,14 +280,20 @@ function toGrade(total: number): ResumeReadinessResult["grade"] {
 
 // ─── Top action items ─────────────────────────────────────────────────────────
 
-function deriveTopActions(pillars: ResumeReadinessResult["pillars"]): string[] {
+function deficitToSeverity(deficit: number): ActionSeverity {
+  if (deficit >= 15) return "critical";
+  if (deficit >= 10) return "high";
+  if (deficit >= 5) return "medium";
+  return "low";
+}
+
+function deriveTopActions(pillars: ResumeReadinessResult["pillars"]): PrioritizedAction[] {
   const actions: Array<{ message: string; deficit: number }> = [];
 
   for (const pillar of Object.values(pillars)) {
     const deficit = pillar.maxScore - pillar.score;
     if (deficit > 0) {
       for (const detail of pillar.details) {
-        // Only include problem messages (not "✓" confirmations)
         if (!detail.includes("✓")) {
           actions.push({ message: detail, deficit });
         }
@@ -288,11 +301,10 @@ function deriveTopActions(pillars: ResumeReadinessResult["pillars"]): string[] {
     }
   }
 
-  // Sort by highest deficit first — biggest wins come first
   return actions
     .sort((a, b) => b.deficit - a.deficit)
-    .slice(0, 5)
-    .map((a) => a.message);
+    .slice(0, 6)
+    .map((a) => ({ message: a.message, severity: deficitToSeverity(a.deficit) }));
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
