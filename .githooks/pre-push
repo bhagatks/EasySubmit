@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -e
+
+echo ""
+echo "⏳  Running coverage gate (85% threshold)..."
+echo ""
+
+if npx vitest run --config config/vitest.config.ts --coverage --reporter=dot 2>&1; then
+  echo ""
+  echo "✅  Coverage gate passed — push allowed."
+  echo ""
+  exit 0
+else
+  echo ""
+  echo "❌  Coverage gate FAILED — push blocked."
+  echo "    Fix failing tests or raise coverage to 85% before pushing."
+  echo "    Run: npm run test:coverage"
+  echo ""
+  exit 1
+fi

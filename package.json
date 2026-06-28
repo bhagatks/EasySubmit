@@ -29,7 +29,8 @@
     "ai:usage": "npx --yes tsx scripts/ai-usage-stats.ts",
     "analytics:setup": "node scripts/posthog-setup-dashboards.mjs",
     "posthog:journey": "npx tsx scripts/posthog-journey-report.ts",
-    "enhance:trace": "npx tsx scripts/enhance-trace-report.ts"
+    "enhance:trace": "npx tsx scripts/enhance-trace-report.ts",
+    "prepare": "git config core.hooksPath .githooks"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.85",
