@@ -1,0 +1,6 @@
+---
+description: Unit test coverage must stay above 85%
+alwaysApply: true
+---
+
+@docs/rules/testing.md

@@ -9,6 +9,7 @@ The following files in `docs/rules/` are the single source of truth — both Cla
 | Observability & logging | `docs/rules/observability-logging.md` |
 | Documentation maintenance | `docs/rules/documentation.md` |
 | Sidepanel completion gate | `docs/rules/sidepanel-completion.md` |
+| Testing & coverage gate | `docs/rules/testing.md` |
 
 ---
 
