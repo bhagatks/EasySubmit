@@ -3,14 +3,18 @@
 import dotenv from "dotenv";
 import { defineConfig } from "prisma/config";
 
-const shellDatabaseUrl = process.env.DATABASE_URL;
+const shellDatabaseUrl = process.env.DATABASE_URL?.trim() || "";
+const shellDirectUrl = process.env.DIRECT_URL?.trim() || "";
 
 dotenv.config({ path: ".env" });
 dotenv.config({ path: ".env.local", override: true });
 
-// Vercel / CI inject DATABASE_URL directly — only fall back to shell when files omit it.
-if (!process.env.DATABASE_URL && shellDatabaseUrl) {
+// Vercel env run / CI / export wins over .env.local (local dev uses .env.local when unset).
+if (shellDatabaseUrl) {
   process.env.DATABASE_URL = shellDatabaseUrl;
+}
+if (shellDirectUrl) {
+  process.env.DIRECT_URL = shellDirectUrl;
 }
 
 export default defineConfig({
@@ -20,6 +24,7 @@ export default defineConfig({
     seed: "npx --yes tsx prisma/seed.ts",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    // DIRECT_URL bypasses PgBouncer for migrations (advisory locks require a direct connection).
+    url: process.env["DIRECT_URL"] || process.env["DATABASE_URL"],
   },
 });
