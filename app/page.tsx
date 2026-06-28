@@ -2,7 +2,6 @@ import Link from "next/link";
 import Image from "next/image";
 import {
   ArrowRight,
-  Brain,
   Check,
   ChevronRight,
   FileText,
@@ -12,22 +11,35 @@ import {
   ShieldCheck,
   Target,
   Wand2,
-  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LogoIcon } from "@/components/ui/logo";
 import { Navbar } from "@/components/Navbar";
+import { PricingPlansSection } from "@/components/pricing/PricingPlansSection";
 import { BRAND, brandCopyright } from "@/lib/brand";
+import {
+  FREE_PLAN_VISIBLE_FEATURES,
+  PRICING_FAQ,
+  PRICING_PAGE_COPY,
+} from "@/lib/pricing/plan-display";
 
 export const metadata = {
-  title: `${BRAND.full} — AI Resume + Job Autofill that beats every ATS`,
-  description:
-    "Generate ATS-proof, role-specific resumes and autofill any job application with your own AI key. Free forever, BYOK, guaranteed to pass every ATS scanner.",
+  title: `${BRAND.full} — AI Resume Tailoring that beats every ATS`,
+  description: PRICING_PAGE_COPY.metaDescription,
   openGraph: {
     title: `${BRAND.full} — Beat every ATS, free with your own AI key`,
-    description: "Custom resumes per job + one-click apply Chrome extension. BYOK, free daily usage, ATS-guaranteed.",
+    description: PRICING_PAGE_COPY.metaDescription,
   },
 };
+
+export const dynamic = "force-dynamic";
+
+const visibleFeatureIcons = [Key, Target, ShieldCheck, Puzzle, FileText] as const;
+
+const features = FREE_PLAN_VISIBLE_FEATURES.map((title, index) => ({
+  icon: visibleFeatureIcons[index] ?? Target,
+  title,
+}));
 
 function Hero() {
   return (
@@ -42,9 +54,7 @@ function Hero() {
             <span className="text-gradient">Beat every ATS.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground md:text-xl">
-            EasySubmit crafts a custom, ATS-proof resume for every job and autofills the
-            application in one click — using <span className="text-foreground">your own AI key</span>.
-            Free, unlimited control, zero lock-in.
+            {PRICING_PAGE_COPY.subhead}
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link href="/login">
@@ -71,9 +81,10 @@ function Hero() {
               alt="ATS-optimized resume scanned by AI"
               width={1536}
               height={1152}
-              className="w-full"
+              className="w-full max-h-[52vh] object-cover object-top"
               priority
             />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-hero to-transparent" />
           </div>
           <div className="pointer-events-none absolute inset-x-10 -bottom-6 h-12 rounded-full bg-mint/30 blur-2xl" />
         </div>
@@ -82,42 +93,9 @@ function Hero() {
   );
 }
 
-const features = [
-  {
-    icon: Target,
-    title: "Per-job tailored resumes",
-    body: "Paste a JD — get a resume rewritten around the role's keywords, scoped to your real experience. Never generic, never overclaimed.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "ATS-guaranteed format",
-    body: "Parsed and re-parsed against Workday, Greenhouse, Lever, Taleo, iCIMS. If a scanner mangles it, we refund — there is no refund needed.",
-  },
-  {
-    icon: Puzzle,
-    title: "One-click autofill",
-    body: "Chrome extension fills any application form across LinkedIn, Indeed, Workday, and 2,000+ career portals — verified before submit.",
-  },
-  {
-    icon: Key,
-    title: "Bring your own AI key",
-    body: "OpenAI, Anthropic, Gemini, Groq, or local. Your key, your usage, your data. We never proxy or store prompts.",
-  },
-  {
-    icon: Brain,
-    title: "Best-in-class resume engine",
-    body: "Trained on 50k recruiter-rated resumes. Scores impact lines, quantifies vague bullets, and surfaces missing keywords.",
-  },
-  {
-    icon: Zap,
-    title: "Apply 10× faster",
-    body: "Track every application, tailor variants, and submit a polished resume in under 60 seconds per role.",
-  },
-];
-
 function Features() {
   return (
-    <section id="features" className="relative border-t border-border/60 py-24">
+    <section id="features" className="relative scroll-mt-20 border-t border-border/60 py-24">
       <div className="mx-auto max-w-7xl px-6">
         <div className="mx-auto max-w-2xl text-center">
           <div className="inline-flex items-center gap-2 rounded-full border border-border bg-surface/60 px-3 py-1 text-xs text-muted-foreground">
@@ -126,12 +104,10 @@ function Features() {
           <h2 className="mt-4 font-display text-4xl font-semibold tracking-tight md:text-5xl">
             Built for the way you actually job-hunt.
           </h2>
-          <p className="mt-4 text-muted-foreground">
-            Resume tailoring, ATS scoring, and one-click autofill — connected end to end.
-          </p>
+          <p className="mt-4 text-muted-foreground">{PRICING_PAGE_COPY.subhead}</p>
         </div>
 
-        <div className="mt-14 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {features.map((f) => (
             <div
               key={f.title}
@@ -141,8 +117,7 @@ function Features() {
               <div className="grid h-10 w-10 place-items-center rounded-lg bg-primary/15 text-primary">
                 <f.icon className="h-5 w-5" />
               </div>
-              <h3 className="mt-5 text-lg font-semibold">{f.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{f.body}</p>
+              <h3 className="mt-5 text-base font-semibold leading-snug">{f.title}</h3>
             </div>
           ))}
         </div>
@@ -154,7 +129,7 @@ function Features() {
 function AtsBand() {
   const scanners = ["Workday", "Greenhouse", "Lever", "Taleo", "iCIMS", "SuccessFactors", "Jobvite", "Ashby"];
   return (
-    <section id="ats" className="relative border-t border-border/60 py-24">
+    <section id="ats" className="relative scroll-mt-20 border-t border-border/60 py-24">
       <div className="mx-auto grid max-w-7xl gap-12 px-6 lg:grid-cols-2 lg:items-center">
         <div>
           <div className="inline-flex items-center gap-2 rounded-full border border-mint/40 bg-mint/10 px-3 py-1 text-xs text-mint">
@@ -234,74 +209,66 @@ function AtsBand() {
 }
 
 function ByokBand() {
-  const tiers = [
-    {
-      name: "Free",
-      price: "$0",
-      period: "forever",
-      body: "5 AI resume tailors / day on our system AI. No card needed.",
-      highlight: false,
-    },
-    {
-      name: "BYOK",
-      price: "$0",
-      period: "forever",
-      body: "50 AI tailors / day with your own key. Your data, your cost — cents per resume.",
-      highlight: true,
-    },
-    {
-      name: "Subscribe",
-      price: "From $2.99",
-      period: "/ week",
-      body: "25 AI tailors / day on our system AI. Weekly, monthly, or yearly.",
-      highlight: false,
-    },
-  ];
-
+  const providers = ["OpenAI", "Anthropic", "Gemini", "Groq", "DeepSeek", "OpenRouter"];
   return (
-    <section id="byok" className="relative border-t border-border/60 py-24">
-      <div className="mx-auto max-w-5xl px-6 text-center">
-        <div className="inline-flex items-center gap-2 rounded-full border border-border bg-surface/60 px-3 py-1 text-xs text-muted-foreground">
-          <Key className="h-3 w-3 text-primary" /> BYOK — Bring Your Own Key
+    <section id="byok" className="relative scroll-mt-20 border-t border-border/60 py-24">
+      <div className="mx-auto grid max-w-7xl gap-12 px-6 lg:grid-cols-2 lg:items-center">
+        <div>
+          <div className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs text-primary">
+            <Key className="h-3 w-3" /> BYOK
+          </div>
+          <h2 className="mt-4 font-display text-4xl font-semibold tracking-tight md:text-5xl">
+            Your key. <span className="text-gradient">Your control.</span>
+          </h2>
+          <p className="mt-5 text-muted-foreground">
+            Bring Your Own Key — connect your API key from any major provider. You pay the AI
+            provider directly (typically cents per resume). EasySubmit handles tailoring, ATS
+            scoring, and the extension workflow.
+          </p>
+          <ul className="mt-6 space-y-3 text-sm">
+            {[
+              "Free forever with your own key — no credit card",
+              "Choose the model you trust for each enhance",
+              "Keys are vaulted securely — never stored in plain text",
+              "Prefer hands-off? Paid plans with EasySubmit AI are coming soon",
+            ].map((p) => (
+              <li key={p} className="flex items-start gap-3">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-mint" />
+                <span className="text-foreground/90">{p}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-8">
+            <Link href="/login">
+              <Button variant="hero" size="lg">
+                Connect your key <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
         </div>
-        <h2 className="mt-4 font-display text-4xl font-semibold tracking-tight md:text-5xl">
-          Simplify.jobs charges. <br />
-          <span className="text-gradient">We give you the keys.</span>
-        </h2>
-        <p className="mx-auto mt-5 max-w-2xl text-muted-foreground">
-          Plug in your own OpenAI, Anthropic, Gemini, or Groq key. Pay cents per resume
-          directly to the provider. Or use our system AI with a free daily allowance.
-        </p>
-        <div className="mt-10 grid gap-4 md:grid-cols-3">
-          {tiers.map((t) => (
-            <div
-              key={t.name}
-              className={`relative rounded-2xl border p-6 text-left ${
-                t.highlight
-                  ? "border-mint/50 bg-surface shadow-glow"
-                  : "border-border bg-surface/60"
-              }`}
-            >
-              {t.highlight && (
-                <span className="absolute -top-3 left-6 rounded-full bg-mint px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-mint-foreground">
-                  Recommended
-                </span>
-              )}
-              <div className="text-sm text-muted-foreground">{t.name}</div>
-              <div className="mt-2 flex items-baseline gap-1.5">
-                <span className="font-display text-4xl font-semibold">{t.price}</span>
-                <span className="text-sm text-muted-foreground">{t.period}</span>
-              </div>
-              <p className="mt-3 text-sm text-muted-foreground">{t.body}</p>
+
+        <div className="relative">
+          <div className="absolute -inset-4 rounded-3xl bg-gradient-to-br from-primary/25 to-mint/15 blur-2xl" />
+          <div className="relative rounded-2xl border border-border bg-surface p-6 shadow-elevated">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Supported providers
+            </p>
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {providers.map((name) => (
+                <div
+                  key={name}
+                  className="flex items-center gap-2 rounded-xl border border-border bg-background/40 px-3 py-2.5 text-sm"
+                >
+                  <Key className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
+                  {name}
+                </div>
+              ))}
             </div>
-          ))}
+            <p className="mt-6 border-t border-border pt-5 text-sm text-muted-foreground">
+              {PRICING_FAQ.find((item) => item.q === "What is BYOK?")?.a}
+            </p>
+          </div>
         </div>
-        <p className="mt-6 text-xs text-muted-foreground">
-          Daily limits reset at midnight UTC.{" "}
-          <Link href="/pricing" className="underline underline-offset-2 hover:text-foreground">
-            See full pricing →
-          </Link>
-        </p>
       </div>
     </section>
   );
@@ -309,17 +276,17 @@ function ByokBand() {
 
 function CtaBand() {
   return (
-    <section id="pricing" className="relative border-t border-border/60 py-24">
+    <section id="get-started" className="relative border-t border-border/60 py-24">
       <div className="mx-auto max-w-5xl px-6">
         <div className="relative overflow-hidden rounded-3xl border border-border bg-surface p-12 text-center shadow-elevated">
           <div className="bg-grid absolute inset-0 opacity-40" />
           <div className="absolute -top-20 left-1/2 h-60 w-[80%] -translate-x-1/2 rounded-full bg-primary/30 blur-3xl" />
           <div className="relative">
             <h2 className="font-display text-4xl font-semibold tracking-tight md:text-5xl">
-              Your next offer is <span className="text-gradient">one click</span> away.
+              Your next offer is <span className="text-gradient">one resume</span> away.
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
-              Join thousands using EasySubmit to outsmart the ATS — for free, with their own AI.
+              {PRICING_PAGE_COPY.subhead}
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               <Link href="/login">
@@ -327,9 +294,9 @@ function CtaBand() {
                   Start for Free <ChevronRight className="h-5 w-5" />
                 </Button>
               </Link>
-              <Link href="/extension">
-                <Button variant="mint" size="xl">
-                  <Puzzle className="h-5 w-5" /> Install Extension
+              <Link href="/pricing">
+                <Button variant="outline" size="xl">
+                  View pricing
                 </Button>
               </Link>
             </div>
@@ -369,6 +336,7 @@ export default function LandingPage() {
         <Features />
         <AtsBand />
         <ByokBand />
+        <PricingPlansSection id="pricing" className="border-t border-border/60 py-24" />
         <CtaBand />
       </main>
       <Footer />
