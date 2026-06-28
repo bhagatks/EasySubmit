@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   PlayCircle,
   Puzzle,
+  ScanLine,
   Settings,
   ShieldCheck,
 } from "lucide-react";
@@ -65,6 +66,7 @@ const navItems = [
   { title: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { title: "Resume profiles", href: "/dashboard/resume-profiles", icon: FileText },
   { title: "Job Tracker", href: "/dashboard/job-tracker", icon: Briefcase },
+  { title: "ATS Scores", href: "/dashboard/ats-scores", icon: ScanLine },
   { title: "ATS Guidelines", href: "/dashboard/ats-guidelines", icon: ShieldCheck },
   { title: "Extension", href: "/dashboard/extension", icon: Puzzle },
   { title: "Video Tutorials", href: "/dashboard/tutorials", icon: PlayCircle },

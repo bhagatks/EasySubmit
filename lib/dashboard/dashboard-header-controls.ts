@@ -97,5 +97,8 @@ export function getDashboardHeaderLabel(pathname: string, isStudioEdit: boolean)
   if (pathname.startsWith("/dashboard/job-tracker")) {
     return "Job Tracker";
   }
+  if (pathname.startsWith("/dashboard/ats-scores")) {
+    return "ATS Scores";
+  }
   return "Dashboard";
 }

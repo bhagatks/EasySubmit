@@ -12,6 +12,8 @@ import { cn } from "@/lib/utils";
 
 type AtsPanelProps = {
   entry: JobTrackerDetail;
+  /** "modal" = fixed-height scrollable (Review Screen). "inline" = natural page flow. */
+  variant?: "modal" | "inline";
 };
 
 // ─── Score ring ───────────────────────────────────────────────────────────────
@@ -532,9 +534,10 @@ type AtsPanelBodyProps = {
   preview: NonNullable<JobTrackerDetail["tailoredResumePreview"]>;
   activeSection: Section;
   onSectionChange: (section: Section) => void;
+  variant?: "modal" | "inline";
 };
 
-function AtsPanelBody({ entry, preview, activeSection, onSectionChange }: AtsPanelBodyProps) {
+function AtsPanelBody({ entry, preview, activeSection, onSectionChange, variant = "modal" }: AtsPanelBodyProps) {
   const data = preview.preview;
   const targetTitle = preview.targetTitle;
   const jobDescription = entry.description ?? "";
@@ -574,7 +577,7 @@ function AtsPanelBody({ entry, preview, activeSection, onSectionChange }: AtsPan
   ];
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-y-auto px-5 py-4 space-y-4">
+    <div className={cn("flex flex-col px-5 py-4 space-y-4", variant === "modal" && "h-full min-h-0 overflow-y-auto")}>
       <div className="flex shrink-0 gap-1 overflow-x-auto rounded-xl border border-border/60 bg-surface/40 p-1 self-start">
         {navItems.map((item) => (
           <button
@@ -722,7 +725,7 @@ function AtsPanelBody({ entry, preview, activeSection, onSectionChange }: AtsPan
   );
 }
 
-export function AtsPanel({ entry }: AtsPanelProps) {
+export function AtsPanel({ entry, variant = "modal" }: AtsPanelProps) {
   const [activeSection, setActiveSection] = useState<Section>("score");
   const preview = entry.tailoredResumePreview;
 
@@ -736,6 +739,7 @@ export function AtsPanel({ entry }: AtsPanelProps) {
       preview={preview}
       activeSection={activeSection}
       onSectionChange={setActiveSection}
+      variant={variant}
     />
   );
 }
