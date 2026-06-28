@@ -149,7 +149,7 @@ function useAiHealthStatus() {
   return useContext(AiHealthContext).status;
 }
 
-/** Compact issue notice — sits under the BYOK control in the dashboard header. */
+/** Glossy pill anchored below the BYOK button area in the dashboard header. */
 export function AiHealthHeaderNotice() {
   const status = useAiHealthStatus();
 
@@ -161,21 +161,31 @@ export function AiHealthHeaderNotice() {
   return (
     <div
       role="alert"
-      className="flex max-w-[16rem] items-start justify-end gap-1.5 text-right sm:max-w-xs"
+      className="absolute right-0 top-full z-50 mt-1.5 w-64 rounded-xl border px-3 py-2.5"
+      style={{
+        background: "oklch(0.18 0.06 25 / 0.92)",
+        borderColor: "oklch(0.55 0.22 25 / 0.30)",
+        backdropFilter: "blur(12px)",
+        WebkitBackdropFilter: "blur(12px)",
+      }}
     >
-      <AlertTriangle
-        className="mt-0.5 h-3.5 w-3.5 shrink-0"
-        style={{ color: "oklch(0.55 0.22 25)" }}
-        aria-hidden="true"
-      />
-      <div className="min-w-0">
-        <p className="text-[11px] leading-snug text-foreground">{message}</p>
-        <Link
-          href={fixHref}
-          className="text-[11px] font-medium text-primary hover:underline"
-        >
-          Fix in {fixLabel}
-        </Link>
+      <div className="flex items-start gap-2">
+        <AlertTriangle
+          className="mt-0.5 h-3.5 w-3.5 shrink-0"
+          style={{ color: "oklch(0.72 0.20 25)" }}
+          aria-hidden="true"
+        />
+        <div className="min-w-0 flex-1">
+          <p className="text-[12px] leading-snug" style={{ color: "oklch(0.84 0.10 25)" }}>
+            {message}
+          </p>
+          <Link
+            href={fixHref}
+            className="mt-1 block text-right text-[11px] font-semibold text-primary hover:underline"
+          >
+            Fix in {fixLabel} →
+          </Link>
+        </div>
       </div>
     </div>
   );

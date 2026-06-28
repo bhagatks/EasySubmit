@@ -199,17 +199,15 @@ function DashboardShellFrame({ children, vaultKeyId, fromParam }: DashboardShell
               ) : (
                 <div />
               )}
-              <div className="flex h-full items-center justify-end gap-2 justify-self-end">
+              <div className="relative flex h-full items-center justify-end gap-2 justify-self-end">
                 <DashboardHeaderExpandSlot />
                 <DashboardHeaderActionsSlot />
                 <BYOKStatusBadge vaultKeyId={vaultKeyId} />
                 {showByokKeyButton ? <BYOKKeyButton /> : null}
                 {showProfileMenu ? <NavbarProfileMenu /> : null}
                 {showSignOut ? <SignOutButton variant="pill" /> : null}
+                <AiHealthHeaderNotice />
               </div>
-            </div>
-            <div className="flex justify-end px-4 pb-2 empty:hidden">
-              <AiHealthHeaderNotice />
             </div>
           </header>
         </AiHealthAlertProvider>
