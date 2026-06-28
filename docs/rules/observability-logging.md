@@ -47,6 +47,21 @@ Always include where applicable:
 - `flags` — feature flags, route mode, gate inputs
 - `params` — counts, durations, safe previews (no secrets)
 
+## Applies to all code changes
+
+Logging is not optional on new logic. Every code change that adds or modifies:
+
+- a server action
+- an API route handler
+- an AI / enhance pipeline step
+- a gate or conditional branch that can block/fail
+- an extension background flow
+- a background job or scheduled task
+
+**must** include structured log lines. This is a hard rule — not a suggestion.
+
+For UI-only changes (Tailwind classes, copy, layout tweaks) logging is not required.
+
 ## Completion gate
 
 Before marking work done:
@@ -55,3 +70,4 @@ Before marking work done:
 - [ ] Failures and fallbacks are `high` and include `errorCode`
 - [ ] New pipeline steps added to the domain catalog (`enhance-diagnostics-catalog.ts` for enhance)
 - [ ] Observability section updated if steps or failure codes changed (`docs/enhance-pipeline-design.md` for enhance)
+- [ ] No silent `catch` blocks — every caught error must log at `high` with `errorCode` + `errorMessage`
