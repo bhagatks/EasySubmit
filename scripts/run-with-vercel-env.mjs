@@ -4,9 +4,8 @@
  * Usage: node scripts/run-with-vercel-env.mjs -- npx prisma migrate deploy
  */
 import { execSync, spawnSync } from "node:child_process";
-import { existsSync, unlinkSync } from "node:fs";
+import { existsSync, readFileSync, unlinkSync } from "node:fs";
 import { resolve } from "node:path";
-import { config as loadDotenv } from "dotenv";
 
 const root = process.cwd();
 const tmpFile = resolve(root, ".env.vercel.deploy.tmp");
@@ -33,6 +32,30 @@ function cleanup() {
   }
 }
 
+/** Apply only non-empty values — Vercel pull may include blank DATABASE_URL placeholders. */
+function applyVercelEnvFile(filePath) {
+  const content = readFileSync(filePath, "utf8");
+  let applied = 0;
+  for (const line of content.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq <= 0) continue;
+    const key = trimmed.slice(0, eq).trim();
+    let value = trimmed.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    if (!value) continue;
+    process.env[key] = value;
+    applied += 1;
+  }
+  return applied;
+}
+
 try {
   execSync(`${vercelCmd()} env pull "${tmpFile}" --environment=production --yes`, {
     stdio: "inherit",
@@ -50,9 +73,21 @@ if (!existsSync(tmpFile)) {
   process.exit(1);
 }
 
-loadDotenv({ path: tmpFile, override: true });
+const applied = applyVercelEnvFile(tmpFile);
+console.log(`→ Loaded ${applied} non-empty production env vars from Vercel`);
 
-if (!process.env.DATABASE_URL) {
+if (!process.env.DATABASE_URL?.trim()) {
+  const fallback =
+    process.env.POSTGRES_PRISMA_URL?.trim() ||
+    process.env.POSTGRES_URL?.trim() ||
+    "";
+  if (fallback) {
+    process.env.DATABASE_URL = fallback;
+    console.log("→ DATABASE_URL unset in Vercel; using POSTGRES_PRISMA_URL fallback");
+  }
+}
+
+if (!process.env.DATABASE_URL?.trim()) {
   console.error("❌ DATABASE_URL missing in Vercel production env.");
   console.error("   Set it in Vercel → Project → Settings → Environment Variables.");
   cleanup();

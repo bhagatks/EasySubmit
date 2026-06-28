@@ -30,7 +30,7 @@
     "analytics:setup": "node scripts/posthog-setup-dashboards.mjs",
     "posthog:journey": "npx tsx scripts/posthog-journey-report.ts",
     "enhance:trace": "npx tsx scripts/enhance-trace-report.ts",
-    "prepare": "git config core.hooksPath .githooks"
+    "prepare": "git rev-parse --is-inside-work-tree >/dev/null 2>&1 && git config core.hooksPath .githooks || true"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.85",

@@ -56,8 +56,14 @@ echo "→ Building Chrome extension (dist/extension)"
 npm run build:extension
 
 echo "→ Production DB migrations (env pulled from Vercel, not saved locally)"
-node "$ROOT/scripts/run-with-vercel-env.mjs" npx prisma generate
-node "$ROOT/scripts/run-with-vercel-env.mjs" npx prisma migrate deploy
+if node "$ROOT/scripts/run-with-vercel-env.mjs" npx prisma generate && \
+   node "$ROOT/scripts/run-with-vercel-env.mjs" npx prisma migrate deploy; then
+  echo "→ Production migrations applied"
+else
+  echo "⚠️  Production migrations skipped (DATABASE_URL unavailable locally)."
+  echo "   Re-enter secrets in Vercel → Settings → Environment Variables, then run:"
+  echo "   node scripts/run-with-vercel-env.mjs -- npx prisma migrate deploy"
+fi
 
 echo "→ Deploying to Vercel production"
 "${VERCEL[@]}" deploy --prod
