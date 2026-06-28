@@ -43,10 +43,10 @@ const features = FREE_PLAN_VISIBLE_FEATURES.map((title, index) => ({
 
 function Hero() {
   return (
-    <section className="relative overflow-hidden bg-hero">
+    <section className="relative max-h-screen overflow-hidden bg-hero">
       <div className="bg-grid absolute inset-0 opacity-60" />
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
-      <div className="relative mx-auto max-w-7xl px-6 pb-24 pt-20 md:pt-28">
+      <div className="relative mx-auto max-w-7xl px-6 pb-16 pt-20 md:pt-24">
         <div className="mx-auto max-w-3xl text-center">
           <h1 className="font-display text-5xl font-semibold leading-[1.05] tracking-tight md:text-7xl">
             Land interviews.
