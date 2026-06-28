@@ -14,6 +14,39 @@ import {
   firstWordOfBullet,
 } from "@/lib/resume/resume-bullet-verbs";
 
+// ─── AI / buzzword phrase blacklist ───────────────────────────────────────────
+// These phrases signal AI-generated or vague copy that hiring managers and
+// ATS context-checkers flag as low-signal. Sourced from Resume-Matcher's list
+// and augmented with EasySubmit's own observations.
+
+const AI_PHRASES: Array<{ pattern: RegExp; label: string }> = [
+  { pattern: /\bspearheaded\b/i, label: "spearheaded" },
+  { pattern: /\bleveraged\b/i, label: "leveraged" },
+  { pattern: /\borchestrated\b/i, label: "orchestrated" },
+  { pattern: /\bsynergize[ds]?\b/i, label: "synergized" },
+  { pattern: /\bsynergistic\b/i, label: "synergistic" },
+  { pattern: /\bparadigm shift\b/i, label: "paradigm shift" },
+  { pattern: /\bthought leader\b/i, label: "thought leader" },
+  { pattern: /\bseamlessly\b/i, label: "seamlessly" },
+  { pattern: /\brobust\b/i, label: "robust" },
+  { pattern: /\bstrategic(?:ally)? aligned\b/i, label: "strategically aligned" },
+  { pattern: /\bworld[- ]class\b/i, label: "world-class" },
+  { pattern: /\bcutting[- ]edge\b/i, label: "cutting-edge" },
+  { pattern: /\bstate[- ]of[- ]the[- ]art\b/i, label: "state-of-the-art" },
+  { pattern: /\bgame[- ]chang(?:ing|er)\b/i, label: "game-changing" },
+  { pattern: /\binnovative solution\b/i, label: "innovative solution" },
+  { pattern: /\bpassionate about\b/i, label: "passionate about" },
+  { pattern: /\bdriven by\b/i, label: "driven by" },
+  { pattern: /\bpivot(?:ed|ing)?\b/i, label: "pivoted" },
+  { pattern: /\bholistic(?:ally)?\b/i, label: "holistically" },
+  { pattern: /\bempowered\b/i, label: "empowered" },
+  { pattern: /\bproactive(?:ly)?\b/i, label: "proactively" },
+  { pattern: /\bsolution[- ]oriented\b/i, label: "solution-oriented" },
+  { pattern: /\bvalue[- ]add(?:ed)?\b/i, label: "value-add" },
+  { pattern: /\boutside the box\b/i, label: "outside the box" },
+  { pattern: /\bgo[- ]to[- ]person\b/i, label: "go-to person" },
+];
+
 // ─── Weak phrases ──────────────────────────────────────────────────────────────
 
 const WEAK_PHRASES: Array<{ pattern: RegExp; suggestion: string }> = [
@@ -56,7 +89,7 @@ const QUANTIFICATION_PATTERN =
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 export type BulletIssue = {
-  type: "weak-verb" | "weak-phrase" | "no-metric";
+  type: "weak-verb" | "weak-phrase" | "no-metric" | "ai-phrase";
   message: string;
 };
 
@@ -115,6 +148,16 @@ function analyzeBullet(raw: string): BulletAnalysis {
     }
   }
 
+  for (const { pattern, label } of AI_PHRASES) {
+    if (pattern.test(text)) {
+      issues.push({
+        type: "ai-phrase",
+        message: `"${label}" is an AI/buzzword phrase — replace with a specific, concrete action.`,
+      });
+      break; // one ai-phrase flag per bullet is enough
+    }
+  }
+
   if (!hasMetric) {
     issues.push({
       type: "no-metric",
@@ -122,12 +165,12 @@ function analyzeBullet(raw: string): BulletAnalysis {
     });
   }
 
-  // Score: 40pts for action verb, 40pts for metric, 20pts for no weak phrases
-  const weakPhraseFlag = issues.some((i) => i.type === "weak-phrase");
+  // Score: 40pts for action verb, 35pts for metric, 15pts for no weak/AI phrases
+  const weakPhraseFlag = issues.some((i) => i.type === "weak-phrase" || i.type === "ai-phrase");
   const score =
     (hasActionVerb ? 40 : 0) +
-    (hasMetric ? 40 : 0) +
-    (!weakPhraseFlag ? 20 : 0);
+    (hasMetric ? 35 : 0) +
+    (!weakPhraseFlag ? 25 : 0);
 
   return { text, hasActionVerb, hasMetric, issues, score };
 }

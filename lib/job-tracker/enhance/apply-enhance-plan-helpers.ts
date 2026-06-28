@@ -1,5 +1,6 @@
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
 import type { WeakBulletTarget } from "@/lib/job-tracker/ats/job-intelligence";
+import type { JDDomain } from "@/lib/job-tracker/jd/jd-intelligence";
 import {
   isBannedSkill,
   isProseSkill,
@@ -68,9 +69,21 @@ function ucFirst(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+const NON_TECH_JD_DOMAINS = new Set<JDDomain>([
+  "other",
+  "product-management",
+  "procurement-supply-chain",
+  "medtech-regulatory",
+]);
+
+function defaultWeakVerb(jdDomain?: JDDomain): string {
+  return jdDomain && NON_TECH_JD_DOMAINS.has(jdDomain) ? "Led" : "Executed";
+}
+
 function rewriteBullet(
   text: string,
-  issues: Array<"weak-verb" | "weak-phrase" | "no-metric">,
+  issues: Array<"weak-verb" | "weak-phrase" | "no-metric" | "ai-phrase">,
+  jdDomain?: JDDomain,
 ): { rewritten: string; changed: boolean } {
   let result = text.trim().replace(/^[-•*]\s*/, "");
   let changed = false;
@@ -88,7 +101,12 @@ function rewriteBullet(
   }
 
   if (issues.includes("weak-verb") && !changed) {
-    if (bulletHasStrongOpening(result)) {
+    const alreadyStrong =
+      bulletHasStrongOpening(result) ||
+      /^(led|built|designed|defined|oversaw|implemented|deployed|partnered|established|executed|managed|directed|developed|created|launched|optimized|validated|mentored|analyzed)\b/i.test(
+        result,
+      );
+    if (alreadyStrong) {
       const normalized = normalizeBulletOpeningVerb(result);
       if (normalized !== result) {
         result = normalized;
@@ -96,7 +114,7 @@ function rewriteBullet(
       }
     } else {
       const domainMatch = DOMAIN_VERBS.find(({ pattern }) => pattern.test(result));
-      const verb = domainMatch?.verb ?? "Executed";
+      const verb = domainMatch?.verb ?? defaultWeakVerb(jdDomain);
       result = `${verb} ${lcFirst(result)}`;
       changed = true;
     }
@@ -144,6 +162,7 @@ export function removeSkills(existing: string, toRemove: string[]): string {
 export function rewriteWeakBullets(
   form: HubRefineryForm,
   weakBullets: WeakBulletTarget[],
+  jdDomain?: JDDomain,
 ): { form: HubRefineryForm; bulletsRewritten: number } {
   if (weakBullets.length === 0 || !form.experience) {
     return { form, bulletsRewritten: 0 };
@@ -163,7 +182,7 @@ export function rewriteWeakBullets(
       const target = weakForEntry.find((wb) => wb.bulletIndex === bulletIdx);
       if (!target) return bullet;
 
-      const { rewritten, changed } = rewriteBullet(bullet, target.issues);
+      const { rewritten, changed } = rewriteBullet(bullet, target.issues, jdDomain);
       if (changed) bulletsRewritten++;
       return rewritten;
     });

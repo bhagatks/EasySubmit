@@ -8,9 +8,13 @@
 import type { PrimeResumeData } from "@/components/onboarding/PrimeResume";
 import {
   bigramsOf,
+  getSynonymsOf,
   looksLikeTechTerm,
   tokenizeJobText,
 } from "@/lib/job-tracker/jd/keyword-extract";
+import {
+  filterReportableMissingKeywords,
+} from "@/lib/job-tracker/jd/jd-skill-filter";
 
 const MIN_TOKEN_LEN = 2;
 
@@ -66,8 +70,17 @@ export type KeywordGapResult = {
   missing: string[];
   /** 0–100 — what % of JD keywords the resume covers. */
   coveragePercent: number;
+  /** 0–100 — exact-only coverage (no synonym credit). */
+  exactCoveragePercent: number;
   /** Top missing keywords sorted by tier then frequency (most important first). */
   topMissing: string[];
+  /**
+   * Missing keywords that the user likely HAS but under a synonym — they can fix
+   * this by adding the JD's exact phrasing to their resume.
+   */
+  injectable: string[];
+  /** Missing keywords the user genuinely lacks — need to acquire or honestly omit. */
+  nonInjectable: string[];
 };
 
 // ─── Keyword locator ──────────────────────────────────────────────────────────
@@ -110,9 +123,80 @@ function locateKeyword(
   return Array.from(found);
 }
 
-// ─── Public API ───────────────────────────────────────────────────────────────
+function normalizeKeyword(keyword: string): string {
+  return keyword.trim().toLowerCase().replace(/\s+/g, " ");
+}
 
-// ─── Tiered API (preferred when JDIntelligence is available) ──────────────────
+/**
+ * JD keywords satisfied by related resume labels (medtech regulatory overlap).
+ * Keys are normalized JD phrases; values are normalized resume phrases.
+ */
+export const KEYWORD_ALIAS_SATISFIERS: Readonly<Record<string, readonly string[]>> = {
+  "fda regulations": ["iso 13485", "iso13485"],
+  fda: ["iso 13485", "iso13485", "fda regulations"],
+};
+
+function resumeSatisfiesKeywordAlias(
+  keyword: string,
+  resumeText: string,
+): boolean {
+  const satisfiers = KEYWORD_ALIAS_SATISFIERS[normalizeKeyword(keyword)];
+  if (!satisfiers) return false;
+  const haystack = resumeText.toLowerCase();
+  return satisfiers.some((s) => haystack.includes(s));
+}
+
+/** Phrase-aware match — token sets drop stopwords inside skill labels (e.g. "strategic alliances"). */
+export function resumeContainsKeyword(
+  keyword: string,
+  data: PrimeResumeData,
+  targetTitle: string,
+  resumeText: string,
+  resumeTokenSet: Set<string>,
+): boolean {
+  const kw = normalizeKeyword(keyword);
+  if (!kw) return false;
+
+  const haystack = resumeText.toLowerCase();
+  if (haystack.includes(kw)) return true;
+
+  for (const skill of data.skills ?? []) {
+    const skillNorm = normalizeKeyword(skill);
+    if (skillNorm === kw || skillNorm.includes(kw) || kw.includes(skillNorm)) {
+      return true;
+    }
+  }
+
+  if (normalizeKeyword(targetTitle).includes(kw)) return true;
+  if (normalizeKeyword(data.summary ?? "").includes(kw)) return true;
+
+  if (resumeTokenSet.has(kw)) return true;
+
+  // Synonym expansion — "k8s" in resume satisfies "kubernetes" in JD
+  const synonyms = getSynonymsOf(kw);
+  if (synonyms.some((syn) => syn !== kw && (haystack.includes(syn) || resumeTokenSet.has(syn)))) {
+    return true;
+  }
+
+  return resumeSatisfiesKeywordAlias(keyword, resumeText);
+}
+
+/**
+ * True if the keyword is present via synonym but not via exact match.
+ * Used to classify a missing-exact keyword as "injectable" (user has it under a
+ * different label and just needs to add the JD's phrasing).
+ */
+function matchesBySynonymOnly(
+  keyword: string,
+  resumeText: string,
+  resumeTokenSet: Set<string>,
+): boolean {
+  const kw = normalizeKeyword(keyword);
+  const haystack = resumeText.toLowerCase();
+  if (haystack.includes(kw) || resumeTokenSet.has(kw)) return false; // exact match — not "only by synonym"
+  const synonyms = getSynonymsOf(kw);
+  return synonyms.some((syn) => syn !== kw && (haystack.includes(syn) || resumeTokenSet.has(syn)));
+}
 // Uses tier-weighted coverage: tier1 ×3, tier2 ×2, tier3 ×1.
 // Tier-1 misses (requirements keywords) have 3× the scoring impact of tier-3.
 
@@ -124,9 +208,12 @@ export function analyzeKeywordGapFromIntelligence(
     tier3Keywords: string[];
   },
   targetTitle: string,
+  options?: { experienceBlob?: string },
 ): KeywordGapResult {
   const resumeText = resumeToText(data, targetTitle);
   const resumeTokenSet = extractTokenSet(resumeText);
+  const keywordPresent = (keyword: string) =>
+    resumeContainsKeyword(keyword, data, targetTitle, resumeText, resumeTokenSet);
 
   const matched: KeywordMatch[] = [];
   const missing: string[] = [];
@@ -144,8 +231,7 @@ export function analyzeKeywordGapFromIntelligence(
   for (const { keywords, tier, weight } of tiers) {
     for (const keyword of keywords) {
       weightedTotal += weight;
-      const inResume = resumeTokenSet.has(keyword);
-      if (inResume) {
+      if (keywordPresent(keyword)) {
         weightedMatched += weight;
         matched.push({ keyword, foundIn: locateKeyword(keyword, data, targetTitle), tier });
       } else {
@@ -157,12 +243,34 @@ export function analyzeKeywordGapFromIntelligence(
   const coveragePercent =
     weightedTotal === 0 ? 0 : Math.round((weightedMatched / weightedTotal) * 100);
 
-  // topMissing: tier1 first (most impactful), then tier2, then tier3
-  const tier1Missing = intel.tier1Keywords.filter((k) => !resumeTokenSet.has(k));
-  const tier2Missing = intel.tier2Keywords.filter((k) => !resumeTokenSet.has(k));
-  const topMissing = [...tier1Missing, ...tier2Missing].slice(0, 10);
+  // Exact coverage — no synonym credit (used in per-platform exact-match scoring)
+  const exactMatched = matched.filter((m) =>
+    resumeText.toLowerCase().includes(normalizeKeyword(m.keyword)) ||
+    resumeTokenSet.has(normalizeKeyword(m.keyword)),
+  );
+  const exactCoveragePercent =
+    weightedTotal === 0 ? 0 : Math.round((exactMatched.length / (exactMatched.length + missing.length)) * 100);
 
-  return { matched, missing, coveragePercent, topMissing };
+  const tier1Missing = intel.tier1Keywords.filter((k) => !keywordPresent(k));
+  const tier2Missing = intel.tier2Keywords.filter((k) => !keywordPresent(k));
+  const topMissing = filterReportableMissingKeywords(
+    [...tier1Missing, ...tier2Missing].slice(0, 10),
+    options?.experienceBlob,
+  );
+
+  // Injectable = missing exact keywords the user has via a synonym (easy fix: just add the label)
+  // NonInjectable = truly absent — user needs to acquire or omit
+  const injectable: string[] = [];
+  const nonInjectable: string[] = [];
+  for (const kw of missing) {
+    if (matchesBySynonymOnly(kw, resumeText, resumeTokenSet)) {
+      injectable.push(kw);
+    } else {
+      nonInjectable.push(kw);
+    }
+  }
+
+  return { matched, missing, coveragePercent, exactCoveragePercent, topMissing, injectable, nonInjectable };
 }
 
 export function analyzeKeywordGap(
@@ -171,7 +279,7 @@ export function analyzeKeywordGap(
   jobDescription: string,
 ): KeywordGapResult {
   if (!jobDescription.trim()) {
-    return { matched: [], missing: [], coveragePercent: 0, topMissing: [] };
+    return { matched: [], missing: [], coveragePercent: 0, exactCoveragePercent: 0, topMissing: [], injectable: [], nonInjectable: [] };
   }
 
   const jdTokens = tokenize(jobDescription);
@@ -216,10 +324,23 @@ export function analyzeKeywordGap(
   const total = matched.length + missing.length;
   const coveragePercent = total === 0 ? 0 : Math.round((matched.length / total) * 100);
 
+  const injectable: string[] = [];
+  const nonInjectable: string[] = [];
+  for (const kw of missing) {
+    if (matchesBySynonymOnly(kw, resumeText, resumeTokenSet)) {
+      injectable.push(kw);
+    } else {
+      nonInjectable.push(kw);
+    }
+  }
+
   return {
     matched,
     missing,
     coveragePercent,
+    exactCoveragePercent: coveragePercent,
     topMissing: missing.slice(0, 10),
+    injectable,
+    nonInjectable,
   };
 }

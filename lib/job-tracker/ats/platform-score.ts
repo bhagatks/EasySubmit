@@ -8,12 +8,17 @@
  */
 
 export type PlatformScoreInput = {
-  formattingScore: number;    // 0–100 (from ATS compliance pillar)
-  keywordScore: number;       // 0–100 (from keyword match pillar)
-  sectionsScore: number;      // 0–100 (from completeness pillar)
-  experienceScore: number;    // 0–100 (from bullet quality pillar)
-  educationScore: number;     // 0–100 (has degree + school)
-  quantificationRate: number; // 0–100 (% of quantified bullets)
+  formattingScore: number;       // 0–100 (from ATS compliance pillar)
+  /** Exact-match keyword coverage — used by exact-match platforms (Workday, Taleo, SuccessFactors). */
+  exactKeywordScore: number;     // 0–100
+  /** Fuzzy/synonym keyword coverage — used by iCIMS. */
+  fuzzyKeywordScore: number;     // 0–100
+  /** Semantic (TF cosine) similarity — used by Greenhouse, Lever. */
+  semanticKeywordScore: number;  // 0–100
+  sectionsScore: number;         // 0–100 (from completeness pillar)
+  experienceScore: number;       // 0–100 (from bullet quality pillar)
+  educationScore: number;        // 0–100 (has degree + school)
+  quantificationRate: number;    // 0–100 (% of quantified bullets)
 };
 
 export type PlatformScoreResult = {
@@ -32,11 +37,14 @@ export type PlatformScoreResult = {
   };
 };
 
+type KeywordStrategy = "exact" | "fuzzy" | "semantic";
+
 type PlatformProfile = {
   id: string;
   name: string;
   vendor: string;
   passingScore: number;
+  keywordStrategy: KeywordStrategy;
   weights: {
     formatting: number;
     keywords: number;
@@ -53,13 +61,15 @@ const PROFILES: PlatformProfile[] = [
     name: "Workday",
     vendor: "Workday, Inc.",
     passingScore: 70,
+    keywordStrategy: "exact",
     weights: { formatting: 0.25, keywords: 0.30, sections: 0.15, experience: 0.15, education: 0.10, quantification: 0.05 },
   },
   {
     id: "taleo",
     name: "Taleo",
     vendor: "Oracle Corporation",
-    passingScore: 70,
+    passingScore: 65,
+    keywordStrategy: "exact",
     weights: { formatting: 0.30, keywords: 0.25, sections: 0.20, experience: 0.10, education: 0.10, quantification: 0.05 },
   },
   {
@@ -67,6 +77,7 @@ const PROFILES: PlatformProfile[] = [
     name: "SuccessFactors",
     vendor: "SAP SE",
     passingScore: 65,
+    keywordStrategy: "exact",
     weights: { formatting: 0.20, keywords: 0.30, sections: 0.15, experience: 0.20, education: 0.10, quantification: 0.05 },
   },
   {
@@ -74,20 +85,23 @@ const PROFILES: PlatformProfile[] = [
     name: "iCIMS",
     vendor: "iCIMS, Inc.",
     passingScore: 65,
+    keywordStrategy: "fuzzy",
     weights: { formatting: 0.20, keywords: 0.35, sections: 0.15, experience: 0.15, education: 0.10, quantification: 0.05 },
   },
   {
     id: "greenhouse",
     name: "Greenhouse",
     vendor: "Greenhouse Software",
-    passingScore: 60,
+    passingScore: 55,
+    keywordStrategy: "semantic",
     weights: { formatting: 0.15, keywords: 0.30, sections: 0.10, experience: 0.25, education: 0.10, quantification: 0.10 },
   },
   {
     id: "lever",
     name: "Lever",
     vendor: "Lever (Employ Inc.)",
-    passingScore: 60,
+    passingScore: 50,
+    keywordStrategy: "semantic",
     weights: { formatting: 0.15, keywords: 0.25, sections: 0.10, experience: 0.30, education: 0.10, quantification: 0.10 },
   },
 ];
@@ -99,11 +113,18 @@ function toGrade(score: number): PlatformScoreResult["grade"] {
   return "Poor";
 }
 
+function resolveKeywordScore(input: PlatformScoreInput, strategy: KeywordStrategy): number {
+  if (strategy === "exact") return input.exactKeywordScore;
+  if (strategy === "fuzzy") return input.fuzzyKeywordScore;
+  return input.semanticKeywordScore;
+}
+
 export function computePlatformScores(input: PlatformScoreInput): PlatformScoreResult[] {
   return PROFILES.map((p) => {
+    const keywordScore = resolveKeywordScore(input, p.keywordStrategy);
     const raw =
       input.formattingScore * p.weights.formatting +
-      input.keywordScore * p.weights.keywords +
+      keywordScore * p.weights.keywords +
       input.sectionsScore * p.weights.sections +
       input.experienceScore * p.weights.experience +
       input.educationScore * p.weights.education +
@@ -120,7 +141,7 @@ export function computePlatformScores(input: PlatformScoreInput): PlatformScoreR
       grade: toGrade(score),
       breakdown: {
         formatting: input.formattingScore,
-        keywords: input.keywordScore,
+        keywords: keywordScore,
         sections: input.sectionsScore,
         experience: input.experienceScore,
         education: input.educationScore,

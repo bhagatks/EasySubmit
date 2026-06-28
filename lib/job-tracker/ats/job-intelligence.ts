@@ -20,7 +20,7 @@ export type WeakBulletTarget = {
   experienceIndex: number;
   bulletIndex: number;
   bulletText: string;
-  issues: Array<"weak-verb" | "weak-phrase" | "no-metric">;
+  issues: Array<"weak-verb" | "weak-phrase" | "no-metric" | "ai-phrase">;
 };
 
 export type JobIntelligence = {

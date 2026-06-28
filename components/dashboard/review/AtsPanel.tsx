@@ -5,6 +5,7 @@ import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Eye, ShieldChec
 import { simulateAtsParse } from "@/lib/job-tracker/ats/ats-parse-simulator";
 import { analyzeBulletQuality } from "@/lib/job-tracker/ats/bullet-quality";
 import { analyzeKeywordGap } from "@/lib/job-tracker/ats/keyword-gap";
+import { computeSemanticSimilarity } from "@/lib/job-tracker/ats/semantic-similarity";
 import { computeResumeReadiness } from "@/lib/job-tracker/ats/resume-readiness-score";
 import { computePlatformScores, type PlatformScoreResult } from "@/lib/job-tracker/ats/platform-score";
 import type { JobTrackerDetail } from "@/lib/job-tracker/types";
@@ -163,17 +164,11 @@ function PillarBar({
 // ─── Keyword gap ──────────────────────────────────────────────────────────────
 
 function KeywordGapSection({
-  data, targetTitle, jobDescription,
+  gap, jobDescription,
 }: {
-  data: import("@/components/onboarding/PrimeResume").PrimeResumeData;
-  targetTitle: string;
+  gap: ReturnType<typeof analyzeKeywordGap>;
   jobDescription: string;
 }) {
-  const gap = useMemo(
-    () => analyzeKeywordGap(data, targetTitle, jobDescription),
-    [data, targetTitle, jobDescription],
-  );
-
   if (!jobDescription.trim()) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -198,15 +193,38 @@ function KeywordGapSection({
         <span className="shrink-0 text-sm font-semibold text-foreground">{gap.coveragePercent}%</span>
       </div>
 
-      {gap.topMissing.length > 0 && (
+      {gap.injectable.length > 0 && (
         <div>
-          <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Missing from your resume</p>
+          <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            Easy wins — add these labels to your resume
+          </p>
+          <p className="mb-1.5 text-[11px] text-muted-foreground">
+            You likely already have these skills under a different name. Just add the JD's exact phrasing.
+          </p>
           <div className="flex flex-wrap gap-1.5">
-            {gap.topMissing.map((kw) => (
+            {gap.injectable.map((kw) => (
+              <span key={kw} className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-xs text-amber-700 dark:text-amber-300">
+                {kw}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {gap.nonInjectable.length > 0 && (
+        <div>
+          <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Truly missing — not in your resume</p>
+          <div className="flex flex-wrap gap-1.5">
+            {gap.nonInjectable.slice(0, 8).map((kw) => (
               <span key={kw} className="rounded-lg border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-xs text-red-700 dark:text-red-300">
                 {kw}
               </span>
             ))}
+            {gap.nonInjectable.length > 8 && (
+              <span className="rounded-lg border border-border/60 px-2 py-0.5 text-xs text-muted-foreground">
+                +{gap.nonInjectable.length - 8} more
+              </span>
+            )}
           </div>
         </div>
       )}
@@ -549,23 +567,57 @@ function AtsPanelBody({ entry, preview, activeSection, onSectionChange, variant 
 
   const bulletQuality = useMemo(() => analyzeBulletQuality(data), [data]);
 
+  const gap = useMemo(
+    () => analyzeKeywordGap(data, targetTitle, jobDescription),
+    [data, targetTitle, jobDescription],
+  );
+
   const platformScores = useMemo(() => {
     const formattingScore = Math.round((readiness.pillars.atsCompliance.score / 25) * 100);
-    const keywordScore = Math.round((readiness.pillars.keywords.score / 25) * 100);
     const sectionsScore = Math.round((readiness.pillars.completeness.score / 25) * 100);
     const experienceScore = Math.round((readiness.pillars.bulletQuality.score / 25) * 100);
-    const hasEdu = (data.education ?? []).filter((e) => e.school?.trim()).length >= 1;
-    const hasDegree = hasEdu && Boolean(data.education![0]!.degree?.trim());
-    const educationScore = hasEdu ? (hasDegree ? 100 : 75) : 0;
+
+    // Three keyword strategies — exact, fuzzy (synonym-aware), semantic (TF cosine)
+    const exactKeywordScore = gap.exactCoveragePercent;
+    const fuzzyKeywordScore = gap.coveragePercent; // synonym-expanded coverage
+    const semanticKeywordScore = jobDescription.trim()
+      ? computeSemanticSimilarity(
+          [targetTitle, data.summary ?? "", ...(data.skills ?? [])].join(" "),
+          jobDescription,
+        )
+      : 0;
+
+    // Granular education score: degree level matters, not just presence
+    const edu = (data.education ?? []).filter((e) => e.school?.trim());
+    let educationScore = 0;
+    if (edu.length > 0) {
+      educationScore = 40; // has education
+      const deg = (edu[0]?.degree ?? "").toLowerCase();
+      if (deg) {
+        educationScore = 60; // has degree field
+        if (/ph\.?d|doctorate|doctor of/i.test(deg)) {
+          educationScore = 100;
+        } else if (/master|m\.?s\.?|m\.?b\.?a|m\.?eng/i.test(deg)) {
+          educationScore = 85;
+        } else if (/bachelor|b\.?s\.?|b\.?a\.?|b\.?eng|undergrad/i.test(deg)) {
+          educationScore = 75;
+        } else if (/associate|diploma|certificate/i.test(deg)) {
+          educationScore = 65;
+        }
+      }
+    }
+
     return computePlatformScores({
       formattingScore,
-      keywordScore,
+      exactKeywordScore,
+      fuzzyKeywordScore,
+      semanticKeywordScore,
       sectionsScore,
       experienceScore,
       educationScore,
       quantificationRate: bulletQuality.quantificationRate,
     });
-  }, [readiness, bulletQuality, data]);
+  }, [readiness, bulletQuality, data, gap, jobDescription, targetTitle]);
 
   const passCount = platformScores.filter((p) => p.passes).length;
 
@@ -694,7 +746,7 @@ function AtsPanelBody({ entry, preview, activeSection, onSectionChange, variant 
               How much of the job description's repeated keywords appear in your resume.
             </p>
           </div>
-          <KeywordGapSection data={data} targetTitle={targetTitle} jobDescription={jobDescription} />
+          <KeywordGapSection gap={gap} jobDescription={jobDescription} />
         </div>
       )}
 

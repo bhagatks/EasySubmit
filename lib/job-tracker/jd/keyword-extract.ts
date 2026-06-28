@@ -50,6 +50,8 @@ export const KEYWORD_STOP_WORDS = new Set([
   // Web / ATS page noise
   "please","email","http","https","www","com","org","net","click","apply","equal",
   "opportunity","employer","discrimination","disability","veteran","status",
+  // JD marketing / benefits noise (not skills)
+  "big","first","annual","think","career","changing","unlimited","holiday","holidays",
 ]);
 
 /** Exact lowercase master skill labels (e.g. "node.js", "a/b testing"). */
@@ -92,9 +94,6 @@ function buildSkillTokenSet(): Set<string> {
 
   for (const skill of MASTER_SKILLS) {
     set.add(skill.toLowerCase());
-    for (const token of tokenizeJobText(skill)) {
-      if (token.length >= 2) set.add(token);
-    }
     for (const bigram of bigramsOf(tokenizeJobText(skill))) {
       set.add(bigram);
     }
@@ -105,10 +104,73 @@ function buildSkillTokenSet(): Set<string> {
 
 const SKILL_TOKEN_SET = buildSkillTokenSet();
 
+// ─── Synonym groups ───────────────────────────────────────────────────────────
+// Each array is a group of equivalent terms. When matching, any member of a
+// group satisfies any other member — so "k8s" in a resume matches "kubernetes"
+// in a JD and vice versa.
+
+export const SYNONYM_GROUPS: readonly string[][] = [
+  ["javascript", "js"],
+  ["typescript", "ts"],
+  ["kubernetes", "k8s", "kube"],
+  ["postgresql", "postgres", "pg", "psql"],
+  ["mongodb", "mongo"],
+  ["elasticsearch", "elastic"],
+  ["python", "py"],
+  ["machine learning", "ml"],
+  ["natural language processing", "nlp"],
+  ["deep learning", "dl"],
+  ["computer vision", "cv"],
+  ["amazon web services", "aws"],
+  ["google cloud platform", "gcp"],
+  ["react", "reactjs"],
+  ["vue", "vuejs"],
+  ["angular", "angularjs"],
+  ["nodejs", "node"],
+  ["nextjs", "next"],
+  ["graphql", "gql"],
+  ["golang", "go"],
+  ["cplusplus", "cpp"],
+  ["pytorch", "torch"],
+  ["scikit-learn", "sklearn"],
+  ["powerbi", "power bi"],
+  ["kafka", "apache kafka"],
+  ["spark", "apache spark"],
+  ["airflow", "apache airflow"],
+  ["microservices", "micro-services"],
+  ["devops", "dev-ops"],
+  ["cicd", "ci/cd", "ci-cd"],
+  ["restful", "rest api", "rest"],
+  ["mssql", "sql server"],
+  ["lambda", "aws lambda"],
+  ["agile", "scrum"],
+];
+
+function buildSynonymLookup(): Map<string, string[]> {
+  const map = new Map<string, string[]>();
+  for (const group of SYNONYM_GROUPS) {
+    const normalized = group.map((t) => t.toLowerCase());
+    for (const term of normalized) {
+      map.set(term, normalized);
+    }
+  }
+  return map;
+}
+
+const SYNONYM_LOOKUP = buildSynonymLookup();
+
+/** Returns all known synonyms for a term (including the term itself). */
+export function getSynonymsOf(term: string): string[] {
+  return SYNONYM_LOOKUP.get(term.toLowerCase()) ?? [term.toLowerCase()];
+}
+
 /** Tokenize JD/resume text for keyword extraction. */
 export function tokenizeJobText(text: string): string[] {
   return text
     .toLowerCase()
+    // Strip URLs before splitting so www/com/path fragments don't leak through
+    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/www\.\S+/g, " ")
     .replace(/\bnode\.js\b/gi, "nodejs")
     .replace(/\bvue\.js\b/gi, "vuejs")
     .replace(/\breact\.js\b/gi, "reactjs")
@@ -119,7 +181,8 @@ export function tokenizeJobText(text: string): string[] {
     .replace(/\bci\/cd\b/gi, "ci/cd")
     .split(/[^a-z0-9#+/\-]/)
     .map((t) => t.replace(/^[-]+|[-]+$/g, ""))
-    .filter((t) => t.length >= 2 && !KEYWORD_STOP_WORDS.has(t));
+    // Filter stop words, pure numbers, and tokens under min length
+    .filter((t) => t.length >= 2 && !KEYWORD_STOP_WORDS.has(t) && !/^\d+$/.test(t));
 }
 
 export function bigramsOf(tokens: string[]): string[] {
@@ -133,8 +196,12 @@ export function bigramsOf(tokens: string[]): string[] {
 export function isKnownSkillToken(token: string): boolean {
   const lower = token.toLowerCase().trim();
   if (!lower) return false;
+  if (KEYWORD_STOP_WORDS.has(lower)) return false;
   if (MASTER_SKILLS_SET.has(lower)) return true;
-  if (SKILL_TOKEN_SET.has(lower)) return true;
+  if (SKILL_TOKEN_ALIASES.includes(lower as (typeof SKILL_TOKEN_ALIASES)[number])) {
+    return true;
+  }
+  if (lower.includes(" ") && SKILL_TOKEN_SET.has(lower)) return true;
   return false;
 }
 
