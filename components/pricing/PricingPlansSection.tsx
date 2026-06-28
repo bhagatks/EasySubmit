@@ -25,13 +25,13 @@ export async function PricingPlansSection({
     <>
       <section
         id={id}
-        className={cn("relative overflow-hidden py-16 md:py-20", className)}
+        className={cn("relative overflow-hidden pt-8 pb-16 md:pt-10 md:pb-20", className)}
       >
         <div className="bg-grid absolute inset-0 opacity-40" />
         <div className="absolute -top-10 left-1/2 h-40 w-[60%] -translate-x-1/2 rounded-full bg-primary/20 blur-3xl" />
         <div className="relative mx-auto max-w-7xl px-6">
           <div className="mb-10 text-center md:mb-12">
-            <h2 className="font-display text-4xl font-semibold tracking-tight md:text-5xl">
+            <h2 className="font-display text-3xl font-semibold tracking-tight md:text-4xl">
               {PRICING_PAGE_COPY.title}{" "}
               <span className="text-gradient">{PRICING_PAGE_COPY.titleAccent}</span>
             </h2>

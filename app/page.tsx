@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   Target,
   Wand2,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LogoIcon } from "@/components/ui/logo";
@@ -19,7 +20,7 @@ import { PricingPlansSection } from "@/components/pricing/PricingPlansSection";
 import { BRAND, brandCopyright } from "@/lib/brand";
 import { getExtensionForceUpgradeConfig } from "@/lib/extension/force-upgrade-gate";
 import {
-  FREE_PLAN_VISIBLE_FEATURES,
+
   PRICING_FAQ,
   PRICING_PAGE_COPY,
 } from "@/lib/pricing/plan-display";
@@ -35,12 +36,14 @@ export const metadata = {
 
 export const dynamic = "force-dynamic";
 
-const visibleFeatureIcons = [Key, Target, ShieldCheck, Puzzle, FileText] as const;
-
-const features = FREE_PLAN_VISIBLE_FEATURES.map((title, index) => ({
-  icon: visibleFeatureIcons[index] ?? Target,
-  title,
-}));
+const featureList = [
+  { icon: Key, title: "Connect your own AI key" },
+  { icon: Target, title: "Tailor every resume to the job" },
+  { icon: ShieldCheck, title: "ATS score, keywords, and bullet quality" },
+  { icon: Puzzle, title: "Chrome extension — capture jobs and preview on site" },
+  { icon: FileText, title: "Export PDF, Word, and LaTeX" },
+  { icon: Zap, title: "Autofill any job application in one click" },
+] as const;
 
 function Hero() {
   return (
@@ -98,20 +101,20 @@ function Hero() {
 
 function Features() {
   return (
-    <section id="features" className="relative scroll-mt-20 border-t border-border/60 pb-24 pt-12">
+    <section id="features" className="relative scroll-mt-20 border-t border-border/60 pb-16 pt-8">
       <div className="mx-auto max-w-7xl px-6">
         <div className="mx-auto max-w-2xl text-center">
           <div className="inline-flex items-center gap-2 rounded-full border border-border bg-surface/60 px-3 py-1 text-xs text-muted-foreground">
             <Wand2 className="h-3 w-3 text-mint" /> Everything you need to apply
           </div>
-          <h2 className="mt-4 font-display text-4xl font-semibold tracking-tight md:text-5xl">
+          <h2 className="mt-3 font-display text-3xl font-semibold tracking-tight md:text-4xl">
             Built for the way you actually job-hunt.
           </h2>
-          <p className="mt-4 text-muted-foreground">{PRICING_PAGE_COPY.subhead}</p>
+          <p className="mt-3 text-muted-foreground">{PRICING_PAGE_COPY.subhead}</p>
         </div>
 
-        <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-          {features.map((f) => (
+        <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {featureList.map((f) => (
             <div
               key={f.title}
               className="group relative overflow-hidden rounded-2xl border border-border bg-surface/60 p-6 transition hover:border-primary/50 hover:bg-surface"
