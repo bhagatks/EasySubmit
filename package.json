@@ -16,6 +16,8 @@
     "validate:ats-template": "npx --yes tsx scripts/validate-ats-template.ts",
     "validate:bhagath-sample": "npx --yes tsx scripts/validate-bhagath-sample.ts",
     "test": "vitest run --config config/vitest.config.ts",
+    "test:coverage": "vitest run --config config/vitest.config.ts --coverage",
+    "test:components": "vitest run --config config/vitest.component.config.ts",
     "test:watch": "vitest --config config/vitest.config.ts",
     "build:extension": "node scripts/build-extension.mjs",
     "extension:detect-eval": "npx tsx scripts/extension-detect-eval.ts",
@@ -26,7 +28,8 @@
     "pool:reset": "npx --yes tsx scripts/pool-reset-dev.ts",
     "ai:usage": "npx --yes tsx scripts/ai-usage-stats.ts",
     "analytics:setup": "node scripts/posthog-setup-dashboards.mjs",
-    "posthog:journey": "npx tsx scripts/posthog-journey-report.ts"
+    "posthog:journey": "npx tsx scripts/posthog-journey-report.ts",
+    "enhance:trace": "npx tsx scripts/enhance-trace-report.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.85",
@@ -75,12 +78,18 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.1",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/chrome": "^0.0.287",
     "@types/node": "^20.17.50",
     "@types/pdf-parse": "^1.1.5",
     "@types/pg": "^8.20.0",
     "@types/react": "^18.3.21",
     "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^4.7.0",
+    "@vitest/coverage-v8": "^3.2.6",
     "dotenv": "^17.4.2",
     "esbuild": "^0.25.0",
     "jsdom": "^29.1.1",

@@ -8,10 +8,18 @@ export default defineConfig({
     environment: "node",
     include: ["lib/**/*.test.ts"],
     setupFiles: ["config/vitest.setup.ts"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "html"],
+      include: ["lib/**/*.ts"],
+      exclude: ["lib/**/*.test.ts", "lib/**/test-fixtures/**"],
+      reportsDirectory: "coverage",
+    },
   },
   resolve: {
     alias: {
       "@": rootDir,
+      "@shared": path.resolve(rootDir, "src/shared"),
     },
   },
 });

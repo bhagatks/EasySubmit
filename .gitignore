@@ -27,3 +27,4 @@ npm-debug.log*
 
 /lib/generated/prisma
 .vercel
+coverage
