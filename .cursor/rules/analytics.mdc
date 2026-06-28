@@ -1,0 +1,6 @@
+---
+description: PostHog analytics rules — event catalog, no direct posthog calls, no PII
+alwaysApply: true
+---
+
+@docs/rules/analytics.md
