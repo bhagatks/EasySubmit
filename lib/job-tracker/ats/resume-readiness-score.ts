@@ -11,10 +11,12 @@
  */
 
 import type { PrimeResumeData } from "@/components/onboarding/PrimeResume";
-import { simulateAtsParse } from "@/lib/job-tracker/ats/ats-parse-simulator";
+import { simulateAtsParse, simulateAtsParsePlatform } from "@/lib/job-tracker/ats/ats-parse-simulator";
 import { analyzeKeywordGap, analyzeKeywordGapFromIntelligence } from "@/lib/job-tracker/ats/keyword-gap";
 import { analyzeBulletQuality } from "@/lib/job-tracker/ats/bullet-quality";
+import { computeSemanticSimilarity } from "@/lib/job-tracker/ats/semantic-similarity";
 import type { JDIntelligence } from "@/lib/job-tracker/jd/jd-intelligence";
+import type { AtsPlatform } from "@/lib/job-tracker/ats/platform-rules";
 import { validateSummary } from "@/lib/resume/summary-rules";
 import { findBannedSkills, validateSkillsManual } from "@/lib/resume/skills-rules";
 import {
@@ -152,6 +154,7 @@ function scoreKeywords(
   targetTitle: string,
   jobDescription: string,
   jdIntelligence?: JDIntelligence | null,
+  semanticSim = 0,
 ): ReadinessPillar {
   if (!jobDescription.trim()) {
     return {
@@ -165,7 +168,11 @@ function scoreKeywords(
   const gap = jdIntelligence
     ? analyzeKeywordGapFromIntelligence(data, jdIntelligence, targetTitle)
     : analyzeKeywordGap(data, targetTitle, jobDescription);
-  const pts = Math.round((gap.coveragePercent / 100) * 25);
+
+  // Blend keyword coverage (65%) with semantic similarity (35%) for a more
+  // complete picture than binary keyword match alone.
+  const blendedPct = gap.coveragePercent * 0.65 + semanticSim * 0.35;
+  const pts = Math.round((blendedPct / 100) * 25);
   const details: string[] = [];
 
   if (gap.topMissing.length > 0) {
@@ -233,8 +240,14 @@ function scoreBulletQuality(data: PrimeResumeData): ReadinessPillar {
 
 // ─── Pillar: ATS compliance ───────────────────────────────────────────────────
 
-function scoreAtsCompliance(data: PrimeResumeData, targetTitle: string): ReadinessPillar {
-  const parsed = simulateAtsParse(data, targetTitle);
+function scoreAtsCompliance(
+  data: PrimeResumeData,
+  targetTitle: string,
+  platform?: AtsPlatform,
+): ReadinessPillar {
+  const parsed = platform
+    ? simulateAtsParsePlatform(data, targetTitle, platform)
+    : simulateAtsParse(data, targetTitle);
   const warnings = parsed.warnings;
   const pts = Math.max(0, 25 - warnings.length * 3);
 
@@ -289,12 +302,26 @@ export function computeResumeReadiness(
   targetTitle: string,
   jobDescription: string,
   jdIntelligence?: JDIntelligence | null,
+  platform?: AtsPlatform,
 ): ResumeReadinessResult {
+  const resumeText = [
+    targetTitle,
+    data.summary ?? "",
+    ...(data.skills ?? []),
+    ...(data.experience ?? []).flatMap((e) => [e.title, e.company, ...(e.bullets ?? [])]),
+    ...(data.certifications ?? []),
+    ...(data.projects ?? []),
+  ].filter(Boolean).join(" ");
+
+  const semanticSim = jobDescription.trim()
+    ? computeSemanticSimilarity(resumeText, jobDescription)
+    : 0;
+
   const pillars = {
     completeness: scoreCompleteness(data, targetTitle),
-    keywords: scoreKeywords(data, targetTitle, jobDescription, jdIntelligence),
+    keywords: scoreKeywords(data, targetTitle, jobDescription, jdIntelligence, semanticSim),
     bulletQuality: scoreBulletQuality(data),
-    atsCompliance: scoreAtsCompliance(data, targetTitle),
+    atsCompliance: scoreAtsCompliance(data, targetTitle, platform),
   };
 
   const total = Object.values(pillars).reduce((sum, p) => sum + p.score, 0);

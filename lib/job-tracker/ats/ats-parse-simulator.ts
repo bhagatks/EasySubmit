@@ -11,6 +11,7 @@ import {
   type ResumeContentModel,
 } from "@/lib/job-tracker/export/resume-content-model";
 import { SECTION_TITLE } from "@/lib/job-tracker/export/resume-style";
+import type { AtsPlatform } from "@/lib/job-tracker/ats/platform-rules";
 
 export type AtsTextLine = {
   text: string;
@@ -174,4 +175,59 @@ export function simulateAtsParse(
     .reduce((sum, l) => sum + l.text.length, 0);
 
   return { sections, totalChars, warnings };
+}
+
+function getPlatformWarnings(
+  data: PrimeResumeData,
+  content: ResumeContentModel,
+  platform: AtsPlatform,
+): string[] {
+  const warnings: string[] = [];
+
+  switch (platform) {
+    case "workday":
+      if (!data.linkedIn?.trim()) {
+        warnings.push("Workday profiles link to LinkedIn — add your LinkedIn URL to improve candidate matching.");
+      }
+      if (content.experience.some((e) => !e.dateRange)) {
+        warnings.push("Workday expects dates on all roles — add start and end dates to every position.");
+      }
+      break;
+    case "taleo":
+      if (content.experience.some((e) => !e.dateRange)) {
+        warnings.push("Taleo (Oracle) requires dates on all positions — missing dates may cause parse failures.");
+      }
+      break;
+    case "icims":
+      if (!data.linkedIn?.trim()) {
+        warnings.push("iCIMS candidate profiles pull from LinkedIn — add your LinkedIn URL.");
+      }
+      break;
+    case "greenhouse":
+      if (content.summary && content.summary.length < 50) {
+        warnings.push("Greenhouse weights the summary heavily — expand to at least 2 sentences for better keyword density.");
+      }
+      break;
+    case "lever": {
+      const bulletCount = content.experience.reduce((sum, e) => sum + e.bullets.length, 0);
+      if (bulletCount < 4) {
+        warnings.push("Lever scores achievement framing — add at least 4 strong achievement bullets across your experience.");
+      }
+      break;
+    }
+  }
+
+  return warnings;
+}
+
+export function simulateAtsParsePlatform(
+  data: PrimeResumeData,
+  targetTitle: string,
+  platform: AtsPlatform,
+): AtsParseResult {
+  const base = simulateAtsParse(data, targetTitle);
+  if (platform === "unknown") return base;
+  const content = buildResumeContentFromPrime(data, targetTitle);
+  const platformWarnings = getPlatformWarnings(data, content, platform);
+  return { ...base, warnings: [...base.warnings, ...platformWarnings] };
 }
