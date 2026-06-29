@@ -18,8 +18,7 @@ export default defineConfig({
   },
   datasource: {
     // App runtime — transaction pooler on Vercel (:6543).
+    // Migrations use DIRECT_URL via scripts/prisma-migrate-deploy.mjs (not directUrl here — not in Prisma 7 TS types).
     url: env("DATABASE_URL"),
-    // Migrations — session or direct host (:5432 / db.*.supabase.co). Never :6543.
-    directUrl: env("DIRECT_URL"),
   },
 });
