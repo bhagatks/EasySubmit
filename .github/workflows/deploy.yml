@@ -19,6 +19,10 @@ concurrency:
 jobs:
   publish-extension:
     runs-on: ubuntu-latest
+    env:
+      # postinstall runs prisma generate; config requires URLs but CI does not connect to a DB.
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci?schema=public
+      DIRECT_URL: postgresql://ci:ci@127.0.0.1:5432/ci?schema=public
     permissions:
       contents: read
 
