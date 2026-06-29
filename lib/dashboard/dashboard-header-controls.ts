@@ -64,6 +64,18 @@ export function shouldShowDashboardProfileMenu(
   return true;
 }
 
+function isOverview(pathname: string): boolean {
+  return pathname === "/dashboard" || pathname.startsWith("/dashboard?");
+}
+
+export function shouldShowDashboardExtensionBadge(pathname: string): boolean {
+  return !isOverview(pathname);
+}
+
+export function shouldShowDashboardOpenJobTracker(pathname: string): boolean {
+  return !isOverview(pathname) && !pathname.startsWith("/dashboard/job-tracker");
+}
+
 export function shouldShowDashboardByokKeyButton(
   pathname: string,
   vaultKeyId?: string | null,
@@ -99,6 +111,9 @@ export function getDashboardHeaderLabel(pathname: string, isStudioEdit: boolean)
   }
   if (pathname.startsWith("/dashboard/ats-scores")) {
     return "ATS Scores";
+  }
+  if (pathname === "/dashboard") {
+    return "Overview";
   }
   return "Dashboard";
 }

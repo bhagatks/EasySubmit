@@ -54,12 +54,14 @@ import {
   isDashboardDetailScreen,
   isJobReviewStudioScreen,
   shouldShowDashboardByokKeyButton,
+  shouldShowDashboardExtensionBadge,
+  shouldShowDashboardOpenJobTracker,
   shouldShowDashboardProfileMenu,
   shouldShowDashboardSignOut,
 } from "@/lib/dashboard/dashboard-header-controls";
 import { parseJobReviewStudioJobId } from "@/lib/job-tracker/review-screen-ui";
 import { DASHBOARD_TOPBAR_BORDER_CLASS, dashboardTopBarClassName } from "@/lib/dashboard/dashboard-header-chrome";
-import { ExtensionStatusButton } from "@/components/dashboard/ExtensionStatusButton";
+import { OverviewExtensionBadge } from "@/components/dashboard/overview/OverviewExtensionBadge";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -152,6 +154,8 @@ function DashboardShellFrame({ children, vaultKeyId, minVersion, fromParam }: Da
   const showProfileMenu = shouldShowDashboardProfileMenu(pathname, fromParam);
   const showSignOut = shouldShowDashboardSignOut(pathname);
   const showByokKeyButton = shouldShowDashboardByokKeyButton(pathname, vaultKeyId);
+  const showExtensionBadge = shouldShowDashboardExtensionBadge(pathname);
+  const showOpenJobTracker = shouldShowDashboardOpenJobTracker(pathname);
 
   if (isReviewStudio && reviewStudioJobId) {
     return (
@@ -190,7 +194,15 @@ function DashboardShellFrame({ children, vaultKeyId, minVersion, fromParam }: Da
                 <div />
               )}
               <div className="flex h-full items-center justify-end gap-2 justify-self-end">
-                <ExtensionStatusButton minVersion={minVersion} />
+                {showOpenJobTracker ? (
+                  <Link
+                    href="/dashboard/job-tracker"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface/60 px-3 py-1 text-xs font-medium text-primary transition hover:brightness-110"
+                  >
+                    Open Job Tracker
+                  </Link>
+                ) : null}
+                {showExtensionBadge ? <OverviewExtensionBadge /> : null}
                 <DashboardHeaderExpandSlot />
                 <DashboardHeaderActionsSlot />
                 <div className="relative">
