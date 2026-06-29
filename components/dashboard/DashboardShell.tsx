@@ -77,7 +77,6 @@ const navItems = [
 type DashboardShellProps = {
   children: React.ReactNode;
   vaultKeyId?: string | null;
-  storeUrl?: string;
   minVersion?: string;
 };
 
@@ -145,7 +144,7 @@ type DashboardShellFrameProps = DashboardShellProps & {
   fromParam: string | null;
 };
 
-function DashboardShellFrame({ children, vaultKeyId, storeUrl, minVersion, fromParam }: DashboardShellFrameProps) {
+function DashboardShellFrame({ children, vaultKeyId, minVersion, fromParam }: DashboardShellFrameProps) {
   const pathname = usePathname();
   const isReviewStudio = isJobReviewStudioScreen(pathname, fromParam);
   const reviewStudioJobId = isReviewStudio ? parseJobReviewStudioJobId(pathname) : null;
@@ -191,7 +190,7 @@ function DashboardShellFrame({ children, vaultKeyId, storeUrl, minVersion, fromP
                 <div />
               )}
               <div className="flex h-full items-center justify-end gap-2 justify-self-end">
-                <ExtensionStatusButton storeUrl={storeUrl} minVersion={minVersion} />
+                <ExtensionStatusButton minVersion={minVersion} />
                 <DashboardHeaderExpandSlot />
                 <DashboardHeaderActionsSlot />
                 <div className="relative">

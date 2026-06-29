@@ -32,7 +32,6 @@ async function DashboardGateShell({ sessionUserId, children }: DashboardGateShel
       />
       <DashboardShell
         vaultKeyId={user.vaultKeyId}
-        storeUrl={forceUpgrade.updateUrl}
         minVersion={forceUpgrade.minVersion}
       >{children}</DashboardShell>
     </>

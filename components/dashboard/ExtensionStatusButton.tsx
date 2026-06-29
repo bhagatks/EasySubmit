@@ -8,7 +8,6 @@ import { isSemverBelowMinimum } from "@/src/shared/extension/semver";
 import { EXTENSION_STORE_URL } from "@/lib/brand";
 
 type ExtensionStatusButtonProps = {
-  storeUrl?: string;
   minVersion?: string;
 };
 
@@ -18,10 +17,7 @@ type ButtonState =
   | { kind: "reconnect" }
   | { kind: "update" };
 
-export function ExtensionStatusButton({
-  storeUrl = EXTENSION_STORE_URL,
-  minVersion,
-}: ExtensionStatusButtonProps) {
+export function ExtensionStatusButton({ minVersion }: ExtensionStatusButtonProps) {
   const [btnState, setBtnState] = useState<ButtonState>({ kind: "hidden" });
 
   useEffect(() => {
@@ -43,7 +39,7 @@ export function ExtensionStatusButton({
   if (btnState.kind === "install") {
     return (
       <Button size="sm" className="rounded-xl bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0" asChild>
-        <a href={storeUrl} target="_blank" rel="noopener noreferrer">
+        <a href={EXTENSION_STORE_URL} target="_blank" rel="noopener noreferrer">
           <Download className="h-3.5 w-3.5" aria-hidden="true" />
           Get the extension
         </a>
@@ -64,7 +60,7 @@ export function ExtensionStatusButton({
 
   return (
     <Button size="sm" className="rounded-xl bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0" asChild>
-      <a href={storeUrl} target="_blank" rel="noopener noreferrer">
+      <a href={EXTENSION_STORE_URL} target="_blank" rel="noopener noreferrer">
         <Puzzle className="h-3.5 w-3.5" aria-hidden="true" />
         Update extension
       </a>
