@@ -47,7 +47,6 @@ export async function extensionForceUpgradeResponse(
       error: config.message,
       code: "EXTENSION_UPDATE_REQUIRED",
       minExtensionVersion: config.minVersion,
-      updateUrl: config.updateUrl,
     },
     { status: 426 },
   );

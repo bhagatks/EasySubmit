@@ -11,26 +11,16 @@ import {
 } from "@/components/dashboard/DashboardWorkspacePage";
 import { Button } from "@/components/ui/button";
 import { isExtensionConnectedForDashboard } from "@/lib/extension/extension-dashboard-connection";
+import { EXTENSION_STORE_URL } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 
-type DashboardExtensionInstallPanelProps = {
-  storeUrl: string;
-};
-
-function isExternalUrl(href: string): boolean {
-  return /^https?:\/\//i.test(href);
-}
-
-export function DashboardExtensionInstallPanel({
-  storeUrl,
-}: DashboardExtensionInstallPanelProps) {
+export function DashboardExtensionInstallPanel() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const welcomeAppliedRef = useRef(false);
   const [extensionConnected, setExtensionConnected] = useState(false);
 
   const isWelcome = searchParams.get("welcome") === "1";
-  const storeExternal = isExternalUrl(storeUrl);
 
   useEffect(() => {
     void (async () => {
@@ -89,18 +79,11 @@ export function DashboardExtensionInstallPanel({
                   Works on Chrome, Edge, Brave, and Arc. Your account stays signed in after install.
                 </p>
                 <Button variant="hero" size="sm" className="rounded-xl" asChild>
-                  {storeExternal ? (
-                    <a href={storeUrl} target="_blank" rel="noopener noreferrer">
-                      <Download className="h-4 w-4" aria-hidden="true" />
-                      Add to Chrome
-                      <ExternalLink className="h-3.5 w-3.5 opacity-70" aria-hidden="true" />
-                    </a>
-                  ) : (
-                    <Link href={storeUrl}>
-                      <Download className="h-4 w-4" aria-hidden="true" />
-                      Add to Chrome
-                    </Link>
-                  )}
+                  <a href={EXTENSION_STORE_URL} target="_blank" rel="noopener noreferrer">
+                    <Download className="h-4 w-4" aria-hidden="true" />
+                    Add to Chrome
+                    <ExternalLink className="h-3.5 w-3.5 opacity-70" aria-hidden="true" />
+                  </a>
                 </Button>
               </div>
             </li>

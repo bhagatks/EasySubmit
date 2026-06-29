@@ -6,8 +6,6 @@ export type ExtensionForceUpgradeConfig = {
   enabled: boolean;
   /** Minimum semver required (e.g. `0.2.6`). */
   minVersion: string;
-  /** Chrome Web Store URL or dashboard path (e.g. `/extension`). */
-  updateUrl: string;
   /** User-facing copy when update is required. */
   message: string;
 };
@@ -15,7 +13,6 @@ export type ExtensionForceUpgradeConfig = {
 export const EXTENSION_FORCE_UPGRADE_DEFAULTS: ExtensionForceUpgradeConfig = {
   enabled: false,
   minVersion: "0.2.6",
-  updateUrl: "/install",
   message:
     "Update the EasySubmit extension to continue. Open chrome://extensions and click Update, or reinstall from the Chrome Web Store.",
 };
@@ -31,11 +28,6 @@ function parseSemver(value: unknown, fallback: string): string {
   return trimmed;
 }
 
-function parseUrl(value: unknown, fallback: string): string {
-  if (typeof value !== "string") return fallback;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : fallback;
-}
 
 function parseMessage(value: unknown, fallback: string): string {
   if (typeof value !== "string") return fallback;
@@ -54,7 +46,6 @@ export function parseExtensionForceUpgradeConfig(value: unknown): ExtensionForce
         ? value.enabled
         : EXTENSION_FORCE_UPGRADE_DEFAULTS.enabled,
     minVersion: parseSemver(value.minVersion, EXTENSION_FORCE_UPGRADE_DEFAULTS.minVersion),
-    updateUrl: parseUrl(value.updateUrl, EXTENSION_FORCE_UPGRADE_DEFAULTS.updateUrl),
     message: parseMessage(value.message, EXTENSION_FORCE_UPGRADE_DEFAULTS.message),
   };
 }

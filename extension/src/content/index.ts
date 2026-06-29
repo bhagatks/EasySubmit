@@ -40,9 +40,11 @@ import {
   isApplicationProfileSetupComplete,
   applicationProfilePatchFromScreen1,
   applicationProfilePatchFromScreen2,
+  applicationProfilePatchFromScreen3,
   syncProfileSetupDraftsFromProfile,
   validateProfileSetupScreen1,
   type ProfileSetupScreen1ValidationIssue,
+  type ApplicationProfileScreen3Input,
 } from "@/lib/profile/application-profile-setup";
 import { BRAND, renderBrandMarkup } from "@shared/brand";
 import { brandExtensionTokens } from "@shared/brand-colors";
@@ -164,16 +166,20 @@ import {
   singleCardLayoutStyles,
   renderProfileSetupScreen1,
   renderProfileSetupScreen2,
+  renderProfileSetupScreen3,
   bindProfileSalaryRangeSlider,
   bindProfileSetupActionButton,
   readProfileSetupScreen1FromDom,
   readProfileSetupScreen2FromDom,
+  readProfileSetupScreen3FromDom,
   defaultProfileSetupScreen1Draft,
   defaultProfileSetupScreen2Draft,
+  defaultProfileSetupScreen3Draft,
   profileSetupStyles,
   type ManualCaptureDraft,
   type ProfileSetupScreen1Draft,
   type ProfileSetupScreen2Draft,
+  type ProfileSetupScreen3Draft,
 } from "./card-ui";
 import {
   isJobStatusRealtimeActive,
@@ -245,9 +251,10 @@ let lastJourneySnapshot: JourneySnapshot | null = null;
 let autofillRunForEntryId: string | null = null;
 let manualCaptureDraft: ManualCaptureDraft | null = null;
 let keywordGapData: { topMissing: string[]; coveragePercent: number | null } | null = null;
-let profileSetupScreen: 0 | 1 | 2 = 0;
+let profileSetupScreen: 0 | 1 | 2 | 3 = 0;
 let profileSetupScreen1Draft: ProfileSetupScreen1Draft = defaultProfileSetupScreen1Draft();
 let profileSetupScreen2Draft: ProfileSetupScreen2Draft = defaultProfileSetupScreen2Draft();
+let profileSetupScreen3Draft: ProfileSetupScreen3Draft = defaultProfileSetupScreen3Draft();
 let profileSetupScreen1ValidationIssues: ProfileSetupScreen1ValidationIssue[] = [];
 let profileSetupContinueBusy = false;
 let pendingApplyAfterProfileSetup = false;
@@ -1951,6 +1958,8 @@ function renderExpandedCard(root: ShadowRoot): void {
     );
   } else if (profileSetupScreen === 2) {
     bodyMarkup = renderProfileSetupScreen2(profileSetupScreen2Draft, escapeHtml);
+  } else if (profileSetupScreen === 3) {
+    bodyMarkup = renderProfileSetupScreen3(profileSetupScreen3Draft, escapeHtml);
   } else if (cardPresentation === "no_job") {
     bodyMarkup = renderNoJobBody(escapeHtml);
   } else if (cardPresentation === "loading" || waitingForJobScrape) {
@@ -2157,11 +2166,21 @@ function renderExpandedCard(root: ShadowRoot): void {
             ${forceUpgradeBanner ? "" : renderReconnectBannerMarkup(reconnectBanner)}
             ${forceUpgradeBanner || reconnectBanner ? "" : renderAiHealthBannerMarkup(aiHealthBanner)}
             <div class="${bodyClass}">${bodyMarkup}</div>
+            <div style="padding:8px 12px 10px;border-top:1px solid #e2e8f0">
+              <button type="button" data-test-profile-setup="1" style="width:100%;padding:6px 0;background:#f59e0b;color:#000;font-size:11px;font-weight:700;border:none;border-radius:6px;cursor:pointer;letter-spacing:0.04em">TEST — Open profile setup</button>
+            </div>
           </div>
         </div>
       </div>
     </div>
   `;
+
+  root.querySelector("[data-test-profile-setup]")?.addEventListener("click", () => {
+    profileSetupScreen = 0;
+    cardCollapsed = false;
+    openApplicationProfileSetupScreen();
+    if (cardHost) renderCard(cardHost.shadow);
+  });
 
   root.querySelector("[data-save]")?.addEventListener("click", () => {
     void onPrimaryClick();
@@ -2194,12 +2213,9 @@ function renderExpandedCard(root: ShadowRoot): void {
     event.preventDefault();
     event.stopPropagation();
     const updateUrl =
-      (event.currentTarget as HTMLElement).getAttribute("data-update-url") ?? "/extension";
-    if (/^https?:\/\//i.test(updateUrl)) {
-      window.open(updateUrl, "_blank", "noopener,noreferrer");
-      return;
-    }
-    void openDashboardPath(updateUrl.startsWith("/") ? updateUrl : `/${updateUrl}`);
+      (event.currentTarget as HTMLElement).getAttribute("data-update-url") ??
+      "https://chromewebstore.google.com/detail/ask-gemini/daeaddalijienfjkhigbifmbdckbohjg";
+    window.open(updateUrl, "_blank", "noopener,noreferrer");
   });
 
   bindCardViewHandlers(root);
@@ -2214,6 +2230,12 @@ function renderExpandedCard(root: ShadowRoot): void {
   });
   bindProfileSetupActionButton(root, "[data-profile-skip-all]", () => {
     void onProfileSetupFinish(root, true);
+  });
+  bindProfileSetupActionButton(root, "[data-profile-done]", () => {
+    void onProfileSetupDone(root, false);
+  });
+  bindProfileSetupActionButton(root, "[data-profile-skip-screen3]", () => {
+    void onProfileSetupDone(root, true);
   });
   if (profileSetupScreen === 1) {
     const revalidateProfileSetupScreen1 = () => {
@@ -3005,7 +3027,8 @@ function renderForceUpgradeBannerMarkup(
 ): string {
   if (!banner) return "";
   const hint = escapeHtml(banner.message);
-  const updateUrl = escapeHtml(banner.updateUrl);
+  const updateUrl =
+    "https://chromewebstore.google.com/detail/ask-gemini/daeaddalijienfjkhigbifmbdckbohjg";
   return `
     <div class="ai-health-banner force-upgrade-banner" role="alert">
       <div class="ai-health-banner-inner">
@@ -4054,6 +4077,27 @@ async function onProfileSetupFinish(root: ShadowRoot, skipAll: boolean): Promise
   const patchResult = await patchApplicationProfile(
     applicationProfilePatchFromScreen2(profileSetupScreen2Draft, skipAll),
   );
+  if (!patchResult.success) {
+    saveError = patchResult.error ?? "Could not save application profile.";
+    if (cardHost) renderCard(cardHost.shadow);
+    return;
+  }
+
+  // Advance to Screen 3 instead of closing
+  profileSetupScreen = 3;
+  saveError = null;
+  if (cardHost) renderCard(cardHost.shadow);
+}
+
+async function onProfileSetupDone(root: ShadowRoot, skipAll: boolean): Promise<void> {
+  if (!skipAll) {
+    profileSetupScreen3Draft = readProfileSetupScreen3FromDom(root);
+  }
+  const patch = applicationProfilePatchFromScreen3(
+    profileSetupScreen3Draft,
+    cachedApplicationProfile?.preferences ?? null,
+  );
+  const patchResult = await patchApplicationProfile(patch);
   if (!patchResult.success) {
     saveError = patchResult.error ?? "Could not save application profile.";
     if (cardHost) renderCard(cardHost.shadow);

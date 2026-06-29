@@ -26,13 +26,11 @@ import { trackScreenOverlay } from "@/src/shared/analytics";
 
 type DashboardSetupPromptsProps = {
   vaultKeyId?: string | null;
-  storeUrl: string;
   extensionInstallPrompt: ExtensionInstallPromptConfig;
 };
 
 function DashboardSetupPromptsInner({
   vaultKeyId = null,
-  storeUrl,
   extensionInstallPrompt,
 }: DashboardSetupPromptsProps) {
   const { refreshIntervalMinutes, dashboardVisit, tabFocusReturn, periodicRefresh } =
@@ -244,7 +242,6 @@ function DashboardSetupPromptsInner({
       <ExtensionInstallPromptModal
         open={extensionOpen}
         onOpenChange={handleExtensionOpenChange}
-        storeUrl={storeUrl}
       />
     </>
   );

@@ -27,7 +27,6 @@ async function DashboardGateShell({ sessionUserId, children }: DashboardGateShel
       <DashboardIgnitionGuard vaultKeyId={user.vaultKeyId} />
       <DashboardSetupPrompts
         vaultKeyId={user.vaultKeyId}
-        storeUrl={forceUpgrade.updateUrl}
         extensionInstallPrompt={extensionInstallPrompt}
       />
       <DashboardShell vaultKeyId={user.vaultKeyId}>{children}</DashboardShell>

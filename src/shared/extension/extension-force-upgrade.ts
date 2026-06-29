@@ -1,9 +1,9 @@
+import { EXTENSION_STORE_URL } from "@/src/shared/brand";
 import { isSemverBelowMinimum } from "@/src/shared/extension/semver";
 import type { ExtensionRuntimeConfig } from "@/src/shared/extension/types";
 
 export type ExtensionForceUpgradeBanner = {
   message: string;
-  updateUrl: string;
   minExtensionVersion: string;
   currentVersion: string;
   bannerLabel: string;
@@ -15,7 +15,6 @@ type ExtensionForceUpgradeFields = Pick<
   | "forceUpgradeEnabled"
   | "minExtensionVersion"
   | "forceUpgradeMessage"
-  | "forceUpgradeUpdateUrl"
 >;
 
 function readForceUpgradeFields(
@@ -51,11 +50,9 @@ export function resolveExtensionForceUpgradeBanner(
   const message =
     config?.forceUpgradeMessage?.trim() ||
     "Update the EasySubmit extension to continue.";
-  const updateUrl = config?.forceUpgradeUpdateUrl?.trim() || "/install";
 
   return {
     message,
-    updateUrl,
     minExtensionVersion,
     currentVersion: currentVersion.trim() || "0.0.0",
     bannerLabel: "Update required",

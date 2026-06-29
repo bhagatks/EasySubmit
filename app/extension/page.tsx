@@ -9,7 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/Navbar";
 import { ExtensionCardMock } from "@/components/marketing/ExtensionCardMock";
-import { BRAND } from "@/lib/brand";
+import { BRAND, EXTENSION_STORE_URL } from "@/lib/brand";
 import { PRICING_PAGE_COPY } from "@/lib/pricing/plan-display";
 
 export const metadata = {
@@ -70,7 +70,7 @@ export default function ExtensionPage() {
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button variant="hero" size="xl" asChild>
-                <a href="/install">
+                <a href={EXTENSION_STORE_URL} target="_blank" rel="noopener noreferrer">
                   <Download className="h-5 w-5" /> Add to Chrome — Free
                 </a>
               </Button>

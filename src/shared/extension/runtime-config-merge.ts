@@ -50,6 +50,5 @@ export function mergeExtensionRuntimeConfig(
     forceUpgradeEnabled: partial.forceUpgradeEnabled ?? false,
     minExtensionVersion: partial.minExtensionVersion ?? null,
     forceUpgradeMessage: partial.forceUpgradeMessage ?? null,
-    forceUpgradeUpdateUrl: partial.forceUpgradeUpdateUrl ?? null,
   };
 }

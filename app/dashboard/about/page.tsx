@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Info, Zap, FileText, Briefcase, Puzzle } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { BRAND } from "@/lib/brand";
+import { BRAND, EXTENSION_STORE_URL } from "@/lib/brand";
 
 export const metadata: Metadata = {
   title: `About | ${BRAND.full}`,
@@ -42,7 +42,7 @@ const steps: AboutStep[] = [
     title: "Autofill with one click",
     description:
       "The Chrome extension fills any application form from your resume profile — no copy-pasting between tabs.",
-    href: "/install",
+    href: EXTENSION_STORE_URL,
     linkLabel: "Get the extension",
   },
 ];
@@ -91,7 +91,11 @@ export default function AboutPage() {
               <p className="text-sm leading-relaxed text-muted-foreground">{step.description}</p>
               {step.href && step.linkLabel ? (
                 <Button variant="mint" size="sm" className="mt-1" asChild>
-                  <Link href={step.href}>{step.linkLabel}</Link>
+                  {/^https?:\/\//.test(step.href) ? (
+                    <a href={step.href} target="_blank" rel="noopener noreferrer">{step.linkLabel}</a>
+                  ) : (
+                    <Link href={step.href}>{step.linkLabel}</Link>
+                  )}
                 </Button>
               ) : null}
             </div>
@@ -114,7 +118,7 @@ export default function AboutPage() {
             </p>
           </div>
           <Button variant="mint" size="sm" className="shrink-0 sm:min-w-[8.5rem]" asChild>
-            <Link href="/install">Get the extension</Link>
+            <a href={EXTENSION_STORE_URL} target="_blank" rel="noopener noreferrer">Get the extension</a>
           </Button>
         </div>
       </div>

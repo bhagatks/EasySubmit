@@ -3,6 +3,9 @@
  * Display: capital E + S only; suffix always lowercase `.ai`.
  */
 
+export const EXTENSION_STORE_URL =
+  "https://chromewebstore.google.com/detail/ask-gemini/daeaddalijienfjkhigbifmbdckbohjg";
+
 export const BRAND = {
   name: "EasySubmit",
   suffix: ".ai",

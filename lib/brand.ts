@@ -6,6 +6,7 @@ export {
   BRAND_NAME,
   BRAND_SUFFIX,
   EASYSUBMIT_TAGLINE,
+  EXTENSION_STORE_URL,
   brandCopyright,
   renderBrandMarkup,
   type BrandClassNames,

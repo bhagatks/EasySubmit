@@ -28,6 +28,7 @@ import {
   jobTrackerReviewScreenUrl,
 } from "@/lib/job-tracker/review-screen-ui";
 import type { NextBestAction } from "@/app/actions/dashboard/stats";
+import { EXTENSION_STORE_URL } from "@/lib/brand";
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
@@ -124,7 +125,7 @@ function NextActionCard({ action }: { action: NextBestAction }) {
           Save your first job from the extension to start tracking and tailoring.
         </p>
         <Button variant="outline" size="sm" className="mt-3 rounded-xl" asChild>
-          <Link href="/install">Get extension</Link>
+          <a href={EXTENSION_STORE_URL} target="_blank" rel="noopener noreferrer">Get extension</a>
         </Button>
       </div>
     );

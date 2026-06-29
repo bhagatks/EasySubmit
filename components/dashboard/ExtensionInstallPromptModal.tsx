@@ -5,24 +5,17 @@ import { Download, ExternalLink, Puzzle } from "lucide-react";
 import { ExtensionCardMock } from "@/components/marketing/ExtensionCardMock";
 import { GlossyModal } from "@/components/ui/glossy-modal";
 import { Button } from "@/components/ui/button";
+import { EXTENSION_STORE_URL } from "@/lib/brand";
 
 type ExtensionInstallPromptModalProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  storeUrl: string;
 };
-
-function isExternalUrl(href: string): boolean {
-  return /^https?:\/\//i.test(href);
-}
 
 export function ExtensionInstallPromptModal({
   open,
   onOpenChange,
-  storeUrl,
 }: ExtensionInstallPromptModalProps) {
-  const storeExternal = isExternalUrl(storeUrl);
-
   return (
     <GlossyModal
       open={open}
@@ -37,18 +30,11 @@ export function ExtensionInstallPromptModal({
             Skip for now
           </Button>
           <Button variant="mint" className="flex-1 rounded-xl" asChild>
-            {storeExternal ? (
-              <a href={storeUrl} target="_blank" rel="noopener noreferrer">
-                <Download className="h-4 w-4" aria-hidden="true" />
-                Install extension
-                <ExternalLink className="h-3.5 w-3.5 opacity-70" aria-hidden="true" />
-              </a>
-            ) : (
-              <Link href={storeUrl}>
-                <Download className="h-4 w-4" aria-hidden="true" />
-                Install extension
-              </Link>
-            )}
+            <a href={EXTENSION_STORE_URL} target="_blank" rel="noopener noreferrer">
+              <Download className="h-4 w-4" aria-hidden="true" />
+              Install extension
+              <ExternalLink className="h-3.5 w-3.5 opacity-70" aria-hidden="true" />
+            </a>
           </Button>
         </div>
       }

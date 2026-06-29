@@ -2,7 +2,6 @@ import Link from "next/link";
 import { Navbar } from "@/components/Navbar";
 import { PricingPlansSection } from "@/components/pricing/PricingPlansSection";
 import { brandCopyright, BRAND } from "@/lib/brand";
-import { getExtensionForceUpgradeConfig } from "@/lib/extension/force-upgrade-gate";
 import { LogoIcon } from "@/components/ui/logo";
 import { PRICING_PAGE_COPY } from "@/lib/pricing/plan-display";
 
@@ -11,14 +10,11 @@ export const metadata = {
   description: PRICING_PAGE_COPY.metaDescription,
 };
 
-export const dynamic = "force-dynamic";
 
 export default async function PricingPage() {
-  const forceUpgrade = await getExtensionForceUpgradeConfig();
-
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">
-      <Navbar extensionStoreUrl={forceUpgrade.updateUrl} />
+      <Navbar />
       <main>
         <PricingPlansSection showFaq className="pt-10 md:pt-14" />
       </main>

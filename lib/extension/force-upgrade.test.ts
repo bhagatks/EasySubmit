@@ -75,12 +75,10 @@ describe("resolveExtensionForceUpgradeBanner", () => {
         forceUpgradeEnabled: true,
         minExtensionVersion: "0.3.0",
         forceUpgradeMessage: "Update required.",
-        forceUpgradeUpdateUrl: "https://chromewebstore.google.com/detail/example",
       },
       "0.2.6",
     );
     expect(banner?.ctaLabel).toBe("Update");
-    expect(banner?.updateUrl).toContain("chromewebstore");
     expect(isSemverBelowMinimum("0.2.6", "0.3.0")).toBe(true);
   });
 });

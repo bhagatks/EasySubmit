@@ -75,7 +75,6 @@ export type ExtensionRuntimeConfig = {
   forceUpgradeEnabled?: boolean;
   minExtensionVersion?: string | null;
   forceUpgradeMessage?: string | null;
-  forceUpgradeUpdateUrl?: string | null;
 };
 
 export type ApplyPipelineResponse = {

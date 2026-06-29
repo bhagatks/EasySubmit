@@ -7,6 +7,7 @@ import { listJobTrackerEntries } from "@/app/actions/job-tracker";
 import { DashboardWorkspacePage } from "@/components/dashboard/DashboardWorkspacePage";
 import { JobTrackerWorkspace } from "@/components/dashboard/JobTrackerWorkspace";
 import { Button } from "@/components/ui/button";
+import { EXTENSION_STORE_URL } from "@/lib/brand";
 
 type JobTrackerPageProps = {
   searchParams?: { view?: string };
@@ -24,10 +25,10 @@ export default async function JobTrackerPage(_props: JobTrackerPageProps) {
       description="Track each role on a simple pipeline — Review Screen for details, Apply when your resume is ready."
       aside={
         <Button variant="outline" size="sm" asChild>
-          <Link href="/install">
+          <a href={EXTENSION_STORE_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2">
             <Puzzle className="h-4 w-4" />
             Get extension
-          </Link>
+          </a>
         </Button>
       }
     >

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Archive, ArrowUpRight, Briefcase } from "lucide-react";
+import { Archive, ArrowUpRight, Briefcase, Plus } from "lucide-react";
 import { listArchivedJobTrackerEntries } from "@/app/actions/job-tracker";
 import type { JobTrackerSummary } from "@/lib/job-tracker/types";
 import {
@@ -16,11 +16,13 @@ import {
   type ReviewScreenPanel,
 } from "@/lib/job-tracker/review-screen-ui";
 import { JobTrackerPipeline } from "@/components/dashboard/JobTrackerPipeline";
+import { JobTrackerManualAddModal } from "@/components/dashboard/JobTrackerManualAddModal";
 import { ReviewScreen } from "@/components/dashboard/ReviewScreen";
 import { serverActionClientErrorMessage } from "@/lib/server-action-client";
 import { ToastBanner } from "@/components/ui/toast-banner";
 import { Button } from "@/components/ui/button";
-import { BRAND_FULL } from "@/lib/brand";
+import { PurposeButton } from "@/components/ui/purpose-button";
+import { BRAND_FULL, EXTENSION_STORE_URL } from "@/lib/brand";
 import { useRegisterDashboardHeaderActions } from "@/components/dashboard/DashboardWorkspaceHeader";
 import {
   dashboardHeaderNeutralPillClassName,
@@ -49,6 +51,7 @@ export function JobTrackerWorkspace({ entries, autoArchiveAppliedJobs }: JobTrac
   const [archiveLoading, setArchiveLoading] = useState(false);
   const [showArchiveToast, setShowArchiveToast] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [manualAddOpen, setManualAddOpen] = useState(false);
   const lastOpenedJobIdRef = useRef<string | null>(null);
 
   const buildReviewUrl = useCallback(
@@ -210,6 +213,21 @@ export function JobTrackerWorkspace({ entries, autoArchiveAppliedJobs }: JobTrac
     router.push("/dashboard/job-tracker?view=archive", { scroll: false });
   }, [archivedView, router]);
 
+  const openManualAdd = useCallback(() => {
+    captureAnalyticsEvent(AnalyticsEvents.JOB_TRACKER_MANUAL_ADD_OPENED, {
+      surface: "dashboard",
+    });
+    setManualAddOpen(true);
+  }, []);
+
+  const handleManualJobCreated = useCallback(
+    (entryId: string) => {
+      void refreshTrackerEntries();
+      openReview(entryId, "resume");
+    },
+    [openReview, refreshTrackerEntries],
+  );
+
   const archiveHeaderButton = useMemo(
     () => (
       <button
@@ -225,7 +243,27 @@ export function JobTrackerWorkspace({ entries, autoArchiveAppliedJobs }: JobTrac
     [archivedView, toggleArchiveView],
   );
 
-  useRegisterDashboardHeaderActions(archiveHeaderButton);
+  const headerActions = useMemo(
+    () => (
+      <div className="flex items-center gap-2">
+        {!archivedView ? (
+          <button
+            type="button"
+            className={dashboardHeaderNeutralPillClassName()}
+            style={dashboardHeaderNeutralPillStyle}
+            onClick={openManualAdd}
+          >
+            <Plus className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            Add job
+          </button>
+        ) : null}
+        {archiveHeaderButton}
+      </div>
+    ),
+    [archivedView, archiveHeaderButton, openManualAdd],
+  );
+
+  useRegisterDashboardHeaderActions(headerActions);
 
   const handleMutated = useCallback(() => {
     setRefreshKey((value) => value + 1);
@@ -253,14 +291,24 @@ export function JobTrackerWorkspace({ entries, autoArchiveAppliedJobs }: JobTrac
             </div>
             <h2 className="mt-4 font-display text-lg font-semibold">No jobs tracked yet</h2>
             <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-              Install the {BRAND_FULL} extension and click <strong>Apply</strong> on any supported job
-              posting. Use <strong>Review</strong> to open the Review Screen.
+              Paste a job description to tailor your resume, or save roles from career sites with the{" "}
+              {BRAND_FULL} extension.
             </p>
-            <Button variant="mint" className="mt-6" asChild>
-              <Link href="/install">
-                Add extension <ArrowUpRight className="h-4 w-4" />
-              </Link>
-            </Button>
+            <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <PurposeButton type="button" purpose="primary" onClick={openManualAdd}>
+                Tailor for a job
+              </PurposeButton>
+              <Button variant="mintOutline" asChild>
+                <a
+                  href={EXTENSION_STORE_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1"
+                >
+                  Add extension <ArrowUpRight className="h-4 w-4" />
+                </a>
+              </Button>
+            </div>
           </div>
         )
       ) : (
@@ -271,6 +319,12 @@ export function JobTrackerWorkspace({ entries, autoArchiveAppliedJobs }: JobTrac
           onMutated={handleMutated}
         />
       )}
+
+      <JobTrackerManualAddModal
+        open={manualAddOpen}
+        onOpenChange={setManualAddOpen}
+        onCreated={handleManualJobCreated}
+      />
 
       <ReviewScreen
         jobId={reviewJobId}

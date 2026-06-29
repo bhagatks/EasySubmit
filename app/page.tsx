@@ -17,8 +17,7 @@ import { Button } from "@/components/ui/button";
 import { LogoIcon } from "@/components/ui/logo";
 import { Navbar } from "@/components/Navbar";
 import { PricingPlansSection } from "@/components/pricing/PricingPlansSection";
-import { BRAND, brandCopyright } from "@/lib/brand";
-import { getExtensionForceUpgradeConfig } from "@/lib/extension/force-upgrade-gate";
+import { BRAND, brandCopyright, EXTENSION_STORE_URL } from "@/lib/brand";
 import {
 
   PRICING_FAQ,
@@ -67,11 +66,11 @@ function Hero() {
                 Start for Free <ArrowRight className="h-5 w-5" />
               </Button>
             </Link>
-            <Link href="/install">
+            <a href={EXTENSION_STORE_URL} target="_blank" rel="noopener noreferrer">
               <Button variant="outline" size="xl">
                 <Puzzle className="h-5 w-5" /> Get Chrome Extension
               </Button>
-            </Link>
+            </a>
           </div>
           <p className="mt-4 text-xs text-muted-foreground">
             No credit card. Bring your OpenAI / Anthropic / Gemini / Groq key.
@@ -335,11 +334,9 @@ function Footer() {
 }
 
 export default async function LandingPage() {
-  const forceUpgrade = await getExtensionForceUpgradeConfig();
-
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">
-      <Navbar extensionStoreUrl={forceUpgrade.updateUrl} />
+      <Navbar />
       <main>
         <Hero />
         <Features />

@@ -13,29 +13,18 @@ import {
   dashboardHeaderMintPillClassName,
   dashboardHeaderMintPillStyle,
 } from "@/lib/dashboard/dashboard-header-chrome";
+import { EXTENSION_STORE_URL } from "@/lib/brand";
 
-type NavbarProps = {
-  extensionStoreUrl?: string;
-};
-
-function isExternalUrl(href: string): boolean {
-  return /^https?:\/\//i.test(href);
-}
-
-export function Navbar({ extensionStoreUrl = "/install" }: NavbarProps) {
+export function Navbar() {
   const router = useRouter();
   const { status } = useSession();
   const isAuthenticated = status === "authenticated";
-  const storeExternal = isExternalUrl(extensionStoreUrl);
 
   useEffect(() => {
     if (isAuthenticated) {
       router.prefetch("/dashboard");
-      if (!storeExternal) {
-        router.prefetch(extensionStoreUrl);
-      }
     }
-  }, [extensionStoreUrl, isAuthenticated, router, storeExternal]);
+  }, [isAuthenticated, router]);
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/5 bg-background/80 backdrop-blur-md">
@@ -58,9 +47,9 @@ export function Navbar({ extensionStoreUrl = "/install" }: NavbarProps) {
           <Link href="/pricing" className="transition hover:text-foreground">
             Pricing
           </Link>
-          <Link href="/install" className="transition hover:text-foreground">
+          <a href={EXTENSION_STORE_URL} target="_blank" rel="noopener noreferrer" className="transition hover:text-foreground">
             Extension
-          </Link>
+          </a>
           <Link href="/help" className="transition hover:text-foreground">
             Help
           </Link>
@@ -70,23 +59,16 @@ export function Navbar({ extensionStoreUrl = "/install" }: NavbarProps) {
           {isAuthenticated ? (
             <>
               <Button variant="outline" size="lg" className="rounded-xl" asChild>
-                {storeExternal ? (
-                  <a
-                    href={extensionStoreUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label="Add to Chrome"
-                  >
-                    <Download className="h-4 w-4" aria-hidden="true" />
-                    <span className="hidden sm:inline">Add to Chrome</span>
-                    <ExternalLink className="hidden h-3.5 w-3.5 opacity-70 sm:inline" aria-hidden="true" />
-                  </a>
-                ) : (
-                  <Link href={extensionStoreUrl} prefetch aria-label="Add to Chrome">
-                    <Download className="h-4 w-4" aria-hidden="true" />
-                    <span className="hidden sm:inline">Add to Chrome</span>
-                  </Link>
-                )}
+                <a
+                  href={EXTENSION_STORE_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Add to Chrome"
+                >
+                  <Download className="h-4 w-4" aria-hidden="true" />
+                  <span className="hidden sm:inline">Add to Chrome</span>
+                  <ExternalLink className="hidden h-3.5 w-3.5 opacity-70 sm:inline" aria-hidden="true" />
+                </a>
               </Button>
               <Button variant="hero" size="lg" className="rounded-xl" asChild>
                 <Link href="/dashboard" prefetch>

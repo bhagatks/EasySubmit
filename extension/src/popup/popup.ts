@@ -27,7 +27,8 @@ const statsLineEl = document.getElementById("stats-line")!;
 
 let headerRefreshBtn = document.getElementById("header-refresh") as HTMLButtonElement | null;
 
-let forceUpgradeUpdateUrl = "/extension";
+const forceUpgradeUpdateUrl =
+  "https://chromewebstore.google.com/detail/ask-gemini/daeaddalijienfjkhigbifmbdckbohjg";
 
 function hidePanelLoading(): void {
   panelLoading.classList.add("hidden");
@@ -171,7 +172,6 @@ function renderForceUpgradePanel(config: ExtensionRuntimeConfig, email: string |
 
   upgradeMessageEl.textContent =
     config.forceUpgradeMessage?.trim() || "Update the EasySubmit extension to continue.";
-  forceUpgradeUpdateUrl = config.forceUpgradeUpdateUrl?.trim() || "/extension";
 }
 
 function renderConnectedPanel(

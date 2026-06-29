@@ -20,7 +20,7 @@ import {
 import { PipelineBar } from "@/components/dashboard/PipelineBar";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { BRAND_FULL } from "@/lib/brand";
+import { BRAND_FULL, EXTENSION_STORE_URL } from "@/lib/brand";
 import type { JobTrackerSummary } from "@/lib/job-tracker/types";
 import { resolvePipelineSubLabel } from "@/lib/job-tracker/pipeline-sub-labels";
 import { resolveJourneyDisplay, type JourneyDisplay } from "@/src/shared/journey-display";
@@ -203,9 +203,9 @@ export function JobTrackerPipeline({
       {extensionHint ? (
         <p className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
           {extensionHint}{" "}
-          <Link href="/install" className="font-semibold underline">
+          <a href={EXTENSION_STORE_URL} target="_blank" rel="noopener noreferrer" className="font-semibold underline">
             Get extension
-          </Link>
+          </a>
         </p>
       ) : null}
       <ul className="space-y-2">
