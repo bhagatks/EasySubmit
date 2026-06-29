@@ -29,6 +29,7 @@ import {
   collectValidationErrorMessages,
   validateResume,
 } from "@/lib/resume/validation";
+import { buildProfileStudioSectionExpansion } from "@/lib/resume/studio-editor-sections";
 import { estimateYearsExperience } from "@/src/lib/ai/engine/candidate-context";
 import {
   describeAutoPageLengthRecommendation,
@@ -71,8 +72,8 @@ export function ResumeStudioEditor({
   const [errors, setErrors] = useState<string[] | null>(null);
   const [saveDisabled, setSaveDisabled] = useState(true);
   const [formRevision, setFormRevision] = useState(0);
-  const [sectionExpansion, setSectionExpansion] = useState<Record<string, boolean> | null>(
-    null,
+  const [sectionExpansion, setSectionExpansion] = useState<Record<string, boolean>>(() =>
+    buildProfileStudioSectionExpansion(),
   );
   const [studioToolbar, setStudioToolbar] = useState<RefineryStudioToolbarPayload | null>(
     null,

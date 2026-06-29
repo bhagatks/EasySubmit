@@ -39,7 +39,7 @@ export function UserAvatar({
   return (
     <div
       className={cn(
-        "relative shrink-0 overflow-hidden rounded-full border border-white/20 shadow-[0_4px_14px_rgba(18,179,209,0.18)]",
+        "relative shrink-0 overflow-hidden rounded-full border border-white/20 shadow-[0_4px_14px_rgba(18,179,209,0.18)] pointer-events-none",
         className,
       )}
       style={{ width: px, height: px }}

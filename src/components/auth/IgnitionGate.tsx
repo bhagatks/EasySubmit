@@ -231,14 +231,18 @@ export function IgnitionGate({
     variant === "launch" && !isProtectMode && isIgnitionComplete() && !isLaunching;
   const canResume = isProtectMode && isIgnitionComplete() && !isLaunching;
 
+  // Sync when parent sets initialProvider (settings add/edit modal). Do not re-run when
+  // storedProvider changes — handleProviderChange updates the store and would snap back.
   useEffect(() => {
-    if (initialProvider) {
-      setProviderState(initialProvider);
-      setProvider(initialProvider);
-    } else if (storedProvider) {
-      setProviderState(storedProvider as HandshakeProvider);
-    }
-  }, [initialProvider, storedProvider, setProvider]);
+    if (!initialProvider) return;
+    setProviderState(initialProvider);
+    setProvider(initialProvider);
+  }, [initialProvider, setProvider]);
+
+  useEffect(() => {
+    if (initialProvider || !storedProvider) return;
+    setProviderState(storedProvider as HandshakeProvider);
+  }, [initialProvider, storedProvider]);
 
   useEffect(() => {
     setMakeActive(setAsActiveOnSave);

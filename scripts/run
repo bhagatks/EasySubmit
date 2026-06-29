@@ -11,10 +11,10 @@ case "$cmd" in
   easy)
     case "$sub" in
       prod|production)
-        exec bash "$ROOT/scripts/easy-prod.sh"
+        exec node "$ROOT/scripts/run.mjs" deploy:prod
         ;;
       "")
-        exec bash "$ROOT/scripts/easy-dev.sh"
+        exec node "$ROOT/scripts/run.mjs" dev
         ;;
       *)
         echo "Unknown target: $sub" >&2
@@ -26,8 +26,8 @@ case "$cmd" in
   *)
     echo "Usage: run easy [prod]" >&2
     echo "" >&2
-    echo "  run easy       Local dev (.env.local)" >&2
-    echo "  run easy prod  Deploy to Vercel (prod env from Vercel only)" >&2
+    echo "  run easy       Local dev (.env.local, injected)" >&2
+    echo "  run easy prod  Deploy to Vercel (dashboard secrets)" >&2
     exit 1
     ;;
 esac

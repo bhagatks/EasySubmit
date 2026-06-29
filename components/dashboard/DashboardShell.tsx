@@ -184,7 +184,7 @@ function DashboardShellFrame({ children, vaultKeyId, fromParam }: DashboardShell
       <DashboardSidebar vaultKeyId={vaultKeyId} />
       <div className={cn("flex min-h-0 flex-1 flex-col", isStudioEdit && "overflow-hidden")}>
         <AiHealthAlertProvider>
-          <header className={cn("relative shrink-0", DASHBOARD_TOPBAR_BORDER_CLASS)}>
+          <header className={cn("relative z-30 shrink-0", DASHBOARD_TOPBAR_BORDER_CLASS)}>
             <div className="grid h-14 grid-cols-[1fr_auto_1fr] items-center px-4">
               <div className="flex h-full items-center gap-3 justify-self-start">
                 <SidebarTrigger />
@@ -199,14 +199,16 @@ function DashboardShellFrame({ children, vaultKeyId, fromParam }: DashboardShell
               ) : (
                 <div />
               )}
-              <div className="relative flex h-full items-center justify-end gap-2 justify-self-end">
+              <div className="flex h-full items-center justify-end gap-2 justify-self-end">
                 <DashboardHeaderExpandSlot />
                 <DashboardHeaderActionsSlot />
-                <BYOKStatusBadge vaultKeyId={vaultKeyId} />
-                {showByokKeyButton ? <BYOKKeyButton /> : null}
+                <div className="relative">
+                  <BYOKStatusBadge vaultKeyId={vaultKeyId} />
+                  {showByokKeyButton ? <BYOKKeyButton /> : null}
+                  <AiHealthHeaderNotice />
+                </div>
                 {showProfileMenu ? <NavbarProfileMenu /> : null}
                 {showSignOut ? <SignOutButton variant="pill" /> : null}
-                <AiHealthHeaderNotice />
               </div>
             </div>
           </header>

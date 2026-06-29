@@ -14,6 +14,7 @@ import {
   isExactPopularRole,
 } from "@/src/lib/constants/roles";
 import { ClipboardButton } from "@/src/components/shared/ClipboardButton";
+import { STUDIO_FIELD_ERROR_CLASS } from "@/lib/resume/studio-field-styles";
 import { cn } from "@/lib/utils";
 
 const inter = Inter({
@@ -43,6 +44,7 @@ type TargetRoleFieldProps = {
   onChange: (value: string) => void;
   monoClass?: string;
   id?: string;
+  hasBlockingError?: boolean;
 };
 
 export function TargetRoleField({
@@ -50,6 +52,7 @@ export function TargetRoleField({
   onChange,
   monoClass,
   id = "hub-target-role",
+  hasBlockingError = false,
 }: TargetRoleFieldProps) {
   const labelMono = monoClass ?? jetbrainsMono.className;
   const [query, setQuery] = useState(value);
@@ -122,6 +125,7 @@ export function TargetRoleField({
                 inter.className,
                 "w-full rounded-xl border border-white/10 py-3 pl-10 pr-10 text-sm transition-colors",
                 FOCUS_RING,
+                hasBlockingError && STUDIO_FIELD_ERROR_CLASS,
               )}
               style={{
                 backgroundColor: CANVAS,

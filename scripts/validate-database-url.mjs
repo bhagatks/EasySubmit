@@ -1,33 +1,35 @@
 #!/usr/bin/env node
 /**
- * Validates DATABASE_URL in .env.local and tests a live connection.
+ * Validates DATABASE_URL and tests a live connection.
+ * Expects env injected by scripts/run.mjs or dotenv from .env.local when run standalone.
  */
-import { existsSync, readFileSync } from "node:fs";
-import { config as loadDotenv } from "dotenv";
 import pg from "pg";
+import { isProdDB, loadEnv, mergeEnv, LOCAL_ENV_FILE } from "./env-lib.mjs";
+import { assertSafeForDevServer } from "./db-safety.mjs";
 
-loadDotenv({ path: ".env" });
-loadDotenv({ path: ".env.local", override: true });
+const { vars } = loadEnv(LOCAL_ENV_FILE);
+const env = mergeEnv(process.env, vars);
 
-const connectionString = process.env.DATABASE_URL;
-const envFile = ".env.local";
+const connectionString = env.DATABASE_URL;
 
 function fail(message) {
   console.error(`❌ ${message}`);
   process.exit(1);
 }
 
-if (!existsSync(envFile)) {
-  fail(`Missing ${envFile} — run easy to auto-create it.`);
+if (!connectionString) {
+  fail(`DATABASE_URL is not set in ${LOCAL_ENV_FILE}`);
 }
 
-if (!connectionString) {
-  fail(`DATABASE_URL is not set in ${envFile}`);
+assertSafeForDevServer(env);
+
+if (isProdDB(connectionString)) {
+  fail("DATABASE_URL appears to be production — use a dev Supabase project in .env.local");
 }
 
 let url;
 try {
-  url = new URL(connectionString);
+  url = new URL(connectionString.replace(/^postgresql:/, "http:"));
 } catch {
   fail("DATABASE_URL is not a valid URI");
 }
@@ -35,9 +37,7 @@ try {
 console.log(`→ Database (local): ${url.username} @ ${url.hostname}`);
 
 if (url.hostname.includes("pooler.supabase.com") && !url.username.includes(".")) {
-  fail(
-    `Pooler host requires username postgres.<project-ref>, got "${url.username}".`,
-  );
+  fail(`Pooler host requires username postgres.<project-ref>, got "${url.username}".`);
 }
 
 if (!url.password || url.password.length < 8) {
@@ -52,7 +52,7 @@ try {
   const message = error instanceof Error ? error.message : String(error);
   console.error(`❌ Database connection failed: ${message}`);
   console.error("");
-  console.error("Fix: update DATABASE_URL in .env.local, then run easy again.");
+  console.error(`Fix: update DATABASE_URL in ${LOCAL_ENV_FILE}, then run npm run dev again.`);
   process.exit(1);
 } finally {
   await pool.end();

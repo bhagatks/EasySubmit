@@ -1,11 +1,23 @@
 # Environment
 
-Two commands — local secrets on disk, production secrets on **Vercel only**.
+Command-specific injection — see [`DEVELOPMENT_WORKFLOW.md`](./DEVELOPMENT_WORKFLOW.md) for philosophy and safety rules.
 
 | Command | Purpose |
 |---------|---------|
-| **`run easy`** | Local dev — `.env.local`, migrations, **tests**, extension build, **PostHog journey report**, dev server |
-| **`run easy prod`** | Deploy pipeline — **tests**, **PostHog journey report**, extension build → prod migrations (env pulled from Vercel) → `vercel deploy --prod` |
+| **`run easy`** | Local dev — `.env.local` injected, never touches Vercel |
+| **`run easy prod`** | Tests → extension build → `vercel deploy --prod` |
+
+Also: `npm run dev` / `npm run deploy:prod` (same pipelines).
+
+### One-time shell setup
+
+Add the repo root to your `PATH` so `run easy` works from any subdirectory:
+
+```bash
+export PATH="/path/to/EasySubmit:$PATH"
+```
+
+Or symlink: `ln -sf /path/to/EasySubmit/run ~/.local/bin/run`
 
 ## Local dev
 
@@ -13,28 +25,26 @@ Two commands — local secrets on disk, production secrets on **Vercel only**.
 run easy
 ```
 
-Auto-creates `.env.local` from `.env.example` on first run. One-time: paste `DATABASE_URL` if still a placeholder.
+First run auto-creates `.env.local` from `.env.example` if missing. Set `DATABASE_URL`, `DIRECT_URL`, and OAuth before migrating.
 
-Pipeline (`scripts/easy-bootstrap.sh`):
+Pipeline (`scripts/run.mjs dev`):
 
-1. Validate / prepare `.env.local`
-2. `prisma generate` + `prisma migrate deploy`
-3. `npm test`
-4. `npm run build:extension`
-5. `npm run posthog:journey` — DB + PostHog dev journey report (non-blocking if keys missing)
+1. Bootstrap `.env.local` if absent
+2. DB safety checks (block prod URLs)
+3. Validate DB connection
+4. `prisma generate` + `prisma migrate deploy`
+5. `npm test`
 6. `next dev` on port 3000
 
-When the server is ready, the terminal prints the login URL — open it yourself in any browser.
-
-Optional auto-open incognito login (old behavior):
+Optional auto-open incognito login:
 
 ```bash
-EASY_OPEN_BROWSER=1 run easy
+EASY_OPEN_BROWSER=1 npm run dev
 ```
 
 ## Production deploy
 
-Prod config lives in **Vercel → Environment Variables** (see `.env.vercel.example` as a checklist).
+Prod secrets live in **Vercel → Environment Variables** (checklist: `.env.vercel.example`).
 
 ```bash
 run easy prod
@@ -42,53 +52,57 @@ run easy prod
 
 Pipeline:
 
-1. Removes any legacy local prod env files (`.env.production.local`, etc.)
-2. `npm test`
-3. `npm run posthog:journey` — dev PostHog + DB journey report (non-blocking if keys missing)
-4. `npm run build:extension` — same extension artifact as local dev
-5. Pulls production env from Vercel **temporarily** → runs `prisma migrate deploy` → deletes temp file
-6. `vercel deploy --prod`
+1. `npm test`
+2. `npm run build:extension`
+3. `vercel deploy --prod` — migrations run on Vercel via `vercel-build` (`prisma migrate deploy` before `next build`)
 
-One-time: `vercel login` and `vercel link` (prompted automatically).
+One-time: `vercel login` and `vercel link`.
 
-### `run easy` vs `run easy prod`
-
-| Step | `run easy` | `run easy prod` |
-|------|------------|-----------------|
-| Env source | `.env.local` | Vercel pull (temp, migrations only) |
-| Stop stale dev server | ✓ | — |
-| `setup-env` / validate DB URL | ✓ | — |
-| `prisma generate` + `migrate deploy` | ✓ (local DB) | ✓ (prod DB) |
-| `npm test` | ✓ | ✓ |
-| `npm run posthog:journey` | ✓ (non-blocking) | ✓ (non-blocking, uses local `.env.local`) |
-| `npm run build:extension` | ✓ | ✓ |
-| `next dev` | ✓ | — |
-| `vercel deploy --prod` | — | ✓ |
+Fast deploy only (skip local pipeline): `npm run prod:deploy` (same as deploy step 3).
 
 ## Files
 
 ```
 .env.example           → local dev template (committed)
 .env.vercel.example    → Vercel prod checklist (committed, not copied locally)
-.env.local             → local secrets only (gitignored)
-.env.vercel.deploy.tmp → ephemeral during deploy (gitignored, auto-deleted)
+.env.local             → local dev secrets only (gitignored)
+```
+
+**No `.env.prod.local`** — production values are set in the Vercel dashboard only.
+
+## Prisma connection strings
+
+| Variable | Use |
+|----------|-----|
+| `DATABASE_URL` | Transaction pooler — app runtime |
+| `DIRECT_URL` | Direct host — `prisma migrate` only |
+
+See `prisma.config.ts` and [`DEVELOPMENT_WORKFLOW.md`](./DEVELOPMENT_WORKFLOW.md).
+
+## Admin / prod diagnostics
+
+Ephemeral Vercel env pull (no local prod file):
+
+```bash
+npm run prod:health
+npm run prod:ensure-avatars-bucket
+node scripts/run.mjs admin -- npx prisma migrate status
 ```
 
 ## OAuth credentials
 
-Login uses NextAuth (Google + LinkedIn). Required vars: `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`.
+Login uses NextAuth (Google + LinkedIn). Required vars: `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `GOOGLE_*`, `LINKEDIN_*`.
 
-**Full setup (Google Cloud Console, redirect URIs, troubleshooting):** [`docs/oauth-setup.md`](./oauth-setup.md)
-
-**Production cutover (DB + Vercel + OAuth prod):** [`docs/PROD_CUTOVER.md`](./PROD_CUTOVER.md)
+**Full setup:** [`docs/oauth-setup.md`](./oauth-setup.md)  
+**Production cutover:** [`docs/PROD_CUTOVER.md`](./PROD_CUTOVER.md)
 
 ## Troubleshooting
 
-**P1000 on local dev:** update `DATABASE_URL` in `.env.local`, run `run easy` again.
+**`Application error` / `(EMAXCONNSESSION) max clients reached`:** Production `DATABASE_URL` must use Supabase **transaction** pooler (`:6543?pgbouncer=true`), not session `:5432`. Set in Vercel dashboard and redeploy.
 
-**Deploy fails on env pull:** ensure `DATABASE_URL` is set in Vercel Production environment variables.
+**P1000 on local dev:** update `DATABASE_URL` in `.env.local`, run `npm run dev` again.
 
-**OAuth loops locally:** use a fresh incognito/private window, or run `EASY_OPEN_BROWSER=1 run easy` to auto-open one. See [`oauth-setup.md`](./oauth-setup.md) for redirect URI and consent-screen fixes.
+**OAuth loops locally:** fresh incognito window, or `EASY_OPEN_BROWSER=1 npm run dev`. See [`oauth-setup.md`](./oauth-setup.md).
 
 ## Analytics (PostHog)
 
@@ -97,28 +111,32 @@ See [`docs/analytics-option-a.md`](./analytics-option-a.md).
 | Variable | Dev (`.env.local`) | Prod (Vercel) |
 |----------|-------------------|---------------|
 | `NEXT_PUBLIC_POSTHOG_KEY` | Dev project `488025` | Prod project `488042` |
-| `NEXT_PUBLIC_POSTHOG_HOST` | `https://us.i.posthog.com` | same |
-| `NEXT_PUBLIC_ANALYTICS_ENABLED` | `true` | `true` |
 | `NEXT_PUBLIC_ANALYTICS_ENV` | `dev` | `prod` |
-| `NEXT_PUBLIC_POSTHOG_AUTOCAPTURE` | `true` | `true` (web only; extension build forces `false`) |
-| `POSTHOG_PERSONAL_API_KEY` | `phx_…` (for `npm run posthog:journey` / `run easy`) | optional on Vercel |
-| `POSTHOG_DEV_PROJECT_ID` | `488025` | — |
-| `POSTHOG_PROD_PROJECT_ID` | `488042` | — |
-| `LOG_LEVEL` | `debug` | `info` |
+| `POSTHOG_PERSONAL_API_KEY` | `phx_…` (for journey report) | optional |
 
-Dashboard bootstrap (optional): `POSTHOG_PERSONAL_API_KEY=phx_... npm run analytics:setup`
+Journey report: `npm run posthog:journey`
 
-Journey report (runs in `run easy` / `run easy prod`): `npm run posthog:journey` — add `--backfill` to sync last DB session into PostHog dev.
+## Chrome extension — GitHub → Chrome Web Store
 
-## JDSkills (optional — north-star enhance)
+Web app deploys via **Vercel GitHub integration**. Extension deploys separately:
 
-Used by `fetchJdSkillsVocabulary()` when extracting skills from job descriptions. Deterministic extraction always runs; ESCO/ESCOX are optional enrichers.
+| Trigger | Workflow |
+|---------|----------|
+| Push to `main` (extension paths) or **Actions → Run workflow** | `.github/workflows/deploy.yml` |
 
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `ESCO_API_BASE` | `https://ec.europa.eu/esco/api` | ESCO REST API base URL |
-| `ESCO_API_ENABLED` | enabled (set `false` to skip) | Disable ESCO phrase enrichment |
-| `ESCOX_URL` | unset | Self-hosted ESCOX sidecar base URL |
-| `ESCOX_ENABLED` | off (requires `true`) | Enable ESCOX sidecar extraction |
+Pipeline: vitest → `EXTENSION_STORE_BUILD=1 npm run build:extension` → zip → Chrome Web Store (`mnao305/chrome-extension-upload@v4.0.1`).
 
-No keys required for the default ESCO public API. ESCOX is off unless you self-host and set both `ESCOX_URL` and `ESCOX_ENABLED=true`.
+**GitHub repository secrets** (Settings → Secrets → Actions — never commit):
+
+| Secret | Purpose |
+|--------|---------|
+| `CHROME_EXTENSION_ID` | Chrome Web Store extension ID |
+| `CHROME_CLIENT_ID` | Google OAuth client (CWS Publish API — not login OAuth) |
+| `CHROME_CLIENT_SECRET` | CWS OAuth secret |
+| `CHROME_REFRESH_TOKEN` | CWS OAuth refresh token |
+| `EXTENSION_POSTHOG_KEY` | Optional prod `phc_` for extension analytics in CI builds |
+
+**Before each store upload:** bump `version` in `extension/manifest.json` (CWS rejects duplicate versions).
+
+Local store build: `npm run build:extension:store` → zip `dist/extension/` → load or upload manually.
+

@@ -46,7 +46,11 @@ import {
   collectStudioSectionsWithErrors,
   experienceRoleHasBlockingError,
   issueIsBlockingError,
+  sectionHasBlockingErrors,
 } from "@/lib/resume/validation/validation-ui";
+import {
+  studioInputClass,
+} from "@/lib/resume/studio-field-styles";
 import { analyzeBulletQuality } from "@/lib/job-tracker/ats/bullet-quality";
 import {
   buildInitialStudioSectionState,
@@ -104,11 +108,8 @@ function educationFieldIssues(
 const INPUT_CLASS =
   "w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm text-[oklch(0.98_0.01_268)] placeholder:text-[oklch(0.45_0.02_268)] transition-colors focus:border-[oklch(0.62_0.21_265_/_0.5)] focus:outline-none focus:ring-1 focus:ring-[oklch(0.62_0.21_265_/_0.35)]";
 
-const INPUT_ERROR_CLASS =
-  "border-[oklch(0.55_0.22_25_/_0.65)] focus:border-[oklch(0.55_0.22_25)] focus:ring-[oklch(0.55_0.22_25_/_0.35)]";
-
 function inputClass(showError: boolean): string {
-  return cn(INPUT_CLASS, showError && INPUT_ERROR_CLASS);
+  return studioInputClass(INPUT_CLASS, showError);
 }
 
 function fieldHasBlockingError(issues: ValidationIssue[], field: string): boolean {
@@ -318,7 +319,8 @@ export function RefineryPanel({
   const languageFields = useFieldArray({ control, name: "languages" });
   const customSectionFields = useFieldArray({ control, name: "customSections" });
 
-  const editorVariant = isProfileMode ? "dashboard" : "onboarding";
+  const editorVariant = isProfileMode ? "profile" : "onboarding";
+  const sectionVisualVariant = editorVariant === "onboarding" ? "onboarding" : "dashboard";
   const coreSectionIds: StudioEditorSectionId[] = [
     ...(isProfileMode ? (["profileRole"] as const) : []),
     "header",
@@ -466,15 +468,8 @@ export function RefineryPanel({
   }, [validationHighlight, validation, isProfileMode]);
 
   useEffect(() => {
-    if (isProfileMode) {
-      if (validation.canFinalize) {
-        setValidationHighlight(false);
-      }
-      return;
-    }
-
     setValidationHighlight(!validation.canFinalize);
-  }, [isProfileMode, validation.canFinalize]);
+  }, [validation.canFinalize]);
 
   const bulletQuality = useMemo(() => {
     const prime = refineryFormToPrimeResume({
@@ -599,10 +594,10 @@ export function RefineryPanel({
             title={STUDIO_EDITOR_SECTION_LABELS.profileRole}
             expanded={Boolean(expandedSections.profileRole)}
             onToggle={() => toggleSection("profileRole")}
-            variant={editorVariant}
+            variant={sectionVisualVariant}
             monoClass={monoClass}
             showDragHandle={false}
-            hasError={validationHighlight && validation.targetRole.hasErrors}
+            hasError={validationHighlight && sectionHasBlockingErrors(validation.targetRole)}
           >
             <p className="mb-3 text-xs" style={{ color: MUTED }}>
               Names this resume profile in your list — not printed on the resume.
@@ -611,6 +606,9 @@ export function RefineryPanel({
               monoClass={monoClass}
               value={targetRole}
               onChange={onTargetRoleChange}
+              hasBlockingError={
+                validationHighlight && sectionHasBlockingErrors(validation.targetRole)
+              }
             />
             {validationHighlight
               ? validation.targetRole.issues
@@ -628,9 +626,9 @@ export function RefineryPanel({
           title={STUDIO_EDITOR_SECTION_LABELS.header}
           expanded={Boolean(expandedSections.header)}
           onToggle={() => toggleSection("header")}
-          variant={editorVariant}
+          variant={sectionVisualVariant}
           monoClass={monoClass}
-          hasError={validationHighlight && validation.header.hasErrors}
+          hasError={validationHighlight && sectionHasBlockingErrors(validation.header)}
         >
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
@@ -719,6 +717,10 @@ export function RefineryPanel({
                         validationHighlight &&
                           fieldHasBlockingError(validation.header.issues, "phone"),
                       )}
+                      invalid={
+                        validationHighlight &&
+                        fieldHasBlockingError(validation.header.issues, "phone")
+                      }
                       showIcon={false}
                     />
                   );
@@ -767,9 +769,9 @@ export function RefineryPanel({
           title={STUDIO_EDITOR_SECTION_LABELS.professionalSummary}
           expanded={Boolean(expandedSections.professionalSummary)}
           onToggle={() => toggleSection("professionalSummary")}
-          variant={editorVariant}
+          variant={sectionVisualVariant}
           monoClass={monoClass}
-          hasError={validationHighlight && validation.summary.hasErrors}
+          hasError={validationHighlight && sectionHasBlockingErrors(validation.summary)}
         >
           <textarea
             {...register("professionalSummary")}
@@ -798,22 +800,27 @@ export function RefineryPanel({
           title={STUDIO_EDITOR_SECTION_LABELS.skills}
           expanded={Boolean(expandedSections.skills)}
           onToggle={() => toggleSection("skills")}
-          variant={editorVariant}
+          variant={sectionVisualVariant}
           monoClass={monoClass}
-          hasError={validationHighlight && validation.skills.hasErrors}
+          hasError={validationHighlight && sectionHasBlockingErrors(validation.skills)}
         >
           <StudioSkillsField
             monoClass={monoClass}
             skills={isProfileMode ? studioSkills : undefined}
             onSkillsChange={isProfileMode ? onStudioSkillsChange : undefined}
+            hasBlockingError={
+              validationHighlight && sectionHasBlockingErrors(validation.skills)
+            }
           />
-          {validation.skills.issues.length > 0 ? (
+          {validationHighlight && validation.skills.issues.some(issueIsBlockingError) ? (
             <div className="mt-2 space-y-1 text-xs">
-              {validation.skills.issues.map((issue) => (
-                <p key={issue.code} style={{ color: issueColor(issue.severity) }}>
-                  {issue.message}
-                </p>
-              ))}
+              {validation.skills.issues
+                .filter((issue) => issueIsBlockingError(issue))
+                .map((issue) => (
+                  <p key={issue.code} style={{ color: issueColor(issue.severity) }}>
+                    {issue.message}
+                  </p>
+                ))}
             </div>
           ) : null}
         </StudioCollapsibleSection>
@@ -822,9 +829,9 @@ export function RefineryPanel({
           title={STUDIO_EDITOR_SECTION_LABELS.professionalExperience}
           expanded={Boolean(expandedSections.professionalExperience)}
           onToggle={() => toggleSection("professionalExperience")}
-          variant={editorVariant}
+          variant={sectionVisualVariant}
           monoClass={monoClass}
-          hasError={validationHighlight && validation.experience.hasErrors}
+          hasError={validationHighlight && sectionHasBlockingErrors(validation.experience)}
         >
           <div className="mb-3 flex justify-end">
             <button
@@ -1065,9 +1072,9 @@ export function RefineryPanel({
           title={STUDIO_EDITOR_SECTION_LABELS.education}
           expanded={Boolean(expandedSections.education)}
           onToggle={() => toggleSection("education")}
-          variant={editorVariant}
+          variant={sectionVisualVariant}
           monoClass={monoClass}
-          hasError={validationHighlight && validation.education.hasErrors}
+          hasError={validationHighlight && sectionHasBlockingErrors(validation.education)}
         >
           <div className="mb-3 flex justify-end">
             <button
@@ -1185,7 +1192,7 @@ export function RefineryPanel({
           title={STUDIO_EDITOR_SECTION_LABELS.certifications}
           expanded={Boolean(expandedSections.certifications)}
           onToggle={() => toggleSection("certifications")}
-          variant={editorVariant}
+          variant={sectionVisualVariant}
           monoClass={monoClass}
         >
           <OptionalListSection
@@ -1208,7 +1215,7 @@ export function RefineryPanel({
           title={STUDIO_EDITOR_SECTION_LABELS.projects}
           expanded={Boolean(expandedSections.projects)}
           onToggle={() => toggleSection("projects")}
-          variant={editorVariant}
+          variant={sectionVisualVariant}
           monoClass={monoClass}
         >
           <OptionalListSection
@@ -1231,7 +1238,7 @@ export function RefineryPanel({
           title={STUDIO_EDITOR_SECTION_LABELS.languages}
           expanded={Boolean(expandedSections.languages)}
           onToggle={() => toggleSection("languages")}
-          variant={editorVariant}
+          variant={sectionVisualVariant}
           monoClass={monoClass}
         >
           {isProfileMode ? (
@@ -1264,7 +1271,7 @@ export function RefineryPanel({
               }
               expanded={Boolean(expandedSections[sectionKey])}
               onToggle={() => toggleSection(sectionKey)}
-              variant={editorVariant}
+              variant={sectionVisualVariant}
               monoClass={monoClass}
             >
               <div className="space-y-3">

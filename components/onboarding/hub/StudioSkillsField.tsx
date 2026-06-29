@@ -21,6 +21,10 @@ import {
   SKILLS_TARGET_MAX,
   SKILLS_TARGET_MIN,
 } from "@/lib/resume/skills-rules";
+import {
+  STUDIO_FIELD_ERROR_CLASS,
+  STUDIO_SECTION_ERROR_CLASS,
+} from "@/lib/resume/studio-field-styles";
 import { useOnboardingStore } from "@/src/stores/onboarding-store";
 import { cn } from "@/lib/utils";
 
@@ -47,12 +51,14 @@ type StudioSkillsFieldProps = {
   /** When provided, skills are controlled locally (dashboard studio) instead of onboarding store. */
   skills?: string[];
   onSkillsChange?: (skills: string[]) => void;
+  hasBlockingError?: boolean;
 };
 
 export function StudioSkillsField({
   monoClass,
   skills: controlledSkills,
   onSkillsChange,
+  hasBlockingError = false,
 }: StudioSkillsFieldProps) {
   const storeSkills = useOnboardingStore((state) => state.studio.skills);
   const toggleSkill = useOnboardingStore((state) => state.toggleSkill);
@@ -125,7 +131,10 @@ export function StudioSkillsField({
   return (
     <section
       aria-labelledby="studio-skills-heading"
-      className="rounded-xl border border-white/10 bg-[oklch(0.16_0.04_268)] p-4 sm:p-5"
+      className={cn(
+        "rounded-xl border bg-[oklch(0.16_0.04_268)] p-4 sm:p-5",
+        hasBlockingError ? STUDIO_SECTION_ERROR_CLASS : "border-white/10",
+      )}
     >
       <div className="space-y-2">
         <p
@@ -267,6 +276,7 @@ export function StudioSkillsField({
             className={cn(
               "w-full rounded-xl border border-white/10 bg-white/[0.04] py-3 pl-10 pr-10 text-sm text-[oklch(0.98_0.01_268)] placeholder:text-[oklch(0.45_0.02_268)]",
               FOCUS_RING,
+              hasBlockingError && STUDIO_FIELD_ERROR_CLASS,
             )}
             placeholder="Search skills…"
             autoComplete="off"

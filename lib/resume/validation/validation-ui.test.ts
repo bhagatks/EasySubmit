@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   collectStudioSectionsWithErrors,
   experienceRoleHasBlockingError,
+  sectionHasBlockingErrors,
   validationFieldToStudioSection,
 } from "@/lib/resume/validation/validation-ui";
 import type { ResumeValidationResult } from "@/lib/resume/validation/types";
@@ -108,5 +109,39 @@ describe("experienceRoleHasBlockingError", () => {
 
     expect(experienceRoleHasBlockingError(issues, 1)).toBe(true);
     expect(experienceRoleHasBlockingError(issues, 0)).toBe(false);
+  });
+});
+
+describe("sectionHasBlockingErrors", () => {
+  it("returns true only when section has error-severity issues", () => {
+    expect(
+      sectionHasBlockingErrors({
+        issues: [
+          {
+            field: "skills",
+            code: "skills_too_few",
+            severity: "error",
+            message: "Add at least 6 skills.",
+          },
+        ],
+        hasErrors: true,
+        hasWarnings: false,
+      }),
+    ).toBe(true);
+
+    expect(
+      sectionHasBlockingErrors({
+        issues: [
+          {
+            field: "experience[0].company",
+            code: "experience_company_empty",
+            severity: "warning",
+            message: "Recommended",
+          },
+        ],
+        hasErrors: false,
+        hasWarnings: true,
+      }),
+    ).toBe(false);
   });
 });

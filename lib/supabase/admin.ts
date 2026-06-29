@@ -5,7 +5,8 @@ export const AVATAR_STORAGE_BUCKET = "avatars";
 
 export function createSupabaseAdminClient(): SupabaseClient | null {
   const url = getSupabaseUrl();
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceRoleKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SECRET_KEY;
 
   if (!url || !serviceRoleKey) {
     return null;

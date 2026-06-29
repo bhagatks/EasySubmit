@@ -2,6 +2,7 @@
 
 import { ChevronDown, GripVertical } from "lucide-react";
 import { type ReactNode } from "react";
+import { STUDIO_SECTION_ERROR_CLASS } from "@/lib/resume/studio-field-styles";
 import { cn } from "@/lib/utils";
 
 type StudioCollapsibleSectionProps = {
@@ -39,9 +40,7 @@ export function StudioCollapsibleSection({
       className={cn(
         "overflow-hidden rounded-xl border",
         hasError
-          ? isOnboarding
-            ? "border-[oklch(0.55_0.22_25_/_0.55)] ring-1 ring-[oklch(0.55_0.22_25_/_0.25)]"
-            : "border-red-500/50 ring-1 ring-red-500/25"
+          ? STUDIO_SECTION_ERROR_CLASS
           : isOnboarding
             ? "border-white/10 bg-white/[0.02]"
             : "border-border bg-surface",

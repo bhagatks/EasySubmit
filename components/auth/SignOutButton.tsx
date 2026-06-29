@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { BRAND_FULL } from "@/lib/brand";
@@ -51,9 +51,12 @@ export function SignOutButton({
 }: SignOutButtonProps) {
   const [pending, setPending] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const prevConfirmOpenRef = useRef(confirmOpen);
 
   useEffect(() => {
     if (!confirm) return;
+    if (prevConfirmOpenRef.current === confirmOpen) return;
+    prevConfirmOpenRef.current = confirmOpen;
     onConfirmOpenChange?.(confirmOpen);
   }, [confirm, confirmOpen, onConfirmOpenChange]);
 

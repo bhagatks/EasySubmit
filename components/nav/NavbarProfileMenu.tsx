@@ -17,7 +17,7 @@ type NavbarProfileMenuProps = {
 };
 
 export function NavbarProfileMenu({ showSettingsLink = true }: NavbarProfileMenuProps) {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [open, setOpen] = useState(false);
   const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -43,18 +43,26 @@ export function NavbarProfileMenu({ showSettingsLink = true }: NavbarProfileMenu
       }
     };
 
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("touchstart", handlePointerDown);
-    document.addEventListener("keydown", handleEscape);
+    // Defer so the opening click/tap cannot immediately dismiss the menu.
+    const attachTimer = window.setTimeout(() => {
+      document.addEventListener("mousedown", handlePointerDown);
+      document.addEventListener("touchstart", handlePointerDown);
+      document.addEventListener("keydown", handleEscape);
+    }, 0);
 
     return () => {
+      window.clearTimeout(attachTimer);
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("touchstart", handlePointerDown);
       document.removeEventListener("keydown", handleEscape);
     };
   }, [open]);
 
-  if (!user) return null;
+  if (status === "unauthenticated") return null;
+
+  if (!user) {
+    return <div className="h-9 w-9 animate-pulse rounded-full bg-white/10" />;
+  }
 
   return (
     <div ref={rootRef} className="relative">
@@ -90,7 +98,7 @@ export function NavbarProfileMenu({ showSettingsLink = true }: NavbarProfileMenu
           id={menuId}
           role="menu"
           aria-label="Account"
-          className="absolute right-0 top-full z-50 mt-2 min-w-[11rem] rounded-xl border border-white/10 bg-background/95 p-1.5 shadow-[0_12px_40px_rgba(0,0,0,0.35)] backdrop-blur-md"
+          className="absolute right-0 top-full z-[60] mt-2 min-w-[11rem] rounded-xl border border-white/10 bg-background/95 p-1.5 shadow-[0_12px_40px_rgba(0,0,0,0.35)] backdrop-blur-md"
         >
           {showSettingsLink ? (
             <Link

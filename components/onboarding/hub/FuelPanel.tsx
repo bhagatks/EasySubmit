@@ -42,6 +42,8 @@ type FuelPanelProps = {
   coordinates: CoordinatesValues;
   onParsed: (payload: { data: StructuredResume; rawText: string }) => void;
   onScanningChange: (scanning: boolean) => void;
+  /** Skip file upload and open Studio with identity fields prefilled. */
+  onSkipManual?: () => void;
   hidePhaseIntro?: boolean;
   successAdvanceLabel?: string;
 };
@@ -51,6 +53,7 @@ export function FuelPanel({
   coordinates,
   onParsed,
   onScanningChange,
+  onSkipManual,
   hidePhaseIntro = false,
   successAdvanceLabel,
 }: FuelPanelProps) {
@@ -308,6 +311,22 @@ export function FuelPanel({
       </div>
 
       <IngestionTerminal lines={logLines} monoClass={monoClass} />
+
+      {onSkipManual && !isProcessing && !showSuccess ? (
+        <div className="mt-4 flex justify-center">
+          <button
+            type="button"
+            onClick={onSkipManual}
+            className={cn(
+              monoClass,
+              "rounded-xl px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.12em] transition-colors hover:bg-white/[0.06]",
+            )}
+            style={{ color: PRIMARY }}
+          >
+            Skip upload — build resume manually
+          </button>
+        </div>
+      ) : null}
 
       {fileError ? (
         <InlineAlert surface="glass" variant="error" className="mt-4">

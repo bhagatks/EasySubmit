@@ -1,5 +1,9 @@
 import type { StudioEditorSectionId } from "@/lib/resume/studio-editor-sections";
-import type { ResumeValidationResult, ValidationIssue } from "@/lib/resume/validation/types";
+import type {
+  ResumeValidationResult,
+  SectionValidationResult,
+  ValidationIssue,
+} from "@/lib/resume/validation/types";
 
 export function validationFieldToStudioSection(
   field: string,
@@ -26,6 +30,10 @@ export function validationFieldToStudioSection(
 
 export function issueIsBlockingError(issue: ValidationIssue): boolean {
   return issue.severity === "error";
+}
+
+export function sectionHasBlockingErrors(result: SectionValidationResult): boolean {
+  return result.issues.some(issueIsBlockingError);
 }
 
 export function collectStudioSectionsWithErrors(

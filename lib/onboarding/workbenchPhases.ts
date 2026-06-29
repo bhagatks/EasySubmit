@@ -23,7 +23,7 @@ export const WORKBENCH_PHASES: WorkbenchPhaseDef[] = [
     label: "Import",
     code: "IMPORT",
     headline: "Import your resume",
-    description: "Drop PDF or Word to parse into the studio editor.",
+    description: "Drop PDF or Word to parse — or skip upload and build manually in Studio.",
   },
   {
     id: 3,

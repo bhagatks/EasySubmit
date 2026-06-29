@@ -3223,9 +3223,10 @@ async function toggleProfilePicker(): Promise<void> {
     return;
   }
 
-  await refreshResumeProfiles().catch(() => undefined);
   openProfilePickerMenu();
   if (cardHost) renderCard(cardHost.shadow);
+  await refreshResumeProfiles().catch(() => undefined);
+  if (profilePickerOpen && cardHost) renderCard(cardHost.shadow);
 }
 
 function setupProfilePickerDelegation(shadow: ShadowRoot): void {

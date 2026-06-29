@@ -184,6 +184,7 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 
 | Date | Summary |
 |------|---------|
+| 2026-06-28 | **Onboarding manual resume path** — Import phase (`FuelPanel`) supports skip upload → Studio with Phase 1 identity prefilled via `coordinatesToRefineryForm`; analytics `onboarding_import_skipped`. |
 | 2026-06-28 | **BYOK health + trace accuracy** — `key_invalid` no longer fires when recent BYOK calls include successes; quota errors excluded from key-error health; `enhance:trace` reports partial success when resume enhanced but JD extract failed. |
 | 2026-06-28 | **Gemini model policy + 503 resilience** — JD extract defaults to `gemini-2.5-flash-lite`; resume `generateText` uses `gemini-2.5-flash` with jittered 503 backoff (5×, 2s–45s) and `flash-lite` fallback + prompt clip; system pool resume calls use `route.modelId` not slot model. |
 | 2026-06-28 | **PostHog action events** — pricing CTAs, plan selection, tutorials, ATS score/guidelines, document export, studio tabs, settings sections — see `docs/analytics-option-a.md` |

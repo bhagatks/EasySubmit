@@ -5,9 +5,10 @@ Automate job applications with a self-learning AI engine — Next.js web app + C
 ## Quick start
 
 ```bash
-run easy          # local dev — see docs/ENV.md
-npm test          # unit tests
-npm run build     # production build
+run easy             # local dev — see docs/ENV.md
+run easy prod        # deploy to Vercel
+npm test             # unit tests
+npm run build        # production build
 ```
 
 ## Repository layout

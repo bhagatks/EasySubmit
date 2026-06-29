@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-exec bash "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/scripts/easy-bootstrap.sh"
+exec node "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/scripts/run.mjs" dev

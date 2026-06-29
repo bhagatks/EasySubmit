@@ -48,6 +48,7 @@ import { ValidationErrorsBanner } from "@/components/resume/ValidationErrorsBann
 import { ResumeStudioWorkbench } from "@/components/resume/ResumeStudioWorkbench";
 import {
   coordinatesToPrimeResume,
+  coordinatesToRefineryForm,
   emptyCoordinatesValues,
   emptyHubRefineryForm,
   formFullName,
@@ -56,6 +57,7 @@ import {
   refineryFormToPrimeResume,
   type HubRefineryForm,
 } from "@/lib/onboarding/hubResume";
+import { buildOnboardingStudioSectionExpansion } from "@/lib/resume/studio-editor-sections";
 import { formatFullPhone } from "@/lib/phone/phone";
 import type { StructuredResume } from "@/lib/resume/heuristicParser";
 import { formatDateRangeParts } from "@/lib/resume/dates";
@@ -386,6 +388,7 @@ export default function OnboardingPage() {
       setStudioSkills(parsedSkills);
       setResumeData(refineryFormToPrimeResume(form));
       setIsScanning(false);
+      setSectionExpansion(buildOnboardingStudioSectionExpansion());
 
       const enhanceStartedAt = Date.now();
       try {
@@ -422,6 +425,34 @@ export default function OnboardingPage() {
     },
     [coordinates, goToPhase, setStudioSkills],
   );
+
+  const handleFuelManual = useCallback(() => {
+    setSynthesisErrors(null);
+    setRefineryRevision((current) => current + 1);
+
+    const form = coordinatesToRefineryForm(coordinates);
+
+    setParsedStructured(null);
+    setRawResumeText(null);
+    setRefineryInitial(form);
+    setRefineryForm(form);
+    setStudioSkills([]);
+    setResumeData(refineryFormToPrimeResume(form));
+    setIsScanning(false);
+    setSectionExpansion(buildOnboardingStudioSectionExpansion());
+
+    captureAnalyticsEvent(AnalyticsEvents.ONBOARDING_IMPORT_SKIPPED, {
+      surface: "onboarding",
+    });
+    captureAnalyticsEvent(AnalyticsEvents.ONBOARDING_PHASE_COMPLETED, {
+      phase: 2,
+      phase_code: "IMPORT",
+      duration_ms: Date.now() - phaseStartedAtRef.current,
+      skipped: true,
+    });
+
+    goToPhase(3);
+  }, [coordinates, goToPhase, setStudioSkills]);
 
   const handleRefineryChange = useCallback((form: HubRefineryForm) => {
     setRefineryForm(form);
@@ -766,6 +797,7 @@ export default function OnboardingPage() {
             coordinates={coordinates}
             onParsed={handleFuelParsed}
             onScanningChange={setIsScanning}
+            onSkipManual={handleFuelManual}
             hidePhaseIntro
           />
         );

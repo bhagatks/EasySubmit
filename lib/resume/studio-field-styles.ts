@@ -4,6 +4,17 @@ import { cn } from "@/lib/utils";
 export const STUDIO_INPUT_CLASS =
   "w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm text-[oklch(0.98_0.01_268)] placeholder:text-[oklch(0.45_0.02_268)] transition-colors focus:border-[oklch(0.62_0.21_265_/_0.5)] focus:outline-none focus:ring-1 focus:ring-[oklch(0.62_0.21_265_/_0.35)]";
 
+/** Red border for mandatory validation failures — onboarding, profile, and job review Studio. */
+export const STUDIO_FIELD_ERROR_CLASS =
+  "border-[oklch(0.55_0.22_25_/_0.65)] focus:border-[oklch(0.55_0.22_25)] focus:ring-[oklch(0.55_0.22_25_/_0.35)]";
+
+export const STUDIO_SECTION_ERROR_CLASS =
+  "border-[oklch(0.55_0.22_25_/_0.55)] ring-1 ring-[oklch(0.55_0.22_25_/_0.25)]";
+
+export function studioInputClass(baseClass: string, hasBlockingError: boolean): string {
+  return cn(baseClass, hasBlockingError && STUDIO_FIELD_ERROR_CLASS);
+}
+
 const SELECT_CHEVRON =
   "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e\")";
 

@@ -32,7 +32,7 @@ Primary onboarding path — client state in `app/onboarding/page.tsx` (not Zusta
 | Phase | Panel | Data captured | Navigation |
 |-------|-------|---------------|------------|
 | 1 · Identity | `CoordinatesPanel` | `firstName`, `lastName`, optional profile photo (`uploadProfileAvatar` server action), `cityState` (Nominatim debounce + locate via `CityStateField`), `phone` with country-code selector (default US +1), `email` | Continue → Import; `completeStep(1)` |
-| 2 · Import | `FuelPanel` | Resume PDF/DOCX → `parseResumeFile` (browser Open-Resume pipeline) | **No back to Phase 1** (`minNavigablePhase=2` on breadcrumb); auto-advance to Studio after parse |
+| 2 · Import | `FuelPanel` | Resume PDF/DOCX → `parseResumeFile` (browser Open-Resume pipeline); **Skip upload — build resume manually** prefills Studio from Phase 1 identity (no parse/enhance) | **No back to Phase 1** (`minNavigablePhase=2` on breadcrumb); auto-advance to Studio after parse or manual skip |
 | 3 · Studio | `RefineryPanel` | ATS section order (Header → Summary → Skills → Experience → Education → optional Certifications/Projects/Languages); `mergeParsedWithCoordinates` prefills contact from Phase 1; **`validateResume` runs live after parse** — banner + section highlights on Studio only (cleared when leaving Studio or re-uploading) | **Import** back → re-upload; header: sample PDF/DOCX, raw text, expand/collapse; **Finalize & continue** → see bridge below |
 
 ### Synthesis Transition (Phase 3 → Dashboard)

@@ -75,7 +75,11 @@ export function ResumeProfilesList({
             className="overflow-hidden rounded-xl border border-border bg-surface"
           >
             <div className="flex items-center gap-2 px-3 py-3">
-              <div className="min-w-0 flex-1">
+              <Link
+                href={`/dashboard/resume-profiles/${profile.id}/edit`}
+                className="min-w-0 flex-1 rounded-lg transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                aria-label={`Open ${primaryLabel}`}
+              >
                 <span className="flex flex-wrap items-center gap-2 text-sm font-semibold text-foreground">
                   {primaryLabel}
                   {profile.isDefault ? (
@@ -87,7 +91,7 @@ export function ResumeProfilesList({
                 <span className="mt-0.5 block text-xs text-muted-foreground">
                   {subtitle} · Updated {updatedLabel}
                 </span>
-              </div>
+              </Link>
 
               <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                 {!profile.isDefault ? (

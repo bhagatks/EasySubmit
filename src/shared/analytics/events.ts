@@ -9,6 +9,7 @@ export const AnalyticsEvents = {
 
   ONBOARDING_PHASE_VIEWED: "onboarding_phase_viewed",
   ONBOARDING_PHASE_COMPLETED: "onboarding_phase_completed",
+  ONBOARDING_IMPORT_SKIPPED: "onboarding_import_skipped",
   ONBOARDING_COMPLETED: "onboarding_completed",
   ONBOARDING_ENHANCE_COMPLETED: "onboarding_enhance_completed",
 

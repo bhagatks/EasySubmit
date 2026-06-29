@@ -178,11 +178,36 @@ function LoginPanel() {
     }
   }, [searchParams]);
 
+  useEffect(() => {
+    function resetOAuthLoading() {
+      setLoadingProvider(null);
+    }
+
+    function onPageShow(event: PageTransitionEvent) {
+      if (event.persisted) {
+        resetOAuthLoading();
+      }
+    }
+
+    function onVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        resetOAuthLoading();
+      }
+    }
+
+    window.addEventListener("pageshow", onPageShow);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("pageshow", onPageShow);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, []);
+
   const isLoading = loadingProvider !== null;
   const oauthEnabled = termsAccepted && !isLoading;
 
   async function handleOAuth(provider: AuthProvider) {
-    if (!termsAccepted) return;
+    if (!termsAccepted || loadingProvider !== null) return;
 
     setLoadingProvider(provider);
     setError(null);
@@ -208,7 +233,25 @@ function LoginPanel() {
 
     const callbackUrl = resolveSafeCallbackUrl(searchParams.get("callbackUrl"));
 
-    void signIn(provider, { callbackUrl }, authParams);
+    try {
+      const result = await signIn(provider, { callbackUrl, redirect: false }, authParams);
+
+      if (result?.error) {
+        setLoadingProvider(null);
+        setError("Authentication failed. Please try again.");
+        return;
+      }
+
+      if (result?.url) {
+        window.location.assign(result.url);
+        return;
+      }
+
+      setLoadingProvider(null);
+    } catch {
+      setLoadingProvider(null);
+      setError("Authentication failed. Please try again.");
+    }
   }
 
   return (

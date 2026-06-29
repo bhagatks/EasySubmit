@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# EasySubmit CLI — use from anywhere inside the repo:
+#   run easy        → local dev (.env.local injected)
+#   run easy prod   → deploy to Vercel
+set -euo pipefail
+
+find_easysubmit_root() {
+  local dir="${1:-$PWD}"
+  while [[ "$dir" != "/" ]]; do
+    if [[ -f "$dir/package.json" ]] && grep -q '"name"[[:space:]]*:[[:space:]]*"easysubmit"' "$dir/package.json" 2>/dev/null; then
+      if [[ -x "$dir/scripts/run" ]] || [[ -f "$dir/scripts/run" ]]; then
+        echo "$dir"
+        return 0
+      fi
+    fi
+    dir="$(dirname "$dir")"
+  done
+  return 1
+}
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(find_easysubmit_root "$SCRIPT_DIR" || find_easysubmit_root "$PWD" || true)"
+
+if [[ -z "$ROOT" ]]; then
+  echo "❌ EasySubmit repo not found (need package.json name easysubmit + scripts/run)" >&2
+  echo "   Run from inside the repo, or: cd /path/to/EasySubmit && run easy" >&2
+  exit 1
+fi
+
+exec bash "$ROOT/scripts/run" "$@"
