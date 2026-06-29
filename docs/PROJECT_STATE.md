@@ -50,32 +50,29 @@
 
 - Extension v1 prod — **Part 2 shipped:** popup launcher redesign (`GET_JOB_STATS`, account chip, THIS TAB, settings); Part 1 manual capture live ([`docs/EXTENSION_POPUP_REDESIGN.md`](./EXTENSION_POPUP_REDESIGN.md))
 - Extension v2 — Tier 1 ATS adapters (Lever, Ashby, iCIMS, SmartRecruiters, Taleo, Jobvite); detection architecture in [`docs/EXTENSION_DETECTION.md`](./EXTENSION_DETECTION.md)
-- **Production deploy (Vercel)** — **deferred** (OAuth prod callbacks done; Vercel/env/migrate when ready)
+- **Production deploy** — two paths documented in [`docs/DEPLOYMENT.md`](./DEPLOYMENT.md): Vercel (web, deferred connect) + GitHub Actions → Chrome Web Store (workflow ready; secrets in GitHub)
 - **Application Field Memory** — spec in [`docs/APPLICATION_FIELD_MEMORY.md`](./APPLICATION_FIELD_MEMORY.md); agent lanes in [`docs/ACTIVE_WORK.md`](./ACTIVE_WORK.md)
 
 Full tracker: [`docs/JOB_TRACKER.md`](./JOB_TRACKER.md)
 
 ## Setup (local)
 
-Focus for now: **`run easy`** + extension on localhost — see [`docs/ENV.md`](./ENV.md).
+See [`docs/DEVELOPMENT_WORKFLOW.md`](./DEVELOPMENT_WORKFLOW.md) and [`docs/ENV.md`](./ENV.md).
 
 ```bash
-run easy    # local dev — see docs/ENV.md
+run easy    # local dev
 ```
 
-Deploy production: `run easy prod` — **deferred**; use when ready.
+**Production:** [`docs/DEPLOYMENT.md`](./DEPLOYMENT.md) — Vercel (web) + GitHub Actions (extension).
 
-**Production cutover checklist:** [`docs/PROD_CUTOVER.md`](./PROD_CUTOVER.md) — DB migrations (incl. P3009 recovery), Vercel env, **Google OAuth prod setup**, storage, smoke tests. Summary also in [`docs/ACTION_ITEMS.md`](./ACTION_ITEMS.md).
-
-## Deploy (Vercel) — deferred
-
-Local Google OAuth was recreated for localhost (Jun 2026). **Prod still needs:** prod redirect URIs, Vercel `GOOGLE_*` + `NEXTAUTH_*`, P3009 migration fix, then smoke test. Details: [`PROD_CUTOVER.md`](./PROD_CUTOVER.md).
+**Production cutover checklist:** [`docs/PROD_CUTOVER.md`](./PROD_CUTOVER.md)
 
 ## Dev
 
 ```bash
 run easy            # local dev (.env.local)
-run easy prod       # deploy to Vercel (prod env on Vercel only)
+run easy prod       # manual Vercel deploy from laptop
 npm run db:check    # test local DB connection
+npm run env:whoami  # confirm dev Supabase target
 npm run build       # prisma generate + next build
 ```

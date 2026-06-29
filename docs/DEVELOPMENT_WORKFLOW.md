@@ -2,7 +2,7 @@
 
 EasySubmit uses **command-specific env injection** — variables are loaded into process memory per command. Runners never rename, copy, or hide `.env` files at runtime.
 
-Full env reference: [`ENV.md`](./ENV.md) · Production cutover: [`PROD_CUTOVER.md`](./PROD_CUTOVER.md)
+Full env reference: [`ENV.md`](./ENV.md) · Production deploy: [`DEPLOYMENT.md`](./DEPLOYMENT.md) · Prod cutover: [`PROD_CUTOVER.md`](./PROD_CUTOVER.md)
 
 ---
 

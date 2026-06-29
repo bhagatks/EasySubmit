@@ -2,7 +2,8 @@
 
 Single checklist for shipping EasySubmit to Vercel. Local dev can use a **different** Supabase project and OAuth clients than production — do not copy `.env.local` wholesale into Vercel.
 
-**Deploy command:** `run easy prod` (see [`ENV.md`](./ENV.md))  
+**Deploy overview (web + extension):** [`DEPLOYMENT.md`](./DEPLOYMENT.md)  
+**Deploy command (manual):** `run easy prod` (see [`ENV.md`](./ENV.md))  
 **OAuth setup guide:** [`oauth-setup.md`](./oauth-setup.md)  
 **DB migration recovery (P3009):** [`MIGRATION_RECOVERY.md`](./MIGRATION_RECOVERY.md)
 

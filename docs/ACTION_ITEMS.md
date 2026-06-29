@@ -2,14 +2,16 @@
 
 > **Production deploy:** intentionally **deferred** — continue local dev + extension work; revisit this section when ready to ship.
 
-## Deploy to Vercel (deferred)
+## Deploy to Vercel + Chrome Web Store
 
-**Master checklist:** [`docs/PROD_CUTOVER.md`](./PROD_CUTOVER.md) — DB migrations, Vercel env, OAuth prod setup, storage, smoke tests.
+**Master guides:** [`docs/DEPLOYMENT.md`](./DEPLOYMENT.md) (two-path overview) · [`docs/PROD_CUTOVER.md`](./PROD_CUTOVER.md) (first-time prod checklist)
 
 | Step | Status | Notes |
 |------|--------|-------|
-| Fix production build (`npm run build`) | Done | Extension page + lucide `Github` → `Code2` |
-| Connect GitHub repo to Vercel | Deferred | `bhagatks/EasySubmit` |
+| Env injection refactor (`run easy`, no file swap) | **Done** | `docs/DEVELOPMENT_WORKFLOW.md` |
+| Extension CI workflow | **Done** | `.github/workflows/deploy.yml` — add `CHROME_*` + optional `EXTENSION_POSTHOG_KEY` in GitHub Secrets |
+| Web CI workflow (tests only) | **Done** | `.github/workflows/ci.yml` |
+| Connect GitHub repo to Vercel | Deferred | `bhagatks/EasySubmit` — native integration deploys web on `main` |
 | Set production env vars in Vercel | Deferred | See `.env.vercel.example` (Supabase `yofgnflcqajqsepbfdkc`) |
 | Set QA/preview env vars (optional) | Deferred | Vercel Preview: use dev Supabase vars from `.env.example` |
 | Set `NEXTAUTH_URL` to prod domain | Deferred | Must match deployed URL exactly |

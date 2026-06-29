@@ -211,6 +211,7 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 | 2026-06-27 | JD AI observability — `callEnhanceObjectModel` → `api_call_logs` (`ai.enhance.generate_object`); JD extract quota pre-check + `aiCallsToday` increment; `aiEngine.system.jdExtractionModelId` (BYOK uses vaulted model) |
 | 2026-06-27 | Extension install prompt config — `app_config.extensionInstallPrompt` trigger flags (`dashboardVisit`, `tabFocusReturn`, `periodicRefresh`, all default `false`); `DashboardSetupPrompts` + session dismiss on Skip; `?setup=1` always → tutorials; logic in `lib/dashboard/extension-install-prompt-triggers.ts` |
 | 2026-06-27 | PostHog mirrors every `api_call_logs` row as `api_call_logged`; extension emits `ui_interaction` on card clicks — see `docs/analytics-option-a.md` |
+| 2026-06-28 | Two-path production deploy — Vercel (web) + GitHub Actions `deploy.yml` (Chrome Web Store); see `docs/DEPLOYMENT.md` |
 | 2026-06-27 | `run easy` / `run easy prod` — shared pipeline adds `npm test`, `build:extension`, `npm run posthog:journey` (non-blocking); see `docs/ENV.md` |
 | 2026-06-27 | Dev-only resume journey observability — `resume_journey_step` in PostHog dev project (488025); `[EnhanceAI]` console gated off in production |
 | 2026-06-27 | Extension AI health — system-quota users without BYOK no longer blocked by spurious `key_missing` health check |

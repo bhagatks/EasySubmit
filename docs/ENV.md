@@ -116,27 +116,10 @@ See [`docs/analytics-option-a.md`](./analytics-option-a.md).
 
 Journey report: `npm run posthog:journey`
 
-## Chrome extension — GitHub → Chrome Web Store
+## Production deployment
 
-Web app deploys via **Vercel GitHub integration**. Extension deploys separately:
+**Two deploy paths** (web + extension): see **[`DEPLOYMENT.md`](./DEPLOYMENT.md)**.
 
-| Trigger | Workflow |
-|---------|----------|
-| Push to `main` (extension paths) or **Actions → Run workflow** | `.github/workflows/deploy.yml` |
-
-Pipeline: vitest → `EXTENSION_STORE_BUILD=1 npm run build:extension` → zip → Chrome Web Store (`mnao305/chrome-extension-upload@v4.0.1`).
-
-**GitHub repository secrets** (Settings → Secrets → Actions — never commit):
-
-| Secret | Purpose |
-|--------|---------|
-| `CHROME_EXTENSION_ID` | Chrome Web Store extension ID |
-| `CHROME_CLIENT_ID` | Google OAuth client (CWS Publish API — not login OAuth) |
-| `CHROME_CLIENT_SECRET` | CWS OAuth secret |
-| `CHROME_REFRESH_TOKEN` | CWS OAuth refresh token |
-| `EXTENSION_POSTHOG_KEY` | Optional prod `phc_` for extension analytics in CI builds |
-
-**Before each store upload:** bump `version` in `extension/manifest.json` (CWS rejects duplicate versions).
-
-Local store build: `npm run build:extension:store` → zip `dist/extension/` → load or upload manually.
+- **Web app:** Vercel GitHub integration → secrets in Vercel Dashboard  
+- **Extension:** `.github/workflows/deploy.yml` → secrets in GitHub Actions
 
