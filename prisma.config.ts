@@ -2,7 +2,9 @@
 import dotenv from "dotenv";
 import { defineConfig, env } from "prisma/config";
 
-dotenv.config({ path: ".env.local" });
+if (!process.env.EASYSUBMIT_SKIP_LOCAL_DOTENV) {
+  dotenv.config({ path: ".env.local" });
+}
 
 // Shell / Vercel / CI export wins over .env.local when already set.
 const shellDatabaseUrl = process.env.DATABASE_URL?.trim();
