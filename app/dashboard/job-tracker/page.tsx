@@ -1,36 +1,35 @@
-import Link from "next/link";
 import { Suspense } from "react";
+import { getServerSession } from "next-auth";
 
 export const dynamic = "force-dynamic";
-import { Puzzle } from "lucide-react";
 import { listJobTrackerEntries } from "@/app/actions/job-tracker";
+import { authOptions } from "@/lib/auth";
 import { DashboardWorkspacePage } from "@/components/dashboard/DashboardWorkspacePage";
 import { JobTrackerWorkspace } from "@/components/dashboard/JobTrackerWorkspace";
-import { Button } from "@/components/ui/button";
-import { EXTENSION_STORE_URL } from "@/lib/brand";
+import { listExtensionResumeProfiles } from "@/lib/extension/resume-profiles";
 
 type JobTrackerPageProps = {
   searchParams?: { view?: string };
 };
 
 export default async function JobTrackerPage(_props: JobTrackerPageProps) {
-  const [result] = await Promise.all([listJobTrackerEntries()]);
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id;
+
+  const [result, profilePayload] = await Promise.all([
+    listJobTrackerEntries(),
+    userId ? listExtensionResumeProfiles(userId) : Promise.resolve(null),
+  ]);
 
   const entries = result.success ? result.entries : [];
   const autoArchiveAppliedJobs = result.success ? result.autoArchiveAppliedJobs : true;
+  const resumeProfiles = profilePayload?.profiles ?? [];
+  const defaultProfileId = profilePayload?.defaultProfileId ?? null;
 
   return (
     <DashboardWorkspacePage
       title="Job Tracker"
       description="Track each role on a simple pipeline — Review Screen for details, Apply when your resume is ready."
-      aside={
-        <Button variant="outline" size="sm" asChild>
-          <a href={EXTENSION_STORE_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2">
-            <Puzzle className="h-4 w-4" />
-            Get extension
-          </a>
-        </Button>
-      }
     >
       <div className="space-y-4">
         {!result.success ? (
@@ -42,6 +41,8 @@ export default async function JobTrackerPage(_props: JobTrackerPageProps) {
             <JobTrackerWorkspace
               entries={entries}
               autoArchiveAppliedJobs={autoArchiveAppliedJobs}
+              resumeProfiles={resumeProfiles}
+              defaultProfileId={defaultProfileId}
             />
           </Suspense>
         )}

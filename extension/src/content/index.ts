@@ -257,6 +257,7 @@ let profileSetupScreen2Draft: ProfileSetupScreen2Draft = defaultProfileSetupScre
 let profileSetupScreen3Draft: ProfileSetupScreen3Draft = defaultProfileSetupScreen3Draft();
 let profileSetupScreen1ValidationIssues: ProfileSetupScreen1ValidationIssue[] = [];
 let profileSetupContinueBusy = false;
+let profileSetupSaveError: string | null = null;
 let pendingApplyAfterProfileSetup = false;
 let cachedApplicationProfile: ApplicationProfile | null = null;
 let cardLaunchMode: "auto" | "manual" = "auto";
@@ -1953,7 +1954,7 @@ function renderExpandedCard(root: ShadowRoot): void {
       escapeHtml,
       new Set(profileSetupScreen1ValidationIssues.map((issue) => issue.field)),
       profileSetupScreen1ValidationIssues,
-      cardSaveError,
+      profileSetupSaveError,
       profileSetupContinueBusy,
     );
   } else if (profileSetupScreen === 2) {
@@ -2177,6 +2178,8 @@ function renderExpandedCard(root: ShadowRoot): void {
 
   root.querySelector("[data-test-profile-setup]")?.addEventListener("click", () => {
     profileSetupScreen = 0;
+    profileSetupSaveError = null;
+    profileSetupScreen1ValidationIssues = [];
     cardCollapsed = false;
     openApplicationProfileSetupScreen();
     if (cardHost) renderCard(cardHost.shadow);
@@ -4039,14 +4042,14 @@ async function onProfileSetupContinue(root: ShadowRoot): Promise<void> {
   const validationIssues = validateProfileSetupScreen1(profileSetupScreen1Draft);
   if (validationIssues.length > 0) {
     profileSetupScreen1ValidationIssues = validationIssues;
-    saveError = null;
+    profileSetupSaveError = null;
     if (cardHost) renderCard(cardHost.shadow);
     return;
   }
 
   profileSetupScreen1ValidationIssues = [];
   profileSetupContinueBusy = true;
-  saveError = null;
+  profileSetupSaveError = null;
   if (cardHost) renderCard(cardHost.shadow);
 
   const patchResult = await patchApplicationProfile(
@@ -4056,7 +4059,7 @@ async function onProfileSetupContinue(root: ShadowRoot): Promise<void> {
   profileSetupContinueBusy = false;
 
   if (!patchResult.success) {
-    saveError = patchResult.error ?? "Could not save application profile.";
+    profileSetupSaveError = patchResult.error ?? "Could not save application profile.";
     if (cardHost) renderCard(cardHost.shadow);
     return;
   }
@@ -4782,7 +4785,7 @@ if (window.top === window.self) {
       }
 
       if (message?.action === EXTENSION_MESSAGE.PING) {
-        sendResponse({ ready: true });
+        sendResponse({ ready: true, version: chrome.runtime.getManifest().version });
         return true;
       }
 

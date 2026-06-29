@@ -30,7 +30,11 @@ async function DashboardGateShell({ sessionUserId, children }: DashboardGateShel
         storeUrl={forceUpgrade.updateUrl}
         extensionInstallPrompt={extensionInstallPrompt}
       />
-      <DashboardShell vaultKeyId={user.vaultKeyId}>{children}</DashboardShell>
+      <DashboardShell
+        vaultKeyId={user.vaultKeyId}
+        storeUrl={forceUpgrade.updateUrl}
+        minVersion={forceUpgrade.minVersion}
+      >{children}</DashboardShell>
     </>
   );
 }

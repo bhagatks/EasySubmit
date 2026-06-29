@@ -42,8 +42,6 @@ const steps: AboutStep[] = [
     title: "Autofill with one click",
     description:
       "The Chrome extension fills any application form from your resume profile — no copy-pasting between tabs.",
-    href: EXTENSION_STORE_URL,
-    linkLabel: "Get the extension",
   },
 ];
 

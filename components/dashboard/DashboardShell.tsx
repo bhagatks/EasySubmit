@@ -30,7 +30,6 @@ import {
 } from "@/components/ui/sidebar";
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { NavbarProfileMenu } from "@/components/nav/NavbarProfileMenu";
-import { Button } from "@/components/ui/button";
 import { LogoIcon } from "@/components/ui/logo";
 import { BrandWordmark } from "@/components/ui/brand-wordmark";
 import {
@@ -60,6 +59,7 @@ import {
 } from "@/lib/dashboard/dashboard-header-controls";
 import { parseJobReviewStudioJobId } from "@/lib/job-tracker/review-screen-ui";
 import { DASHBOARD_TOPBAR_BORDER_CLASS, dashboardTopBarClassName } from "@/lib/dashboard/dashboard-header-chrome";
+import { ExtensionStatusButton } from "@/components/dashboard/ExtensionStatusButton";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -77,6 +77,8 @@ const navItems = [
 type DashboardShellProps = {
   children: React.ReactNode;
   vaultKeyId?: string | null;
+  storeUrl?: string;
+  minVersion?: string;
 };
 
 function DashboardSidebar({ vaultKeyId }: { vaultKeyId?: string | null }) {
@@ -134,18 +136,7 @@ function DashboardSidebar({ vaultKeyId }: { vaultKeyId?: string | null }) {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="group-data-[collapsible=icon]:hidden">
-        <div className="rounded-lg border border-border bg-surface p-3 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
-          <div className="flex items-center gap-2 text-foreground">
-            <Puzzle className="h-3.5 w-3.5 text-mint" />
-            <span className="font-medium">Install extension</span>
-          </div>
-          <p className="mt-1.5">Autofill any application in one click.</p>
-          <Button variant="mint" size="sm" className="mt-2 w-full" asChild>
-            <Link href="/dashboard/extension">Get it</Link>
-          </Button>
-        </div>
-      </SidebarFooter>
+      <SidebarFooter />
     </Sidebar>
   );
 }
@@ -154,7 +145,7 @@ type DashboardShellFrameProps = DashboardShellProps & {
   fromParam: string | null;
 };
 
-function DashboardShellFrame({ children, vaultKeyId, fromParam }: DashboardShellFrameProps) {
+function DashboardShellFrame({ children, vaultKeyId, storeUrl, minVersion, fromParam }: DashboardShellFrameProps) {
   const pathname = usePathname();
   const isReviewStudio = isJobReviewStudioScreen(pathname, fromParam);
   const reviewStudioJobId = isReviewStudio ? parseJobReviewStudioJobId(pathname) : null;
@@ -200,6 +191,7 @@ function DashboardShellFrame({ children, vaultKeyId, fromParam }: DashboardShell
                 <div />
               )}
               <div className="flex h-full items-center justify-end gap-2 justify-self-end">
+                <ExtensionStatusButton storeUrl={storeUrl} minVersion={minVersion} />
                 <DashboardHeaderExpandSlot />
                 <DashboardHeaderActionsSlot />
                 <div className="relative">
