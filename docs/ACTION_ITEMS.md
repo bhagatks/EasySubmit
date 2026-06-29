@@ -1,31 +1,28 @@
 # Action Items
 
-> **Production deploy:** intentionally **deferred** — continue local dev + extension work; revisit this section when ready to ship.
-
 ## Deploy to Vercel + Chrome Web Store
 
-**Master guides:** [`docs/DEPLOYMENT.md`](./DEPLOYMENT.md) (two-path overview) · [`docs/PROD_CUTOVER.md`](./PROD_CUTOVER.md) (first-time prod checklist)
+**Guides:** [`DEPLOYMENT.md`](./DEPLOYMENT.md) · [`DEPLOYMENT_TROUBLESHOOTING.md`](./DEPLOYMENT_TROUBLESHOOTING.md) · [`PROD_CUTOVER.md`](./PROD_CUTOVER.md)
 
 | Step | Status | Notes |
 |------|--------|-------|
 | Env injection refactor (`run easy`, no file swap) | **Done** | `docs/DEVELOPMENT_WORKFLOW.md` |
-| Extension CI workflow | **Done** | `.github/workflows/deploy.yml` — add `CHROME_*` + optional `EXTENSION_POSTHOG_KEY` in GitHub Secrets |
 | Web CI workflow (tests only) | **Done** | `.github/workflows/ci.yml` |
-| Connect GitHub repo to Vercel | Deferred | `bhagatks/EasySubmit` — native integration deploys web on `main` |
-| Set production env vars in Vercel | Deferred | See `.env.vercel.example` (Supabase `yofgnflcqajqsepbfdkc`) |
-| Set QA/preview env vars (optional) | Deferred | Vercel Preview: use dev Supabase vars from `.env.example` |
-| Set `NEXTAUTH_URL` to prod domain | Deferred | Must match deployed URL exactly |
-| **Google OAuth — prod client + redirect URIs** | **Todo** | Local client recreated Jun 2026 for localhost only; prod needs `https://<domain>/api/auth/callback/google` + Vercel `GOOGLE_*` — see [`PROD_CUTOVER.md`](./PROD_CUTOVER.md) §4, [`oauth-setup.md`](./oauth-setup.md) |
-| LinkedIn OAuth redirect URI (prod) | Verify | Re-check prod callback against live domain |
-| Run Prisma migrate on production DB | Blocked — P3009 | See `docs/MIGRATION_RECOVERY.md` — resolve before prod cutover |
-| Supabase Storage bucket `resumes` | **Cancelled** — PDFs on-demand only, never stored (see `APPLICATION_PROFILE.md`) | — |
-| Supabase Storage bucket `avatars` (public read) + `SUPABASE_SERVICE_ROLE_KEY` | Needed for prod avatar upload | Dev falls back to `public/avatars/`; see `lib/profile/avatar-storage.ts` |
-| **PostHog analytics — local dev** | **In progress** | A1 done — dev key in `.env.local` (project `488025`); complete A2–A7 in [`analytics-option-a.md`](./analytics-option-a.md) |
-| **PostHog analytics — Vercel prod** | **Todo** | Prod key (project `488042`) + §8 in [`PROD_CUTOVER.md`](./PROD_CUTOVER.md) |
-| **PostHog UI settings** (both projects) | **Todo** | Web autocapture on (UI + env); replay on; errors on; blocklist; masking |
+| Extension CI workflow (build + artifact) | **Done** | `.github/workflows/deploy.yml` — CWS publish manual until listing approved |
+| Vercel Production env vars | **Done** | Dashboard only — **do not re-sync on each deploy** |
+| `prisma.config.ts` / `DIRECT_URL` build fix | **Done** | No `directUrl` in config; migrate via `prisma-migrate-deploy.mjs` |
+| Prod web deploy (`www.easysubmit.ai`) | **Done** | Jun 2026 |
+| Connect GitHub repo to Vercel | **Verify** | Auto-deploy on `main` if linked |
+| **Google OAuth — prod redirect URIs** | **Verify** | Smoke test login at `https://www.easysubmit.ai/login` |
+| LinkedIn OAuth redirect URI (prod) | **Verify** | Re-check against live domain |
+| Run Prisma migrate on production DB | **Done** | Via Vercel build (`prisma-migrate-deploy.mjs`) |
+| Supabase Storage bucket `avatars` | **Verify** | `npm run prod:ensure-avatars-bucket` |
+| Chrome Web Store publish | **Blocked** | Listing under review — `publish_to_cws` after approval |
+| **PostHog analytics — Vercel prod** | **Verify** | Prod key (project `488042`) in Vercel |
+| **PostHog UI settings** (both projects) | **Todo** | Web autocapture on; replay on; errors on; blocklist; masking |
 | **PostHog dashboards** (optional) | **Todo** | `POSTHOG_PERSONAL_API_KEY=phx_… npm run analytics:setup` |
 
-## Post-deploy smoke test (when prod ships)
+## Post-deploy smoke test
 
 See also [`PROD_CUTOVER.md`](./PROD_CUTOVER.md) §7.
 

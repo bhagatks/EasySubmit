@@ -51,7 +51,7 @@ Local dev is separate: [DEVELOPMENT_WORKFLOW.md](./DEVELOPMENT_WORKFLOW.md) · e
 | Variable | Notes |
 |----------|--------|
 | `DATABASE_URL` | Transaction pooler `:6543?pgbouncer=true` (prod Supabase `yofgnflcqajqsepbfdkc`) |
-| `DIRECT_URL` | Session/direct host for `prisma migrate deploy` on build |
+| `DIRECT_URL` | Session pooler **`:5432`** for `prisma migrate deploy` on build — see `.env.vercel.example` |
 | `NEXTAUTH_URL` | `https://www.easysubmit.ai` |
 | `NEXTAUTH_SECRET` | Prod-only (`openssl rand -base64 32`) |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | **Prod** login OAuth (not local dev client) |
@@ -67,10 +67,12 @@ Never copy `.env.local` to Vercel — dev uses a different Supabase project.
 
 | Action | Result |
 |--------|--------|
-| Merge PR to `main` | Vercel Production deploy |
-| Manual from laptop | `run easy prod` or `npm run deploy:prod` |
+| Merge PR to `main` | Vercel Production deploy (no env changes) |
+| Manual from laptop | `run easy prod` or `npx vercel deploy --prod` |
 
-Migrations run **during Vercel build** via `prisma-migrate-deploy.mjs` (uses `DIRECT_URL`).
+Migrations run **during Vercel build** via `prisma-migrate-deploy.mjs` (uses `DIRECT_URL` from Vercel — not `directUrl` in `prisma.config.ts`).
+
+**Troubleshooting:** [`DEPLOYMENT_TROUBLESHOOTING.md`](./DEPLOYMENT_TROUBLESHOOTING.md) — build failures, env mistakes, emergency rollback.
 
 ### First prod checklist
 
@@ -155,11 +157,13 @@ cd dist/extension && zip -r ../../easysubmit-extension.zip .
 
 ## Optional: GitHub CI for web tests only
 
-Vercel deploys the web app; you can add a **test-only** workflow on PRs without duplicating deploy. Not required if Vercel’s own checks are enough.
+Workflow [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs vitest on PR/push. Placeholder `DATABASE_URL`/`DIRECT_URL` are **not** prod secrets.
 
 ---
 
 ## Related docs
+
+- [DEPLOYMENT_TROUBLESHOOTING.md](./DEPLOYMENT_TROUBLESHOOTING.md) — **start here if a deploy fails**
 
 - [ENV.md](./ENV.md) — env files and local vs prod variables
 - [DEVELOPMENT_WORKFLOW.md](./DEVELOPMENT_WORKFLOW.md) — local dev injection model

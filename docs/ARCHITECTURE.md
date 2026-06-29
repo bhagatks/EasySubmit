@@ -184,6 +184,7 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 
 | Date | Summary |
 |------|---------|
+| 2026-06-29 | **Prod deploy runbook** — `DEPLOYMENT_TROUBLESHOOTING.md`; Vercel-only prod env; `DIRECT_URL` session pooler for migrate; no `directUrl` in `prisma.config.ts`; GitHub CI placeholder DB URLs only. |
 | 2026-06-28 | **Onboarding manual resume path** — Import phase (`FuelPanel`) supports skip upload → Studio with Phase 1 identity prefilled via `coordinatesToRefineryForm`; analytics `onboarding_import_skipped`. |
 | 2026-06-28 | **BYOK health + trace accuracy** — `key_invalid` no longer fires when recent BYOK calls include successes; quota errors excluded from key-error health; `enhance:trace` reports partial success when resume enhanced but JD extract failed. |
 | 2026-06-28 | **Gemini model policy + 503 resilience** — JD extract defaults to `gemini-2.5-flash-lite`; resume `generateText` uses `gemini-2.5-flash` with jittered 503 backoff (5×, 2s–45s) and `flash-lite` fallback + prompt clip; system pool resume calls use `route.modelId` not slot model. |

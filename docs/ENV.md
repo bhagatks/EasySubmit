@@ -75,9 +75,9 @@ Fast deploy only (skip local pipeline): `npm run prod:deploy` (same as deploy st
 | Variable | Use |
 |----------|-----|
 | `DATABASE_URL` | Transaction pooler — app runtime |
-| `DIRECT_URL` | Direct host — `prisma migrate` only |
+| `DIRECT_URL` | Session pooler `:5432` — `prisma migrate deploy` on Vercel build only |
 
-See `prisma.config.ts` and [`DEVELOPMENT_WORKFLOW.md`](./DEVELOPMENT_WORKFLOW.md).
+`prisma.config.ts` sets `url` only. Migrations swap in `DIRECT_URL` in `scripts/prisma-migrate-deploy.mjs` (do **not** add `directUrl` to `prisma.config.ts` — breaks `next build` types).
 
 ## Admin / prod diagnostics
 
@@ -98,7 +98,13 @@ Login uses NextAuth (Google + LinkedIn). Required vars: `NEXTAUTH_URL`, `NEXTAUT
 
 ## Troubleshooting
 
+**Deploy failed?** Start with [`DEPLOYMENT_TROUBLESHOOTING.md`](./DEPLOYMENT_TROUBLESHOOTING.md).
+
 **`Application error` / `(EMAXCONNSESSION) max clients reached`:** Production `DATABASE_URL` must use Supabase **transaction** pooler (`:6543?pgbouncer=true`), not session `:5432`. Set in Vercel dashboard and redeploy.
+
+**Vercel build `P1001` on `:5432`:** Set `DIRECT_URL` to **session pooler** `:5432` (same region as `DATABASE_URL`), not `db.*.supabase.co` if unreachable. See `.env.vercel.example`.
+
+**`directUrl does not exist` in `prisma.config.ts`:** Do not add `directUrl` to `prisma.config.ts` — migrations use `DIRECT_URL` via `scripts/prisma-migrate-deploy.mjs`.
 
 **P1000 on local dev:** update `DATABASE_URL` in `.env.local`, run `npm run dev` again.
 

@@ -6,15 +6,15 @@
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { LOCAL_ENV_FILE, loadEnv, mergeEnv, prismaMigrateEnv } from "./env-lib.mjs";
+import { resolveMigrateEnv } from "./env-lib.mjs";
 
 const root = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
-const { vars } = loadEnv(LOCAL_ENV_FILE);
-const env = prismaMigrateEnv(mergeEnv(process.env, vars));
+const env = resolveMigrateEnv(process.env);
 
 const direct = env.DIRECT_URL?.trim();
 if (!direct) {
   console.error("❌ DIRECT_URL is required for prisma migrate deploy");
+  console.error("   Local: set in .env.local · Vercel: Production env in dashboard");
   process.exit(1);
 }
 

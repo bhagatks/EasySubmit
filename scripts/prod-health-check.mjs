@@ -39,7 +39,10 @@ async function queryDb(databaseUrl, sql, params = []) {
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {
-  console.error("❌ DATABASE_URL missing — run via npm run prod:health");
+  console.error("❌ DATABASE_URL missing after Vercel env pull.");
+  console.error("   → Vercel → Settings → Environment Variables → Production");
+  console.error("   → Confirm DATABASE_URL is set (Sensitive vars hide values; use Edit if empty).");
+  console.error("   → Run: npm run prod:health");
   process.exit(1);
 }
 

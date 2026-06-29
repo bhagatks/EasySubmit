@@ -1,5 +1,6 @@
 | Date | Item |
 |------|------|
+| 2026-06-29 | Prod deploy hardening — `prisma.config.ts` drops `directUrl` (Prisma 7 TS); `resolveMigrateEnv` prefers Vercel env on build; `docs/DEPLOYMENT_TROUBLESHOOTING.md`; `.env.vercel.example` session pooler `DIRECT_URL`; web live at `www.easysubmit.ai` |
 | 2026-06-28 | Env + deploy pipeline — command-specific injection (`scripts/run.mjs`, `env-lib.mjs`, `prisma-migrate-deploy.mjs`); no `.env` file swapping; `docs/DEVELOPMENT_WORKFLOW.md` + `docs/DEPLOYMENT.md`; Chrome extension CI `.github/workflows/deploy.yml` |
 | 2026-06-27 | Extension popup Part 2 — launcher UI + `GET_JOB_STATS` API + one-click toggle removed |
 | 2026-06-27 | JD AI observability — `callEnhanceObjectModel` writes `api_call_logs` (`ai.enhance.generate_object`); JD extract pre-checks system/customer quota; JD calls count toward `aiCallsToday`; `app_config.aiEngine.system.jdExtractionModelId` for system pool (BYOK keeps vaulted model) |

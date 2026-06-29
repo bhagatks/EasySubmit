@@ -1,0 +1,116 @@
+# Deployment troubleshooting
+
+Lessons from the June 2026 prod cutover. **Normal deploy = push to `main` only** — see [`DEPLOYMENT.md`](./DEPLOYMENT.md).
+
+---
+
+## Golden rules
+
+| Do | Don't |
+|----|--------|
+| Set prod secrets **once** in Vercel → Production | Re-sync or bulk-copy env vars on every deploy |
+| Push code to `main` (Vercel auto-builds) | Put `DATABASE_URL` / OAuth in GitHub Actions |
+| Keep dev secrets in `.env.local` only | Copy `.env.local` into Vercel |
+| Fix one env var in dashboard → redeploy | Run ad-hoc env sync scripts against prod |
+| Use GitHub CI for **tests** + extension build only | Expect CI to deploy the web app |
+
+---
+
+## Normal prod deploy (web)
+
+1. Merge / push to `main`
+2. Vercel runs `npm run vercel-build`:
+   - `prisma generate`
+   - `node scripts/prisma-migrate-deploy.mjs` (uses `DIRECT_URL`)
+   - `next build`
+3. Smoke test: https://www.easysubmit.ai/login
+
+**No env push step.** Vercel reuses Production variables already saved.
+
+Manual from laptop: `run easy prod` or `npx vercel deploy --prod`.
+
+---
+
+## Required Vercel Production variables
+
+Checklist: [`.env.vercel.example`](../.env.vercel.example). Minimum for a green build:
+
+| Variable | Notes |
+|----------|--------|
+| `DATABASE_URL` | Transaction pooler **`:6543`** + `?pgbouncer=true` |
+| `DIRECT_URL` | Session pooler **`:5432`** (same region/password as `DATABASE_URL`) |
+| `NEXTAUTH_URL` | `https://www.easysubmit.ai` (no trailing slash) |
+| `NEXTAUTH_SECRET` | Prod-only |
+| `GOOGLE_*` / `LINKEDIN_*` | **Prod** OAuth clients |
+| `NEXT_PUBLIC_SUPABASE_*` | Prod project `yofgnflcqajqsepbfdkc` |
+
+### `DIRECT_URL` (most common prod build failure)
+
+- **Used only at build time** by `scripts/prisma-migrate-deploy.mjs`
+- **Not** set in `prisma.config.ts` — Prisma 7 TypeScript types reject `directUrl` there and `next build` type-checks that file
+- **Recommended:** `aws-1-us-west-2.pooler.supabase.com:5432` (session pooler)
+- **Avoid for Vercel:** `db.yofgnflcqajqsepbfdkc.supabase.co:5432` if you see **P1001** (can't reach server)
+
+### Verifying vars in Vercel (Sensitive)
+
+Sensitive values are **hidden** after save. You cannot "view" them in the list.
+
+1. Search the variable name
+2. **⋯ → Edit** — confirm the field is not empty
+3. **⋯ → Copy to Clipboard** — paste locally to verify shape (never commit)
+4. "Added 50m ago" only means the row was **re-created** — not necessarily wrong
+
+---
+
+## Build errors
+
+| Error | Cause | Fix |
+|-------|--------|-----|
+| `directUrl does not exist` in `prisma.config.ts` | `directUrl` in `prisma.config.ts` | Remove it; migrations use `DIRECT_URL` via `prisma-migrate-deploy.mjs` |
+| `Cannot resolve environment variable: DATABASE_URL` (CI) | GitHub has no DB | CI uses placeholder URLs in `.github/workflows/ci.yml` — expected |
+| `P1001: Can't reach database server at …:5432` | Bad/unreachable `DIRECT_URL` | Set session pooler `:5432` in Vercel; redeploy |
+| `DIRECT_URL is required` | Missing in Vercel Production | Add per `.env.vercel.example` |
+| `P3009` / failed migration | Stuck `_prisma_migrations` | [`MIGRATION_RECOVERY.md`](./MIGRATION_RECOVERY.md) |
+| `npm run prod:health` → DATABASE_URL missing | Empty var in Vercel or pull failed | Edit `DATABASE_URL` in dashboard |
+
+---
+
+## GitHub Actions (not web deploy)
+
+| Workflow | Purpose |
+|----------|---------|
+| [`ci.yml`](../.github/workflows/ci.yml) | Vitest on PR/push — placeholder `DATABASE_URL`/`DIRECT_URL` for `prisma generate` only |
+| [`deploy.yml`](../.github/workflows/deploy.yml) | Extension: test → build → zip → optional CWS upload |
+
+**Chrome Web Store:** `publish_to_cws` is **off** on push while listing is under review. After approval: manual workflow + bump `extension/manifest.json` version.
+
+---
+
+## Emergency: site broken after bad deploy
+
+1. Vercel → **Deployments**
+2. Find last **Ready** production deploy
+3. **⋯ → Promote to Production**
+
+Then fix env or code without re-touching unrelated variables.
+
+---
+
+## Admin commands (optional)
+
+Read-only / diagnostics — **do not** bulk-write env:
+
+```bash
+npm run prod:health              # migrations + avatars check (Vercel env pull)
+npm run prod:ensure-avatars-bucket
+npm run env:whoami               # confirm local .env.local is dev, not prod
+```
+
+---
+
+## Related
+
+- [`DEPLOYMENT.md`](./DEPLOYMENT.md) — architecture + secrets map
+- [`ENV.md`](./ENV.md) — local vs prod files
+- [`PROD_CUTOVER.md`](./PROD_CUTOVER.md) — first-time checklist
+- [`MIGRATION_RECOVERY.md`](./MIGRATION_RECOVERY.md) — P3009

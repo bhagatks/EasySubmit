@@ -43,6 +43,13 @@ export function prismaMigrateEnv(env) {
   return { ...env, DATABASE_URL: direct };
 }
 
+/** Merge env for migrate deploy: Vercel dashboard wins; locally .env.local wins. */
+export function resolveMigrateEnv(baseEnv = process.env) {
+  const { vars } = loadEnv(LOCAL_ENV_FILE);
+  const merged = baseEnv.VERCEL ? mergeEnv(vars, baseEnv) : mergeEnv(baseEnv, vars);
+  return prismaMigrateEnv(merged);
+}
+
 export function runCommand(command, args, env, options = {}) {
   const result = spawnSync(command, args, {
     stdio: "inherit",

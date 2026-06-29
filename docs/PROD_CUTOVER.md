@@ -16,7 +16,7 @@ Prod Supabase project: **`yofgnflcqajqsepbfdkc`** (see `.env.vercel.example`).
 | Step | Status | Notes |
 |------|--------|-------|
 | **Unlock P3009 — mark init as applied** | **Do first** | Point `DATABASE_URL` at prod, then: `npx prisma migrate resolve --applied 20260618043606_init` — tables already exist, this just clears the stuck flag |
-| Apply remaining migrations | Pending | `npm run db:migrate` — if another migration fails with "already exists", mark it applied too and re-run |
+| Apply remaining migrations | **Done** | Via Vercel `vercel-build` + `prisma-migrate-deploy.mjs` |
 | Verify migration status | Pending | `npx prisma migrate status` must show **Database schema is up to date** |
 | Vault SQL functions (`vault_user_key`, etc.) | Verify | Re-apply `scripts/vault-functions-only.sql` if Ignition BYOK fails after migrate |
 | Pending migrations after local work | Check | `20260627120000_north_star_jd_skills_enhance_meta`, `20260627140000_extension_install_prompt_config` — confirm committed before deploy |
@@ -33,7 +33,7 @@ Prod Supabase project: **`yofgnflcqajqsepbfdkc`** (see `.env.vercel.example`).
 | Step | Status | Notes |
 |------|--------|-------|
 | Connect GitHub repo | Deferred | `bhagatks/EasySubmit` |
-| Production domain known | Pending | Needed for `NEXTAUTH_URL` and OAuth redirect URIs |
+| Production domain known | **Done** | `https://www.easysubmit.ai` |
 | `npm run build` passes | Done | Fix regressions before deploy |
 | `npm test` passes | Required | `run easy prod` runs tests first |
 

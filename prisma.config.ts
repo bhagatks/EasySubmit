@@ -6,9 +6,7 @@ dotenv.config({ path: ".env.local" });
 
 // Shell / Vercel / CI export wins over .env.local when already set.
 const shellDatabaseUrl = process.env.DATABASE_URL?.trim();
-const shellDirectUrl = process.env.DIRECT_URL?.trim();
 if (shellDatabaseUrl) process.env.DATABASE_URL = shellDatabaseUrl;
-if (shellDirectUrl) process.env.DIRECT_URL = shellDirectUrl;
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
