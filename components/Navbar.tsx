@@ -22,7 +22,7 @@ function isExternalUrl(href: string): boolean {
   return /^https?:\/\//i.test(href);
 }
 
-export function Navbar({ extensionStoreUrl = "/extension" }: NavbarProps) {
+export function Navbar({ extensionStoreUrl = "/install" }: NavbarProps) {
   const router = useRouter();
   const { status } = useSession();
   const isAuthenticated = status === "authenticated";
@@ -58,8 +58,11 @@ export function Navbar({ extensionStoreUrl = "/extension" }: NavbarProps) {
           <Link href="/pricing" className="transition hover:text-foreground">
             Pricing
           </Link>
-          <Link href="/extension" className="transition hover:text-foreground">
+          <Link href="/install" className="transition hover:text-foreground">
             Extension
+          </Link>
+          <Link href="/help" className="transition hover:text-foreground">
+            Help
           </Link>
         </nav>
 

@@ -124,7 +124,7 @@ function NextActionCard({ action }: { action: NextBestAction }) {
           Save your first job from the extension to start tracking and tailoring.
         </p>
         <Button variant="outline" size="sm" className="mt-3 rounded-xl" asChild>
-          <Link href="/extension">Get extension</Link>
+          <Link href="/install">Get extension</Link>
         </Button>
       </div>
     );

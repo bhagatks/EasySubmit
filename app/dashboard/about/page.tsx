@@ -42,7 +42,7 @@ const steps: AboutStep[] = [
     title: "Autofill with one click",
     description:
       "The Chrome extension fills any application form from your resume profile — no copy-pasting between tabs.",
-    href: "/extension",
+    href: "/install",
     linkLabel: "Get the extension",
   },
 ];
@@ -114,7 +114,7 @@ export default function AboutPage() {
             </p>
           </div>
           <Button variant="mint" size="sm" className="shrink-0 sm:min-w-[8.5rem]" asChild>
-            <Link href="/extension">Get the extension</Link>
+            <Link href="/install">Get the extension</Link>
           </Button>
         </div>
       </div>
@@ -124,13 +124,21 @@ export default function AboutPage() {
           Contact & support
         </h2>
         <p className="text-sm text-muted-foreground">
-          Questions, bugs, or feature ideas?{" "}
+          Browse guides in the{" "}
+          <Link
+            href="/help"
+            className="text-foreground underline underline-offset-2 transition-colors hover:text-mint"
+          >
+            Help Center
+          </Link>
+          {" "}or email{" "}
           <a
             href="mailto:support@easysubmit.ai"
             className="text-foreground underline underline-offset-2 transition-colors hover:text-mint"
           >
             support@easysubmit.ai
           </a>
+          .
         </p>
         <p className="text-sm text-muted-foreground">
           Manage your account, AI keys, and preferences in{" "}

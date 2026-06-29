@@ -257,7 +257,7 @@ export function JobTrackerWorkspace({ entries, autoArchiveAppliedJobs }: JobTrac
               posting. Use <strong>Review</strong> to open the Review Screen.
             </p>
             <Button variant="mint" className="mt-6" asChild>
-              <Link href="/extension">
+              <Link href="/install">
                 Add extension <ArrowUpRight className="h-4 w-4" />
               </Link>
             </Button>

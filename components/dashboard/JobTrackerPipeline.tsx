@@ -203,7 +203,7 @@ export function JobTrackerPipeline({
       {extensionHint ? (
         <p className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
           {extensionHint}{" "}
-          <Link href="/extension" className="font-semibold underline">
+          <Link href="/install" className="font-semibold underline">
             Get extension
           </Link>
         </p>

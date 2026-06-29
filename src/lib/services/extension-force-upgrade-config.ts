@@ -15,7 +15,7 @@ export type ExtensionForceUpgradeConfig = {
 export const EXTENSION_FORCE_UPGRADE_DEFAULTS: ExtensionForceUpgradeConfig = {
   enabled: false,
   minVersion: "0.2.6",
-  updateUrl: "/extension",
+  updateUrl: "/install",
   message:
     "Update the EasySubmit extension to continue. Open chrome://extensions and click Update, or reinstall from the Chrome Web Store.",
 };

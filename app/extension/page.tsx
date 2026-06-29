@@ -69,8 +69,10 @@ export default function ExtensionPage() {
               {PRICING_PAGE_COPY.subhead}
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Button variant="hero" size="xl">
-                <Download className="h-5 w-5" /> Add to Chrome — Free
+              <Button variant="hero" size="xl" asChild>
+                <a href="/install">
+                  <Download className="h-5 w-5" /> Add to Chrome — Free
+                </a>
               </Button>
               <Link href="/pricing">
                 <Button variant="outline" size="xl">

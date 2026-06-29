@@ -51,7 +51,7 @@ export function resolveExtensionForceUpgradeBanner(
   const message =
     config?.forceUpgradeMessage?.trim() ||
     "Update the EasySubmit extension to continue.";
-  const updateUrl = config?.forceUpgradeUpdateUrl?.trim() || "/extension";
+  const updateUrl = config?.forceUpgradeUpdateUrl?.trim() || "/install";
 
   return {
     message,

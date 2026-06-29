@@ -67,7 +67,7 @@ function Hero() {
                 Start for Free <ArrowRight className="h-5 w-5" />
               </Button>
             </Link>
-            <Link href="/extension">
+            <Link href="/install">
               <Button variant="outline" size="xl">
                 <Puzzle className="h-5 w-5" /> Get Chrome Extension
               </Button>
@@ -322,6 +322,7 @@ function Footer() {
           <span>{brandCopyright(new Date().getFullYear())}</span>
         </div>
         <div className="flex items-center gap-6">
+          <Link href="/help" className="hover:text-foreground">Help</Link>
           <Link href="/privacy" className="hover:text-foreground">Privacy</Link>
           <Link href="/terms" className="hover:text-foreground">Terms</Link>
           <a href="#" className="inline-flex items-center gap-1.5 hover:text-foreground">

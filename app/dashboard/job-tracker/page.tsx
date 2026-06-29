@@ -24,7 +24,7 @@ export default async function JobTrackerPage(_props: JobTrackerPageProps) {
       description="Track each role on a simple pipeline — Review Screen for details, Apply when your resume is ready."
       aside={
         <Button variant="outline" size="sm" asChild>
-          <Link href="/extension">
+          <Link href="/install">
             <Puzzle className="h-4 w-4" />
             Get extension
           </Link>
