@@ -9,7 +9,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/Navbar";
 import { ExtensionCardMock } from "@/components/marketing/ExtensionCardMock";
-import { BRAND, EXTENSION_STORE_URL } from "@/lib/brand";
+import { BRAND } from "@/lib/brand";
+import { getExtensionStoreUrl } from "@/lib/extension/force-upgrade-gate";
 import { PRICING_PAGE_COPY } from "@/lib/pricing/plan-display";
 
 export const metadata = {
@@ -50,10 +51,12 @@ const extensionFeatures = [
   },
 ] as const;
 
-export default function ExtensionPage() {
+export default async function ExtensionPage() {
+  const storeUrl = await getExtensionStoreUrl();
+
   return (
     <div className="min-h-screen bg-background font-sans text-foreground">
-      <Navbar />
+      <Navbar storeUrl={storeUrl} />
 
       <section className="relative flex min-h-[calc(100dvh-4rem)] items-center overflow-hidden bg-hero">
         <div className="bg-grid absolute inset-0 opacity-50" />
@@ -70,7 +73,7 @@ export default function ExtensionPage() {
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button variant="hero" size="xl" asChild>
-                <a href={EXTENSION_STORE_URL} target="_blank" rel="noopener noreferrer">
+                <a href={storeUrl} target="_blank" rel="noopener noreferrer">
                   <Download className="h-5 w-5" /> Add to Chrome — Free
                 </a>
               </Button>

@@ -1,3 +1,5 @@
+import { EXTENSION_STORE_URL } from "@/src/shared/brand";
+
 /** `app_config` row key for extension minimum-version enforcement. */
 export const EXTENSION_FORCE_UPGRADE_CONFIG_KEY = "forceUpgrade";
 
@@ -8,6 +10,8 @@ export type ExtensionForceUpgradeConfig = {
   minVersion: string;
   /** User-facing copy when update is required. */
   message: string;
+  /** Chrome Web Store URL — overridable from DB, falls back to EXTENSION_STORE_URL. */
+  updateUrl: string;
 };
 
 export const EXTENSION_FORCE_UPGRADE_DEFAULTS: ExtensionForceUpgradeConfig = {
@@ -15,6 +19,7 @@ export const EXTENSION_FORCE_UPGRADE_DEFAULTS: ExtensionForceUpgradeConfig = {
   minVersion: "0.2.6",
   message:
     "Update the EasySubmit extension to continue. Open chrome://extensions and click Update, or reinstall from the Chrome Web Store.",
+  updateUrl: EXTENSION_STORE_URL,
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -28,6 +33,11 @@ function parseSemver(value: unknown, fallback: string): string {
   return trimmed;
 }
 
+function parseUrl(value: unknown, fallback: string): string {
+  if (typeof value !== "string") return fallback;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : fallback;
+}
 
 function parseMessage(value: unknown, fallback: string): string {
   if (typeof value !== "string") return fallback;
@@ -47,5 +57,6 @@ export function parseExtensionForceUpgradeConfig(value: unknown): ExtensionForce
         : EXTENSION_FORCE_UPGRADE_DEFAULTS.enabled,
     minVersion: parseSemver(value.minVersion, EXTENSION_FORCE_UPGRADE_DEFAULTS.minVersion),
     message: parseMessage(value.message, EXTENSION_FORCE_UPGRADE_DEFAULTS.message),
+    updateUrl: parseUrl(value.updateUrl, EXTENSION_FORCE_UPGRADE_DEFAULTS.updateUrl),
   };
 }

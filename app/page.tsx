@@ -17,7 +17,8 @@ import { Button } from "@/components/ui/button";
 import { LogoIcon } from "@/components/ui/logo";
 import { Navbar } from "@/components/Navbar";
 import { PricingPlansSection } from "@/components/pricing/PricingPlansSection";
-import { BRAND, brandCopyright, EXTENSION_STORE_URL } from "@/lib/brand";
+import { BRAND, brandCopyright } from "@/lib/brand";
+import { getExtensionStoreUrl } from "@/lib/extension/force-upgrade-gate";
 import {
 
   PRICING_FAQ,
@@ -44,7 +45,7 @@ const featureList = [
   { icon: Zap, title: "Autofill any job application in one click" },
 ] as const;
 
-function Hero() {
+function Hero({ storeUrl }: { storeUrl: string }) {
   return (
     <section className="relative bg-hero">
       <div className="bg-grid absolute inset-0 opacity-60" />
@@ -66,7 +67,7 @@ function Hero() {
                 Start for Free <ArrowRight className="h-5 w-5" />
               </Button>
             </Link>
-            <a href={EXTENSION_STORE_URL} target="_blank" rel="noopener noreferrer">
+            <a href={storeUrl} target="_blank" rel="noopener noreferrer">
               <Button variant="outline" size="xl">
                 <Puzzle className="h-5 w-5" /> Get Chrome Extension
               </Button>
@@ -334,11 +335,13 @@ function Footer() {
 }
 
 export default async function LandingPage() {
+  const storeUrl = await getExtensionStoreUrl();
+
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">
-      <Navbar />
+      <Navbar storeUrl={storeUrl} />
       <main>
-        <Hero />
+        <Hero storeUrl={storeUrl} />
         <Features />
         <AtsBand />
         <ByokBand />

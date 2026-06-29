@@ -14,7 +14,13 @@ import { isExtensionConnectedForDashboard } from "@/lib/extension/extension-dash
 import { EXTENSION_STORE_URL } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 
-export function DashboardExtensionInstallPanel() {
+type DashboardExtensionInstallPanelProps = {
+  storeUrl?: string;
+};
+
+export function DashboardExtensionInstallPanel({
+  storeUrl = EXTENSION_STORE_URL,
+}: DashboardExtensionInstallPanelProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const welcomeAppliedRef = useRef(false);
@@ -79,7 +85,7 @@ export function DashboardExtensionInstallPanel() {
                   Works on Chrome, Edge, Brave, and Arc. Your account stays signed in after install.
                 </p>
                 <Button variant="hero" size="sm" className="rounded-xl" asChild>
-                  <a href={EXTENSION_STORE_URL} target="_blank" rel="noopener noreferrer">
+                  <a href={storeUrl} target="_blank" rel="noopener noreferrer">
                     <Download className="h-4 w-4" aria-hidden="true" />
                     Add to Chrome
                     <ExternalLink className="h-3.5 w-3.5 opacity-70" aria-hidden="true" />

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Navbar } from "@/components/Navbar";
 import { PricingPlansSection } from "@/components/pricing/PricingPlansSection";
 import { brandCopyright, BRAND } from "@/lib/brand";
+import { getExtensionStoreUrl } from "@/lib/extension/force-upgrade-gate";
 import { LogoIcon } from "@/components/ui/logo";
 import { PRICING_PAGE_COPY } from "@/lib/pricing/plan-display";
 
@@ -12,9 +13,11 @@ export const metadata = {
 
 
 export default async function PricingPage() {
+  const storeUrl = await getExtensionStoreUrl();
+
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">
-      <Navbar />
+      <Navbar storeUrl={storeUrl} />
       <main>
         <PricingPlansSection showFaq className="pt-10 md:pt-14" />
       </main>

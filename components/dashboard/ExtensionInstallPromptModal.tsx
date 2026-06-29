@@ -10,11 +10,13 @@ import { EXTENSION_STORE_URL } from "@/lib/brand";
 type ExtensionInstallPromptModalProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  storeUrl?: string;
 };
 
 export function ExtensionInstallPromptModal({
   open,
   onOpenChange,
+  storeUrl = EXTENSION_STORE_URL,
 }: ExtensionInstallPromptModalProps) {
   return (
     <GlossyModal
@@ -30,7 +32,7 @@ export function ExtensionInstallPromptModal({
             Skip for now
           </Button>
           <Button variant="mint" className="flex-1 rounded-xl" asChild>
-            <a href={EXTENSION_STORE_URL} target="_blank" rel="noopener noreferrer">
+            <a href={storeUrl} target="_blank" rel="noopener noreferrer">
               <Download className="h-4 w-4" aria-hidden="true" />
               Install extension
               <ExternalLink className="h-3.5 w-3.5 opacity-70" aria-hidden="true" />

@@ -15,7 +15,11 @@ import {
 } from "@/lib/dashboard/dashboard-header-chrome";
 import { EXTENSION_STORE_URL } from "@/lib/brand";
 
-export function Navbar() {
+type NavbarProps = {
+  storeUrl?: string;
+};
+
+export function Navbar({ storeUrl = EXTENSION_STORE_URL }: NavbarProps) {
   const router = useRouter();
   const { status } = useSession();
   const isAuthenticated = status === "authenticated";
@@ -47,7 +51,7 @@ export function Navbar() {
           <Link href="/pricing" className="transition hover:text-foreground">
             Pricing
           </Link>
-          <a href={EXTENSION_STORE_URL} target="_blank" rel="noopener noreferrer" className="transition hover:text-foreground">
+          <a href={storeUrl} target="_blank" rel="noopener noreferrer" className="transition hover:text-foreground">
             Extension
           </a>
           <Link href="/help" className="transition hover:text-foreground">
@@ -60,7 +64,7 @@ export function Navbar() {
             <>
               <Button variant="outline" size="lg" className="rounded-xl" asChild>
                 <a
-                  href={EXTENSION_STORE_URL}
+                  href={storeUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label="Add to Chrome"
