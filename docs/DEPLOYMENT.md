@@ -86,6 +86,7 @@ Workflow: [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml)
 
 - **Automatic:** push to `main` when paths change under `extension/**`, `src/shared/**`, or extension build scripts
 - **Manual:** GitHub → Actions → **Chrome Extension — Chrome Web Store** → Run workflow
+- **CWS upload:** off by default on push while the listing is under review. After approval, run the workflow manually and check **publish_to_cws**.
 
 ### Pipeline
 

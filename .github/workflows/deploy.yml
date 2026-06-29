@@ -3,6 +3,11 @@ name: Chrome Extension — Chrome Web Store
 
 on:
   workflow_dispatch:
+    inputs:
+      publish_to_cws:
+        description: Upload to Chrome Web Store (enable only after the listing is approved)
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths:
@@ -62,6 +67,7 @@ jobs:
           retention-days: 30
 
       - name: Publish to Chrome Web Store
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_to_cws == true
         uses: mnao305/chrome-extension-upload@v4.0.1
         with:
           file-path: easysubmit-extension.zip
@@ -69,5 +75,4 @@ jobs:
           client-id: ${{ secrets.CHROME_CLIENT_ID }}
           client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
           refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
-          # Set true when ready for automatic review submission
           publish: true
