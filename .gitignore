@@ -15,7 +15,9 @@ dist/
 *.pem
 .env
 .env*.local
+.env*.bak*
 .env.vercel.deploy.tmp
+easysubmit-extension.zip
 .easysubmit-mode
 public/avatars/*.webp
 
