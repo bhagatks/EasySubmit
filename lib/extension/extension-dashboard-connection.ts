@@ -1,5 +1,5 @@
 import { EXTENSION_MESSAGE } from "@/src/shared/extension/constants";
-import { readExtensionIdForDashboard } from "@/lib/extension/start-job-apply-from-dashboard";
+import { readExtensionIdForDashboard, clearExtensionIdForDashboard } from "@/lib/extension/start-job-apply-from-dashboard";
 
 const EXTENSION_PING_TIMEOUT_MS = 2_000;
 
@@ -27,7 +27,7 @@ function getChromeBridge(): ChromeBridge | undefined {
 function pingExtension(extensionId: string): Promise<ExtensionConnectionStatus> {
   const chromeBridge = getChromeBridge();
   if (!chromeBridge?.runtime?.sendMessage) {
-    return Promise.resolve({ state: "disconnected" });
+    return Promise.resolve({ state: "not-installed" });
   }
 
   return new Promise((resolve) => {
@@ -48,7 +48,8 @@ function pingExtension(extensionId: string): Promise<ExtensionConnectionStatus> 
       { action: EXTENSION_MESSAGE.PING },
       (response) => {
         if (chromeBridge.runtime?.lastError) {
-          finish({ state: "disconnected" });
+          clearExtensionIdForDashboard();
+          finish({ state: "not-installed" });
           return;
         }
         const r = response as { ready?: boolean; version?: string } | null;

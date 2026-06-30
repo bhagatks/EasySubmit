@@ -28,6 +28,14 @@ export function storeExtensionIdForDashboard(extensionId: string): void {
   }
 }
 
+export function clearExtensionIdForDashboard(): void {
+  try {
+    window.localStorage.removeItem(DASHBOARD_EXTENSION_ID_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 export function readExtensionIdForDashboard(): string | null {
   if (typeof window === "undefined") return null;
   try {

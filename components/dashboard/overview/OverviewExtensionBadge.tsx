@@ -20,10 +20,27 @@ export function OverviewExtensionBadge({ className }: OverviewExtensionBadgeProp
 
   useEffect(() => {
     let cancelled = false;
-    getExtensionConnectionStatus().then((s) => {
-      if (!cancelled) setStatus(s);
-    });
-    return () => { cancelled = true; };
+
+    const check = () => {
+      getExtensionConnectionStatus().then((s) => {
+        if (!cancelled) setStatus(s);
+      });
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") check();
+    };
+
+    check();
+    const interval = window.setInterval(check, 5_000);
+    window.addEventListener("focus", check);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", check);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, []);
 
   if (status === null) {
@@ -50,8 +67,8 @@ export function OverviewExtensionBadge({ className }: OverviewExtensionBadgeProp
     );
   }
 
-  const label = status.state === "not-installed" ? "Install Extension" : "Extension offline";
-  const href = status.state === "not-installed" ? EXTENSION_STORE_URL : "/extension/bridge";
+  const label = status.state === "not-installed" ? "Install extension" : "Extension offline";
+  const href = status.state === "not-installed" ? EXTENSION_STORE_URL : "/dashboard/extension";
   const isExternal = status.state === "not-installed";
 
   return (

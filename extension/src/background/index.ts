@@ -9,6 +9,8 @@ import {
   appOriginsMatch,
   buildDashboardUrl,
   expandAppOriginAliases,
+  isLocalApiBase,
+  preferAppOrigin,
   pickAppTabToReuse,
   type AppTabCandidate,
 } from "@shared/extension/open-dashboard";
@@ -29,11 +31,53 @@ function getExtensionVersion(): string {
   return chrome.runtime.getManifest().version;
 }
 
+async function findOpenAppOrigin(): Promise<string | null> {
+  const origins: string[] = [];
+  const patterns = [
+    "https://www.easysubmit.ai/*",
+    "https://easysubmit.ai/*",
+    "https://*.vercel.app/*",
+    "http://localhost:3000/*",
+    "http://127.0.0.1:3000/*",
+  ];
+
+  for (const pattern of patterns) {
+    try {
+      for (const tab of await chrome.tabs.query({ url: pattern })) {
+        const url = tab.url ?? tab.pendingUrl;
+        if (!url) continue;
+        origins.push(new URL(url).origin);
+      }
+    } catch {
+      // pattern not supported in some Chrome builds — skip
+    }
+  }
+
+  return preferAppOrigin(origins);
+}
+
 async function getApiBase(): Promise<string> {
   const stored = await chrome.storage.local.get(STORAGE_KEYS.apiBaseUrl);
-  const value = stored[STORAGE_KEYS.apiBaseUrl];
-  if (typeof value === "string" && value.startsWith("http")) {
-    return value.replace(/\/$/, "");
+  const storedValue =
+    typeof stored[STORAGE_KEYS.apiBaseUrl] === "string"
+      ? stored[STORAGE_KEYS.apiBaseUrl].replace(/\/$/, "")
+      : null;
+
+  const tabOrigin = await findOpenAppOrigin();
+  if (tabOrigin) {
+    if (!storedValue || isLocalApiBase(storedValue)) {
+      return tabOrigin;
+    }
+    if (appOriginsMatch(tabOrigin, storedValue)) {
+      return storedValue;
+    }
+    if (!isLocalApiBase(tabOrigin)) {
+      return tabOrigin;
+    }
+  }
+
+  if (storedValue?.startsWith("http")) {
+    return storedValue;
   }
   return DEFAULT_API_BASE;
 }
@@ -291,8 +335,11 @@ function registerContextMenus(): void {
   });
 }
 
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener((details) => {
   registerContextMenus();
+  if (details.reason === "install") {
+    void openLoginBridge();
+  }
 });
 
 registerContextMenus();
@@ -303,6 +350,11 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 });
 
 chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) => {
+  if (message?.action === EXTENSION_MESSAGE.PING) {
+    sendResponse({ ready: true, version: chrome.runtime.getManifest().version });
+    return true;
+  }
+
   if (message?.action === EXTENSION_MESSAGE.AUTH_TOKEN && typeof message.token === "string") {
     const updates: Record<string, string> = { [STORAGE_KEYS.authToken]: message.token };
     if (typeof message.apiBaseUrl === "string" && message.apiBaseUrl.startsWith("http")) {
