@@ -53,7 +53,8 @@ function isRealGooglePhoto(url?: string | null): boolean {
   try {
     const { hostname, pathname } = new URL(url);
     if (!hostname.includes("googleusercontent.com")) return true; // non-Google URLs are real uploads
-    return pathname.startsWith("/a-/"); // /a/ = generated default, /a-/ = user-uploaded
+    // /a/ and /a-/ are both real user profile photos; trust all googleusercontent URLs
+    return pathname.startsWith("/a/") || pathname.startsWith("/a-/");
   } catch {
     return false;
   }
