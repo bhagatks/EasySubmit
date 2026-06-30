@@ -69,6 +69,8 @@ function renderSecondaryEditButton(
 export type ProfileSetupScreen1Draft = {
   authorized: string;
   authorizedCountry: string;
+  citizenshipStatus: string;
+  visaType: string;
   requiresSponsorship: string;
   salaryMin: string;
   salaryMax: string;
@@ -80,6 +82,8 @@ export type ProfileSetupScreen2Draft = {
   gender: string;
   veteran: string;
   disability: string;
+  race: string;
+  hispanicLatino: string;
 };
 
 export type ProfileSetupScreen1ValidationIssue = {
@@ -138,18 +142,38 @@ export function profileSetupStyles(): string {
   return `
     .profile-setup-title { font-size: 14px; font-weight: 700; color: #1F2937; margin: 0 0 4px; }
     .profile-setup-skip {
-      display: inline-block; margin-bottom: 8px; font-size: 11px; font-weight: 600;
-      color: ${t.primary}; background: none; border: none; padding: 0; cursor: pointer;
+      display: inline-flex; align-items: center; font-size: 11px; font-weight: 600;
+      color: ${t.primary}; background: rgba(99,130,255,0.08); border: 1.5px solid ${t.primary};
+      border-radius: 999px; padding: 4px 12px; cursor: pointer; transition: background 0.15s;
+      white-space: nowrap;
     }
-    .profile-setup-skip:hover { text-decoration: underline; }
+    .profile-setup-skip:hover { background: rgba(99,130,255,0.16); text-decoration: none; }
+    .profile-setup-header {
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 4px;
+    }
+    .profile-setup-header-text { flex: 1; min-width: 0; }
     .profile-setup-note { font-size: 11px; color: #64748B; margin: 0 0 10px; line-height: 1.4; }
+    .profile-setup-wrap {
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 130px);
+      max-height: 460px;
+      padding: 12px 14px 0;
+      box-sizing: border-box;
+    }
+    .profile-setup-scroll {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+    }
     .profile-setup-actions {
-      position: sticky;
-      bottom: 0;
-      z-index: 2;
-      margin-top: 12px;
-      padding-top: 10px;
-      background: linear-gradient(to bottom, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.96) 28%);
+      flex-shrink: 0;
+      margin-top: 4px;
+      padding: 8px 0 14px;
+      background: linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,0.97) 22%);
     }
     .profile-setup-actions .cta { width: 100%; }
     .profile-setup-error {
@@ -236,6 +260,8 @@ export function defaultProfileSetupScreen1Draft(): ProfileSetupScreen1Draft {
   return {
     authorized: "yes",
     authorizedCountry: "US",
+    citizenshipStatus: "citizen",
+    visaType: "",
     requiresSponsorship: "no",
     salaryMin: String(PROFILE_SALARY_DEFAULT_MIN),
     salaryMax: String(PROFILE_SALARY_DEFAULT_MAX),
@@ -249,6 +275,8 @@ export function defaultProfileSetupScreen2Draft(): ProfileSetupScreen2Draft {
     gender: "prefer_not_to_say",
     veteran: "prefer_not_to_say",
     disability: "prefer_not_to_say",
+    race: "prefer_not_to_say",
+    hispanicLatino: "prefer_not_to_say",
   };
 }
 
@@ -265,6 +293,7 @@ export function renderProfileSetupScreen1(
   const maxPercent = salaryRangeToPercent(salaryRange.max);
 
   return `
+    <div class="profile-setup-wrap"><div class="profile-setup-scroll">
     <h2 class="profile-setup-title">Application profile</h2>
     <p class="profile-setup-note">One-time setup — your pipeline is already running in the background. Fields marked <span class="profile-required" aria-hidden="true">*</span> are required.</p>
     ${saveError ? `<p class="profile-setup-error" role="alert">${escapeHtml(saveError)}</p>` : ""}
@@ -281,6 +310,23 @@ export function renderProfileSetupScreen1(
         <label for="es-auth-country">${profileSetupRequiredLabel("Authorized country")}</label>
         <input id="es-auth-country" data-profile-country="1" type="text" value="${escapeHtml(draft.authorizedCountry)}" />
         ${profileSetupFieldError("authorizedCountry", invalidFields, validationIssues, escapeHtml)}
+      </div>
+      <div class="capture-field">
+        <label for="es-citizenship">Authorization type</label>
+        <select id="es-citizenship" data-profile-citizenship="1">
+          <option value="citizen"${draft.citizenshipStatus === "citizen" ? " selected" : ""}>US Citizen</option>
+          <option value="green_card"${draft.citizenshipStatus === "green_card" ? " selected" : ""}>Permanent Resident (Green Card)</option>
+          <option value="ead"${draft.citizenshipStatus === "ead" ? " selected" : ""}>EAD (work permit)</option>
+          <option value="h1b"${draft.citizenshipStatus === "h1b" ? " selected" : ""}>H-1B</option>
+          <option value="opt"${draft.citizenshipStatus === "opt" ? " selected" : ""}>OPT</option>
+          <option value="cpt"${draft.citizenshipStatus === "cpt" ? " selected" : ""}>CPT</option>
+          <option value="tn"${draft.citizenshipStatus === "tn" ? " selected" : ""}>TN Visa</option>
+          <option value="other"${draft.citizenshipStatus === "other" ? " selected" : ""}>Other</option>
+        </select>
+      </div>
+      <div class="capture-field" id="es-visa-type-field" style="${["citizen","green_card"].includes(draft.citizenshipStatus) ? "display:none" : ""}">
+        <label for="es-visa-type">Visa type <span style="font-weight:400;color:#64748B">(optional)</span></label>
+        <input id="es-visa-type" type="text" placeholder="e.g. H-1B, OPT, EAD" data-profile-visa-type="1" value="${escapeHtml(draft.visaType)}" />
       </div>
       <div class="${profileSetupFieldClass("requiresSponsorship", invalidFields)}">
         <label for="es-sponsorship">${profileSetupRequiredLabel("Visa sponsorship needed?")}</label>
@@ -342,9 +388,11 @@ export function renderProfileSetupScreen1(
         ${profileSetupFieldError("workMode", invalidFields, validationIssues, escapeHtml)}
       </div>
     </div>
+    </div><!-- /profile-setup-scroll -->
     <div class="profile-setup-actions">
       <button type="button" class="cta cta-primary" data-profile-continue="1"${continueBusy ? " disabled" : ""}>${continueBusy ? "Saving…" : "Continue"}</button>
     </div>
+    </div><!-- /profile-setup-wrap -->
   `;
 }
 
@@ -459,9 +507,14 @@ export function renderProfileSetupScreen2(
     current === value ? " selected" : "";
 
   return `
-    <button type="button" class="profile-setup-skip" data-profile-skip-all="1">Skip all →</button>
-    <h2 class="profile-setup-title">Optional details</h2>
-    <p class="profile-setup-note">EEO fields are optional — skip anytime.</p>
+    <div class="profile-setup-wrap"><div class="profile-setup-scroll">
+    <div class="profile-setup-header">
+      <div class="profile-setup-header-text">
+        <h2 class="profile-setup-title">Optional details</h2>
+        <p class="profile-setup-note">EEO fields are optional — skip anytime.</p>
+      </div>
+      <button type="button" class="profile-setup-skip" data-profile-skip-all="1">Skip all →</button>
+    </div>
     <div class="capture-form">
       <div class="capture-field">
         <label for="es-gender">Gender identity</label>
@@ -488,10 +541,33 @@ export function renderProfileSetupScreen2(
           <option value="yes"${preferOption("yes", draft.disability)}>Yes</option>
         </select>
       </div>
+      <div class="capture-field">
+        <label for="es-race">Race / ethnicity</label>
+        <select id="es-race" data-profile-race="1">
+          <option value="prefer_not_to_say"${preferOption("prefer_not_to_say", draft.race)}>Prefer not to say</option>
+          <option value="asian"${preferOption("asian", draft.race)}>Asian</option>
+          <option value="black"${preferOption("black", draft.race)}>Black or African American</option>
+          <option value="hispanic"${preferOption("hispanic", draft.race)}>Hispanic or Latino</option>
+          <option value="native_american"${preferOption("native_american", draft.race)}>Native American or Alaska Native</option>
+          <option value="pacific_islander"${preferOption("pacific_islander", draft.race)}>Native Hawaiian or Pacific Islander</option>
+          <option value="white"${preferOption("white", draft.race)}>White</option>
+          <option value="two_or_more"${preferOption("two_or_more", draft.race)}>Two or more races</option>
+        </select>
+      </div>
+      <div class="capture-field">
+        <label for="es-hispanic">Hispanic or Latino?</label>
+        <select id="es-hispanic" data-profile-hispanic="1">
+          <option value="prefer_not_to_say"${preferOption("prefer_not_to_say", draft.hispanicLatino)}>Prefer not to say</option>
+          <option value="no"${preferOption("no", draft.hispanicLatino)}>No</option>
+          <option value="yes"${preferOption("yes", draft.hispanicLatino)}>Yes</option>
+        </select>
+      </div>
     </div>
+    </div><!-- /profile-setup-scroll -->
     <div class="profile-setup-actions">
-      <button type="button" class="cta cta-primary" data-profile-finish="1">Finish setup</button>
+      <button type="button" class="cta cta-primary" data-profile-finish="1">Next →</button>
     </div>
+    </div><!-- /profile-setup-wrap -->
   `;
 }
 
@@ -499,6 +575,10 @@ export function readProfileSetupScreen1FromDom(root: ParentNode): ProfileSetupSc
   const authorized = (root.querySelector("[data-profile-authorized]") as HTMLSelectElement | null)?.value ?? "yes";
   const authorizedCountry =
     (root.querySelector("[data-profile-country]") as HTMLInputElement | null)?.value.trim() ?? "";
+  const citizenshipStatus =
+    (root.querySelector("[data-profile-citizenship]") as HTMLSelectElement | null)?.value ?? "citizen";
+  const visaType =
+    (root.querySelector("[data-profile-visa-type]") as HTMLInputElement | null)?.value.trim() ?? "";
   const requiresSponsorship =
     (root.querySelector("[data-profile-sponsorship]") as HTMLSelectElement | null)?.value ?? "no";
   const salaryMin = (root.querySelector("[data-profile-salary-min]") as HTMLInputElement | null)?.value ?? "";
@@ -510,6 +590,8 @@ export function readProfileSetupScreen1FromDom(root: ParentNode): ProfileSetupSc
   return {
     authorized,
     authorizedCountry,
+    citizenshipStatus,
+    visaType,
     requiresSponsorship,
     salaryMin: String(salaryRange.min),
     salaryMax: String(salaryRange.max),
@@ -535,11 +617,190 @@ export function bindProfileSetupActionButton(
 }
 
 export function readProfileSetupScreen2FromDom(root: ParentNode): ProfileSetupScreen2Draft {
+  const sel = (attr: string) =>
+    (root.querySelector(attr) as HTMLSelectElement | null)?.value ?? "prefer_not_to_say";
   return {
-    gender: (root.querySelector("[data-profile-gender]") as HTMLSelectElement | null)?.value ?? "prefer_not_to_say",
-    veteran: (root.querySelector("[data-profile-veteran]") as HTMLSelectElement | null)?.value ?? "prefer_not_to_say",
-    disability:
-      (root.querySelector("[data-profile-disability]") as HTMLSelectElement | null)?.value ?? "prefer_not_to_say",
+    gender: sel("[data-profile-gender]"),
+    veteran: sel("[data-profile-veteran]"),
+    disability: sel("[data-profile-disability]"),
+    race: sel("[data-profile-race]"),
+    hispanicLatino: sel("[data-profile-hispanic]"),
+  };
+}
+
+export type ProfileSetupScreen3Draft = {
+  preferredName: string;
+  pronouns: string;
+  githubUrl: string;
+  portfolioUrl: string;
+  noticePeriod: string;
+  desiredJobType: string;
+  willingToRelocate: string;
+  travelTolerance: string;
+  highestDegree: string;
+  fieldOfStudy: string;
+  schoolName: string;
+  graduationYear: string;
+  gpa: string;
+};
+
+export function defaultProfileSetupScreen3Draft(): ProfileSetupScreen3Draft {
+  return {
+    preferredName: "",
+    pronouns: "",
+    githubUrl: "",
+    portfolioUrl: "",
+    noticePeriod: "",
+    desiredJobType: "full_time",
+    willingToRelocate: "",
+    travelTolerance: "none",
+    highestDegree: "",
+    fieldOfStudy: "",
+    schoolName: "",
+    graduationYear: "",
+    gpa: "",
+  };
+}
+
+export function renderProfileSetupScreen3(
+  draft: ProfileSetupScreen3Draft,
+  escapeHtml: (value: string) => string,
+): string {
+  const sel = (attr: string, value: string) =>
+    draft[attr as keyof ProfileSetupScreen3Draft] === value ? " selected" : "";
+
+  return `
+    <div class="profile-setup-wrap"><div class="profile-setup-scroll">
+    <div class="profile-setup-header">
+      <div class="profile-setup-header-text">
+        <h2 class="profile-setup-title">A few more details</h2>
+        <p class="profile-setup-note">These help fill even more fields automatically. Skip anything you'd rather not share.</p>
+      </div>
+      <button type="button" class="profile-setup-skip" data-profile-skip-screen3="1">Skip all →</button>
+    </div>
+    <div class="capture-form">
+
+      <div class="capture-field">
+        <label for="es-preferred-name">Preferred name / nickname</label>
+        <input id="es-preferred-name" type="text" placeholder="e.g. Alex" data-profile-preferred-name="1" value="${escapeHtml(draft.preferredName)}" />
+      </div>
+
+      <div class="capture-field">
+        <label for="es-pronouns">Pronouns</label>
+        <input id="es-pronouns" type="text" placeholder="e.g. she/her" data-profile-pronouns="1" value="${escapeHtml(draft.pronouns)}" />
+      </div>
+
+      <div class="capture-field">
+        <label for="es-github">GitHub URL</label>
+        <input id="es-github" type="url" placeholder="https://github.com/username" data-profile-github="1" value="${escapeHtml(draft.githubUrl)}" />
+      </div>
+
+      <div class="capture-field">
+        <label for="es-portfolio">Portfolio / website URL</label>
+        <input id="es-portfolio" type="url" placeholder="https://yoursite.com" data-profile-portfolio="1" value="${escapeHtml(draft.portfolioUrl)}" />
+      </div>
+
+      <div class="capture-field">
+        <label for="es-notice-period">Notice period</label>
+        <select id="es-notice-period" data-profile-notice-period="1">
+          <option value="">— skip —</option>
+          <option value="immediate"${sel("noticePeriod", "immediate")}>Immediately available</option>
+          <option value="2_weeks"${sel("noticePeriod", "2_weeks")}>2 weeks</option>
+          <option value="1_month"${sel("noticePeriod", "1_month")}>1 month</option>
+          <option value="2_months"${sel("noticePeriod", "2_months")}>2 months</option>
+          <option value="flexible"${sel("noticePeriod", "flexible")}>Flexible</option>
+        </select>
+      </div>
+
+      <div class="capture-field">
+        <label for="es-job-type">Job type preference</label>
+        <select id="es-job-type" data-profile-job-type="1">
+          <option value="full_time"${sel("desiredJobType", "full_time")}>Full-time</option>
+          <option value="part_time"${sel("desiredJobType", "part_time")}>Part-time</option>
+          <option value="contract"${sel("desiredJobType", "contract")}>Contract</option>
+          <option value="flexible"${sel("desiredJobType", "flexible")}>Open to any</option>
+        </select>
+      </div>
+
+      <div class="capture-field">
+        <label for="es-relocate">Willing to relocate?</label>
+        <select id="es-relocate" data-profile-relocate="1">
+          <option value="">— skip —</option>
+          <option value="yes"${sel("willingToRelocate", "yes")}>Yes</option>
+          <option value="no"${sel("willingToRelocate", "no")}>No</option>
+        </select>
+      </div>
+
+      <div class="capture-field">
+        <label for="es-travel">Willingness to travel</label>
+        <select id="es-travel" data-profile-travel="1">
+          <option value="none"${sel("travelTolerance", "none")}>No travel</option>
+          <option value="25pct"${sel("travelTolerance", "25pct")}>Up to 25%</option>
+          <option value="50pct"${sel("travelTolerance", "50pct")}>Up to 50%</option>
+          <option value="75pct"${sel("travelTolerance", "75pct")}>Up to 75%</option>
+          <option value="any"${sel("travelTolerance", "any")}>Any amount</option>
+        </select>
+      </div>
+
+      <div class="capture-field">
+        <label for="es-degree">Highest degree</label>
+        <select id="es-degree" data-profile-degree="1">
+          <option value="">— skip —</option>
+          <option value="high_school"${sel("highestDegree", "high_school")}>High School / GED</option>
+          <option value="associate"${sel("highestDegree", "associate")}>Associate's</option>
+          <option value="bachelor"${sel("highestDegree", "bachelor")}>Bachelor's</option>
+          <option value="master"${sel("highestDegree", "master")}>Master's</option>
+          <option value="phd"${sel("highestDegree", "phd")}>PhD / Doctorate</option>
+          <option value="other"${sel("highestDegree", "other")}>Other</option>
+        </select>
+      </div>
+
+      <div class="capture-field">
+        <label for="es-study">Field of study / major</label>
+        <input id="es-study" type="text" placeholder="e.g. Computer Science" data-profile-study="1" value="${escapeHtml(draft.fieldOfStudy)}" />
+      </div>
+
+      <div class="capture-field">
+        <label for="es-school">School / university</label>
+        <input id="es-school" type="text" placeholder="e.g. University of Texas" data-profile-school="1" value="${escapeHtml(draft.schoolName)}" />
+      </div>
+
+      <div class="capture-field">
+        <label for="es-grad-year">Graduation year</label>
+        <input id="es-grad-year" type="text" inputmode="numeric" placeholder="e.g. 2022" data-profile-grad-year="1" value="${escapeHtml(draft.graduationYear)}" />
+      </div>
+
+      <div class="capture-field">
+        <label for="es-gpa">GPA <span style="font-weight:400;color:#64748B">(optional)</span></label>
+        <input id="es-gpa" type="text" inputmode="decimal" placeholder="e.g. 3.8" data-profile-gpa="1" value="${escapeHtml(draft.gpa)}" />
+      </div>
+
+    </div>
+    </div><!-- /profile-setup-scroll -->
+    <div class="profile-setup-actions">
+      <button type="button" class="cta cta-primary" data-profile-done="1">Done</button>
+    </div>
+    </div><!-- /profile-setup-wrap -->
+  `;
+}
+
+export function readProfileSetupScreen3FromDom(root: ParentNode): ProfileSetupScreen3Draft {
+  const v = (sel: string) =>
+    (root.querySelector(sel) as HTMLInputElement | HTMLSelectElement | null)?.value?.trim() ?? "";
+  return {
+    preferredName: v("[data-profile-preferred-name]"),
+    pronouns: v("[data-profile-pronouns]"),
+    githubUrl: v("[data-profile-github]"),
+    portfolioUrl: v("[data-profile-portfolio]"),
+    noticePeriod: v("[data-profile-notice-period]"),
+    desiredJobType: v("[data-profile-job-type]") || "full_time",
+    willingToRelocate: v("[data-profile-relocate]"),
+    travelTolerance: v("[data-profile-travel]") || "none",
+    highestDegree: v("[data-profile-degree]"),
+    fieldOfStudy: v("[data-profile-study]"),
+    schoolName: v("[data-profile-school]"),
+    graduationYear: v("[data-profile-grad-year]"),
+    gpa: v("[data-profile-gpa]"),
   };
 }
 
@@ -590,6 +851,7 @@ export function manualCaptureStyles(): string {
       color: ${t.primaryMuted};
     }
     .keyword-gap-row {
+      display: none;
       margin: 8px 0 0;
       padding: 8px 10px;
       border-radius: 10px;
@@ -1077,16 +1339,7 @@ export function renderSummaryCardBody(input: SummaryCardInput): string {
     .filter(Boolean)
     .join("");
 
-  const gap = input.keywordGap;
-  const keywordGapMarkup =
-    gap && gap.topMissing.length > 0
-      ? `<div class="keyword-gap-row">
-           <p class="keyword-gap-label">Missing keywords</p>
-           <div class="keyword-gap-chips">
-             ${gap.topMissing.map((kw) => `<span class="keyword-gap-chip">${input.escapeHtml(kw)}</span>`).join("")}
-           </div>
-         </div>`
-      : "";
+  const keywordGapMarkup = "";
 
   const heroBlock = `
     <div class="card-hero">

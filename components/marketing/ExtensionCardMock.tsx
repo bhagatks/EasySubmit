@@ -190,12 +190,12 @@ function ExtensionCardPanel({ size = "default" }: ExtensionCardPanelProps) {
 }
 
 /** Hero mock — full-column extension card (matches prior browser-window demo footprint). */
-export function ExtensionCardMock() {
+export function ExtensionCardMock({ size = "hero" }: { size?: "default" | "hero" }) {
   return (
     <div className="relative w-full">
       <div className="absolute -inset-6 rounded-3xl bg-gradient-to-br from-primary/30 to-mint/20 blur-3xl" />
       <div className="relative">
-        <ExtensionCardPanel size="hero" />
+        <ExtensionCardPanel size={size} />
       </div>
     </div>
   );

@@ -2167,23 +2167,11 @@ function renderExpandedCard(root: ShadowRoot): void {
             ${forceUpgradeBanner ? "" : renderReconnectBannerMarkup(reconnectBanner)}
             ${forceUpgradeBanner || reconnectBanner ? "" : renderAiHealthBannerMarkup(aiHealthBanner)}
             <div class="${bodyClass}">${bodyMarkup}</div>
-            <div style="padding:8px 12px 10px;border-top:1px solid #e2e8f0">
-              <button type="button" data-test-profile-setup="1" style="width:100%;padding:6px 0;background:#f59e0b;color:#000;font-size:11px;font-weight:700;border:none;border-radius:6px;cursor:pointer;letter-spacing:0.04em">TEST — Open profile setup</button>
-            </div>
           </div>
         </div>
       </div>
     </div>
   `;
-
-  root.querySelector("[data-test-profile-setup]")?.addEventListener("click", () => {
-    profileSetupScreen = 0;
-    profileSetupSaveError = null;
-    profileSetupScreen1ValidationIssues = [];
-    cardCollapsed = false;
-    openApplicationProfileSetupScreen();
-    if (cardHost) renderCard(cardHost.shadow);
-  });
 
   root.querySelector("[data-save]")?.addEventListener("click", () => {
     void onPrimaryClick();
