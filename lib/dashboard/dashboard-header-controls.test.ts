@@ -63,7 +63,7 @@ describe("dashboard-header-controls", () => {
   });
 
   it("resolves workspace header labels from pathname", () => {
-    expect(getDashboardHeaderLabel("/dashboard", false)).toBe("Dashboard");
+    expect(getDashboardHeaderLabel("/dashboard", false)).toBe("Overview");
     expect(getDashboardHeaderLabel("/dashboard/about", false)).toBe("About");
     expect(getDashboardHeaderLabel("/dashboard/ats-guidelines", false)).toBe("ATS Guidelines");
     expect(getDashboardHeaderLabel("/dashboard/settings", false)).toBe("Settings");

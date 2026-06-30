@@ -30,6 +30,19 @@ export function mergeEnv(baseEnv, injected) {
   return merged;
 }
 
+/** Append --max-old-space-size when missing (?? alone skips if NODE_OPTIONS is already set). */
+export function withNodeMemoryLimit(env, megabytes = 8192) {
+  const flag = `--max-old-space-size=${megabytes}`;
+  const existing = env.NODE_OPTIONS?.trim() ?? "";
+  if (existing.includes("max-old-space-size")) {
+    return { ...env, NODE_OPTIONS: existing };
+  }
+  return {
+    ...env,
+    NODE_OPTIONS: existing ? `${existing} ${flag}` : flag,
+  };
+}
+
 /** True when DATABASE_URL points at the production Supabase project. */
 export function isProdDB(databaseUrl) {
   if (!databaseUrl) return false;

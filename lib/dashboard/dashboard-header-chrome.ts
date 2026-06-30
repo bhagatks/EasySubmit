@@ -1,4 +1,7 @@
 import { cn } from "@/lib/utils";
+import { BRAND_COLORS } from "@/src/shared/brand-colors";
+
+const primaryOklch = BRAND_COLORS.primary.oklch;
 
 /** Fixed top chrome height — sidebar brand row and workspace header must match. */
 export const DASHBOARD_TOPBAR_HEIGHT_CLASS = "h-14";
@@ -11,7 +14,7 @@ export function dashboardTopBarClassName(className?: string): string {
 
 /** Shared height/padding for dashboard header actions (Save, BYOK, sign out). */
 export const dashboardHeaderControlClassName =
-  "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition-all duration-300";
+  "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-3 text-xs font-semibold transition-all duration-300";
 
 export const dashboardHeaderMintPillStyle = {
   color: "oklch(0.82 0.16 165)",
@@ -41,4 +44,15 @@ export const dashboardHeaderNeutralPillStyle = {
 
 export function dashboardHeaderNeutralPillClassName(className?: string): string {
   return cn(dashboardHeaderControlClassName, "border hover:brightness-110", className);
+}
+
+/** Engine-glow CTA — Open Job Tracker and other primary header links. */
+export const dashboardHeaderPrimaryPillStyle = {
+  color: primaryOklch,
+  borderColor: "oklch(0.62 0.21 265 / 0.5)",
+  backgroundColor: "oklch(0.62 0.21 265 / 0.08)",
+} as const;
+
+export function dashboardHeaderPrimaryPillClassName(className?: string): string {
+  return cn(dashboardHeaderControlClassName, "border border-solid hover:brightness-110", className);
 }

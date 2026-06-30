@@ -49,7 +49,7 @@ export function PipelineBar({ status, className }: PipelineBarProps) {
                   ? "border-mint/40 bg-mint/25"
                   : isCurrent
                     ? "border-primary/50 bg-primary/30 animate-pipe-glow"
-                    : "border-border/60 bg-muted/25",
+                    : "border-primary/35 bg-primary/5",
               )}
               title={fullLabel}
             />
@@ -59,8 +59,11 @@ export function PipelineBar({ status, className }: PipelineBarProps) {
       <div className="grid grid-cols-4 gap-1 text-[9px] leading-tight text-muted-foreground sm:text-[10px]">
         {PIPELINE_STEPS.map((step, index) => {
           const stepNumber = index + 1;
+          const isComplete =
+            progress.isComplete || stepNumber <= progress.filledThrough;
           const isCurrent =
             !progress.isComplete && progress.currentIndex === stepNumber;
+          const isPending = !isComplete && !isCurrent;
           const fullLabel =
             isCurrent && activeLabel ? activeLabel : step.label;
           const activeBarLabel = pipelineActiveBarSegmentLabel(status);
@@ -76,6 +79,7 @@ export function PipelineBar({ status, className }: PipelineBarProps) {
                 index === lastStepIndex && "text-right",
                 index > 0 && index < lastStepIndex && "text-center",
                 isCurrent && "font-medium text-primary",
+                isPending && "text-primary/45",
               )}
               title={fullLabel}
             >

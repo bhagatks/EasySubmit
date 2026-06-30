@@ -184,6 +184,11 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 
 | Date | Summary |
 |------|---------|
+| 2026-06-30 | **Job Tracker row chrome** — fixed action slots (`tracker-row-chrome.ts`), stall detection + Retry optimize, tailor crash → `pipelineError`; Extension sidebar hidden when connected. |
+| 2026-06-29 | **Dashboard Overview** — `/dashboard` pipeline strip + ranked action queue + weekly progress rail (`lib/dashboard/overview-stats.ts`, `components/dashboard/overview/`). |
+| 2026-06-29 | **Help Center** — public `/help` with search, 7 topic categories, and article pages (`lib/help/`); linked from marketing nav and footer. |
+| 2026-06-29 | **Prod PostHog** — `getAnalyticsConfig` uses static `process.env.NEXT_PUBLIC_*` (Next.js client inlining); `scripts/validate-analytics-env.mjs` fails Vercel prod builds when key missing; `prod:repair-analytics` / `prod:verify-posthog`; deploy uses `--force`. |
+| 2026-06-29 | **`run easy` / `run easy prod` pipelines** — numbered steps, `--fast` variants, extension build only on local dev; prod deploy uses prisma validate + Vercel CLI; see `docs/DEVELOPMENT_WORKFLOW.md`. |
 | 2026-06-29 | **Prod deploy runbook** — `DEPLOYMENT_TROUBLESHOOTING.md`; Vercel-only prod env; `DIRECT_URL` session pooler for migrate; no `directUrl` in `prisma.config.ts`; GitHub CI placeholder DB URLs only. |
 | 2026-06-28 | **Onboarding manual resume path** — Import phase (`FuelPanel`) supports skip upload → Studio with Phase 1 identity prefilled via `coordinatesToRefineryForm`; analytics `onboarding_import_skipped`. |
 | 2026-06-28 | **BYOK health + trace accuracy** — `key_invalid` no longer fires when recent BYOK calls include successes; quota errors excluded from key-error health; `enhance:trace` reports partial success when resume enhanced but JD extract failed. |
@@ -213,7 +218,7 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 | 2026-06-27 | Extension install prompt config — `app_config.extensionInstallPrompt` trigger flags (`dashboardVisit`, `tabFocusReturn`, `periodicRefresh`, all default `false`); `DashboardSetupPrompts` + session dismiss on Skip; `?setup=1` always → tutorials; logic in `lib/dashboard/extension-install-prompt-triggers.ts` |
 | 2026-06-27 | PostHog mirrors every `api_call_logs` row as `api_call_logged`; extension emits `ui_interaction` on card clicks — see `docs/analytics-option-a.md` |
 | 2026-06-28 | Two-path production deploy — Vercel (web) + GitHub Actions `deploy.yml` (Chrome Web Store); see `docs/DEPLOYMENT.md` |
-| 2026-06-27 | `run easy` / `run easy prod` — shared pipeline adds `npm test`, `build:extension`, `npm run posthog:journey` (non-blocking); see `docs/ENV.md` |
+| 2026-06-27 | `run easy` / `run easy prod` — `npm test` + extension dev build on local dev; prod via Vercel `vercel-build`; see `docs/ENV.md` |
 | 2026-06-27 | Dev-only resume journey observability — `resume_journey_step` in PostHog dev project (488025); `[EnhanceAI]` console gated off in production |
 | 2026-06-27 | Extension AI health — system-quota users without BYOK no longer blocked by spurious `key_missing` health check |
 | 2026-06-27 | JD Brain Layer 3B — `generateObject`+Zod JD extract, MASTER_SKILLS canonicalization, segment-based Pass 1 JD (req+resp ≤4k), Pass 2 culture/gap/verb guardrails, `traceId` jdIntelligence logging |

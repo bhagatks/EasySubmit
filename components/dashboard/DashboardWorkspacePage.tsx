@@ -35,14 +35,14 @@ export function DashboardWorkspacePage({
 }: DashboardWorkspacePageProps) {
   return (
     <DashboardWorkspaceShell className={cn("space-y-4", className)}>
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
+      <div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="font-display text-2xl font-semibold tracking-tight">{title}</h1>
-          {description ? (
-            <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-          ) : null}
+          {aside ? <div className="flex shrink-0 items-center">{aside}</div> : null}
         </div>
-        {aside ? <div className="shrink-0">{aside}</div> : null}
+        {description ? (
+          <p className="mt-2 py-1.5 text-sm text-muted-foreground">{description}</p>
+        ) : null}
       </div>
       {children}
     </DashboardWorkspaceShell>

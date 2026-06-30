@@ -11,6 +11,7 @@ export type PipelineMetadataPatch = {
   autofillNote?: string | null;
   appliedSource?: string;
   appliedMarkedAt?: string;
+  tailorStartedAt?: string;
 };
 
 export async function mergeJobEntryMetadata(

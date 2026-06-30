@@ -30,9 +30,10 @@ import {
 } from "@/components/legal/legal-document-overlay";
 import { AvatarUploadField } from "@/components/profile/avatar-upload-field";
 import {
-  useDashboardExpandAllControl,
+  DashboardExpandAllButton,
   useRegisterDashboardHeaderActions,
 } from "@/components/dashboard/DashboardWorkspaceHeader";
+import { useWorkspaceSectionExpansion } from "@/lib/dashboard/use-workspace-section-expansion";
 import { BYOKKeyHeaderAction } from "@/components/dashboard/BYOKStatus";
 import {
   DashboardWorkspacePage,
@@ -265,10 +266,12 @@ export function AccountSettings({ initial, initialVaultKeys }: AccountSettingsPr
     [actionItems],
   );
 
-  const { expanded, toggleSection } = useDashboardExpandAllControl(
-    [...SETTINGS_SECTION_IDS],
-    { defaultExpandedSections },
-  );
+  const { expanded, toggleSection, allExpanded, toggleAllSections } =
+    useWorkspaceSectionExpansion(
+      [...SETTINGS_SECTION_IDS],
+      false,
+      defaultExpandedSections,
+    );
 
   const loggedSettingsSectionsRef = useRef(new Set<string>());
 
@@ -461,20 +464,27 @@ export function AccountSettings({ initial, initialVaultKeys }: AccountSettingsPr
         title="Settings"
         description="Account, sign-in, AI, and extension preferences."
         aside={
-          error ? (
-            <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-              {error}
-            </p>
-          ) : saving ? (
-            <p className="flex items-center gap-1.5 rounded-xl border border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-              Saving account…
-            </p>
-          ) : saved ? (
-            <p className="rounded-xl border border-mint/30 bg-mint/10 px-3 py-2 text-xs font-medium text-mint">
-              Account saved.
-            </p>
-          ) : null
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            {error ? (
+              <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                {error}
+              </p>
+            ) : saving ? (
+              <p className="flex items-center gap-1.5 rounded-xl border border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                Saving account…
+              </p>
+            ) : saved ? (
+              <p className="rounded-xl border border-mint/30 bg-mint/10 px-3 py-2 text-xs font-medium text-mint">
+                Account saved.
+              </p>
+            ) : null}
+            <DashboardExpandAllButton
+              placement="page"
+              expanded={allExpanded}
+              onToggle={toggleAllSections}
+            />
+          </div>
         }
       >
         <DashboardWorkspaceStack>

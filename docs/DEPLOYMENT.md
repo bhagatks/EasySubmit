@@ -68,7 +68,9 @@ Never copy `.env.local` to Vercel — dev uses a different Supabase project.
 | Action | Result |
 |--------|--------|
 | Merge PR to `main` | Vercel Production deploy (no env changes) |
-| Manual from laptop | `run easy prod` or `npx vercel deploy --prod` |
+| Manual from laptop | `run easy prod` (tests + validate + deploy + PostHog smoke) or `run easy prod fast` |
+
+**PostHog (prod):** `vercel-build` runs `scripts/validate-analytics-env.mjs` — empty `NEXT_PUBLIC_POSTHOG_KEY` fails the build. After deploy: `npm run prod:verify-posthog`. One-shot repair: `npm run prod:repair-analytics` (syncs Vercel env from `EXTENSION_POSTHOG_KEY` or extension CI artifact, force redeploys).
 
 Migrations run **during Vercel build** via `prisma-migrate-deploy.mjs` (uses `DIRECT_URL` from Vercel — not `directUrl` in `prisma.config.ts`).
 
@@ -148,8 +150,10 @@ cd dist/extension && zip -r ../../easysubmit-extension.zip .
 
 | Command | What it does |
 |---------|----------------|
-| `run easy` | Local dev — `.env.local`, migrate, test, extension dev build, `next dev` |
-| `run easy prod` | Local laptop: test → extension build → `vercel deploy --prod` |
+| `run easy` | Local dev — 6-step pipeline (see `ENV.md`) |
+| `run easy fast` | Local dev without tests |
+| `run easy prod` | Tests → prisma validate → `npx vercel deploy --prod --yes` |
+| `run easy prod fast` / `npm run prod:repair` | Deploy only |
 | `npm run prod:health` | Ephemeral Vercel env pull → prod DB/migration health check |
 | `npm run env:whoami` | Confirm `.env.local` targets dev Supabase (not prod) |
 

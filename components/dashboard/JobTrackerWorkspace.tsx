@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Archive, ArrowUpRight, Briefcase, Plus } from "lucide-react";
+import { ArrowUpRight, Briefcase } from "lucide-react";
 import { listArchivedJobTrackerEntries } from "@/app/actions/job-tracker";
 import type { JobTrackerSummary } from "@/lib/job-tracker/types";
+import type { DashboardManualJobProfileOption } from "@/lib/job-tracker/dashboard-manual-capture";
 import {
   fetchJobTrackerEntriesClient,
   useJobTrackerSync,
@@ -23,11 +24,6 @@ import { ToastBanner } from "@/components/ui/toast-banner";
 import { Button } from "@/components/ui/button";
 import { PurposeButton } from "@/components/ui/purpose-button";
 import { BRAND_FULL, EXTENSION_STORE_URL } from "@/lib/brand";
-import { useRegisterDashboardHeaderActions } from "@/components/dashboard/DashboardWorkspaceHeader";
-import {
-  dashboardHeaderNeutralPillClassName,
-  dashboardHeaderNeutralPillStyle,
-} from "@/lib/dashboard/dashboard-header-chrome";
 import { AnalyticsEvents, captureAnalyticsEvent, trackScreenOverlay } from "@/src/shared/analytics";
 
 const APPLIED_ARCHIVE_TOAST_KEY = "easysubmit_applied_archive_toast_v1";
@@ -35,9 +31,22 @@ const APPLIED_ARCHIVE_TOAST_KEY = "easysubmit_applied_archive_toast_v1";
 type JobTrackerWorkspaceProps = {
   entries: JobTrackerSummary[];
   autoArchiveAppliedJobs: boolean;
+  resumeProfiles: DashboardManualJobProfileOption[];
+  defaultProfileId: string | null;
+  manualAddOpen: boolean;
+  onManualAddOpenChange: (open: boolean) => void;
+  onOpenManualAdd: () => void;
 };
 
-export function JobTrackerWorkspace({ entries, autoArchiveAppliedJobs }: JobTrackerWorkspaceProps) {
+export function JobTrackerWorkspace({
+  entries,
+  autoArchiveAppliedJobs,
+  resumeProfiles,
+  defaultProfileId,
+  manualAddOpen,
+  onManualAddOpenChange,
+  onOpenManualAdd,
+}: JobTrackerWorkspaceProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const jobIdFromUrl = searchParams.get("job");
@@ -51,7 +60,6 @@ export function JobTrackerWorkspace({ entries, autoArchiveAppliedJobs }: JobTrac
   const [archiveLoading, setArchiveLoading] = useState(false);
   const [showArchiveToast, setShowArchiveToast] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [manualAddOpen, setManualAddOpen] = useState(false);
   const lastOpenedJobIdRef = useRef<string | null>(null);
 
   const buildReviewUrl = useCallback(
@@ -205,65 +213,14 @@ export function JobTrackerWorkspace({ entries, autoArchiveAppliedJobs }: JobTrac
     [buildReviewUrl, reviewJobId, router],
   );
 
-  const toggleArchiveView = useCallback(() => {
-    if (archivedView) {
-      router.push("/dashboard/job-tracker", { scroll: false });
-      return;
-    }
-    router.push("/dashboard/job-tracker?view=archive", { scroll: false });
-  }, [archivedView, router]);
-
-  const openManualAdd = useCallback(() => {
-    captureAnalyticsEvent(AnalyticsEvents.JOB_TRACKER_MANUAL_ADD_OPENED, {
-      surface: "dashboard",
-    });
-    setManualAddOpen(true);
-  }, []);
+  const openManualAdd = onOpenManualAdd;
 
   const handleManualJobCreated = useCallback(
-    (entryId: string) => {
+    (_entryId: string) => {
       void refreshTrackerEntries();
-      openReview(entryId, "resume");
     },
-    [openReview, refreshTrackerEntries],
+    [refreshTrackerEntries],
   );
-
-  const archiveHeaderButton = useMemo(
-    () => (
-      <button
-        type="button"
-        className={dashboardHeaderNeutralPillClassName()}
-        style={dashboardHeaderNeutralPillStyle}
-        onClick={toggleArchiveView}
-      >
-        <Archive className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-        {archivedView ? "Active jobs" : "Archive"}
-      </button>
-    ),
-    [archivedView, toggleArchiveView],
-  );
-
-  const headerActions = useMemo(
-    () => (
-      <div className="flex items-center gap-2">
-        {!archivedView ? (
-          <button
-            type="button"
-            className={dashboardHeaderNeutralPillClassName()}
-            style={dashboardHeaderNeutralPillStyle}
-            onClick={openManualAdd}
-          >
-            <Plus className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            Add job
-          </button>
-        ) : null}
-        {archiveHeaderButton}
-      </div>
-    ),
-    [archivedView, archiveHeaderButton, openManualAdd],
-  );
-
-  useRegisterDashboardHeaderActions(headerActions);
 
   const handleMutated = useCallback(() => {
     setRefreshKey((value) => value + 1);
@@ -274,7 +231,7 @@ export function JobTrackerWorkspace({ entries, autoArchiveAppliedJobs }: JobTrac
     <>
       {showArchiveToast && autoArchiveAppliedJobs ? (
         <ToastBanner
-          message="Applied jobs will move to Archive automatically after 24 hours. Open Archive from the header anytime."
+          message="Applied jobs will move to Archive automatically after 24 hours. Use Archive above anytime."
           onDismiss={() => setShowArchiveToast(false)}
         />
       ) : null}
@@ -291,12 +248,12 @@ export function JobTrackerWorkspace({ entries, autoArchiveAppliedJobs }: JobTrac
             </div>
             <h2 className="mt-4 font-display text-lg font-semibold">No jobs tracked yet</h2>
             <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-              Paste a job description to tailor your resume, or save roles from career sites with the{" "}
-              {BRAND_FULL} extension.
+              Add a job here to tailor a resume for that role, or save roles from career sites with
+              the {BRAND_FULL} extension.
             </p>
             <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <PurposeButton type="button" purpose="primary" onClick={openManualAdd}>
-                Tailor for a job
+                Add to Job Tracker
               </PurposeButton>
               <Button variant="mintOutline" asChild>
                 <a
@@ -322,8 +279,10 @@ export function JobTrackerWorkspace({ entries, autoArchiveAppliedJobs }: JobTrac
 
       <JobTrackerManualAddModal
         open={manualAddOpen}
-        onOpenChange={setManualAddOpen}
+        onOpenChange={onManualAddOpenChange}
         onCreated={handleManualJobCreated}
+        profiles={resumeProfiles}
+        defaultProfileId={defaultProfileId}
       />
 
       <ReviewScreen

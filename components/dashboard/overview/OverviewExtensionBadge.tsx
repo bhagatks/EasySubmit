@@ -68,7 +68,7 @@ export function OverviewExtensionBadge({ className }: OverviewExtensionBadgeProp
   }
 
   const label = status.state === "not-installed" ? "Install extension" : "Extension offline";
-  const href = status.state === "not-installed" ? EXTENSION_STORE_URL : "/dashboard/extension";
+  const href = status.state === "not-installed" ? EXTENSION_STORE_URL : "/dashboard/extension/bridge";
   const isExternal = status.state === "not-installed";
 
   return (

@@ -9,6 +9,7 @@ export type ScreenId =
   | "signup_legacy"
   | "terms"
   | "privacy"
+  | "help_center"
   | "onboarding_workbench"
   | "onboarding_phase_identity"
   | "onboarding_phase_import"
@@ -57,6 +58,7 @@ export const SCREEN_CATALOG: Record<ScreenId, ScreenCatalogEntry> = {
   signup_legacy: { id: "signup_legacy", name: "Sign up (legacy)", zone: "public" },
   terms: { id: "terms", name: "Terms of Service", zone: "public" },
   privacy: { id: "privacy", name: "Privacy Policy", zone: "public" },
+  help_center: { id: "help_center", name: "Help Center", zone: "public" },
   onboarding_workbench: { id: "onboarding_workbench", name: "Unified Workbench", zone: "auth" },
   onboarding_phase_identity: { id: "onboarding_phase_identity", name: "Onboarding · Identity", zone: "auth" },
   onboarding_phase_import: { id: "onboarding_phase_import", name: "Onboarding · Import", zone: "auth" },

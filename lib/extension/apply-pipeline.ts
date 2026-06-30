@@ -1,4 +1,5 @@
 import type { JobTrackerStatus } from "@/lib/generated/prisma/client";
+import { captureJob, type CaptureJobInput } from "@/lib/extension/capture-job";
 import {
   saveJobTrackerEntry,
   type SaveJobTrackerInput,
@@ -7,7 +8,7 @@ import {
   buildTailorInputFromSave,
   runPipelineTailor,
 } from "@/lib/extension/pipeline-tailor";
-import { mergeJobEntryMetadata } from "@/lib/extension/pipeline-metadata";
+import { mergeJobEntryMetadata, recordPipelineTailorError } from "@/lib/extension/pipeline-metadata";
 import type { ApplyPipelinePhase } from "@/lib/extension/pipeline-types";
 import { isOneClickPlatform } from "@/lib/extension/pipeline-types";
 import { getExtensionUserPrefs } from "@/lib/extension/user-prefs";
@@ -23,10 +24,8 @@ import {
 export type { ApplyPipelinePhase } from "@/lib/extension/pipeline-types";
 export { ONE_CLICK_APPLY_PLATFORMS } from "@/lib/extension/pipeline-types";
 
-export type RunApplyPipelineInput = SaveJobTrackerInput & {
-  platform?: string | null;
-  sourceProfileId?: string | null;
-};
+export type RunApplyPipelineInput = CaptureJobInput;
+export { captureJob };
 
 export type RunApplyPipelineResult =
   | {
@@ -107,86 +106,95 @@ function shouldOfferAutofillPhase(
   return autoApplyEnabled && autoApplyUserSwitch && isOneClickPlatform(platform);
 }
 
-/** Stage 0→1: save job entry, write CAPTURED, return immediately. */
-export async function captureJob(
-  userId: string,
-  input: RunApplyPipelineInput,
-): Promise<{ id: string; status: JobTrackerStatus }> {
-  const saved = await saveJobTrackerEntry(userId, input);
-  return { id: saved.id, status: saved.status };
-}
-
 /** Stage 1→2: tailor resume + advance to READY_TO_APPLY. Called fire-and-forget after capture. */
 export async function tailorJobPipeline(
   userId: string,
   entryId: string,
   input: RunApplyPipelineInput,
 ): Promise<{ success: boolean; status: JobTrackerStatus; error?: string }> {
-  const prefs = await getExtensionUserPrefs(userId);
+  try {
+    const prefs = await getExtensionUserPrefs(userId);
 
-  if (!prefs.customizeResume) {
-    logEnhance("pipeline", "apply.skip_customize", {
-      step: TAILOR_PIPELINE.APPLY_SKIP_CUSTOMIZE,
+    if (!prefs.customizeResume) {
+      logEnhance("pipeline", "apply.skip_customize", {
+        step: TAILOR_PIPELINE.APPLY_SKIP_CUSTOMIZE,
+        userId,
+        entryId,
+        customizeResume: false,
+      });
+      await advancePipelineAfterAutofill(userId, entryId);
+      await mergeJobEntryMetadata(userId, entryId, {
+        pipelinePhases: ["capture"],
+        pipelineError: null,
+        pipelineErrorCode: null,
+      });
+      return { success: true, status: "READY_TO_APPLY" };
+    }
+
+    const existingTailored = await findExistingTailoredState(userId, entryId);
+    if (existingTailored) {
+      logEnhance("pipeline", "apply.tailor_cached", {
+        step: TAILOR_PIPELINE.APPLY_TAILOR_RESULT,
+        userId,
+        entryId,
+        status: existingTailored.status,
+        reused: true,
+      });
+      const status = await ensureApplyAssistStatus(userId, entryId, existingTailored.status);
+      return { success: true, status };
+    }
+
+    logEnhance("pipeline", "apply.tailor_dispatch", {
+      step: TAILOR_PIPELINE.APPLY_TAILOR_DISPATCH,
       userId,
       entryId,
-      customizeResume: false,
+      jobTitle: input.title,
     });
-    await advancePipelineAfterAutofill(userId, entryId);
+
     await mergeJobEntryMetadata(userId, entryId, {
-      pipelinePhases: ["capture"],
+      tailorStartedAt: new Date().toISOString(),
       pipelineError: null,
       pipelineErrorCode: null,
     });
+
+    const tailor = await runPipelineTailor(userId, buildTailorInputFromSave(entryId, input));
+    if (!tailor.success) {
+      logEnhance("pipeline", "apply.tailor_failed", {
+        step: TAILOR_PIPELINE.APPLY_TAILOR_RESULT,
+        userId,
+        entryId,
+        error: tailor.error,
+        code: tailor.code,
+      });
+      return { success: false, status: "CAPTURED", error: tailor.error };
+    }
+
+    logEnhance("pipeline", "apply.tailor_ok", {
+      step: TAILOR_PIPELINE.APPLY_TAILOR_RESULT,
+      userId,
+      entryId,
+      sourceProfileId: tailor.sourceProfileId,
+    });
+
+    await advancePipelineAfterAutofill(userId, entryId);
+    await mergeJobEntryMetadata(userId, entryId, {
+      pipelinePhases: ["capture", "tailor", "autofill"],
+      pipelineError: null,
+      pipelineErrorCode: null,
+    });
+
     return { success: true, status: "READY_TO_APPLY" };
-  }
-
-  const existingTailored = await findExistingTailoredState(userId, entryId);
-  if (existingTailored) {
-    logEnhance("pipeline", "apply.tailor_cached", {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Resume optimization failed";
+    logEnhance("pipeline", "apply.tailor_crashed", {
       step: TAILOR_PIPELINE.APPLY_TAILOR_RESULT,
       userId,
       entryId,
-      status: existingTailored.status,
-      reused: true,
+      error: message,
     });
-    const status = await ensureApplyAssistStatus(userId, entryId, existingTailored.status);
-    return { success: true, status };
+    await recordPipelineTailorError(userId, entryId, message, "tailor_crashed");
+    return { success: false, status: "CAPTURED", error: message };
   }
-
-  logEnhance("pipeline", "apply.tailor_dispatch", {
-    step: TAILOR_PIPELINE.APPLY_TAILOR_DISPATCH,
-    userId,
-    entryId,
-    jobTitle: input.title,
-  });
-
-  const tailor = await runPipelineTailor(userId, buildTailorInputFromSave(entryId, input));
-  if (!tailor.success) {
-    logEnhance("pipeline", "apply.tailor_failed", {
-      step: TAILOR_PIPELINE.APPLY_TAILOR_RESULT,
-      userId,
-      entryId,
-      error: tailor.error,
-      code: tailor.code,
-    });
-    return { success: false, status: "CAPTURED", error: tailor.error };
-  }
-
-  logEnhance("pipeline", "apply.tailor_ok", {
-    step: TAILOR_PIPELINE.APPLY_TAILOR_RESULT,
-    userId,
-    entryId,
-    sourceProfileId: tailor.sourceProfileId,
-  });
-
-  await advancePipelineAfterAutofill(userId, entryId);
-  await mergeJobEntryMetadata(userId, entryId, {
-    pipelinePhases: ["capture", "tailor", "autofill"],
-    pipelineError: null,
-    pipelineErrorCode: null,
-  });
-
-  return { success: true, status: "READY_TO_APPLY" };
 }
 
 /**

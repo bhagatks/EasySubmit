@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   Briefcase,
   FileText,
   Info,
   LayoutDashboard,
+  LifeBuoy,
   PlayCircle,
   Puzzle,
   ScanLine,
@@ -60,21 +61,33 @@ import {
   shouldShowDashboardSignOut,
 } from "@/lib/dashboard/dashboard-header-controls";
 import { parseJobReviewStudioJobId } from "@/lib/job-tracker/review-screen-ui";
-import { DASHBOARD_TOPBAR_BORDER_CLASS, dashboardTopBarClassName } from "@/lib/dashboard/dashboard-header-chrome";
+import {
+  DASHBOARD_TOPBAR_BORDER_CLASS,
+  dashboardHeaderPrimaryPillClassName,
+  dashboardHeaderPrimaryPillStyle,
+  dashboardTopBarClassName,
+} from "@/lib/dashboard/dashboard-header-chrome";
 import { OverviewExtensionBadge } from "@/components/dashboard/overview/OverviewExtensionBadge";
+import { getExtensionConnectionStatus } from "@/lib/extension/extension-dashboard-connection";
 import { cn } from "@/lib/utils";
 
-const navItems = [
+const workspaceNavItems = [
   { title: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { title: "Resume profiles", href: "/dashboard/resume-profiles", icon: FileText },
   { title: "Job Tracker", href: "/dashboard/job-tracker", icon: Briefcase },
   { title: "ATS Scores", href: "/dashboard/ats-scores", icon: ScanLine },
   { title: "ATS Guidelines", href: "/dashboard/ats-guidelines", icon: ShieldCheck },
-  { title: "Extension", href: "/dashboard/extension", icon: Puzzle },
   { title: "Video Tutorials", href: "/dashboard/tutorials", icon: PlayCircle },
   { title: "Settings", href: "/dashboard/settings", icon: Settings },
   { title: "About", href: "/dashboard/about", icon: Info },
+  { title: "Help", href: "/dashboard/help", icon: LifeBuoy },
 ] as const;
+
+const extensionNavItem = {
+  title: "Extension",
+  href: "/dashboard/extension",
+  icon: Puzzle,
+} as const;
 
 type DashboardShellProps = {
   children: React.ReactNode;
@@ -85,6 +98,26 @@ type DashboardShellProps = {
 function DashboardSidebar({ vaultKeyId }: { vaultKeyId?: string | null }) {
   const pathname = usePathname();
   const engineCold = !vaultKeyId;
+  const [extensionConnected, setExtensionConnected] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getExtensionConnectionStatus().then((status) => {
+      if (!cancelled) {
+        setExtensionConnected(status.state === "connected");
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const navItems = useMemo(() => {
+    if (extensionConnected === true) {
+      return workspaceNavItems;
+    }
+    return [...workspaceNavItems.slice(0, 5), extensionNavItem, ...workspaceNavItems.slice(5)];
+  }, [extensionConnected]);
 
   return (
     <Sidebar collapsible="icon">
@@ -123,7 +156,10 @@ function DashboardSidebar({ vaultKeyId }: { vaultKeyId?: string | null }) {
                         : pathname.startsWith(item.href)
                     }
                   >
-                    <Link href={item.href} className="flex w-full items-center gap-2">
+                    <Link
+                      href={item.href}
+                      className="flex w-full items-center gap-2"
+                    >
                       <item.icon className="h-4 w-4 shrink-0" />
                       <span className="flex-1 truncate">{item.title}</span>
                       {item.href === "/dashboard/settings" && engineCold ? (
@@ -197,23 +233,23 @@ function DashboardShellFrame({ children, vaultKeyId, minVersion, fromParam }: Da
                 {showOpenJobTracker ? (
                   <Link
                     href="/dashboard/job-tracker"
-                    className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface/60 px-3 py-1 text-xs font-medium text-primary transition hover:brightness-110"
+                    className={dashboardHeaderPrimaryPillClassName("hover:brightness-110")}
+                    style={dashboardHeaderPrimaryPillStyle}
                   >
+                    <Briefcase className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                     Open Job Tracker
                   </Link>
                 ) : null}
                 {showExtensionBadge ? <OverviewExtensionBadge /> : null}
                 <DashboardHeaderExpandSlot />
                 <DashboardHeaderActionsSlot />
-                <div className="relative">
-                  <BYOKStatusBadge vaultKeyId={vaultKeyId} />
-                  {showByokKeyButton ? <BYOKKeyButton /> : null}
-                  <AiHealthHeaderNotice />
-                </div>
+                <BYOKStatusBadge vaultKeyId={vaultKeyId} />
+                {showByokKeyButton ? <BYOKKeyButton /> : null}
                 {showProfileMenu ? <NavbarProfileMenu /> : null}
                 {showSignOut ? <SignOutButton variant="pill" /> : null}
               </div>
             </div>
+            <AiHealthHeaderNotice />
           </header>
         </AiHealthAlertProvider>
         <main

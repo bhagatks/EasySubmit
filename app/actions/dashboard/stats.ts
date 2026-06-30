@@ -2,12 +2,23 @@
 
 import { getCachedServerSession } from "@/lib/auth/cached-session";
 import { prisma } from "@/lib/prisma";
-import { getJobTrackerStatsForUser } from "@/app/actions/job-tracker";
+import {
+  getJobTrackerStatsForUser,
+  getOverviewActionQueueForUser,
+} from "@/app/actions/job-tracker";
 import {
   averageCalibrationScores,
   parseArchitectureMetadata,
 } from "@/lib/dashboard/architecture-metadata";
 import type { JobTrackerSummary } from "@/lib/job-tracker/types";
+import {
+  countOverviewPipeline,
+  countOverviewWaitingJobs,
+  startOfWeek,
+  type OverviewActionQueueItem,
+  type OverviewPipelineCounts,
+  type OverviewWeeklyProgress,
+} from "@/lib/dashboard/overview-stats";
 import { estimateUsageCostFromTotalTokens } from "@/src/lib/ai/estimate-usage-cost";
 import { getAppConfig } from "@/src/lib/services/config-service";
 import {
@@ -50,6 +61,14 @@ export type DashboardStats = {
   architectureUpdatedAt: string | null;
   systemQuota: SystemQuotaStats | null;
   nextBestAction: NextBestAction;
+  overview: {
+    pipeline: OverviewPipelineCounts;
+    waitingCount: number;
+    capturedThisWeek: number;
+    appliedThisWeek: number;
+    weeklyProgress: OverviewWeeklyProgress;
+    actionQueue: OverviewActionQueueItem[];
+  };
 };
 
 export type DashboardStatsResult =
@@ -65,7 +84,10 @@ export async function getDashboardStats(): Promise<DashboardStatsResult> {
     return { success: false, error: "Sign in required" };
   }
 
-  const [user, usageLogs, pricingMap, jobTrackerStats, systemKeySlots, statusGroups] = await Promise.all([
+  const weekStart = startOfWeek();
+
+  const [user, usageLogs, pricingMap, jobTrackerStats, systemKeySlots, statusGroups, weeklyCounts, actionQueue] =
+    await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -101,6 +123,29 @@ export async function getDashboardStats(): Promise<DashboardStatsResult> {
       where: { userId, status: { not: "ARCHIVED" } },
       _count: { _all: true },
     }),
+    Promise.all([
+      prisma.jobTrackerEntry.count({
+        where: {
+          userId,
+          status: { not: "ARCHIVED" },
+          savedAt: { gte: weekStart },
+        },
+      }),
+      prisma.jobTrackerEntry.count({
+        where: {
+          userId,
+          status: "APPLIED",
+          appliedAt: { gte: weekStart },
+        },
+      }),
+      prisma.jobResumeTailor.count({
+        where: {
+          userId,
+          createdAt: { gte: weekStart },
+        },
+      }),
+    ]),
+    getOverviewActionQueueForUser(userId, 6),
   ]);
 
   if (!user) {
@@ -148,6 +193,10 @@ export async function getDashboardStats(): Promise<DashboardStatsResult> {
   const statusMap = Object.fromEntries(
     statusGroups.map((g) => [g.status, g._count._all]),
   ) as Record<string, number>;
+  const [capturedThisWeek, appliedThisWeek, resumesGeneratedThisWeek] = weeklyCounts;
+  const pipeline = countOverviewPipeline(statusMap);
+  const waitingCount = countOverviewWaitingJobs(statusMap);
+
   const readyCount = statusMap["READY_TO_APPLY"] ?? 0;
   const tailoringCount = (statusMap["CAPTURED"] ?? 0) + (statusMap["RESUME_READY"] ?? 0);
   const appliedCount = statusMap["APPLIED"] ?? 0;
@@ -182,6 +231,18 @@ export async function getDashboardStats(): Promise<DashboardStatsResult> {
       architectureUpdatedAt: profile?.updatedAt.toISOString() ?? null,
       systemQuota,
       nextBestAction,
+      overview: {
+        pipeline,
+        waitingCount,
+        capturedThisWeek,
+        appliedThisWeek,
+        weeklyProgress: {
+          captured: capturedThisWeek,
+          resumesGenerated: resumesGeneratedThisWeek,
+          applicationsSent: appliedThisWeek,
+        },
+        actionQueue,
+      },
     },
   };
 }

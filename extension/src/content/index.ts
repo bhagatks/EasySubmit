@@ -4696,6 +4696,16 @@ function startUrlWatch(): void {
 if (window.top === window.self) {
   const isBridgePage = window.location.pathname.startsWith("/extension/bridge");
 
+  const isDashboardPage = window.location.pathname.startsWith("/dashboard") || window.location.pathname.startsWith("/extension");
+
+  if (isDashboardPage) {
+    try {
+      window.localStorage.setItem(STORAGE_KEYS.extensionId, chrome.runtime.id);
+    } catch {
+      // ignore private mode / quota errors
+    }
+  }
+
   if (isBridgePage) {
     setupBridgeRelay();
     console.log("EasySubmit: bridge relay ready");

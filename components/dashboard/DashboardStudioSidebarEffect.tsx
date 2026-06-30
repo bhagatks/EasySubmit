@@ -20,9 +20,10 @@ export function DashboardStudioSidebarEffect() {
         : null;
     const isProfileStudioEdit =
       pathname.startsWith("/dashboard/resume-profiles/") && pathname.endsWith("/edit");
+    const isJobStudio = pathname.startsWith("/dashboard/job-tracker/") && pathname.endsWith("/resume");
     const isReviewStudio = isJobReviewStudioScreen(pathname, fromParam);
     const isTestingResume = pathname === "/dashboard/testing-resume";
-    const isStudioEdit = isProfileStudioEdit || isReviewStudio || isTestingResume;
+    const isStudioEdit = isProfileStudioEdit || isJobStudio || isReviewStudio || isTestingResume;
 
     if (lastStudioEdit.current === isStudioEdit) return;
     lastStudioEdit.current = isStudioEdit;

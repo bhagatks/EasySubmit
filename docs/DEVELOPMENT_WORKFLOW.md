@@ -23,12 +23,16 @@ This prevents dev credentials from leaking into prod commands and vice versa.
 
 | Command | Env source | Pipeline |
 |---------|------------|----------|
-| `run easy` | `.env.local` (injected) | bootstrap → DB safety → validate → prisma generate → **migrate deploy** → tests → extension → posthog → `next dev` |
-| `run easy prod` | Vercel (at build/runtime) | tests → extension → posthog → `vercel deploy --prod` |
-| `npm run dev` | same as `run easy` | alias |
-| `npm run deploy:prod` | same as `run easy prod` | alias |
+| `run easy` | `.env.local` | 1 preflight → 2 DB safety → 3 prisma → 4 tests → 5 extensions (dev + prod QA) → 6 `next dev` |
+| `run easy fast` | `.env.local` | same, skip step 4 (tests) |
+| `run easy prod` | Vercel dashboard | 1 preflight → 2 tests → 3 prisma validate → 4 deploy → 5 smoke reminder |
+| `run easy prod fast` | Vercel dashboard | deploy only (steps 2–3 skipped) |
+| `npm run dev` / `dev:fast` | aliases | same as `run easy` / `run easy fast` |
+| `npm run deploy:prod` | alias | same as `run easy prod` |
 
 **Shell setup:** add repo root to `PATH` (see [`ENV.md`](./ENV.md)) so `run easy` works from any folder in the project.
+
+Full troubleshooting: [`DEPLOYMENT_TROUBLESHOOTING.md`](./DEPLOYMENT_TROUBLESHOOTING.md)
 
 ---
 
@@ -85,7 +89,7 @@ Requires one-time `vercel link` and secrets in the Vercel dashboard.
 ## First-time local setup
 
 ```bash
-cp .env.example .env.local   # or: npm run dev (auto-creates on first run)
+cp .env.example .env.local   # or: run easy (auto-creates on first run)
 # Edit .env.local: DATABASE_URL, DIRECT_URL, OAuth, Supabase keys
-npm run dev
+run easy                     # or: run easy fast (skip tests)
 ```

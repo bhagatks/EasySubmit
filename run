@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # EasySubmit CLI — use from anywhere inside the repo:
-#   run easy        → local dev (.env.local injected)
-#   run easy prod   → deploy to Vercel
+#   run easy            → local dev (full pipeline)
+#   run easy fast       → local dev without tests
+#   run easy prod       → tests, validate, deploy
+#   run easy prod fast  → deploy only
 set -euo pipefail
 
 find_easysubmit_root() {

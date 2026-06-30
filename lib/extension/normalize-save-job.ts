@@ -5,6 +5,34 @@ import {
 import { canApplyCapture } from "@/src/shared/extension/apply-gate";
 import { resolveJobIdentity } from "@/src/shared/extension/job-identity";
 
+function pickClientCaptureMetadata(
+  metadata: SaveJobTrackerInput["metadata"],
+): Record<string, unknown> {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return {};
+  }
+
+  const out: Record<string, unknown> = {};
+
+  if (typeof metadata.confidence === "number" && Number.isFinite(metadata.confidence)) {
+    out.confidence = metadata.confidence;
+  }
+  if (typeof metadata.scrapePath === "string") {
+    out.scrapePath = metadata.scrapePath.trim().slice(0, 200);
+  }
+  if (Array.isArray(metadata.enrichmentsApplied)) {
+    out.enrichmentsApplied = metadata.enrichmentsApplied
+      .filter((value): value is string => typeof value === "string")
+      .slice(0, 32)
+      .map((value) => value.trim().slice(0, 80));
+  }
+  if (metadata.captureMode === "manual" || metadata.captureMode === "auto") {
+    out.captureMode = metadata.captureMode;
+  }
+
+  return out;
+}
+
 export type NormalizedSaveJobInput = Omit<SaveJobTrackerInput, "title" | "company"> & {
   title: string;
   company: string | null;
@@ -25,11 +53,8 @@ export function normalizeSaveJobInput(
     return { error: "url and job description (min 120 chars) are required" };
   }
 
-  const captureMode =
-    input.metadata && typeof input.metadata === "object" && !Array.isArray(input.metadata)
-      ? input.metadata.captureMode
-      : null;
-
+  const existingMeta = pickClientCaptureMetadata(input.metadata);
+  const captureMode = existingMeta.captureMode;
   if (captureMode === "manual") {
     const explicitTitle = input.title?.trim() ?? "";
     if (explicitTitle.length < 2) {
@@ -46,9 +71,6 @@ export function normalizeSaveJobInput(
 
   const title = input.title?.trim() || identity.title;
   const company = input.company?.trim() || identity.company;
-
-  const existingMeta =
-    input.metadata && typeof input.metadata === "object" ? { ...input.metadata } : {};
 
   return {
     url,

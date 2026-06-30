@@ -15,6 +15,7 @@ import {
   archiveJobTrackerEntry,
   deleteJobTrackerEntry,
   markJobTrackerEntryApplied,
+  tailorJobTrackerEntry,
   unarchiveJobTrackerEntry,
 } from "@/app/actions/job-tracker";
 import { PipelineBar } from "@/components/dashboard/PipelineBar";
@@ -23,6 +24,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { BRAND_FULL, EXTENSION_STORE_URL } from "@/lib/brand";
 import type { JobTrackerSummary } from "@/lib/job-tracker/types";
 import { resolvePipelineSubLabel } from "@/lib/job-tracker/pipeline-sub-labels";
+import { resolveDashboardTrackerRowChrome } from "@/lib/job-tracker/tracker-row-chrome";
 import { resolveJourneyDisplay, type JourneyDisplay } from "@/src/shared/journey-display";
 import {
   notifyExtensionJobArchived,
@@ -46,17 +48,6 @@ function trackerRowLine(entry: JobTrackerSummary): string {
   const role = entry.title.trim() || "Role unknown";
   const company = entry.company?.trim() || "Company unknown";
   return `${role} · ${company}`;
-}
-
-function applyButtonLabel(journey: JourneyDisplay): string {
-  if (journey.applyButtonState === "navigate") return "Apply assist";
-  if (journey.applyButtonState === "reapply") return "Re-apply";
-  if (journey.label === "Apply") return "Apply";
-  return journey.label;
-}
-
-function isApplyInteractive(journey: JourneyDisplay): boolean {
-  return journey.applyButtonState === "navigate" || journey.applyButtonState === "reapply";
 }
 
 function EntryIssueButton({ message }: { message: string | null | undefined }) {
@@ -164,7 +155,7 @@ export function JobTrackerPipeline({
   }
 
   async function handleApply(entry: JobTrackerSummary, journey: JourneyDisplay) {
-    if (!isApplyInteractive(journey)) return;
+    if (journey.applyButtonState !== "navigate" && journey.applyButtonState !== "reapply") return;
 
     setBusyId(entry.id);
     setExtensionHint(null);
@@ -180,6 +171,15 @@ export function JobTrackerPipeline({
     }
     if (!result.usedExtension && journey.applyButtonState === "navigate") {
       setExtensionHint(`Install the ${BRAND_FULL} extension to continue on the job page.`);
+    }
+  }
+
+  async function handleRetryTailor(entryId: string) {
+    setBusyId(entryId);
+    const result = await tailorJobTrackerEntry(entryId);
+    setBusyId(null);
+    if (result.success) {
+      onMutated?.();
     }
   }
 
@@ -215,10 +215,15 @@ export function JobTrackerPipeline({
             Boolean(entry.issueMessage),
           );
           const rowBusy = busyId === entry.id;
-          const showSpinner = journey.stage === 1 && entry.status === "CAPTURED";
-          const stage2 = journey.applyButtonState === "navigate";
-          const stage3 = journey.applyButtonState === "completed";
           const stageError = journey.stage === "error";
+          const chrome = resolveDashboardTrackerRowChrome({
+            status: entry.status,
+            hasTailoredResume: entry.hasTailoredResume,
+            savedAt: entry.savedAt,
+            issueMessage: entry.issueMessage,
+            journey,
+            rowBusy,
+          });
           const subtitle = resolvePipelineSubLabel({
             status: entry.status,
             hasError: stageError,
@@ -261,19 +266,27 @@ export function JobTrackerPipeline({
                       onClick={stopRowAction}
                       onKeyDown={stopRowAction}
                     >
-                      {entry.hasTailoredResume &&
-                      (entry.status === "RESUME_READY" ||
-                        entry.status === "READY_TO_APPLY" ||
-                        entry.status === "APPLIED") ? (
-                        <Link
-                          href={`/dashboard/job-tracker/${entry.id}/resume`}
-                          onClick={stopRowAction}
-                          className={rowLinkActionClass()}
-                          title="Open tailored resume in Studio Edition"
-                        >
-                          Studio Edition
-                          <ExternalLink className="h-3 w-3" aria-hidden="true" />
-                        </Link>
+                      {chrome.showStudioEdition ? (
+                        chrome.studioEditionEnabled ? (
+                          <Link
+                            href={`/dashboard/job-tracker/${entry.id}/resume`}
+                            onClick={stopRowAction}
+                            className={rowLinkActionClass()}
+                            title="Open tailored resume in Studio Edition"
+                          >
+                            Studio Edition
+                            <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                          </Link>
+                        ) : (
+                          <span
+                            className={cn(rowLinkActionClass(), "cursor-not-allowed opacity-40")}
+                            aria-disabled="true"
+                            title="Resume optimization in progress"
+                          >
+                            Studio Edition
+                            <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                          </span>
+                        )
                       ) : null}
                       <button
                         type="button"
@@ -331,7 +344,7 @@ export function JobTrackerPipeline({
                     <div className="min-w-0 flex-1">
                       <PipelineBar status={entry.status} className="w-full" />
                       <div className="mt-1.5 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-                        {showSpinner ? (
+                        {chrome.showSpinner ? (
                           <Loader2 className="h-3 w-3 shrink-0 animate-spin text-primary" aria-hidden="true" />
                         ) : null}
                         <p className="truncate">{subtitle}</p>
@@ -339,16 +352,33 @@ export function JobTrackerPipeline({
                     </div>
 
                     <div
-                      className="flex shrink-0 items-center justify-end gap-2"
+                      className="flex min-h-8 shrink-0 items-center justify-end gap-2"
                       onClick={stopRowAction}
                       onKeyDown={stopRowAction}
                     >
                       {!archivedView ? (
-                        stageError ? (
-                          <>
+                        <>
+                          {chrome.showErrorBanner ? (
                             <span className="inline-flex min-h-8 items-center rounded-xl bg-amber-500/10 px-3 text-xs font-semibold text-amber-700 dark:text-amber-300">
-                              {journey.label}
+                              {chrome.errorLabel}
                             </span>
+                          ) : null}
+                          {chrome.showRetryOptimize ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="rounded-xl border-primary/50 text-primary hover:bg-primary/10"
+                              disabled={rowBusy}
+                              onClick={() => void handleRetryTailor(entry.id)}
+                            >
+                              {rowBusy ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                              ) : null}
+                              Retry optimize
+                            </Button>
+                          ) : null}
+                          {chrome.showReviewRetry ? (
                             <Button
                               type="button"
                               variant="outline"
@@ -359,46 +389,36 @@ export function JobTrackerPipeline({
                             >
                               Retry
                             </Button>
-                          </>
-                        ) : (
-                          <>
-                            {stage2 && !stage3 ? (
-                              <Button
-                                type="button"
-                                variant="mintOutline"
-                                size="sm"
-                                className="rounded-xl"
-                                disabled={rowBusy}
-                                onClick={() => void handleMarkApplied(entry.id)}
-                              >
-                                Mark applied
-                              </Button>
-                            ) : null}
+                          ) : null}
+                          {chrome.showMarkApplied ? (
                             <Button
                               type="button"
-                              variant={stage3 ? "outline" : "mint"}
+                              variant="mintOutline"
                               size="sm"
-                              className={cn(
-                                "rounded-xl",
-                                isApplyInteractive(journey) && !rowBusy && "animate-mint-cta",
-                              )}
-                              disabled={
-                                stage3 ||
-                                !isApplyInteractive(journey) ||
-                                rowBusy ||
-                                journey.applyButtonState === "disabled" ||
-                                journey.applyButtonState === "hidden" ||
-                                journey.applyButtonState === "completed"
-                              }
-                              onClick={() => void handleApply(entry, journey)}
+                              className="rounded-xl"
+                              disabled={chrome.markAppliedDisabled}
+                              onClick={() => void handleMarkApplied(entry.id)}
                             >
-                              {rowBusy ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                              ) : null}
-                              {stage3 ? "Completed" : applyButtonLabel(journey)}
+                              Mark applied
                             </Button>
-                          </>
-                        )
+                          ) : null}
+                          <Button
+                            type="button"
+                            variant={chrome.applyCompleted ? "outline" : "mint"}
+                            size="sm"
+                            className={cn(
+                              "rounded-xl",
+                              chrome.applyInteractive && !rowBusy && "animate-mint-cta",
+                            )}
+                            disabled={chrome.applyDisabled}
+                            onClick={() => void handleApply(entry, journey)}
+                          >
+                            {rowBusy && chrome.applyInteractive ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                            ) : null}
+                            {chrome.applyLabel}
+                          </Button>
+                        </>
                       ) : null}
                     </div>
                   </div>

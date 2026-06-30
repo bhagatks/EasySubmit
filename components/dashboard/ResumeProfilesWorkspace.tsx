@@ -1,11 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useMemo } from "react";
 import type { ResumeProfileListItem } from "@/app/actions/resume-profiles";
 import { ResumeProfilesList } from "@/components/dashboard/ResumeProfilesList";
-import { useRegisterDashboardHeaderActions, DashboardHeaderHeroButton } from "@/components/dashboard/DashboardWorkspaceHeader";
 import { Button } from "@/components/ui/button";
 
 type ResumeProfilesWorkspaceProps = {
@@ -23,33 +20,6 @@ export function ResumeProfilesWorkspace({
   maxProfiles,
   canCreate,
 }: ResumeProfilesWorkspaceProps) {
-  const router = useRouter();
-
-  const addProfileAction = useMemo(
-    () => (
-      <DashboardHeaderHeroButton
-        type="button"
-        aria-label="Add new resume profile"
-        title={
-          canCreate
-            ? "Add new resume profile"
-            : `Profile limit reached (${maxProfiles})`
-        }
-        disabled={!canCreate}
-        onClick={() => {
-          if (canCreate) {
-            router.push("/dashboard/resume-profiles/new");
-          }
-        }}
-      >
-        Add new
-      </DashboardHeaderHeroButton>
-    ),
-    [canCreate, maxProfiles, router],
-  );
-
-  useRegisterDashboardHeaderActions(addProfileAction);
-
   if (profiles.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-border p-8 text-center">

@@ -24,6 +24,14 @@ import {
   type JobDetailDraft,
 } from "@/src/shared/extension/job-detail-edit";
 import { canApplyCapture } from "@/src/shared/extension/apply-gate";
+import { captureJob, tailorJobPipeline } from "@/lib/extension/apply-pipeline";
+import { getExtensionAiApplyBlockForUser } from "@/lib/extension/extension-ai-apply-gate";
+import { loadTailorInputFromEntry } from "@/lib/extension/job-service";
+import { recordPipelineTailorError } from "@/lib/extension/pipeline-metadata";
+import {
+  buildDashboardManualJobInput,
+  type DashboardManualJobDraft,
+} from "@/lib/job-tracker/dashboard-manual-capture";
 
 const AUTO_ARCHIVE_MS = 24 * 60 * 60 * 1000;
 
@@ -498,6 +506,139 @@ export async function updateJobTrackerEntryStatus(
   return { success: true };
 }
 
+export type CreateJobTrackerManualEntryResult =
+  | { success: true; entryId: string }
+  | { success: false; error: string };
+
+export type TailorJobTrackerEntryResult =
+  | { success: true; status: string }
+  | { success: false; error: string };
+
+export async function createJobTrackerManualEntry(
+  draft: DashboardManualJobDraft,
+): Promise<CreateJobTrackerManualEntryResult> {
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return { success: false, error: "Sign in required" };
+  }
+
+  const built = buildDashboardManualJobInput(draft);
+  if (!built.ok) {
+    journeySyncLog("server", "dashboard.manual_capture.block", {
+      userId,
+      error: built.error,
+    });
+    return { success: false, error: built.error };
+  }
+
+  const sourceProfile = await findProfileForUser(userId, built.input.sourceProfileId ?? "");
+  if (!sourceProfile) {
+    journeySyncLog("server", "dashboard.manual_capture.block", {
+      userId,
+      errorCode: "invalid_source_profile",
+      error: "Select a resume profile to tailor from.",
+    });
+    return { success: false, error: "Select a resume profile to tailor from." };
+  }
+
+  const aiBlock = await getExtensionAiApplyBlockForUser(userId);
+  if (aiBlock) {
+    journeySyncLog("server", "dashboard.manual_capture.block", {
+      userId,
+      errorCode: "ai_unavailable",
+      error: aiBlock,
+    });
+    return { success: false, error: aiBlock };
+  }
+
+  journeySyncLog("server", "dashboard.manual_capture.start", { userId });
+
+  try {
+    const { id } = await captureJob(userId, built.input);
+    revalidatePath("/dashboard/job-tracker");
+    revalidatePath("/dashboard");
+    journeySyncLog("server", "dashboard.manual_capture.done", { userId, entryId: id });
+    return { success: true, entryId: id };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Could not save job";
+    journeySyncLog("server", "dashboard.manual_capture.fail", {
+      userId,
+      errorCode: "capture_failed",
+      error: message,
+    });
+    return { success: false, error: message };
+  }
+}
+
+export async function tailorJobTrackerEntry(
+  entryId: string,
+): Promise<TailorJobTrackerEntryResult> {
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return { success: false, error: "Sign in required" };
+  }
+
+  const trimmedId = entryId.trim();
+  if (!trimmedId) {
+    return { success: false, error: "Job not found" };
+  }
+
+  const aiBlock = await getExtensionAiApplyBlockForUser(userId);
+  if (aiBlock) {
+    journeySyncLog("server", "dashboard.tailor.block", {
+      userId,
+      entryId: trimmedId,
+      errorCode: "ai_unavailable",
+      error: aiBlock,
+    });
+    return { success: false, error: aiBlock };
+  }
+
+  const entryInput = await loadTailorInputFromEntry(userId, trimmedId);
+  if (!entryInput) {
+    return { success: false, error: "Job not found" };
+  }
+
+  journeySyncLog("server", "dashboard.tailor.start", { userId, entryId: trimmedId });
+
+  try {
+    const result = await tailorJobPipeline(userId, trimmedId, entryInput);
+    revalidatePath("/dashboard/job-tracker");
+    revalidatePath("/dashboard");
+
+    if (!result.success) {
+      journeySyncLog("server", "dashboard.tailor.fail", {
+        userId,
+        entryId: trimmedId,
+        errorCode: "tailor_failed",
+        error: result.error,
+      });
+      return { success: false, error: result.error ?? "Tailor failed" };
+    }
+
+    journeySyncLog("server", "dashboard.tailor.done", {
+      userId,
+      entryId: trimmedId,
+      status: result.status,
+    });
+    return { success: true, status: result.status };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Tailor failed";
+    await recordPipelineTailorError(userId, trimmedId, message, "tailor_crashed");
+    journeySyncLog("server", "dashboard.tailor.fail", {
+      userId,
+      entryId: trimmedId,
+      errorCode: "tailor_failed",
+      error: message,
+    });
+    return { success: false, error: message };
+  }
+}
+
 export async function markJobTrackerEntryApplied(
   entryId: string,
 ): Promise<UpdateJobTrackerStatusResult> {
@@ -515,6 +656,42 @@ export async function markJobTrackerEntryApplied(
 
   revalidatePath("/dashboard/job-tracker");
   return { success: true };
+}
+
+const overviewQueueSelect = {
+  ...listSelect,
+  resumeTailor: {
+    select: {
+      id: true,
+      enhanceMeta: true,
+    },
+  },
+} as const;
+
+export async function getOverviewActionQueueForUser(
+  userId: string,
+  limit = 6,
+): Promise<import("@/lib/dashboard/overview-stats").OverviewActionQueueItem[]> {
+  const { rankOverviewActionQueue, readAtsScoreFromEnhanceMeta } = await import(
+    "@/lib/dashboard/overview-stats"
+  );
+
+  const rows = await prisma.jobTrackerEntry.findMany({
+    where: {
+      userId,
+      status: { in: ["CAPTURED", "RESUME_READY", "READY_TO_APPLY"] },
+    },
+    orderBy: [{ savedAt: "desc" }],
+    take: 40,
+    select: overviewQueueSelect,
+  });
+
+  const candidates = rows.map((row) => ({
+    ...toSummary(row),
+    atsScore: readAtsScoreFromEnhanceMeta(row.resumeTailor?.enhanceMeta),
+  }));
+
+  return rankOverviewActionQueue(candidates, limit);
 }
 
 export async function getJobTrackerStatsForUser(userId: string): Promise<{

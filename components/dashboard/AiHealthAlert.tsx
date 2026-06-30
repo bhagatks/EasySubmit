@@ -159,7 +159,7 @@ function useAiHealthStatus() {
   return useContext(AiHealthContext).status;
 }
 
-/** Glossy pill anchored below the BYOK button area in the dashboard header. */
+/** Full-width banner below the dashboard header toolbar when AI health is degraded. */
 export function AiHealthHeaderNotice() {
   const status = useAiHealthStatus();
 
@@ -171,31 +171,29 @@ export function AiHealthHeaderNotice() {
   return (
     <div
       role="alert"
-      className="absolute right-0 top-full z-50 mt-1.5 w-64 rounded-xl border px-3 py-2.5"
+      className="shrink-0 border-t px-4 py-2.5"
       style={{
         background: "oklch(0.18 0.06 25 / 0.92)",
         borderColor: "oklch(0.55 0.22 25 / 0.30)",
-        backdropFilter: "blur(12px)",
-        WebkitBackdropFilter: "blur(12px)",
       }}
     >
-      <div className="flex items-start gap-2">
-        <AlertTriangle
-          className="mt-0.5 h-3.5 w-3.5 shrink-0"
-          style={{ color: "oklch(0.72 0.20 25)" }}
-          aria-hidden="true"
-        />
-        <div className="min-w-0 flex-1">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-1 items-start gap-2">
+          <AlertTriangle
+            className="mt-0.5 h-3.5 w-3.5 shrink-0"
+            style={{ color: "oklch(0.72 0.20 25)" }}
+            aria-hidden="true"
+          />
           <p className="text-[12px] leading-snug" style={{ color: "oklch(0.84 0.10 25)" }}>
             {message}
           </p>
-          <Link
-            href={fixHref}
-            className="mt-1 block text-right text-[11px] font-semibold text-primary hover:underline"
-          >
-            Fix in {fixLabel} →
-          </Link>
         </div>
+        <Link
+          href={fixHref}
+          className="shrink-0 text-[11px] font-semibold text-primary hover:underline"
+        >
+          Fix in {fixLabel} →
+        </Link>
       </div>
     </div>
   );

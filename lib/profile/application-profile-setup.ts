@@ -1,8 +1,15 @@
-import type { ApplicationProfile } from "@/lib/profile/application-profile";
+import type {
+  ApplicationProfile,
+  ApplicationProfileEducation,
+  ApplicationProfilePreferences,
+  ApplicationProfileWorkAuth,
+} from "@/lib/profile/application-profile";
 
 export type ApplicationProfileScreen1Input = {
   authorized: string;
   authorizedCountry: string;
+  citizenshipStatus: string;
+  visaType: string;
   requiresSponsorship: string;
   salaryMin: string;
   salaryMax: string;
@@ -14,6 +21,8 @@ export type ApplicationProfileScreen2Input = {
   gender: string;
   veteran: string;
   disability: string;
+  race: string;
+  hispanicLatino: string;
 };
 
 export type ProfileSetupScreen1Field =
@@ -126,6 +135,8 @@ export function applicationProfilePatchFromScreen1(
     workAuth: {
       authorized: draft.authorized === "yes",
       authorizedCountry: draft.authorizedCountry.trim() || "US",
+      citizenshipStatus: (draft.citizenshipStatus as ApplicationProfileWorkAuth["citizenshipStatus"]) || null,
+      visaType: draft.visaType.trim() || null,
       requiresSponsorship: draft.requiresSponsorship === "yes",
     },
     preferences: {
@@ -148,6 +159,8 @@ export function applicationProfilePatchFromScreen2(
         gender: "Prefer not to say",
         veteran: "Prefer not to say",
         disability: "Prefer not to say",
+        race: null,
+        hispanicLatino: null,
       },
     };
   }
@@ -157,7 +170,61 @@ export function applicationProfilePatchFromScreen2(
       gender: eeoLabel(draft.gender),
       veteran: eeoLabel(draft.veteran),
       disability: eeoLabel(draft.disability),
+      race: draft.race === "prefer_not_to_say" ? null : eeoLabel(draft.race),
+      hispanicLatino:
+        draft.hispanicLatino === "prefer_not_to_say"
+          ? null
+          : draft.hispanicLatino === "yes",
     },
+  };
+}
+
+export type ApplicationProfileScreen3Input = {
+  preferredName: string;
+  pronouns: string;
+  githubUrl: string;
+  portfolioUrl: string;
+  noticePeriod: string;
+  desiredJobType: string;
+  willingToRelocate: string;
+  travelTolerance: string;
+  highestDegree: string;
+  fieldOfStudy: string;
+  schoolName: string;
+  graduationYear: string;
+  gpa: string;
+};
+
+export function applicationProfilePatchFromScreen3(
+  draft: ApplicationProfileScreen3Input,
+  existingPreferences: ApplicationProfilePreferences | null,
+): Partial<ApplicationProfile> {
+  return {
+    identityExtras: {
+      preferredName: draft.preferredName || null,
+      pronouns: draft.pronouns || null,
+      githubUrl: draft.githubUrl || null,
+      portfolioUrl: draft.portfolioUrl || null,
+    },
+    education: {
+      highestDegree: (draft.highestDegree as ApplicationProfileEducation["highestDegree"]) || null,
+      fieldOfStudy: draft.fieldOfStudy || null,
+      schoolName: draft.schoolName || null,
+      graduationYear: draft.graduationYear ? Number(draft.graduationYear) : null,
+      gpa: draft.gpa || null,
+    },
+    // Merge preference extras onto existing Screen 1 preferences so they are not lost
+    preferences: existingPreferences
+      ? {
+          ...existingPreferences,
+          noticePeriod: (draft.noticePeriod as ApplicationProfilePreferences["noticePeriod"]) || null,
+          desiredJobType: (draft.desiredJobType as ApplicationProfilePreferences["desiredJobType"]) || null,
+          willingToRelocate:
+            draft.willingToRelocate === "yes" ? true : draft.willingToRelocate === "no" ? false : null,
+          travelTolerance:
+            (draft.travelTolerance as ApplicationProfilePreferences["travelTolerance"]) || null,
+        }
+      : null,
   };
 }
 
@@ -168,6 +235,8 @@ export function syncProfileSetupDraftsFromProfile(profile: ApplicationProfile | 
   const screen1: ApplicationProfileScreen1Input = {
     authorized: profile?.workAuth?.authorized === false ? "no" : "yes",
     authorizedCountry: profile?.workAuth?.authorizedCountry ?? "US",
+    citizenshipStatus: profile?.workAuth?.citizenshipStatus ?? "citizen",
+    visaType: profile?.workAuth?.visaType ?? "",
     requiresSponsorship: profile?.workAuth?.requiresSponsorship ? "yes" : "no",
     salaryMin: profile?.preferences?.salary?.min ? String(profile.preferences.salary.min) : "",
     salaryMax: profile?.preferences?.salary?.max ? String(profile.preferences.salary.max) : "",
@@ -185,6 +254,13 @@ export function syncProfileSetupDraftsFromProfile(profile: ApplicationProfile | 
     gender: reverseEeo(profile?.eeo?.gender, "prefer_not_to_say"),
     veteran: reverseEeo(profile?.eeo?.veteran, "prefer_not_to_say"),
     disability: reverseEeo(profile?.eeo?.disability, "prefer_not_to_say"),
+    race: profile?.eeo?.race ?? "prefer_not_to_say",
+    hispanicLatino:
+      profile?.eeo?.hispanicLatino == null
+        ? "prefer_not_to_say"
+        : profile.eeo.hispanicLatino
+          ? "yes"
+          : "no",
   };
 
   return { screen1, screen2 };
@@ -195,7 +271,9 @@ export function emptyApplicationProfile(): ApplicationProfile {
     workAuth: null,
     preferences: null,
     address: null,
+    education: null,
     eeo: null,
+    identityExtras: null,
   };
 }
 
@@ -215,6 +293,8 @@ export function mergeApplicationProfile(
     workAuth: patch.workAuth !== undefined ? patch.workAuth : base.workAuth,
     preferences: patch.preferences !== undefined ? patch.preferences : base.preferences,
     address: patch.address !== undefined ? patch.address : base.address,
+    education: patch.education !== undefined ? patch.education : base.education,
     eeo: patch.eeo !== undefined ? patch.eeo : base.eeo,
+    identityExtras: patch.identityExtras !== undefined ? patch.identityExtras : base.identityExtras,
   };
 }

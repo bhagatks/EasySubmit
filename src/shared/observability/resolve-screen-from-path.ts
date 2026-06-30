@@ -16,6 +16,7 @@ const ROUTE_MATCHERS: RouteMatcher[] = [
   { screenId: "signup_legacy", test: (p) => p.startsWith("/auth/signup") },
   { screenId: "terms", test: (p) => p === "/terms" },
   { screenId: "privacy", test: (p) => p === "/privacy" },
+  { screenId: "help_center", test: (p) => p.startsWith("/help") },
   { screenId: "onboarding_step4_legacy", test: (p) => p === "/onboarding/step-4" },
   { screenId: "onboarding_workbench", test: (p) => p.startsWith("/onboarding") },
   { screenId: "resume_profile_new", test: (p) => p === "/dashboard/resume-profiles/new" },

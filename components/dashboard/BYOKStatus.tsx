@@ -1,11 +1,15 @@
 "use client";
 
-import { JetBrains_Mono } from "next/font/google";
 import { motion } from "framer-motion";
 import { KeyRound } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { SETTINGS_ADD_KEY_HREF, SETTINGS_KEYS_HREF } from "@/lib/dashboard/settings-ai-links";
+import {
+  byokStatusAriaLabel,
+  byokStatusLabel,
+  resolveByokVaultStatus,
+} from "@/lib/dashboard/byok-status-labels";
 import {
   dashboardHeaderMintPillClassName,
   dashboardHeaderMintPillStyle,
@@ -14,14 +18,9 @@ import {
 } from "@/lib/dashboard/dashboard-header-chrome";
 import { trackByokCtaClicked } from "@/src/shared/analytics/product-events";
 
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  display: "swap",
-});
-
+/** @deprecated Prefer `resolveByokVaultStatus` from `@/lib/dashboard/byok-status-labels`. */
 export function resolveBYOKStatus(vaultKeyId?: string | null): "ACTIVE" | "INACTIVE" {
-  return vaultKeyId ? "ACTIVE" : "INACTIVE";
+  return resolveByokVaultStatus(vaultKeyId);
 }
 
 type BYOKStatusProps = {
@@ -31,7 +30,7 @@ type BYOKStatusProps = {
 
 /** Header badge when BYOK is vaulted and active. */
 export function BYOKStatusBadge({ vaultKeyId, className }: BYOKStatusProps) {
-  const status = resolveBYOKStatus(vaultKeyId);
+  const status = resolveByokVaultStatus(vaultKeyId);
 
   if (status !== "ACTIVE") {
     return null;
@@ -43,18 +42,15 @@ export function BYOKStatusBadge({ vaultKeyId, className }: BYOKStatusProps) {
       onClick={() => trackByokCtaClicked("header_badge")}
       className={dashboardHeaderMintPillClassName(className)}
       style={dashboardHeaderMintPillStyle}
-      aria-label="BYOK active — manage AI keys"
+      aria-label={byokStatusAriaLabel(vaultKeyId)}
     >
       <KeyRound className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-      BYOK Active
+      {byokStatusLabel(vaultKeyId)}
     </Link>
   );
 }
 
-const byokKeyButtonClassName = cn(
-  jetbrainsMono.className,
-  dashboardHeaderWarningPillClassName("uppercase tracking-[0.08em]"),
-);
+const byokKeyButtonClassName = dashboardHeaderWarningPillClassName();
 
 /** Header CTA when BYOK is not configured — opens add-key in Settings. */
 export function BYOKKeyButton({ className }: { className?: string }) {
@@ -64,10 +60,10 @@ export function BYOKKeyButton({ className }: { className?: string }) {
       onClick={() => trackByokCtaClicked("header_cta")}
       className={cn(byokKeyButtonClassName, className)}
       style={dashboardHeaderWarningPillStyle}
-      aria-label="Add BYOK API key"
+      aria-label={byokStatusAriaLabel(null)}
     >
       <KeyRound className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-      BYOK KEY
+      {byokStatusLabel(null)}
     </Link>
   );
 }
@@ -89,23 +85,20 @@ export function BYOKKeyHeaderAction({
       }}
       className={cn(byokKeyButtonClassName, className)}
       style={dashboardHeaderWarningPillStyle}
-      aria-label="Add BYOK API key"
+      aria-label={byokStatusAriaLabel(null)}
     >
       <KeyRound className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-      BYOK KEY
+      {byokStatusLabel(null)}
     </button>
   );
 }
 
-/** Compact inactive indicator for the AI Keys sidebar nav item. */
+/** Compact inactive indicator for the Settings sidebar nav item. */
 export function BYOKInactiveNavBadge({ className }: { className?: string }) {
-  const mono = jetbrainsMono.className;
-
   return (
     <motion.span
       className={cn(
-        mono,
-        "inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-[0.08em]",
+        "inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-medium",
         className,
       )}
       style={{
@@ -116,7 +109,7 @@ export function BYOKInactiveNavBadge({ className }: { className?: string }) {
       animate={{}}
       aria-hidden="true"
     >
-      Add key
+      {byokStatusLabel(null)}
     </motion.span>
   );
 }

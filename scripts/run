@@ -11,14 +11,21 @@ case "$cmd" in
   easy)
     case "$sub" in
       prod|production)
-        exec node "$ROOT/scripts/run.mjs" deploy:prod
+        if [[ "${3:-}" == "fast" ]]; then
+          exec node "$ROOT/scripts/run.mjs" deploy:prod --fast
+        else
+          exec node "$ROOT/scripts/run.mjs" deploy:prod
+        fi
+        ;;
+      fast)
+        exec node "$ROOT/scripts/run.mjs" dev --fast
         ;;
       "")
         exec node "$ROOT/scripts/run.mjs" dev
         ;;
       *)
         echo "Unknown target: $sub" >&2
-        echo "Usage: run easy [prod]" >&2
+        echo "Usage: run easy [fast] | run easy prod [fast]" >&2
         exit 1
         ;;
     esac
@@ -26,8 +33,10 @@ case "$cmd" in
   *)
     echo "Usage: run easy [prod]" >&2
     echo "" >&2
-    echo "  run easy       Local dev (.env.local, injected)" >&2
-    echo "  run easy prod  Deploy to Vercel (dashboard secrets)" >&2
+    echo "  run easy            Local dev — .env.local → migrate → tests → extensions → next dev" >&2
+    echo "  run easy fast       Local dev without tests" >&2
+    echo "  run easy prod       Tests → prisma validate → npx vercel deploy --prod --yes" >&2
+    echo "  run easy prod fast  Deploy only" >&2
     exit 1
     ;;
 esac

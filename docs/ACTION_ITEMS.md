@@ -18,7 +18,7 @@
 | Run Prisma migrate on production DB | **Done** | Via Vercel build (`prisma-migrate-deploy.mjs`) |
 | Supabase Storage bucket `avatars` | **Verify** | `npm run prod:ensure-avatars-bucket` |
 | Chrome Web Store publish | **Blocked** | Listing under review — `publish_to_cws` after approval |
-| **PostHog analytics — Vercel prod** | **Verify** | Prod key (project `488042`) in Vercel |
+| **PostHog analytics — Vercel prod** | **Done** | Key synced; build gate + `npm run prod:verify-posthog` |
 | **PostHog UI settings** (both projects) | **Todo** | Web autocapture on; replay on; errors on; blocklist; masking |
 | **PostHog dashboards** (optional) | **Todo** | `POSTHOG_PERSONAL_API_KEY=phx_… npm run analytics:setup` |
 
@@ -31,7 +31,7 @@ See also [`PROD_CUTOVER.md`](./PROD_CUTOVER.md) §7.
 - [ ] `/onboarding` — wizard steps advance
 - [ ] Resume upload → `/onboarding/step-4` animation → `/dashboard`
 - [ ] Unauthenticated `/dashboard` → `/login`
-- [ ] PostHog — prod `login_completed` visible (project `488042`, filter `environment = prod`)
+- [x] PostHog — prod `$pageview` on `/login` (project `488042`, `environment = prod`)
 
 ## Follow-up (not blocking deploy)
 
@@ -213,3 +213,15 @@ Full specs: **[`docs/JOB_TRACKER.md`](./JOB_TRACKER.md)** · Workday E2E (cancel
 | **Part 2 — Extension popup redesign** | Todo — launcher UI, mini stats, settings; no one-click toggle |
 | Extension popup one-click toggle | **Remove in Part 2** |
 | Extension reconnect UX in popup/settings | Done — popup shows "Connect account" / "Reconnect account" with `OPEN_LOGIN` flow; dashboard banner removal was intentional |
+
+### Dashboard UX — follow-ups (Jun 2026)
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Settings **Expand all** in page header (not top chrome) | **Done** | `AccountSettings` aside + `DashboardExpandAllButton` `placement="page"` |
+| Job Tracker page header actions (Add job, Archive) | **Done** | `JobTrackerPageContent` + `JobTrackerHeaderActions` |
+| **Extension** sidebar item | **Done** | Hidden when extension connected; `/dashboard/extension` route unchanged |
+| **Job Tracker shell-first cards** | **Done** | `tracker-row-chrome.ts` — fixed action slots; disabled until ready |
+| **Retry optimize** on stuck `CAPTURED` | **Done** | Stall detection + `tailorJobTrackerEntry` from tracker row |
+| **Tailor mid-pipeline failure handling** | **Done** | `recordPipelineTailorError` on crash in tailor route, action, `tailorJobPipeline` |
+

@@ -53,4 +53,29 @@ describe("resume profile limit", () => {
       expect(result.error).toContain("20");
     }
   });
+
+  it("uses maxProfiles override without loading config", async () => {
+    vi.mocked(prisma.profile.count).mockResolvedValue(5);
+
+    const result = await checkUserCanCreateResumeProfile("user-1", prisma, 10);
+
+    expect(getAppConfig).not.toHaveBeenCalled();
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.maxProfiles).toBe(10);
+      expect(result.currentCount).toBe(5);
+    }
+  });
+
+  it("requires maxProfiles override when using a transaction client", async () => {
+    const tx = {
+      profile: {
+        count: vi.fn(),
+      },
+    };
+
+    await expect(
+      checkUserCanCreateResumeProfile("user-1", tx as never),
+    ).rejects.toThrow("maxProfilesOverride is required");
+  });
 });

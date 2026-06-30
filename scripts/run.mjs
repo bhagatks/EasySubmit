@@ -2,8 +2,8 @@
 /**
  * Command-specific env injection — never renames or mutates .env files at runtime.
  *
- *   node scripts/run.mjs dev
- *   node scripts/run.mjs deploy:prod
+ *   node scripts/run.mjs dev [--fast]
+ *   node scripts/run.mjs deploy:prod [--fast]
  *   node scripts/run.mjs admin -- <command...>   (ephemeral Vercel Production env)
  */
 import { execSync, spawnSync } from "node:child_process";
@@ -11,12 +11,16 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  DEV_SUPABASE_REF,
   LOCAL_ENV_FILE,
+  PROD_SUPABASE_REF,
+  isProdDB,
   loadEnv,
   loadEphemeralVercelProductionEnv,
   mergeEnv,
   runCommand,
   spawnCommand,
+  withNodeMemoryLimit,
 } from "./env-lib.mjs";
 import {
   assertSafeForDevServer,
@@ -30,10 +34,44 @@ const port = process.env.PORT ?? "3000";
 
 function usage() {
   console.error("Usage:");
-  console.error("  node scripts/run.mjs dev");
-  console.error("  node scripts/run.mjs deploy:prod");
+  console.error("  node scripts/run.mjs dev [--fast]");
+  console.error("  node scripts/run.mjs deploy:prod [--fast]");
   console.error("  node scripts/run.mjs admin -- <command...>");
   process.exit(1);
+}
+
+function extractSupabaseRef(env) {
+  const databaseUrl = env.DATABASE_URL;
+  const supabasePublicUrl = env.NEXT_PUBLIC_SUPABASE_URL;
+  if (supabasePublicUrl) {
+    const m = supabasePublicUrl.match(/https:\/\/([^.]+)\.supabase\.co/);
+    if (m?.[1]) return m[1];
+  }
+  if (databaseUrl) {
+    const userMatch = databaseUrl.match(/postgres\.([^:]+):/);
+    if (userMatch?.[1]) return userMatch[1];
+    const hostMatch = databaseUrl.match(/db\.([^.]+)\.supabase\.co/);
+    if (hostMatch?.[1]) return hostMatch[1];
+  }
+  return null;
+}
+
+function printDevEnvTarget(env) {
+  const ref = extractSupabaseRef(env);
+  const loginUrl = `http://localhost:${port}/login`;
+  console.log(`→ Env: ${LOCAL_ENV_FILE} (injected, never written to disk)`);
+  if (isProdDB(env.DATABASE_URL)) {
+    console.log(`→ ❌ DATABASE_URL targets prod ${PROD_SUPABASE_REF} — blocked`);
+    return;
+  }
+  if (ref === DEV_SUPABASE_REF) {
+    console.log(`→ Dev Supabase: ${ref} (EasySubmitQA)`);
+  } else if (ref) {
+    console.log(`→ Supabase ref: ${ref} (expected dev ${DEV_SUPABASE_REF})`);
+  }
+  console.log(`→ App: ${loginUrl}`);
+  console.log("→ Extension dev: dist/extension/ (main Chrome profile)");
+  console.log("→ Extension prod QA: dist/extension-prod/ (separate Chrome profile)");
 }
 
 function clearStaleShellDatabaseUrl() {
@@ -84,18 +122,6 @@ function runPrisma(args, env) {
   runCommand("npx", ["prisma", ...args], env, { cwd: root });
 }
 
-function runPosthogJourney(env, label) {
-  console.log(`→ PostHog journey report (${label}, non-blocking)`);
-  const result = spawnSync("npm", ["run", "posthog:journey"], {
-    stdio: "inherit",
-    env,
-    cwd: root,
-  });
-  if (result.status !== 0) {
-    console.log("⚠ PostHog journey report skipped (missing POSTHOG_PERSONAL_API_KEY or DB)");
-  }
-}
-
 async function waitForDevServer(child, env) {
   const loginUrl = `http://localhost:${port}/login`;
   let attempt = 0;
@@ -124,43 +150,48 @@ async function waitForDevServer(child, env) {
   if (env.EASY_OPEN_BROWSER === "1") {
     runCommand(process.execPath, [resolve(root, "scripts/post-start.mjs"), "--port", port], env);
   } else {
-    console.log(`→ Dev server ready at ${loginUrl} (open manually)`);
-    console.log("→ Extension: load unpacked from dist/extension (rebuilt each run easy)");
-    console.log("→ Set EASY_OPEN_BROWSER=1 to auto-open incognito login");
+    console.log(`→ Dev server ready at ${loginUrl}`);
   }
 }
 
 function runDev() {
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.log("  EasySubmit · local dev");
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  const fast = process.argv.includes("--fast");
 
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  console.log(fast ? "  EasySubmit · local dev (fast)" : "  EasySubmit · local dev");
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  console.log("Secrets: .env.local only — prod lives in Vercel Dashboard\n");
+
+  console.log("1/6 Preflight");
   stopDevServers();
   const env = loadLocalDevEnv();
+  printDevEnvTarget(env);
 
+  console.log("\n2/6 Database safety");
   assertSafeForDevServer(env);
   assertSafeForLocalMigrate(env);
   runValidateDatabase(env);
 
-  console.log("→ prisma generate");
+  console.log("\n3/6 Prisma generate + migrate deploy");
   runPrisma(["generate"], env);
-
-  console.log("→ prisma migrate deploy (applies pending migrations, non-interactive)");
   runCommand(process.execPath, [resolve(root, "scripts/prisma-migrate-deploy.mjs")], env);
 
-  console.log("→ Running tests");
-  runCommand("npm", ["test"], env, { cwd: root });
+  if (!fast) {
+    console.log("\n4/6 Tests");
+    runCommand("npm", ["test"], withNodeMemoryLimit(env, 4096), { cwd: root });
+  } else {
+    console.log("\n4/6 Skipped (--fast): tests");
+  }
 
-  console.log("→ Building Chrome extension (dist/extension)");
-  runCommand("npm", ["run", "build:extension"], env, { cwd: root });
+  console.log("\n5/6 Extension builds (dev + prod QA)");
+  runCommand("npm", ["run", "build:extensions"], env, { cwd: root });
 
-  runPosthogJourney(env, "local dev");
-
-  console.log(`→ Dev server (http://localhost:${port})`);
+  console.log(`\n6/6 Dev server (http://localhost:${port})`);
+  console.log("   Set EASY_OPEN_BROWSER=1 to auto-open incognito login");
   const child = spawnCommand(
     "npx",
     ["next", "dev", "-p", port],
-    { ...env, NODE_OPTIONS: env.NODE_OPTIONS ?? "--max-old-space-size=4096" },
+    withNodeMemoryLimit(env, 8192),
     { cwd: root },
   );
 
@@ -181,11 +212,31 @@ function requireVercelCli() {
   }
 }
 
-function runDeployProd() {
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.log("  EasySubmit · deploy production (Vercel)");
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+function warnGitPreflight() {
+  try {
+    const branch = execSync("git rev-parse --abbrev-ref HEAD", { encoding: "utf8", cwd: root }).trim();
+    if (branch !== "main") {
+      console.log(`⚠ Branch is "${branch}" (not main) — push to main for Git-linked auto-deploy`);
+    }
+    const dirty = execSync("git status --porcelain", { encoding: "utf8", cwd: root }).trim();
+    if (dirty) {
+      console.log("⚠ Uncommitted changes — Vercel CLI uploads your working tree, not only the last commit");
+    }
+  } catch {
+    // not a git repo
+  }
+}
 
+function runDeployProd() {
+  const fast = process.argv.includes("--fast");
+
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  console.log(fast ? "  EasySubmit · deploy production (fast)" : "  EasySubmit · deploy production (Vercel)");
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  console.log("Prod secrets: Vercel Dashboard → Production (never synced from this command)\n");
+
+  console.log("1/5 Preflight");
+  warnGitPreflight();
   requireVercelCli();
 
   if (!existsSync(resolve(root, ".vercel/project.json"))) {
@@ -193,18 +244,38 @@ function runDeployProd() {
     spawnSync("npx", ["vercel", "link"], { stdio: "inherit", cwd: root });
   }
 
-  console.log("→ Running tests");
-  runCommand("npm", ["test"], process.env, { cwd: root });
+  if (!fast) {
+    console.log("\n2/5 Tests");
+    runCommand("npm", ["test"], withNodeMemoryLimit(process.env, 4096), { cwd: root });
 
-  console.log("→ Building Chrome extension (dist/extension)");
-  runCommand("npm", ["run", "build:extension"], process.env, { cwd: root });
+    console.log("\n3/5 Prisma validate (schema + prisma.config.ts)");
+    const validateEnv = {
+      ...process.env,
+      DATABASE_URL:
+        process.env.DATABASE_URL?.trim() ||
+        "postgresql://ci:ci@127.0.0.1:5432/ci?schema=public",
+      DIRECT_URL:
+        process.env.DIRECT_URL?.trim() ||
+        "postgresql://ci:ci@127.0.0.1:5432/ci?schema=public",
+    };
+    runCommand("npx", ["prisma", "validate"], validateEnv, { cwd: root });
+  } else {
+    console.log("\n2–3/5 Skipped (--fast): tests + prisma validate");
+  }
 
-  runPosthogJourney(process.env, "pre-deploy");
+  console.log("\n4/5 Deploy");
+  console.log("→ npx vercel deploy --prod --yes --force");
+  console.log(
+    "   On Vercel: prisma generate → migrate deploy (DIRECT_URL) → validate analytics env → next build",
+  );
+  runCommand("npx", ["vercel", "deploy", "--prod", "--yes", "--force"], process.env, { cwd: root });
 
-  console.log("→ Deploying to Vercel production (vercel-build runs prisma migrate deploy)");
-  runCommand("npx", ["vercel", "deploy", "--prod"], process.env, { cwd: root });
-
-  console.log("✔ Production deploy complete");
+  console.log("\n5/5 Smoke test");
+  runCommand(process.execPath, [resolve(root, "scripts/verify-prod-posthog-live.mjs")], process.env, {
+    cwd: root,
+  });
+  console.log("✔ Production deploy complete — https://www.easysubmit.ai/login");
+  console.log("  Extension store: GitHub Actions (not this command) — see docs/DEPLOYMENT.md");
 }
 
 function runAdmin() {

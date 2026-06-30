@@ -299,7 +299,7 @@ function JobPanel({
           </div>
         ) : (
           <p className="mt-2 text-sm text-muted-foreground">
-            No description captured yet. Open the posting in your browser and save again from the
+            No description captured yet. Use <strong>Add job</strong> on Job Tracker or save from the
             extension.
           </p>
         )}

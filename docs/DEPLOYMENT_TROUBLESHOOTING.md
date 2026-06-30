@@ -18,16 +18,14 @@ Lessons from the June 2026 prod cutover. **Normal deploy = push to `main` only**
 
 ## Normal prod deploy (web)
 
-1. Merge / push to `main`
-2. Vercel runs `npm run vercel-build`:
-   - `prisma generate`
-   - `node scripts/prisma-migrate-deploy.mjs` (uses `DIRECT_URL`)
-   - `next build`
-3. Smoke test: https://www.easysubmit.ai/login
+1. Merge / push to `main` (preferred — Vercel auto-builds)
+2. Or manual: `run easy prod` (tests → prisma validate → `npx vercel deploy --prod --yes`)
+3. On Vercel: `prisma generate` → `migrate deploy` (`DIRECT_URL`) → `next build`
+4. Smoke test: https://www.easysubmit.ai/login
 
 **No env push step.** Vercel reuses Production variables already saved.
 
-Manual from laptop: `run easy prod` or `npx vercel deploy --prod`.
+Manual from laptop: `run easy prod` (full) or `run easy prod fast` (deploy only).
 
 ---
 

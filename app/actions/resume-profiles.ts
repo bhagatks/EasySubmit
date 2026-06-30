@@ -152,51 +152,55 @@ export async function createResumeProfile(
   }
 
   try {
-    const profileId = await prisma.$transaction(async (tx) => {
-      const limit = await checkUserCanCreateResumeProfile(userId, tx);
-      if (!limit.ok) {
-        throw new Error(limit.error);
-      }
+    const { maxProfilesPerCustomer: maxProfiles } = await getResumeProfilesConfig();
+    const profileId = await prisma.$transaction(
+      async (tx) => {
+        const limit = await checkUserCanCreateResumeProfile(userId, tx, maxProfiles);
+        if (!limit.ok) {
+          throw new Error(limit.error);
+        }
 
-      if (copyFromDefault && defaultProfile) {
-        const cloned = await tx.profile.create({
+        if (copyFromDefault && defaultProfile) {
+          const cloned = await tx.profile.create({
+            data: {
+              userId,
+              isDefault: false,
+              email: defaultProfile.email,
+              firstName: defaultProfile.firstName,
+              lastName: defaultProfile.lastName,
+              phone: defaultProfile.phone,
+              city: defaultProfile.city,
+              country: defaultProfile.country,
+              targetTitle: null,
+              summary: defaultProfile.summary,
+              skills: [...defaultProfile.skills],
+              resumeRawText: defaultProfile.resumeRawText,
+              content: defaultProfile.content as Prisma.InputJsonValue,
+              calibrationScore: defaultProfile.calibrationScore,
+            },
+          });
+
+          return cloned.id;
+        }
+
+        const email =
+          defaultProfile?.email ??
+          profileEmailForUser(userId, sessionEmail);
+
+        const created = await tx.profile.create({
           data: {
             userId,
             isDefault: false,
-            email: defaultProfile.email,
-            firstName: defaultProfile.firstName,
-            lastName: defaultProfile.lastName,
-            phone: defaultProfile.phone,
-            city: defaultProfile.city,
-            country: defaultProfile.country,
-            targetTitle: null,
-            summary: defaultProfile.summary,
-            skills: [...defaultProfile.skills],
-            resumeRawText: defaultProfile.resumeRawText,
-            content: defaultProfile.content as Prisma.InputJsonValue,
-            calibrationScore: defaultProfile.calibrationScore,
+            email,
+            firstName: defaultProfile?.firstName,
+            lastName: defaultProfile?.lastName,
           },
         });
 
-        return cloned.id;
-      }
-
-      const email =
-        defaultProfile?.email ??
-        profileEmailForUser(userId, sessionEmail);
-
-      const created = await tx.profile.create({
-        data: {
-          userId,
-          isDefault: false,
-          email,
-          firstName: defaultProfile?.firstName,
-          lastName: defaultProfile?.lastName,
-        },
-      });
-
-      return created.id;
-    });
+        return created.id;
+      },
+      { timeout: 15_000 },
+    );
 
     revalidatePath("/dashboard/resume-profiles");
 
@@ -235,32 +239,36 @@ export async function createResumeProfileFromParsed(
     profileEmailForUser(userId, sessionEmail);
 
   try {
-    const profileId = await prisma.$transaction(async (tx) => {
-      const limit = await checkUserCanCreateResumeProfile(userId, tx);
-      if (!limit.ok) {
-        throw new Error(limit.error);
-      }
+    const { maxProfilesPerCustomer: maxProfiles } = await getResumeProfilesConfig();
+    const profileId = await prisma.$transaction(
+      async (tx) => {
+        const limit = await checkUserCanCreateResumeProfile(userId, tx, maxProfiles);
+        if (!limit.ok) {
+          throw new Error(limit.error);
+        }
 
-      const created = await tx.profile.create({
-        data: {
-          userId,
-          isDefault: false,
-          email,
-          firstName: sanitizeString(form.firstName, 80) || null,
-          lastName: sanitizeString(form.lastName, 80) || null,
-          phone: sanitizeString(form.phone, 40) || null,
-          city: sanitizeString(city, 120) || null,
-          country: sanitizeString(country, 120) || null,
-          targetTitle: null,
-          summary: sanitizeString(form.professionalSummary, 8000) || null,
-          skills,
-          resumeRawText: input.rawResumeText.trim() || null,
-          content: hubFormToProfileContent(form, skills) as Prisma.InputJsonValue,
-        },
-      });
+        const created = await tx.profile.create({
+          data: {
+            userId,
+            isDefault: false,
+            email,
+            firstName: sanitizeString(form.firstName, 80) || null,
+            lastName: sanitizeString(form.lastName, 80) || null,
+            phone: sanitizeString(form.phone, 40) || null,
+            city: sanitizeString(city, 120) || null,
+            country: sanitizeString(country, 120) || null,
+            targetTitle: null,
+            summary: sanitizeString(form.professionalSummary, 8000) || null,
+            skills,
+            resumeRawText: input.rawResumeText.trim() || null,
+            content: hubFormToProfileContent(form, skills) as Prisma.InputJsonValue,
+          },
+        });
 
-      return created.id;
-    });
+        return created.id;
+      },
+      { timeout: 15_000 },
+    );
 
     revalidatePath("/dashboard/resume-profiles");
 

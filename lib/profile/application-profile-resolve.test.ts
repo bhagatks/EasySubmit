@@ -25,6 +25,8 @@ const profile: ApplicationProfile = {
     veteran: "I am not a protected veteran",
     disability: "No",
   },
+  education: null,
+  identityExtras: null,
 };
 
 describe("resolveFromApplicationProfile", () => {

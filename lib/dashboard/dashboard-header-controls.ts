@@ -88,6 +88,9 @@ export function getDashboardHeaderLabel(pathname: string, isStudioEdit: boolean)
   if (isStudioEdit) {
     return "Resume Studio";
   }
+  if (pathname.startsWith("/dashboard/help")) {
+    return "Help Center";
+  }
   if (pathname.startsWith("/dashboard/about")) {
     return "About";
   }

@@ -32,17 +32,21 @@ export function DashboardOverviewSkeleton() {
   return (
     <div className="animate-pulse space-y-8">
       <div className="space-y-2">
-        <div className="h-8 w-52 max-w-full rounded-lg bg-muted" />
-        <div className="h-4 w-72 max-w-full rounded bg-muted/80" />
+        <div className="h-8 w-64 max-w-full rounded-lg bg-muted" />
+        <div className="h-4 w-80 max-w-full rounded bg-muted/80" />
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => (
-          <div key={index} className="h-28 rounded-2xl bg-muted/70" />
+          <div key={index} className="h-28 rounded-xl bg-muted/70" />
         ))}
       </div>
-      <div className="grid min-w-0 gap-6 lg:grid-cols-[3fr_2fr]">
-        <div className="min-h-[22rem] rounded-2xl bg-muted/60" />
-        <div className="min-h-[22rem] rounded-2xl bg-muted/60" />
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[2fr_1fr]">
+        <div className="min-h-[18rem] rounded-xl bg-muted/60" />
+        <div className="h-40 rounded-xl bg-muted/60" />
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="h-24 rounded-xl bg-muted/50" />
+        <div className="h-24 rounded-xl bg-muted/50" />
       </div>
     </div>
   );

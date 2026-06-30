@@ -16,7 +16,7 @@ type ChromeBridge = {
 
 export type ExtensionConnectionStatus =
   | { state: "not-installed" }
-  | { state: "disconnected" }
+  | { state: "offline" }
   | { state: "connected"; version: string };
 
 function getChromeBridge(): ChromeBridge | undefined {
@@ -40,7 +40,7 @@ function pingExtension(extensionId: string): Promise<ExtensionConnectionStatus> 
     };
 
     const timeoutId = window.setTimeout(() => {
-      finish({ state: "disconnected" });
+      finish({ state: "offline" });
     }, EXTENSION_PING_TIMEOUT_MS);
 
     chromeBridge.runtime!.sendMessage(
@@ -52,11 +52,15 @@ function pingExtension(extensionId: string): Promise<ExtensionConnectionStatus> 
           finish({ state: "not-installed" });
           return;
         }
-        const r = response as { ready?: boolean; version?: string } | null;
+        const r = response as { ready?: boolean; version?: string; authenticated?: boolean } | null;
         if (r?.ready === true) {
-          finish({ state: "connected", version: r.version ?? "0.0.0" });
+          if (r.authenticated === false) {
+            finish({ state: "offline" });
+          } else {
+            finish({ state: "connected", version: r.version ?? "0.0.0" });
+          }
         } else {
-          finish({ state: "disconnected" });
+          finish({ state: "offline" });
         }
       },
     );

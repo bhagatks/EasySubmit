@@ -1,7 +1,12 @@
 #!/usr/bin/env node
-/** Deploy only — migrations run on Vercel build (vercel-build). No env sync. */
-import { execSync } from "node:child_process";
+/** Deploy only — skip local tests/typecheck. Same as `run easy prod fast`. */
+import { spawnSync } from "node:child_process";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-console.log("→ Deploying (vercel-build = prisma migrate deploy + next build)\n");
-execSync("npx vercel deploy --prod", { stdio: "inherit" });
-console.log("\n✔ Done — https://www.easysubmit.ai");
+const root = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
+const result = spawnSync(process.execPath, [resolve(root, "scripts/run.mjs"), "deploy:prod", "--fast"], {
+  stdio: "inherit",
+  cwd: root,
+});
+process.exit(result.status ?? 1);

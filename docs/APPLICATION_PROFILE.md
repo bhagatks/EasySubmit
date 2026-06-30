@@ -54,20 +54,26 @@ Stored as `users.applicationProfile` JSONB — one row per user, not per resume 
 ```ts
 type ApplicationProfile = {
   workAuth: {
-    authorizedCountry: string;       // e.g. "US"
+    authorizedCountry: string;
     authorized: boolean;
     requiresSponsorship: boolean;
+    citizenshipStatus?: "citizen" | "green_card" | "tn" | "ead" | "h1b" | "opt" | "cpt" | "other" | null;
+    visaType?: string | null;
   } | null;
 
   preferences: {
     salary: {
       min: number;
       max: number;
-      currency: string;              // e.g. "USD"
+      currency: string;
       signals: number[];             // manual edit values — never overwrite min/max
     };
     earliestStart: "immediately" | "2_weeks" | "1_month" | "flexible";
     workMode: "remote" | "hybrid" | "onsite" | "flexible";
+    willingToRelocate?: boolean | null;
+    noticePeriod?: "immediate" | "2_weeks" | "1_month" | "2_months" | "flexible" | null;
+    desiredJobType?: "full_time" | "part_time" | "contract" | "flexible" | null;
+    travelTolerance?: "none" | "25pct" | "50pct" | "75pct" | "any" | null;
   } | null;
 
   address: {
@@ -77,15 +83,34 @@ type ApplicationProfile = {
     state: string;
     postal: string;
     country: string;
+  } | null;                         // lazy-captured on first form — not in setup screens
+
+  education: {
+    highestDegree?: "high_school" | "associate" | "bachelor" | "master" | "phd" | "other" | null;
+    fieldOfStudy?: string | null;
+    schoolName?: string | null;
+    graduationYear?: number | null;
+    gpa?: string | null;
   } | null;
 
   eeo: {
     gender: string;                  // value or "prefer_not_to_say"
     veteran: string;
     disability: string;
+    race?: string | null;
+    hispanicLatino?: boolean | null;
+  } | null;
+
+  identityExtras: {
+    preferredName?: string | null;
+    pronouns?: string | null;
+    githubUrl?: string | null;
+    portfolioUrl?: string | null;
   } | null;
 };
 ```
+
+Canonical TypeScript type: `lib/profile/application-profile.ts`
 
 **Patch API:** `PATCH /api/extension/user-prefs` (extend existing endpoint) with body `{ applicationProfile: Partial<ApplicationProfile> }`. Merges at top-level key — does not overwrite unrelated keys.
 
@@ -117,12 +142,14 @@ File fields skip all steps except 5 (file_ref from applicationProfile) — handl
 
 | Category | Fields | When captured |
 |----------|--------|---------------|
-| **Standard identity** | Name, email, phone, LinkedIn, portfolio | Resume profile — no capture needed |
-| **Address** | Street, city, state, postal, country | First form that needs it — any platform |
-| **Work authorization** | Auth status, visa sponsorship | Setup Screen 1 (mandatory) |
-| **Preferences** | Salary range, earliest start, work mode | Setup Screen 1 (mandatory) |
-| **EEO / demographic** | Gender, veteran, disability | Setup Screen 2 (optional, skippable) |
-| **Open-ended answers** | Motivation, strengths, experience, culture | Field Memory (`user_application_answers`) |
+| **Standard identity** | Name, email, phone, LinkedIn | Resume profile — no capture needed |
+| **Identity extras** | Preferred name, pronouns, GitHub URL, portfolio URL | Extension Screen 3 (optional) |
+| **Address** | Street, city, state, postal, country | First form that needs it — any platform (lazy) |
+| **Work authorization** | Auth status, sponsorship, citizenship status, visa type | Extension Screen 1 (mandatory) |
+| **Preferences** | Salary range, earliest start, work mode, notice period, job type, relocation, travel | Extension Screen 1 (mandatory core) + Screen 3 (extras) |
+| **Education** | Highest degree, field of study, school, graduation year, GPA | Extension Screen 3 (optional) — or lazy from resume parse |
+| **EEO / demographic** | Gender, veteran, disability, race, Hispanic/Latino | Extension Screen 2 (optional, skippable) |
+| **Open-ended answers** | Motivation, strengths, experience, culture, referral source | Field Memory (`user_application_answers`) — learned from forms |
 
 ---
 
@@ -136,17 +163,47 @@ Partial profile saved on each screen completion. Abandoned mid-setup = whatever 
 
 ### Screen 1 — Mandatory
 
-- Work authorization status
-- Visa sponsorship needed?
-- Desired salary range (min + max)
-- Earliest start date
+Fields saved to `applicationProfile.workAuth` and `applicationProfile.preferences`. Blocks autofill of work auth fields on forms until saved.
+
+- Are you authorized to work in [country]? (yes/no)
+- Citizenship / authorization type (citizen, green card, EAD, H-1B, OPT, CPT, TN, other)
+- Visa type — only shown when citizenship type is not citizen/green card (free text)
+- Visa sponsorship required? (yes/no)
+- Desired salary range (min + max + currency)
+- Earliest start date (immediately / 2 weeks / 1 month / flexible)
+- Preferred work mode (remote / hybrid / on-site / flexible)
 - "Continue" → saves Screen 1 immediately → Screen 2
 
 ### Screen 2 — Optional (EEO)
 
+Fields saved to `applicationProfile.eeo`. Entire screen is skippable.
+
 - "Skip all →" at top
-- Gender identity, veteran status, disability status (each with "prefer not to say")
-- "Finish setup" → saves Screen 2 → card collapses to Stage 1 view
+- Gender identity (with "prefer not to say")
+- Veteran status (with "prefer not to say")
+- Disability status (with "prefer not to say")
+- Race / ethnicity (with "prefer not to say") — US standard EEO
+- Hispanic or Latino? (yes / no / prefer not to say)
+- "Finish setup" → saves Screen 2 → Screen 3
+
+### Screen 3 — Optional extras ("Help us fill more fields")
+
+Fields saved to `applicationProfile.identityExtras`, `applicationProfile.preferences` (extras), and `applicationProfile.education`. Fully skippable per field — no "save all" gate.
+
+- Preferred name / nickname (text)
+- Pronouns (text — she/her, he/him, they/them, or custom)
+- GitHub URL (text)
+- Portfolio / personal website URL (text)
+- Notice period (immediate / 2 weeks / 1 month / 2 months / flexible)
+- Job type preference (full-time / part-time / contract / flexible)
+- Willing to relocate? (yes / no)
+- Willing to travel? (none / up to 25% / 50% / 75% / any)
+- Highest degree (select)
+- Field of study / major (text)
+- School / university (text)
+- Graduation year (number)
+- GPA (text — optional, for early-career)
+- "Done" → saves whatever is filled → card collapses to Stage 1 view
 
 ---
 
@@ -161,6 +218,30 @@ Partial profile saved on each screen completion. Abandoned mid-setup = whatever 
 Manual edits appended to `salary.signals[]` — never overwrite `min`/`max`.
 
 ---
+
+## Semantic seed list (Tier 2 — `user_application_answers`)
+
+Open-ended and misc fields that can't be collected upfront. Stored in `user_application_answers` via the field memory capture loop, matched cross-employer using `semanticKey`.
+
+Canonical seed definitions: `src/shared/extension/semantic-seed.ts` — each entry has `key`, `label`, `category`, `fieldType`, and `labelPatterns[]`.
+
+| Semantic key | Label | Category |
+|---|---|---|
+| `oe__why_company` | Why this company / role | open_ended |
+| `oe__strengths` | Key strengths | open_ended |
+| `oe__experience_description` | Relevant experience description | open_ended |
+| `oe__years_total_experience` | Total years of experience | open_ended |
+| `oe__years_with_x` | Years of experience with [skill] | open_ended |
+| `oe__culture_fit` | Culture / team fit | open_ended |
+| `oe__availability_detail` | Availability / start date detail | open_ended |
+| `oe__cover_letter_text` | Cover letter (text field) | open_ended |
+| `oe__additional_info` | Additional information | open_ended |
+| `misc__referral_source` | How did you hear about this role | misc |
+| `misc__security_clearance` | Security clearance | misc |
+| `consent__background_check` | Background check consent | consent |
+| `consent__nda` | NDA consent | consent |
+
+Fields with `resolvedFromProfile: true` are resolved via `applicationProfile` (step 5 of ladder) — they appear in the seed list for classification only, not stored as answers.
 
 ## Silent learn-from-user loop
 

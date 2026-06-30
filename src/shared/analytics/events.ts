@@ -30,6 +30,8 @@ export const AnalyticsEvents = {
   EXTENSION_POPUP_OPENED: "extension_popup_opened",
   EXTENSION_POPUP_SHOW_CARD: "extension_popup_show_card",
   EXTENSION_JOB_CAPTURED: "extension_job_captured",
+  JOB_TRACKER_MANUAL_ADD_OPENED: "job_tracker_manual_add_opened",
+  JOB_TRACKER_MANUAL_ADD_COMPLETED: "job_tracker_manual_add_completed",
   EXTENSION_APPLY_STARTED: "extension_apply_started",
   EXTENSION_AUTOFILL_STARTED: "extension_autofill_started",
   EXTENSION_AUTOFILL_COMPLETED: "extension_autofill_completed",

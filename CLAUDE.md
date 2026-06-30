@@ -181,8 +181,13 @@ npx tsc --noEmit
 # Build
 npm run build
 
-# Dev server
+# Dev server (full pipeline)
 run easy
+run easy fast   # skip tests
+
+# Production deploy (manual)
+run easy prod
+run easy prod fast
 
 # DB seed
 npm run db:seed

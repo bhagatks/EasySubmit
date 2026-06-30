@@ -4,10 +4,12 @@ Command-specific injection — see [`DEVELOPMENT_WORKFLOW.md`](./DEVELOPMENT_WOR
 
 | Command | Purpose |
 |---------|---------|
-| **`run easy`** | Local dev — `.env.local` injected, never touches Vercel |
-| **`run easy prod`** | Tests → extension build → `vercel deploy --prod` |
+| **`run easy`** | Preflight → DB safety → prisma → tests → extension → `next dev` |
+| **`run easy fast`** | Same, skip tests (`npm run dev:fast`) |
+| **`run easy prod`** | Preflight → tests → prisma validate → `npx vercel deploy --prod --yes` |
+| **`run easy prod fast`** | Deploy only (`npm run prod:repair`) |
 
-Also: `npm run dev` / `npm run deploy:prod` (same pipelines).
+Aliases: `npm run dev`, `npm run easy`, `npm run deploy:prod`, `npm run easy:prod`.
 
 ### One-time shell setup
 
@@ -29,12 +31,14 @@ First run auto-creates `.env.local` from `.env.example` if missing. Set `DATABAS
 
 Pipeline (`scripts/run.mjs dev`):
 
-1. Bootstrap `.env.local` if absent
-2. DB safety checks (block prod URLs)
-3. Validate DB connection
-4. `prisma generate` + `prisma migrate deploy`
-5. `npm test`
+1. Preflight — stop stale server, bootstrap `.env.local`, print dev Supabase target
+2. DB safety — block prod `DATABASE_URL`, validate connection
+3. `prisma generate` + `prisma migrate deploy` (uses `DIRECT_URL`)
+4. `npm test` (skip with `run easy fast`)
+5. `npm run build:extensions` → `dist/extension/` (dev) + `dist/extension-prod/` (prod QA, separate Chrome profile)
 6. `next dev` on port 3000
+
+Fast iteration (skip tests): `run easy fast` or `npm run dev:fast`
 
 Optional auto-open incognito login:
 
@@ -52,13 +56,19 @@ run easy prod
 
 Pipeline:
 
-1. `npm test`
-2. `npm run build:extension`
-3. `vercel deploy --prod` — migrations run on Vercel via `vercel-build` (`prisma migrate deploy` before `next build`)
+1. Git preflight (warn if not on `main` or dirty tree)
+2. `npm test`
+3. `npx prisma validate` (schema + `prisma.config.ts`; placeholder DB URLs locally)
+4. `npx vercel deploy --prod --yes` — on Vercel: `prisma generate` → migrate deploy (`DIRECT_URL`) → `next build`
+5. Smoke-test reminder → https://www.easysubmit.ai/login
+
+**Fast path:** `run easy prod fast` or `npm run prod:repair` (deploy only).
+
+**Not included (separate paths):** extension store build (GitHub Actions), env sync (Vercel dashboard only).
 
 One-time: `vercel login` and `vercel link`.
 
-Fast deploy only (skip local pipeline): `npm run prod:deploy` (same as deploy step 3).
+Fast deploy only (skip local gates): `run easy prod fast` or `npm run prod:repair`.
 
 ## Files
 

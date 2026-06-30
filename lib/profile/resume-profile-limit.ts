@@ -27,8 +27,17 @@ export type ResumeProfileLimitCheck =
 export async function checkUserCanCreateResumeProfile(
   userId: string,
   client: ProfileCountClient = prisma,
+  maxProfilesOverride?: number,
 ): Promise<ResumeProfileLimitCheck> {
-  const { maxProfilesPerCustomer: maxProfiles } = await getResumeProfilesConfig();
+  if (client !== prisma && maxProfilesOverride === undefined) {
+    throw new Error(
+      "maxProfilesOverride is required when checking resume profile limits inside a transaction",
+    );
+  }
+
+  const maxProfiles =
+    maxProfilesOverride ??
+    (await getResumeProfilesConfig()).maxProfilesPerCustomer;
   const currentCount = await countUserProfilesForLimit(userId, client);
 
   if (currentCount >= maxProfiles) {

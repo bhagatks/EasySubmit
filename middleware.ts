@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { resolveSafeCallbackUrl } from "@/lib/auth/safe-callback-url";
 
-const PUBLIC_PATHS = ["/", "/login", "/terms", "/privacy", "/pricing"] as const;
+const PUBLIC_PATHS = ["/", "/login", "/terms", "/privacy", "/pricing", "/help"] as const;
 const PUBLIC_PREFIXES = ["/auth/"] as const;
 const ONBOARDING_PATH = "/onboarding";
 const PLAN_PATH = "/select-plan";

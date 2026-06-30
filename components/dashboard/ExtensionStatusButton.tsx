@@ -24,7 +24,7 @@ export function ExtensionStatusButton({ minVersion }: ExtensionStatusButtonProps
     getExtensionConnectionStatus().then((status) => {
       if (status.state === "not-installed") {
         setBtnState({ kind: "install" });
-      } else if (status.state === "disconnected") {
+      } else if (status.state === "offline") {
         setBtnState({ kind: "reconnect" });
       } else if (minVersion && isSemverBelowMinimum(status.version, minVersion)) {
         setBtnState({ kind: "update" });

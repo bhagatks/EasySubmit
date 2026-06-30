@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { requireDashboardSession } from "@/lib/auth/require-dashboard-session";
 import { listResumeProfiles } from "@/app/actions/resume-profiles";
 import { DashboardWorkspacePage } from "@/components/dashboard/DashboardWorkspacePage";
+import { ResumeProfilesAddButton } from "@/components/dashboard/ResumeProfilesAddButton";
 import { ResumeProfilesWorkspace } from "@/components/dashboard/ResumeProfilesWorkspace";
 
 export default async function ResumeProfilesPage() {
@@ -25,6 +26,12 @@ export default async function ResumeProfilesPage() {
     <DashboardWorkspacePage
       title="Resume profiles"
       description="Career profiles for autofill — role labels the list; contact name is secondary."
+      aside={
+        <ResumeProfilesAddButton
+          canCreate={result.canCreate}
+          maxProfiles={result.maxProfiles}
+        />
+      }
     >
       <ResumeProfilesWorkspace
         profiles={result.profiles}

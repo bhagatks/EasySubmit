@@ -5,6 +5,8 @@ import {
   dashboardHeaderMintPillClassName,
   dashboardHeaderNeutralPillClassName,
   dashboardHeaderNeutralPillStyle,
+  dashboardHeaderPrimaryPillClassName,
+  dashboardHeaderPrimaryPillStyle,
   dashboardHeaderMintPillStyle,
   dashboardHeaderWarningPillClassName,
   dashboardHeaderWarningPillStyle,
@@ -29,11 +31,14 @@ describe("dashboard-header-chrome", () => {
     expect(dashboardHeaderMintPillClassName()).toContain(dashboardHeaderControlClassName);
     expect(dashboardHeaderWarningPillClassName("warn")).toContain("warn");
     expect(dashboardHeaderNeutralPillClassName()).toContain("border");
+    expect(dashboardHeaderPrimaryPillClassName()).toContain("border-solid");
+    expect(dashboardHeaderControlClassName).toContain("whitespace-nowrap");
   });
 
   it("exports oklch pill style tokens", () => {
     expect(dashboardHeaderMintPillStyle.color).toContain("oklch");
     expect(dashboardHeaderWarningPillStyle.borderColor).toContain("oklch");
     expect(dashboardHeaderNeutralPillStyle.backgroundColor).toContain("oklch");
+    expect(dashboardHeaderPrimaryPillStyle.color).toContain("oklch");
   });
 });

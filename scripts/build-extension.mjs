@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /**
- * Bundles MV3 extension into dist/extension/
+ * Bundles MV3 extension into dist/extension/ (or --out-dir).
  * Usage:
- *   npm run build:extension        — local dev (keeps localhost in manifest)
- *   npm run build:extension:store  — Chrome Web Store (strips localhost URLs)
+ *   npm run build:extension              — local dev (keeps localhost in manifest)
+ *   npm run build:extension:store        — Chrome Web Store (strips localhost URLs)
+ *   npm run build:extensions             — dev + prod-QA folders (run easy step 5)
  */
 import { build } from "esbuild";
 import { config as loadEnv } from "dotenv";
@@ -13,35 +14,22 @@ import { fileURLToPath } from "node:url";
 import { generateExtensionIcons } from "./generate-extension-icons.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const root = resolve(__dirname, "..");
-const outDir = resolve(root, "dist/extension");
-const extRoot = resolve(root, "extension");
+export const EXTENSION_ROOT = resolve(__dirname, "..");
+export const EXTENSION_DEV_OUT_DIR = "dist/extension";
+export const EXTENSION_PROD_QA_OUT_DIR = "dist/extension-prod";
+const extRoot = resolve(EXTENSION_ROOT, "extension");
 
-loadEnv({ path: resolve(root, ".env.local") });
+loadEnv({ path: resolve(EXTENSION_ROOT, ".env.local") });
 
-const storeBuild =
-  process.env.EXTENSION_STORE_BUILD === "1" ||
-  process.argv.includes("--store");
+function parseOutDirArg() {
+  const flag = process.argv.find((arg) => arg.startsWith("--out-dir="));
+  if (flag) return flag.slice("--out-dir=".length);
+  return process.env.EXTENSION_OUT_DIR?.trim() || EXTENSION_DEV_OUT_DIR;
+}
 
-// Store builds: set NEXT_PUBLIC_* in shell or run `node scripts/run.mjs admin -- npm run build:extension:store`
-
-// Shared analytics reads env via dynamic `process.env[key]` — define the whole object
-// so esbuild inlines values for extension bundles (static `process.env.FOO` alone is not enough).
-const extensionEnv = {
-  NODE_ENV: "production",
-  NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY ?? "",
-  NEXT_PUBLIC_POSTHOG_HOST:
-    process.env.NEXT_PUBLIC_POSTHOG_HOST ?? "https://us.i.posthog.com",
-  NEXT_PUBLIC_ANALYTICS_ENABLED: process.env.NEXT_PUBLIC_ANALYTICS_ENABLED ?? "false",
-  NEXT_PUBLIC_ANALYTICS_ENV: process.env.NEXT_PUBLIC_ANALYTICS_ENV ?? "dev",
-  NEXT_PUBLIC_ANALYTICS_INTERNAL_USER_IDS:
-    process.env.NEXT_PUBLIC_ANALYTICS_INTERNAL_USER_IDS ?? "",
-  NEXT_PUBLIC_POSTHOG_AUTOCAPTURE: "false",
-};
-
-const analyticsDefine = {
-  "process.env": JSON.stringify(extensionEnv),
-};
+function isStoreBuildFlag() {
+  return process.env.EXTENSION_STORE_BUILD === "1" || process.argv.includes("--store");
+}
 
 function isLocalhostMatch(url) {
   return /localhost|127\.0\.0\.1/i.test(url);
@@ -61,32 +49,77 @@ function manifestForStore(manifest) {
   return out;
 }
 
-function writeManifest() {
+function resolveExtensionEnv({ storeBuild, appUrl, analyticsEnv, analyticsEnabled }) {
+  const defaultAppUrl = storeBuild ? "https://www.easysubmit.ai" : "http://localhost:3000";
+  const resolvedAppUrl =
+    appUrl ??
+    process.env.NEXT_PUBLIC_APP_URL ??
+    (storeBuild ? undefined : process.env.NEXTAUTH_URL) ??
+    defaultAppUrl;
+
+  return {
+    NODE_ENV: "production",
+    NEXT_PUBLIC_APP_URL: resolvedAppUrl.replace(/\/$/, ""),
+    NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY ?? "",
+    NEXT_PUBLIC_POSTHOG_HOST:
+      process.env.NEXT_PUBLIC_POSTHOG_HOST ?? "https://us.i.posthog.com",
+    NEXT_PUBLIC_ANALYTICS_ENABLED:
+      analyticsEnabled ?? process.env.NEXT_PUBLIC_ANALYTICS_ENABLED ?? "false",
+    NEXT_PUBLIC_ANALYTICS_ENV:
+      analyticsEnv ?? process.env.NEXT_PUBLIC_ANALYTICS_ENV ?? (storeBuild ? "prod" : "dev"),
+    NEXT_PUBLIC_ANALYTICS_INTERNAL_USER_IDS:
+      process.env.NEXT_PUBLIC_ANALYTICS_INTERNAL_USER_IDS ?? "",
+    NEXT_PUBLIC_POSTHOG_AUTOCAPTURE: "false",
+  };
+}
+
+/**
+ * @param {object} [options]
+ * @param {string} [options.outDir] — relative to repo root
+ * @param {boolean} [options.storeBuild]
+ * @param {string} [options.appUrl]
+ * @param {string} [options.analyticsEnv]
+ * @param {string} [options.analyticsEnabled]
+ * @param {boolean} [options.skipIcons]
+ * @param {string} [options.label] — log prefix
+ */
+export async function buildExtension(options = {}) {
+  const storeBuild = options.storeBuild ?? isStoreBuildFlag();
+  const outDir = resolve(EXTENSION_ROOT, options.outDir ?? parseOutDirArg());
+  const label = options.label ?? (storeBuild ? "store" : "dev");
+
+  if (!options.skipIcons) {
+    await generateExtensionIcons();
+  }
+
+  const extensionEnv = resolveExtensionEnv({
+    storeBuild,
+    appUrl: options.appUrl,
+    analyticsEnv: options.analyticsEnv,
+    analyticsEnabled: options.analyticsEnabled,
+  });
+
+  const analyticsDefine = {
+    "process.env": JSON.stringify(extensionEnv),
+  };
+
+  mkdirSync(outDir, { recursive: true });
+
   const raw = readFileSync(resolve(extRoot, "manifest.json"), "utf8");
   const manifest = JSON.parse(raw);
   const finalManifest = storeBuild ? manifestForStore(manifest) : manifest;
-  writeFileSync(
-    resolve(outDir, "manifest.json"),
-    `${JSON.stringify(finalManifest, null, 2)}\n`,
-  );
+  writeFileSync(resolve(outDir, "manifest.json"), `${JSON.stringify(finalManifest, null, 2)}\n`);
   if (storeBuild) {
-    console.log("→ Store build: removed localhost from manifest (CWS requirement)");
+    console.log(`→ [${label}] Store manifest: removed localhost (CWS requirement)`);
   }
-}
-
-async function main() {
-  await generateExtensionIcons();
-
-  mkdirSync(outDir, { recursive: true });
-  writeManifest();
 
   mkdirSync(resolve(outDir, "popup"), { recursive: true });
   cpSync(resolve(extRoot, "src/popup/popup.html"), resolve(outDir, "popup/popup.html"));
   cpSync(resolve(extRoot, "src/popup/popup.css"), resolve(outDir, "popup/popup.css"));
 
   const sharedAlias = {
-    "@shared": resolve(root, "src/shared"),
-    "@": root,
+    "@shared": resolve(EXTENSION_ROOT, "src/shared"),
+    "@": EXTENSION_ROOT,
   };
 
   const commonBuild = {
@@ -121,7 +154,7 @@ async function main() {
 
   await build({
     ...commonBuild,
-    entryPoints: [resolve(root, "src/shared/extension/api-intercept-page.ts")],
+    entryPoints: [resolve(EXTENSION_ROOT, "src/shared/extension/api-intercept-page.ts")],
     outfile: resolve(outDir, "api-intercept-page.js"),
     format: "iife",
   });
@@ -133,15 +166,27 @@ async function main() {
     format: "esm",
   });
 
-  console.log(`\nEasySubmit extension built → ${outDir}`);
-  if (storeBuild) {
-    console.log("Chrome Web Store: zip dist/extension and upload easysubmit-extension.zip");
+  console.log(`→ [${label}] Built → ${outDir}`);
+  console.log(`   API base: ${extensionEnv.NEXT_PUBLIC_APP_URL}`);
+  return { outDir, extensionEnv, storeBuild };
+}
+
+async function main() {
+  const storeBuild = isStoreBuildFlag();
+  const result = await buildExtension({ storeBuild });
+
+  if (result.storeBuild) {
+    console.log("\nChrome Web Store: zip dist/extension and upload easysubmit-extension.zip");
   } else {
-    console.log("Load unpacked in Chrome: chrome://extensions → dist/extension");
+    console.log("\nLoad unpacked in Chrome: chrome://extensions → dist/extension");
   }
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+const isDirectRun = process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1]);
+
+if (isDirectRun) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

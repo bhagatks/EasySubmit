@@ -48,6 +48,17 @@ type OAuthProfilePayload = {
   picture?: string | null;
 };
 
+function isRealGooglePhoto(url?: string | null): boolean {
+  if (!url) return false;
+  try {
+    const { hostname, pathname } = new URL(url);
+    if (!hostname.includes("googleusercontent.com")) return true; // non-Google URLs are real uploads
+    return pathname.startsWith("/a-/"); // /a/ = generated default, /a-/ = user-uploaded
+  } catch {
+    return false;
+  }
+}
+
 async function syncLoginUser(
   userId: string,
   provider: SupportedAuthProvider,
@@ -72,7 +83,7 @@ async function syncLoginUser(
       lastName: identity.lastName || null,
       name: identity.displayName || null,
       termsAcceptedAt: new Date(),
-      ...(claims.picture && !existing?.imageIsCustom ? { image: claims.picture } : {}),
+      ...(!existing?.imageIsCustom ? { image: isRealGooglePhoto(claims.picture) ? claims.picture : null } : {}),
     },
   });
 }

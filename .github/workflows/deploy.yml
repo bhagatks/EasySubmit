@@ -51,6 +51,7 @@ jobs:
         run: EXTENSION_STORE_BUILD=1 npm run build:extension
         env:
           # Optional: add GitHub secret EXTENSION_POSTHOG_KEY (prod phc_) for store analytics
+          NEXT_PUBLIC_APP_URL: https://www.easysubmit.ai
           NEXT_PUBLIC_POSTHOG_KEY: ${{ secrets.EXTENSION_POSTHOG_KEY }}
           NEXT_PUBLIC_POSTHOG_HOST: https://us.i.posthog.com
           NEXT_PUBLIC_ANALYTICS_ENABLED: "true"

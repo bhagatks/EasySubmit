@@ -71,6 +71,29 @@ export function buildDashboardUrl(base: string, path: string): string {
   return `${normalizedBase}${normalizedPath}`;
 }
 
+/** True for local dev dashboard hosts (localhost / 127.0.0.1). */
+export function isLocalApiBase(base: string): boolean {
+  try {
+    const host = new URL(base).hostname.toLowerCase();
+    return host === "localhost" || host === "127.0.0.1";
+  } catch {
+    return false;
+  }
+}
+
+/** Prefer a non-local app origin when the user has both prod and local tabs open. */
+export function preferAppOrigin(candidates: string[]): string | null {
+  const normalized = [
+    ...new Set(
+      candidates
+        .map((origin) => origin.trim().replace(/\/$/, ""))
+        .filter((origin) => origin.startsWith("http")),
+    ),
+  ];
+  const prod = normalized.find((origin) => !isLocalApiBase(origin));
+  return prod ?? normalized[0] ?? null;
+}
+
 export type AppTabCandidate = {
   id: number;
   url: string;

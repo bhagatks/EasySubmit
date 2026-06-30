@@ -13,11 +13,9 @@ import {
 } from "@/components/onboarding/PrimeResume";
 import { ResumeStudioWorkbench } from "@/components/resume/ResumeStudioWorkbench";
 import {
+  DashboardExpandAllButton,
   DashboardHeaderHeroButton,
-  useDashboardExpandControlFromState,
-  useRegisterDashboardHeaderActions,
 } from "@/components/dashboard/DashboardWorkspaceHeader";
-import { useRegisterStudioHeaderCenter } from "@/components/resume/StudioHeaderCenter";
 import { useResumeEnhanceFlow } from "@/components/resume/useResumeEnhanceFlow";
 import type { RefineryStudioToolbarPayload } from "@/components/onboarding/hub/RefineryPanel";
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
@@ -27,7 +25,6 @@ import {
   jobTrackerReviewScreenUrl,
 } from "@/lib/job-tracker/review-screen-ui";
 import { studioSkillsFromForm } from "@/lib/profile/studio-form-db";
-import { InlineAlert } from "@/components/ui/inline-alert";
 import { ValidationErrorsBanner } from "@/components/resume/ValidationErrorsBanner";
 import {
   collectValidationErrorMessages,
@@ -165,15 +162,6 @@ export function JobResumeStudioEditor({
     [isSaving, saveDisabled],
   );
 
-  useRegisterDashboardHeaderActions(saveButton);
-
-  useDashboardExpandControlFromState({
-    allExpanded: studioToolbar?.ui.allSectionsExpanded ?? false,
-    onToggle: () => studioToolbar?.actions.toggleAllSections(),
-    disabled: !studioToolbar,
-  });
-
-  useRegisterStudioHeaderCenter(enhanceWithAiEnabled ? headerButton : null);
 
   const resumePreview = useMemo((): PrimeResumeData => {
     return refineryFormToPrimeResume(mergedFormValues);
@@ -231,20 +219,38 @@ export function JobResumeStudioEditor({
     [isReviewContext, jobId, router, studioSkills, targetRole],
   );
 
+  const allExpanded = studioToolbar?.ui.allSectionsExpanded ?? false;
+
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
       {flowUi}
       {!isReviewContext ? (
-        <InlineAlert variant="info" className="mb-3 shrink-0">
-          Tailored for <strong>{jobTitle}</strong>. Unchanged sections come from your{" "}
-          <Link
-            href={`/dashboard/resume-profiles/${sourceProfileId}/edit`}
-            className="font-medium text-primary underline-offset-2 hover:underline"
-          >
-            {sourceProfileName}
-          </Link>{" "}
-          profile — edits here save only for this job.
-        </InlineAlert>
+        <div className="mb-3 shrink-0">
+          <h1 className="font-display text-2xl font-semibold tracking-tight">Resume Studio</h1>
+          <div className="mt-1 flex items-center gap-3">
+            <p className="min-w-0 flex-1 text-sm text-muted-foreground">
+              Tailored for <strong className="font-medium text-foreground">{jobTitle}</strong>
+              {" · "}
+              <Link
+                href={`/dashboard/resume-profiles/${sourceProfileId}/edit`}
+                className="text-primary underline-offset-2 hover:underline"
+              >
+                {sourceProfileName}
+              </Link>
+              {" profile"}
+            </p>
+            <div className="flex shrink-0 items-center gap-2">
+              <DashboardExpandAllButton
+                expanded={allExpanded}
+                onToggle={() => studioToolbar?.actions.toggleAllSections()}
+                disabled={!studioToolbar}
+                placement="page"
+              />
+              {enhanceWithAiEnabled ? headerButton : null}
+              {saveButton}
+            </div>
+          </div>
+        </div>
       ) : null}
       {errors?.length ? (
         <ValidationErrorsBanner

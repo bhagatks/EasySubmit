@@ -5,6 +5,7 @@ import { extensionGlobalDisabledResponse } from "@/lib/extension/extension-globa
 import { getExtensionAiApplyBlockForUser } from "@/lib/extension/extension-ai-apply-gate";
 import { tailorJobPipeline } from "@/lib/extension/apply-pipeline";
 import { loadTailorInputFromEntry } from "@/lib/extension/job-service";
+import { recordPipelineTailorError } from "@/lib/extension/pipeline-metadata";
 
 type TailorRequestBody = { entryId: string };
 
@@ -45,6 +46,7 @@ export async function POST(request: NextRequest) {
     return Response.json({ success: result.success, status: result.status, error: result.error });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Tailor failed";
+    await recordPipelineTailorError(userId, entryId, message, "tailor_crashed");
     return Response.json({ success: false, error: message }, { status: 500 });
   }
 }

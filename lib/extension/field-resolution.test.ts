@@ -28,7 +28,9 @@ const applicationProfile: ApplicationProfile = {
   },
   preferences: null,
   address: null,
+  education: null,
   eeo: null,
+  identityExtras: null,
 };
 
 describe("resolveField application_profile step", () => {

@@ -9,13 +9,6 @@ export type AnalyticsConfig = {
   autocapture: boolean;
 };
 
-function readEnv(key: string): string | undefined {
-  if (typeof process !== "undefined" && process.env?.[key]) {
-    return process.env[key];
-  }
-  return undefined;
-}
-
 function parseInternalUserIds(raw: string | undefined): Set<string> {
   if (!raw?.trim()) return new Set();
   return new Set(
@@ -27,10 +20,11 @@ function parseInternalUserIds(raw: string | undefined): Set<string> {
 }
 
 export function getAnalyticsConfig(): AnalyticsConfig {
-  const enabled = readEnv("NEXT_PUBLIC_ANALYTICS_ENABLED") === "true";
-  const key = readEnv("NEXT_PUBLIC_POSTHOG_KEY") ?? "";
-  const host = readEnv("NEXT_PUBLIC_POSTHOG_HOST") ?? "https://us.i.posthog.com";
-  const envRaw = readEnv("NEXT_PUBLIC_ANALYTICS_ENV");
+  // Static process.env.* access — required so Next.js inlines NEXT_PUBLIC_* into client bundles.
+  const enabled = process.env.NEXT_PUBLIC_ANALYTICS_ENABLED === "true";
+  const key = process.env.NEXT_PUBLIC_POSTHOG_KEY ?? "";
+  const host = process.env.NEXT_PUBLIC_POSTHOG_HOST ?? "https://us.i.posthog.com";
+  const envRaw = process.env.NEXT_PUBLIC_ANALYTICS_ENV;
   const environment: AnalyticsEnvironment = envRaw === "prod" ? "prod" : "dev";
 
   return {
@@ -38,8 +32,8 @@ export function getAnalyticsConfig(): AnalyticsConfig {
     key,
     host,
     environment,
-    internalUserIds: parseInternalUserIds(readEnv("NEXT_PUBLIC_ANALYTICS_INTERNAL_USER_IDS")),
-    autocapture: readEnv("NEXT_PUBLIC_POSTHOG_AUTOCAPTURE") === "true",
+    internalUserIds: parseInternalUserIds(process.env.NEXT_PUBLIC_ANALYTICS_INTERNAL_USER_IDS),
+    autocapture: process.env.NEXT_PUBLIC_POSTHOG_AUTOCAPTURE === "true",
   };
 }
 

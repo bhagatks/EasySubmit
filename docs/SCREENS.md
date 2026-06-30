@@ -41,6 +41,7 @@ Every screen visit emits **three console lines** in dev (filtered by the same th
 | **Sign up (legacy)** | `/auth/signup` | Supabase email/OAuth path |
 | **Terms of Service** | `/terms` | Legal |
 | **Privacy Policy** | `/privacy` | Legal |
+| **Help Center** | `/help` | Public FAQs and guides; category + article routes under `/help/[category]/[slug]` |
 
 ---
 
@@ -78,7 +79,7 @@ Sidebar labels match `components/dashboard/DashboardShell.tsx`.
 
 | Screen name | Route | Sidebar | Notes |
 |-------------|-------|---------|-------|
-| **Overview** | `/dashboard` | Overview | Stats, recent jobs, Cold/Hot engine |
+| **Overview** | `/dashboard` | Overview | Pipeline strip, ranked action queue, weekly progress, extension status |
 | **Resume profiles** | `/dashboard/resume-profiles` | Resume profiles | List; `+` → new profile |
 | **New resume profile** | `/dashboard/resume-profiles/new` | — | Copy default or blank |
 | **Resume Studio** | `/dashboard/resume-profiles/[id]/edit` | — | Profile editor (Editor \| Layout tabs) |
@@ -86,7 +87,7 @@ Sidebar labels match `components/dashboard/DashboardShell.tsx`.
 | **Job Review Studio** | `/dashboard/job-tracker/[id]/resume` | — | Studio edit from Review Screen (`?from=review`) |
 | **ATS Scores** | `/dashboard/ats-scores` | ATS Scores | Cross-job readiness workspace |
 | **ATS Guidelines** | `/dashboard/ats-guidelines` | ATS Guidelines | In-app ATS rules reference |
-| **Extension** | `/dashboard/extension` | Extension | Install + connect bridge |
+| **Extension** | `/dashboard/extension` | Extension (when not connected) | Install + connect bridge; sidebar item hidden once extension is connected on this browser |
 | **Video Tutorials** | `/dashboard/tutorials` | Video Tutorials | Six walkthroughs; `?welcome=1` post-setup |
 | **Settings** | `/dashboard/settings` | Settings | Account, AI toggle, BYOK vault, extension prefs |
 | **About** | `/dashboard/about` | About | Product overview, contact, legal links |

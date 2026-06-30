@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { byokStatusLabel } from "@/lib/dashboard/byok-status-labels";
 import { useIgnitionStore } from "@/src/stores/use-ignition-store";
 
 const SYSTEM_MINT = "oklch(0.82 0.16 165)";
@@ -38,7 +39,7 @@ export function DashboardFuelBadge({ vaultKeyId }: DashboardFuelBadgeProps) {
         backgroundColor: "oklch(0.82 0.16 165 / 0.1)",
       }}
     >
-      BYOK active
+      {byokStatusLabel(vaultKeyId)}
     </span>
   );
 }

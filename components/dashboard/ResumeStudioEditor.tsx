@@ -13,17 +13,14 @@ import {
 } from "@/components/onboarding/PrimeResume";
 import { ResumeStudioWorkbench } from "@/components/resume/ResumeStudioWorkbench";
 import {
+  DashboardExpandAllButton,
   DashboardHeaderHeroButton,
-  useDashboardExpandControlFromState,
-  useRegisterDashboardHeaderActions,
 } from "@/components/dashboard/DashboardWorkspaceHeader";
-import { useRegisterStudioHeaderCenter } from "@/components/resume/StudioHeaderCenter";
 import { useResumeEnhanceFlow } from "@/components/resume/useResumeEnhanceFlow";
 import type { RefineryStudioToolbarPayload } from "@/components/onboarding/hub/RefineryPanel";
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
 import { refineryFormToPrimeResume } from "@/lib/onboarding/hubResume";
 import { studioSkillsFromForm } from "@/lib/profile/studio-form-db";
-import { InlineAlert } from "@/components/ui/inline-alert";
 import { ValidationErrorsBanner } from "@/components/resume/ValidationErrorsBanner";
 import {
   collectValidationErrorMessages,
@@ -157,15 +154,6 @@ export function ResumeStudioEditor({
     [isSaving, saveDisabled],
   );
 
-  useRegisterDashboardHeaderActions(saveButton);
-
-  useDashboardExpandControlFromState({
-    allExpanded: studioToolbar?.ui.allSectionsExpanded ?? false,
-    onToggle: () => studioToolbar?.actions.toggleAllSections(),
-    disabled: !studioToolbar,
-  });
-
-  useRegisterStudioHeaderCenter(enhanceWithAiEnabled ? headerButton : null);
 
   const resumePreview = useMemo((): PrimeResumeData => {
     return refineryFormToPrimeResume(mergedFormValues);
@@ -219,30 +207,48 @@ export function ResumeStudioEditor({
     [profileId, router, studioSkills, targetRole],
   );
 
+  const allExpanded = studioToolbar?.ui.allSectionsExpanded ?? false;
+
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
       {flowUi}
-      {dependentJobs.length > 0 ? (
-        <InlineAlert variant="warning" className="mb-3 shrink-0">
-          {dependentJobs.length === 1
-            ? "1 job application"
-            : `${dependentJobs.length} job applications`}{" "}
-          use this profile as its base resume. Changes here will affect merged resumes for:{" "}
-          {dependentJobs.slice(0, 3).map((job, index) => (
-            <span key={job.id}>
-              {index > 0 ? ", " : ""}
-              <Link
-                href={`/dashboard/job-tracker/${job.id}/resume`}
-                className="font-medium underline-offset-2 hover:underline"
-              >
-                {job.title}
-                {job.company ? ` @ ${job.company}` : ""}
-              </Link>
-            </span>
-          ))}
-          {dependentJobs.length > 3 ? ` and ${dependentJobs.length - 3} more` : ""}.
-        </InlineAlert>
-      ) : null}
+      <div className="mb-3 shrink-0">
+        <h1 className="font-display text-2xl font-semibold tracking-tight">Resume Studio</h1>
+        <div className="mt-1 flex items-center gap-3">
+          <p className="min-w-0 flex-1 text-sm text-muted-foreground">
+            {dependentJobs.length > 0 ? (
+              <>
+                Used by{" "}
+                {dependentJobs.slice(0, 3).map((job, index) => (
+                  <span key={job.id}>
+                    {index > 0 ? ", " : ""}
+                    <Link
+                      href={`/dashboard/job-tracker/${job.id}/resume`}
+                      className="text-primary underline-offset-2 hover:underline"
+                    >
+                      {job.title}{job.company ? ` @ ${job.company}` : ""}
+                    </Link>
+                  </span>
+                ))}
+                {dependentJobs.length > 3 ? ` +${dependentJobs.length - 3} more` : ""}
+                {" — changes affect those resumes."}
+              </>
+            ) : (
+              "Edit your base resume profile — changes apply to all jobs using it."
+            )}
+          </p>
+          <div className="flex shrink-0 items-center gap-2">
+            <DashboardExpandAllButton
+              expanded={allExpanded}
+              onToggle={() => studioToolbar?.actions.toggleAllSections()}
+              disabled={!studioToolbar}
+              placement="page"
+            />
+            {enhanceWithAiEnabled ? headerButton : null}
+            {saveButton}
+          </div>
+        </div>
+      </div>
       {errors?.length ? (
         <ValidationErrorsBanner errors={errors} className="mb-3" variant="dashboard" />
       ) : null}

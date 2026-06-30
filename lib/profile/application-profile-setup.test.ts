@@ -39,7 +39,9 @@ describe("applicationProfile setup helpers", () => {
           workMode: "remote",
         },
         address: null,
+        education: null,
         eeo: null,
+        identityExtras: null,
       },
       {
         eeo: {
@@ -55,46 +57,29 @@ describe("applicationProfile setup helpers", () => {
     expect(merged.eeo?.gender).toBe("Prefer not to say");
   });
 
-  it("flags missing salary range on screen 1 validation", () => {
-    const issues = validateProfileSetupScreen1({
-      authorized: "yes",
-      authorizedCountry: "US",
-      requiresSponsorship: "no",
-      salaryMin: "",
-      salaryMax: "",
-      earliestStart: "2_weeks",
-      workMode: "remote",
-    });
+  const s1Base = {
+    authorized: "yes",
+    authorizedCountry: "US",
+    citizenshipStatus: "citizen",
+    visaType: "",
+    requiresSponsorship: "no",
+    earliestStart: "2_weeks",
+    workMode: "remote",
+  };
 
+  it("flags missing salary range on screen 1 validation", () => {
+    const issues = validateProfileSetupScreen1({ ...s1Base, salaryMin: "", salaryMax: "" });
     expect(issues.some((issue) => issue.field === "salaryMin")).toBe(true);
     expect(issues.some((issue) => issue.field === "salaryMax")).toBe(true);
   });
 
   it("flags salary max below min on screen 1 validation", () => {
-    const issues = validateProfileSetupScreen1({
-      authorized: "yes",
-      authorizedCountry: "US",
-      requiresSponsorship: "no",
-      salaryMin: "150000",
-      salaryMax: "120000",
-      earliestStart: "2_weeks",
-      workMode: "remote",
-    });
-
+    const issues = validateProfileSetupScreen1({ ...s1Base, salaryMin: "150000", salaryMax: "120000" });
     expect(issues.some((issue) => issue.field === "salaryMax")).toBe(true);
   });
 
   it("accepts complete screen 1 draft", () => {
-    const issues = validateProfileSetupScreen1({
-      authorized: "yes",
-      authorizedCountry: "US",
-      requiresSponsorship: "no",
-      salaryMin: "120000",
-      salaryMax: "150000",
-      earliestStart: "2_weeks",
-      workMode: "remote",
-    });
-
+    const issues = validateProfileSetupScreen1({ ...s1Base, salaryMin: "120000", salaryMax: "150000" });
     expect(issues).toHaveLength(0);
   });
 
@@ -102,18 +87,19 @@ describe("applicationProfile setup helpers", () => {
     const patch = applicationProfilePatchFromScreen1({
       authorized: "yes",
       authorizedCountry: "US",
-      requiresSponsorship: "no",
+      citizenshipStatus: "h1b",
+      visaType: "H-1B",
+      requiresSponsorship: "yes",
       salaryMin: "120000",
       salaryMax: "150000",
       earliestStart: "1_month",
       workMode: "hybrid",
     });
 
-    expect(patch.workAuth).toEqual({
-      authorized: true,
-      authorizedCountry: "US",
-      requiresSponsorship: false,
-    });
+    expect(patch.workAuth?.authorized).toBe(true);
+    expect(patch.workAuth?.authorizedCountry).toBe("US");
+    expect(patch.workAuth?.citizenshipStatus).toBe("h1b");
+    expect(patch.workAuth?.requiresSponsorship).toBe(true);
     expect(patch.preferences?.salary).toEqual({
       min: 120_000,
       max: 150_000,
@@ -128,13 +114,13 @@ describe("applicationProfile setup helpers", () => {
       gender: "woman",
       veteran: "not_veteran",
       disability: "no",
+      race: "asian",
+      hispanicLatino: "no",
     });
 
-    expect(patch.eeo).toEqual({
-      gender: "Woman",
-      veteran: "I am not a protected veteran",
-      disability: "No",
-    });
+    expect(patch.eeo?.gender).toBe("Woman");
+    expect(patch.eeo?.veteran).toBe("I am not a protected veteran");
+    expect(patch.eeo?.disability).toBe("No");
   });
 
   it("round-trips saved profile into setup drafts", () => {

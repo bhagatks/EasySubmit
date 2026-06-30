@@ -76,15 +76,16 @@ export function DashboardHeaderExpandSlot() {
   return useContext(DashboardHeaderExpandSlotContext);
 }
 
-/** Landing-style hero CTA for dashboard header actions (Save, Add new, …). */
+/** Landing-style hero CTA for dashboard page headers (Add new, Add job, …). */
 export function DashboardHeaderHeroButton({
   className,
   size = "sm",
+  variant = "hero",
   ...props
 }: ButtonProps) {
   return (
     <Button
-      variant="hero"
+      variant={variant}
       size={size}
       className={cn(dashboardHeaderControlClassName, className)}
       {...props}
@@ -96,13 +97,38 @@ type DashboardExpandAllButtonProps = {
   expanded: boolean;
   onToggle: () => void;
   disabled?: boolean;
+  /** `chrome` = top bar icon; `page` = workspace header outline CTA. */
+  placement?: "chrome" | "page";
 };
 
 export function DashboardExpandAllButton({
   expanded,
   onToggle,
   disabled = false,
+  placement = "chrome",
 }: DashboardExpandAllButtonProps) {
+  if (placement === "page") {
+    return (
+      <DashboardHeaderHeroButton
+        type="button"
+        variant="outline"
+        className={cn(
+          "border-primary/50 bg-transparent text-primary hover:bg-primary/10 hover:text-primary",
+        )}
+        onClick={onToggle}
+        disabled={disabled}
+        aria-label={expanded ? "Collapse all sections" : "Expand all sections"}
+      >
+        {expanded ? (
+          <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
+        ) : (
+          <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+        )}
+        {expanded ? "Collapse all" : "Expand all"}
+      </DashboardHeaderHeroButton>
+    );
+  }
+
   return (
     <StudioIconButton
       type="button"

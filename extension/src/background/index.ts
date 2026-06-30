@@ -351,7 +351,10 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 
 chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) => {
   if (message?.action === EXTENSION_MESSAGE.PING) {
-    sendResponse({ ready: true, version: chrome.runtime.getManifest().version });
+    void chrome.storage.local.get(STORAGE_KEYS.authToken).then((stored) => {
+      const authenticated = Boolean(stored[STORAGE_KEYS.authToken]);
+      sendResponse({ ready: true, version: chrome.runtime.getManifest().version, authenticated });
+    });
     return true;
   }
 

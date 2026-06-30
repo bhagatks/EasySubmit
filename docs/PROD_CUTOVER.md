@@ -106,11 +106,16 @@ Full walkthrough: [`oauth-setup.md`](./oauth-setup.md).
 
 ## 6. Deploy
 
+**Default (Git-linked):** push to `main` — Vercel auto-builds. No env changes.
+
+**Manual from laptop:**
+
 ```bash
-run easy prod
+run easy prod        # full: tests → prisma validate → deploy
+run easy prod fast   # deploy only
 ```
 
-Pipeline: tests → pull prod env from Vercel → `prisma migrate deploy` → `vercel deploy --prod`.
+On Vercel build: `prisma generate` → `migrate deploy` (`DIRECT_URL`) → `next build`.
 
 If migrate fails on prod, stop and follow [`MIGRATION_RECOVERY.md`](./MIGRATION_RECOVERY.md) — do not force-deploy with a broken schema.
 
@@ -149,7 +154,7 @@ Full spec: [`analytics-option-a.md`](./analytics-option-a.md). Code is shipped; 
 
 | Step | Status | Notes |
 |------|--------|-------|
-| `NEXT_PUBLIC_POSTHOG_KEY` | **Todo** | Prod `phc_…` (project 488042) — never commit to git |
+| `NEXT_PUBLIC_POSTHOG_KEY` | **Done** | Prod project `488042` — set via `npm run prod:repair-analytics` or Vercel dashboard |
 | `NEXT_PUBLIC_POSTHOG_HOST` | **Todo** | `https://us.i.posthog.com` |
 | `NEXT_PUBLIC_ANALYTICS_ENABLED` | **Todo** | `true` |
 | `NEXT_PUBLIC_ANALYTICS_ENV` | **Todo** | `prod` |
@@ -181,4 +186,4 @@ Use **dev** project `488025` in `.env.local` (same var names, `NEXT_PUBLIC_ANALY
 | Google OAuth client | Localhost redirect URIs | Prod domain redirect URIs |
 | PostHog project | `488025` (dev) | `488042` (prod) |
 | `NEXT_PUBLIC_ANALYTICS_ENV` | `dev` | `prod` |
-| DB migrations | `run easy` / `db:migrate` on dev DB | `migrate deploy` via `run easy prod` on prod DB |
+| DB migrations | `run easy` on dev DB | `migrate deploy` on Vercel build (`DIRECT_URL`) or `run easy prod` |

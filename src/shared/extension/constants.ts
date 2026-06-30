@@ -48,7 +48,18 @@ export const STORAGE_KEYS = {
   aiEnabled: "easysubmit_ai_enabled_v1",
 } as const;
 
-export const DEFAULT_API_BASE = "http://localhost:3000";
+export const DEFAULT_API_BASE = readDefaultApiBase();
+
+function readDefaultApiBase(): string {
+  const fromEnv =
+    typeof process !== "undefined"
+      ? process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXTAUTH_URL
+      : undefined;
+  if (typeof fromEnv === "string" && fromEnv.startsWith("http")) {
+    return fromEnv.replace(/\/$/, "");
+  }
+  return "http://localhost:3000";
+}
 
 /** Sent on every extension → dashboard API request (`manifest.version`). */
 export const EXTENSION_VERSION_HEADER = "X-Extension-Version";

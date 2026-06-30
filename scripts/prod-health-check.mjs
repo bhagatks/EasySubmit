@@ -7,6 +7,7 @@ import pg from "pg";
 import { createClient } from "@supabase/supabase-js";
 import { readdirSync } from "node:fs";
 import { resolve } from "node:path";
+import { validateAnalyticsEnvForDeploy } from "./validate-analytics-env.mjs";
 
 const MIGRATIONS_DIR = resolve(process.cwd(), "prisma/migrations");
 const AVATAR_BUCKET = "avatars";
@@ -112,6 +113,15 @@ if (bucketRow) {
   console.log(`❌ "${AVATAR_BUCKET}" bucket missing — run npm run prod:ensure-avatars-bucket`);
 }
 
+const analytics = validateAnalyticsEnvForDeploy(process.env);
+console.log("\nPostHog analytics (Vercel Production env):");
+if (analytics.ok) {
+  console.log("✔ NEXT_PUBLIC_POSTHOG_KEY and related vars configured");
+} else {
+  console.log(`❌ ${analytics.message}`);
+  console.log("   → npm run prod:repair-analytics");
+}
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey =
   process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SECRET_KEY;
@@ -159,5 +169,6 @@ const hasBlockers =
   missingCols.length > 0 ||
   !bucketRow ||
   !serviceRoleKey ||
+  !analytics.ok ||
   failed.rows.length > 0;
 process.exit(hasBlockers ? 1 : 0);

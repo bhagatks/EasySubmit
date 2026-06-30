@@ -26,16 +26,16 @@
 - **Codebase cleanup** — removed legacy 11-step wizard, alternate refinery/workbench UIs, TanStack `start/` app, orphan layout/visual components; minimal `components/ui` set retained
 - Supabase Auth signup (`/auth/signup`) — legacy email/OAuth path
 - `finalizeProfile` — Zustand payload → Prisma Postgres
-- **Job Tracker (web v2)** — … **Review Screen** modal: Resume + Cover tabs share full-bleed preview, overlay toolbar (dark chrome), zoom controls; **ATS Analysis** tab (readiness score, keyword gap, bullet quality, robot parse view); resume PDF/Word export via `resume-content-model` + `resume-style`; Cover inline edit + Save, **Enhance with AI** (cover brain + quota), pipeline seeds **deterministic** 4-part cover (~300 words, no AI credits) on tailor; LaTeX editor; `reviewDocuments` on `job_resume_tailors`; …
+- **Job Tracker (web v2)** — … **Review Screen** modal: … **Dashboard manual add** — **Add job** / **Tailor for a job** opens paste-JD form → capture + async tailor (no extension); …
 - **Journey sync (extension ↔ app)** — State 0 manual capture, two-card apply assist, Realtime + poll sync, `?es_open=assist`, `MARK_APPLIED` — see [`docs/SYNC_ARCHITECTURE.md`](./SYNC_ARCHITECTURE.md)
 - **Application profile (extension)** — one-time setup Screens 1–2 on first Apply (parallel to pipeline); `PATCH /api/extension/user-prefs` JSONB merge; autofill step 5 from `applicationProfile`; on-demand resume/cover PDF endpoints + file upload injector — see [`docs/APPLICATION_PROFILE.md`](./APPLICATION_PROFILE.md)
 - **Chrome extension v0.1** — MV3 single expandable job card (summary **Job Info / Resume / Cover Letter** + inline detail views); resume/cover detail toolbar (back, edit, **Enhance with AI** sparkles, DOC+PDF download, **Studio Edition** deeplink on second row); preview panel auto-widens to 400px and resets on Back; job fields + cover letter (full inline edit) + resume (lite field edit on demand); preview iframe fills resized panel; 5-state journey (0=unsaved→"Apply with EasySubmit.ai", 1=CAPTURED→no CTA, 2=RESUME_READY→"Apply with Auto Suggest" disabled, 3=READY_TO_APPLY→"Apply with Auto Suggest" active, 4=APPLIED→completed); pipeline on all platforms; manual capture form; AI health issue as right-aligned red banner below card header; **`app_config.forceUpgrade`** min-version gate (in-card update banner + HTTP 426 on extension APIs); `is-live` shell animation stops at APPLIED; auto-detect application confirmation via URL patterns + body phrases
 - **Review Screen** — tabs: Job | Resume | Cover letter | ATS Analysis (Apply tab removed); READY_TO_APPLY defaults to Resume tab
-- **Dashboard shell** — `/dashboard`: Lovable-derived sidebar layout (`DashboardShell`), overview with stats/recent Job Tracker entries/ATS Guarantee (`DashboardOverview`); **Extension install prompts** — `DashboardSetupPrompts` on every dashboard route: post-onboarding **`?setup=1`** BYOK modal → extension modal → Video Tutorials (skip, close, or connect all exit to tutorials); return-visit modal **opt-in** via **`app_config.extensionInstallPrompt`** (`dashboardVisit`, `tabFocusReturn`, `periodicRefresh` — all default `false`); Skip dismisses for session on return visits; full-page reference at **`/dashboard/extension`** (Chrome Web Store CTA, connect bridge); optional cold-engine AI key card; **Resume profiles** at `/dashboard/resume-profiles` — multi-profile list (target role primary label, person name subtitle), Edit / Set default / Delete (when >1), `+` → copy default, start blank, or **upload resume** (onboarding `FuelPanel` parse) → Studio editor at `/dashboard/resume-profiles/[id]/edit`; onboarding default profile marked `isDefault`; **Settings** at `/dashboard/settings` — pending setup actions (missing API key, AI off, incomplete name) auto-expand their section; account names auto-save (600ms debounce), **AI enhancements** toggle + vaulted provider keys (list + add-key modal via `SettingsVaultKeysPanel`), extension prefs, OAuth connect badges, sign out in header; header **BYOK KEY** when engine cold (opens add-key modal); **About** at `/dashboard/about` — product overview, how-it-works, extension install CTA, support contact, legal links; **ATS Guidelines** at `/dashboard/ats-guidelines`; workspace header shows route-specific label (About, ATS Guidelines, Extension, Settings, etc.); header `BYOKStatusBadge` when vaulted or **BYOK KEY** CTA when cold on non-Settings screens (links to Settings `?addKey=1`); **AI health notice** under BYOK in header; overview **Your AI Key** card shows issue state when cold; sidebar **Settings** shows `Add key` badge when cold; one-time BYOK nudge on first dashboard load (skipped on extension install screen)
+- **Dashboard shell** — `/dashboard`: Lovable-derived sidebar layout (`DashboardShell`), overview with pipeline strip, ranked action queue, weekly progress rail, and extension status (`DashboardOverview`); **Extension install prompts** — `DashboardSetupPrompts` on every dashboard route: post-onboarding **`?setup=1`** BYOK modal → extension modal → Video Tutorials (skip, close, or connect all exit to tutorials); return-visit modal **opt-in** via **`app_config.extensionInstallPrompt`** (`dashboardVisit`, `tabFocusReturn`, `periodicRefresh` — all default `false`); Skip dismisses for session on return visits; full-page reference at **`/dashboard/extension`** (Chrome Web Store CTA, connect bridge); optional cold-engine AI key card; **Resume profiles** at `/dashboard/resume-profiles` — multi-profile list (target role primary label, person name subtitle), Edit / Set default / Delete (when >1), `+` → copy default, start blank, or **upload resume** (onboarding `FuelPanel` parse) → Studio editor at `/dashboard/resume-profiles/[id]/edit`; onboarding default profile marked `isDefault`; **Settings** at `/dashboard/settings` — pending setup actions (missing API key, AI off, incomplete name) auto-expand their section; account names auto-save (600ms debounce), **AI enhancements** toggle + vaulted provider keys (list + add-key modal via `SettingsVaultKeysPanel`), extension prefs, OAuth connect badges, sign out in header; header **BYOK KEY** when engine cold (opens add-key modal); **About** at `/dashboard/about` — product overview, how-it-works, extension install CTA, support contact, legal links; **ATS Guidelines** at `/dashboard/ats-guidelines`; workspace header shows route-specific label (About, ATS Guidelines, Extension, Settings, etc.); header `BYOKStatusBadge` when vaulted or **BYOK KEY** CTA when cold on non-Settings screens (links to Settings `?addKey=1`); **AI health notice** under BYOK in header; overview **Your AI Key** card shows issue state when cold; sidebar **Settings** shows `Add key` badge when cold; one-time BYOK nudge on first dashboard load (skipped on extension install screen)
 - **Multi resume profiles** — many `profiles` per login with `isDefault`; structured resume in `profiles.content` JSONB; engine/stats read default profile; `app/actions/resume-profiles.ts`; cap **`app_config.resumeProfiles.maxProfilesPerCustomer`** (default 20) with dashboard count + disabled add at limit
 - **Login identity** — `users.firstName` / `users.lastName` extracted at OAuth; session + onboarding Identity prefill; resume edits no longer write `users`
 - **Profile model** — `Profile` (many per `User`, one `isDefault`) with `content` JSONB for all resume sections + `calibrationScore`; multi-provider email linking via NextAuth
-- Marketing landing (`/`) — signed-in nav shows hero **Dashboard** CTA before profile menu; extension page (`/extension`)
+- Marketing landing (`/`) — signed-in nav shows hero **Dashboard** CTA before profile menu; extension page (`/extension`); **Help Center** at `/help` (search + category articles, public)
 - **JD AI observability (2026-06-27)** — `callEnhanceObjectModel` writes `api_call_logs` (`ai.enhance.generate_object`); JD extract pre-checks quota before `generateObject`; JD calls increment `aiCallsToday`; `app_config.aiEngine.system.jdExtractionModelId` for system pool (BYOK keeps vaulted model)
 - **North-star resume enhance pipeline (2026-06-27)** — `runResumeEnhancePipeline`: Phase 1 brief → Phase 2 baseline (grouped skills JD \| resume, JD weave) → Phase 3 optional AI; soft gates (quota/no-key = baseline + warning); **JDSkillsFramework** (`fetchJdSkillsVocabulary`); `EnhanceCoveragePanel`; PostHog `engine_mode` / coverage fields — spec [`docs/north-star.md`](./north-star.md)
 - **Enhance QA integrity (2026-06-27)** — Summary identity split (`summaryIdentity` vs JD title), junk-skill filter, ungrounded-claim strip, cross-domain coherence warnings + capped ATS delta in Review; playbook [`docs/enhance-qa-playbook.md`](./enhance-qa-playbook.md)
@@ -50,7 +50,7 @@
 
 - Extension v1 prod — **Part 2 shipped:** popup launcher redesign (`GET_JOB_STATS`, account chip, THIS TAB, settings); Part 1 manual capture live ([`docs/EXTENSION_POPUP_REDESIGN.md`](./EXTENSION_POPUP_REDESIGN.md))
 - Extension v2 — Tier 1 ATS adapters (Lever, Ashby, iCIMS, SmartRecruiters, Taleo, Jobvite); detection architecture in [`docs/EXTENSION_DETECTION.md`](./EXTENSION_DETECTION.md)
-- **Production deploy** — two paths documented in [`docs/DEPLOYMENT.md`](./DEPLOYMENT.md): Vercel (web, deferred connect) + GitHub Actions → Chrome Web Store (workflow ready; secrets in GitHub)
+- **Production deploy** — web live at `www.easysubmit.ai`; push `main` or `run easy prod`; extension CI builds artifact (CWS publish when approved) — [`docs/DEPLOYMENT.md`](./DEPLOYMENT.md)
 - **Application Field Memory** — spec in [`docs/APPLICATION_FIELD_MEMORY.md`](./APPLICATION_FIELD_MEMORY.md); agent lanes in [`docs/ACTIVE_WORK.md`](./ACTIVE_WORK.md)
 
 Full tracker: [`docs/JOB_TRACKER.md`](./JOB_TRACKER.md)
@@ -60,19 +60,15 @@ Full tracker: [`docs/JOB_TRACKER.md`](./JOB_TRACKER.md)
 See [`docs/DEVELOPMENT_WORKFLOW.md`](./DEVELOPMENT_WORKFLOW.md) and [`docs/ENV.md`](./ENV.md).
 
 ```bash
-run easy    # local dev
+run easy              # local dev (full)
+run easy fast         # local dev, skip tests
+run easy prod         # manual prod deploy (full)
+run easy prod fast    # deploy only
+npm run db:check      # test local DB connection
+npm run env:whoami    # confirm dev Supabase target
+npm run build         # prisma generate + next build
 ```
 
 **Production:** [`docs/DEPLOYMENT.md`](./DEPLOYMENT.md) — Vercel (web) + GitHub Actions (extension).
 
 **Production cutover checklist:** [`docs/PROD_CUTOVER.md`](./PROD_CUTOVER.md)
-
-## Dev
-
-```bash
-run easy            # local dev (.env.local)
-run easy prod       # manual Vercel deploy from laptop
-npm run db:check    # test local DB connection
-npm run env:whoami  # confirm dev Supabase target
-npm run build       # prisma generate + next build
-```

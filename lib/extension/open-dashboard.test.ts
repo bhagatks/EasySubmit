@@ -5,7 +5,9 @@ import {
   expandAppOriginAliases,
   isAppDashboardUrl,
   isAppOriginUrl,
+  isLocalApiBase,
   pickAppTabToReuse,
+  preferAppOrigin,
 } from "@/src/shared/extension/open-dashboard";
 
 describe("open-dashboard", () => {
@@ -61,5 +63,13 @@ describe("open-dashboard", () => {
       origin,
     );
     expect(picked?.id).toBe(1);
+  });
+
+  it("prefers prod app origin over localhost when both are open", () => {
+    expect(
+      preferAppOrigin(["http://localhost:3000", "https://www.easysubmit.ai"]),
+    ).toBe("https://www.easysubmit.ai");
+    expect(isLocalApiBase("http://localhost:3000")).toBe(true);
+    expect(isLocalApiBase("https://www.easysubmit.ai")).toBe(false);
   });
 });
