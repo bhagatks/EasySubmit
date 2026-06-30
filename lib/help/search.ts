@@ -1,4 +1,11 @@
 import type { HelpArticle, HelpCategory, HelpSearchResult } from "@/lib/help/types";
+import type { LegalInline } from "@/src/lib/services/legal-documents-config";
+
+function inlinePlainText(inline: LegalInline): string {
+  if ("value" in inline) return inline.value;
+  if (inline.kind === "mailto") return inline.label ?? inline.email;
+  return inline.label;
+}
 
 function normalizeQuery(query: string): string {
   return query.trim().toLowerCase();
@@ -45,11 +52,11 @@ function flattenBlocks(blocks: HelpArticle["blocks"]): string[] {
         parts.push(block.text);
         break;
       case "p":
-        parts.push(...block.inlines.map((inline) => ("value" in inline ? inline.value : inline.label)));
+        parts.push(...block.inlines.map(inlinePlainText));
         break;
       case "ul":
         for (const item of block.items) {
-          parts.push(typeof item === "string" ? item : item.inlines.map((i) => i.value ?? i.label).join(" "));
+          parts.push(typeof item === "string" ? item : item.inlines.map(inlinePlainText).join(" "));
         }
         break;
       default:
