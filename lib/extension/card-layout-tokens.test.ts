@@ -15,7 +15,7 @@ describe("card-layout-tokens", () => {
 
   it("exports stable nav labels", () => {
     expect(CARD_NAV_LABELS.jobInfo).toBe("Job Info");
-    expect(CARD_STUDIO_LABEL).toBe("Studio Edition");
+    expect(CARD_STUDIO_LABEL).toBe("Resume Studio");
   });
 
   it("emits css variables for shadow dom", () => {

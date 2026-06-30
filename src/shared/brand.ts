@@ -6,6 +6,9 @@
 export const EXTENSION_STORE_URL =
   "https://chromewebstore.google.com/detail/ask-gemini/daeaddalijienfjkhigbifmbdckbohjg";
 
+/** Per-job tailored resume editor — dashboard + extension label. */
+export const RESUME_STUDIO_LABEL = "Resume Studio" as const;
+
 export const BRAND = {
   name: "EasySubmit",
   suffix: ".ai",

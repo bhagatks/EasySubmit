@@ -31,6 +31,6 @@ export async function getExtensionUserPrefs(userId: string): Promise<ExtensionUs
     resumeProfilePickerMode: user?.resumeProfilePickerMode ?? "DEFAULT",
     customizeResume: user?.customizeResume ?? true,
     applicationProfile: parseApplicationProfile(user?.applicationProfile ?? null),
-    aiSourcePreference: user?.aiSourcePreference ?? "disabled",
+    aiSourcePreference: user?.aiSourcePreference ?? "auto",
   };
 }

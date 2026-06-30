@@ -16,7 +16,7 @@ export async function GET() {
   });
 
   return NextResponse.json({
-    aiSourcePreference: user?.aiSourcePreference ?? "disabled",
+    aiSourcePreference: user?.aiSourcePreference ?? "auto",
     aiGloballyEnabled: isAiGloballyEnabled(),
   });
 }

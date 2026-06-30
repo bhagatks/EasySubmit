@@ -20,7 +20,7 @@ export function isDashboardDetailScreen(
   return false;
 }
 
-/** Full-page job resume Studio launched from Review Screen — no dashboard sidebar. */
+/** Full-page Resume Studio for a job (`/dashboard/job-tracker/[id]/resume`) — no dashboard sidebar. */
 export function isJobReviewStudioScreen(
   pathname: string,
   fromParam?: string | null,

@@ -3,13 +3,15 @@
  * Import values in TS tests; emit CSS vars for Shadow DOM stylesheets.
  */
 
+import { RESUME_STUDIO_LABEL } from "@/src/shared/brand";
+
 export const CARD_NAV_LABELS = {
   jobInfo: "Job Info",
   resume: "Resume",
   coverLetter: "Cover Letter",
 } as const;
 
-export const CARD_STUDIO_LABEL = "Studio Edition";
+export const CARD_STUDIO_LABEL = RESUME_STUDIO_LABEL;
 
 export const EXTENSION_CARD_LAYOUT = {
   /** Horizontal inset for all card bodies */

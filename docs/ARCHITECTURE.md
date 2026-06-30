@@ -184,6 +184,8 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 
 | Date | Summary |
 |------|---------|
+| 2026-06-30 | **AI default on** — `users.aiSourcePreference` default restored to `auto` (new users + null fallbacks); per-user **disabled** toggle unchanged in Settings. |
+| 2026-06-30 | **Resume Studio label** — unified user-facing copy (`RESUME_STUDIO_LABEL` in `src/shared/brand.ts`) across Job Tracker, Review Screen, extension card, analytics catalog. |
 | 2026-06-30 | **Job Tracker row chrome** — fixed action slots (`tracker-row-chrome.ts`), stall detection + Retry optimize, tailor crash → `pipelineError`; Extension sidebar hidden when connected. |
 | 2026-06-29 | **Dashboard Overview** — `/dashboard` pipeline strip + ranked action queue + weekly progress rail (`lib/dashboard/overview-stats.ts`, `components/dashboard/overview/`). |
 | 2026-06-29 | **Help Center** — public `/help` with search, 7 topic categories, and article pages (`lib/help/`); linked from marketing nav and footer. |
@@ -244,12 +246,12 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 | 2026-06-26 | System AI kill switch — `feature_flags.system_ai_enabled` replaces `app_config` enable gate; user Settings unchanged (AI source, one-click, resume picker) |
 | 2026-06-26 | Skills quality rules — shared `lib/resume/skills-rules.ts` (count gates, banned slot-wasters, prose detection); enforced in AI post-process, deterministic enhancer, readiness score, and StudioSkillsField |
 | 2026-06-26 | Professional Summary quality rules — shared `lib/resume/summary-rules.ts` (4 sentences, 70–80 words, banned phrases); enforced in AI enhance post-process, deterministic enhancer feedback, readiness score, and RefineryPanel live hints |
-| 2026-06-26 | Extension resume/cover detail toolbar — Studio Edition on second row, sparkles Enhance with AI (edit → enhance → DOC → PDF), preview panel widens to 400px and resets on Back |
+| 2026-06-26 | Extension resume/cover detail toolbar — Resume Studio on second row, sparkles Enhance with AI (edit → enhance → DOC → PDF), preview panel widens to 400px and resets on Back |
 | 2026-06-26 | Onboarding avatar upload fix — `/api/profile/*` exempt from middleware onboarding redirect (POST was redirected to `/onboarding` → 500) |
 | 2026-06-26 | Dashboard/onboarding redirect loop fix — middleware defers hub gates to DB-backed layouts (`dashboard-session-gate`); JWT `onboardingStep` alone no longer bounces `/dashboard` ↔ `/onboarding` |
-| 2026-06-25 | Extension resume/cover detail toolbar — single icon row: back, edit/save/discard, PDF+Word download, Edit in Studio; new extension DOCX export API routes |
+| 2026-06-25 | Extension resume/cover detail toolbar — single icon row: back, edit/save/discard, PDF+Word download, Resume Studio; new extension DOCX export API routes |
 | 2026-06-25 | Extension card layout tokens — `card-layout-tokens.ts` (16px inset, CTA zone divider, shared spacing for summary + detail views) |
-| 2026-06-25 | Extension card detail UX — summary labels Job Info / Resume / Cover Letter; detail headers **Edit in Studio** → Review Screen tab; job/cover/resume inline Edit+Save; cover full textarea + resume lite fields fetched lazily on Edit; preview iframe fills resized panel |
+| 2026-06-25 | Extension card detail UX — summary labels Job Info / Resume / Cover Letter; detail headers **Resume Studio** → Review Screen tab; job/cover/resume inline Edit+Save; cover full textarea + resume lite fields fetched lazily on Edit; preview iframe fills resized panel |
 | 2026-06-25 | Button purposes — `ButtonPurpose` + `webButtonPurposeProps` / `extensionButtonClass`; semantic parity, surface-specific colors; `PurposeButton` on web |
 | 2026-06-25 | Extension button system — `src/shared/brand-buttons.ts` (`.es-btn-primary/secondary/chip`); Job info → secondary button; onboarding Continue uses web `Button` |
 | 2026-06-25 | Unified brand colors — `src/shared/brand-colors.ts` (engine glow) drives logo SVG, web `LogoIcon`, extension card/popup/nudge CSS; legacy teal removed from extension |
@@ -292,9 +294,9 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 | 2026-06-22 | `app_config.resumeProfiles.maxProfilesPerCustomer` (default 20) — per-user resume profile cap enforced on create + job-tailor clone; dashboard shows count/limit |
 | 2026-06-22 | Review Screen ATS Analysis tab: readiness score (4 pillars), keyword gap, bullet quality, robot parse view; shared `resume-content-model` for HTML/PDF/Word/ATS exports |
 | 2026-06-22 | ATS-quality resume exports: `resume-docx` + `resume-pdf` via `resume-content-model` + `resume-style`; Review export async wiring |
-| 2026-06-22 | Review Screen Studio Edit (`?from=review`): hides dashboard sidebar, Review Screen header/tabs chrome, no tailor banner; save returns to Review Resume tab; pipeline Studio link unchanged |
-| 2026-06-22 | Review Screen Resume + Cover document tabs: shared toolbar (Studio Edit / Enhance / PDF / Word / LaTeX), cover inline edit + `job_resume_tailors` document fields, LaTeX fullscreen editor (validate + HTML preview), server actions in `app/actions/review-documents.ts` |
-| 2026-06-22 | Review Screen Resume tab: inline merged `PrimeResume` preview, tailored-section pills, Edit in Studio; `getJobTrackerEntryById` loads `tailoredResumePreview` |
+| 2026-06-22 | Review Screen Resume Studio (`?from=review`): hides dashboard sidebar, Review Screen header/tabs chrome, no tailor banner; save returns to Review Resume tab; pipeline Resume Studio link unchanged |
+| 2026-06-22 | Review Screen Resume + Cover document tabs: shared toolbar (Resume Studio / Enhance / PDF / Word / LaTeX), cover inline edit + `job_resume_tailors` document fields, LaTeX fullscreen editor (validate + HTML preview), server actions in `app/actions/review-documents.ts` |
+| 2026-06-22 | Review Screen Resume tab: inline merged `PrimeResume` preview, tailored-section pills, Resume Studio; `getJobTrackerEntryById` loads `tailoredResumePreview` |
 | 2026-06-22 | Job tailor storage Option B: `job_resume_tailors` overrides + merge at read; Job Tracker Studio `/dashboard/job-tracker/[id]/resume`; base profile dependency warning |
 | 2026-06-22 | Workday pipeline Phase C stub + Phase D polish: autofill-complete API, content `runAutofillPhase`, card status polling, kanban Studio link, popup one-click toggle |
 | 2026-06-22 | Workday pipeline Phase B3–B7: `runApplyPipeline` → `runPipelineTailor` (copy + `enhanceResumeForUserId` + persist) → `RESUME_READY` + `pendingPhase: autofill`; partial failure keeps `CAPTURED` with `metadata.pipelineError`; pipeline variant gates on `extension_auto_apply` |

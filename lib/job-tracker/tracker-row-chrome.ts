@@ -4,8 +4,8 @@ import { isTailorStalled, type TailorStallInput } from "@/lib/job-tracker/tailor
 
 export type DashboardTrackerRowChrome = {
   showSpinner: boolean;
-  showStudioEdition: boolean;
-  studioEditionEnabled: boolean;
+  showResumeStudio: boolean;
+  resumeStudioEnabled: boolean;
   showMarkApplied: boolean;
   markAppliedDisabled: boolean;
   applyLabel: string;
@@ -43,8 +43,8 @@ export function resolveDashboardTrackerRowChrome(
 
   return {
     showSpinner: optimizing || (input.rowBusy && input.status === "CAPTURED"),
-    showStudioEdition: true,
-    studioEditionEnabled: Boolean(input.hasTailoredResume),
+    showResumeStudio: true,
+    resumeStudioEnabled: Boolean(input.hasTailoredResume),
     showMarkApplied: true,
     markAppliedDisabled: !applyNavigate || applyCompleted || input.rowBusy,
     applyLabel,

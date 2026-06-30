@@ -165,7 +165,7 @@ Auth identity and onboarding gate only. Career data lives on `Profile`.
 | `onboardingStep` | `int` default `0` | Wizard step (0 = not started, 1–4 in progress) |
 | `vaultKeyId` | `uuid?` | Pointer to `vault.secrets.id` for active BYOK — never raw key material |
 | `activeProvider` | `string?` | Active BYOK provider (`openai`, `anthropic`, `gemini`, …) |
-| `aiSourcePreference` | `string` default `disabled` | `auto` \| `customer` \| `system` \| `disabled` — AI routing for Enhance; `disabled` = rules engine only |
+| `aiSourcePreference` | `string` default `auto` | `auto` \| `customer` \| `system` \| `disabled` — AI routing for Enhance; `disabled` = rules engine only |
 | `aiEnhancementsToday` | `int` default `0` | Daily EasySubmit AI enhancement count (resets UTC midnight) |
 | `aiCallsToday` | `int` default `0` | Daily EasySubmit AI API call count |
 | `aiQuotaResetAt` | `datetime` | Last quota counter reset timestamp |

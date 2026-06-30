@@ -110,7 +110,7 @@ async function _checkForUser(userId: string): Promise<AiHealthCheckResult> {
   const debug = baseDebug();
   debug.hasVaultKey = Boolean(user.vaultKeyId);
 
-  const preference = (user.aiSourcePreference ?? "disabled") as AiSourcePreference;
+  const preference = (user.aiSourcePreference ?? "auto") as AiSourcePreference;
   debug.aiSourcePreference = preference;
 
   if (preference === "disabled") {

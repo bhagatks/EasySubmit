@@ -20,8 +20,8 @@ describe("resolveDashboardTrackerRowChrome", () => {
     expect(chrome.showMarkApplied).toBe(true);
     expect(chrome.markAppliedDisabled).toBe(true);
     expect(chrome.applyDisabled).toBe(true);
-    expect(chrome.showStudioEdition).toBe(true);
-    expect(chrome.studioEditionEnabled).toBe(false);
+    expect(chrome.showResumeStudio).toBe(true);
+    expect(chrome.resumeStudioEnabled).toBe(false);
     expect(chrome.applyLabel).toBe("Apply assist");
   });
 
@@ -49,7 +49,7 @@ describe("resolveDashboardTrackerRowChrome", () => {
     });
 
     expect(chrome.applyInteractive).toBe(true);
-    expect(chrome.studioEditionEnabled).toBe(true);
+    expect(chrome.resumeStudioEnabled).toBe(true);
     expect(chrome.applyLabel).toBe("Apply assist");
   });
 });

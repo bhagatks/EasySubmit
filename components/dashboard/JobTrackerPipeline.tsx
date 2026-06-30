@@ -23,8 +23,12 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { BRAND_FULL, EXTENSION_STORE_URL } from "@/lib/brand";
 import type { JobTrackerSummary } from "@/lib/job-tracker/types";
-import { resolvePipelineSubLabel } from "@/lib/job-tracker/pipeline-sub-labels";
+import {
+  JOB_RESUME_STUDIO_LABEL,
+  JOB_RESUME_STUDIO_LINK_TITLE,
+} from "@/lib/job-tracker/review-screen-ui";
 import { resolveDashboardTrackerRowChrome } from "@/lib/job-tracker/tracker-row-chrome";
+import { resolvePipelineSubLabel } from "@/lib/job-tracker/pipeline-sub-labels";
 import { resolveJourneyDisplay, type JourneyDisplay } from "@/src/shared/journey-display";
 import {
   notifyExtensionJobArchived,
@@ -266,15 +270,15 @@ export function JobTrackerPipeline({
                       onClick={stopRowAction}
                       onKeyDown={stopRowAction}
                     >
-                      {chrome.showStudioEdition ? (
-                        chrome.studioEditionEnabled ? (
+                      {chrome.showResumeStudio ? (
+                        chrome.resumeStudioEnabled ? (
                           <Link
                             href={`/dashboard/job-tracker/${entry.id}/resume`}
                             onClick={stopRowAction}
                             className={rowLinkActionClass()}
-                            title="Open tailored resume in Studio Edition"
+                            title={JOB_RESUME_STUDIO_LINK_TITLE}
                           >
-                            Studio Edition
+                            {JOB_RESUME_STUDIO_LABEL}
                             <ExternalLink className="h-3 w-3" aria-hidden="true" />
                           </Link>
                         ) : (
@@ -283,7 +287,7 @@ export function JobTrackerPipeline({
                             aria-disabled="true"
                             title="Resume optimization in progress"
                           >
-                            Studio Edition
+                            {JOB_RESUME_STUDIO_LABEL}
                             <ExternalLink className="h-3 w-3" aria-hidden="true" />
                           </span>
                         )

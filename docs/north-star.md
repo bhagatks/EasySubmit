@@ -101,7 +101,7 @@ Every user-visible enhance path must converge on **one server orchestrator**.
 | **F2** | Extension job apply | Save job → auto tailor | ✅ required ≥120 | `extension` | `"pipeline"` |
 | **F3** | Dashboard Review Screen | "Enhance" on resume tab | ✅ required ≥120 | `job_apply` | `"dashboard"` |
 | **F4** | Extension card | Manual enhance API | ✅ required ≥120 | `extension` | `"dashboard"`* |
-| **F5** | Job Resume Studio | Enhance button + JD dialog | ✅ user pastes | `job_apply` | `"dashboard"` |
+| **F5** | Resume Studio | Enhance button + JD dialog | ✅ user pastes | `job_apply` | `"dashboard"` |
 | **F6** | Base Resume Studio | Enhance button (JD optional) | ⚠️ optional | `resume` | `"dashboard"` |
 | **F7** | Dev testing page | Test harness | ✅ | `job_apply` | `"dashboard"` |
 
@@ -219,7 +219,7 @@ Same server path as F3.
 
 ---
 
-### F5 — Job Resume Studio
+### F5 — Resume Studio
 
 | Phase | Runs? | What differs |
 |-------|-------|--------------|

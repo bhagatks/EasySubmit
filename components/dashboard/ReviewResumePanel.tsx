@@ -17,7 +17,7 @@ import {
   canExportReviewDocument,
   canOpenLatexEditor,
 } from "@/lib/job-tracker/review-readiness";
-import { jobTrackerReviewStudioUrl } from "@/lib/job-tracker/review-screen-ui";
+import { jobTrackerReviewStudioUrl, JOB_RESUME_STUDIO_LABEL } from "@/lib/job-tracker/review-screen-ui";
 import type { JobTrackerDetail } from "@/lib/job-tracker/types";
 import { DEFAULT_STUDIO_ZOOM } from "@/lib/resume/studio-preview-zoom";
 import { EnhanceCoveragePanel } from "@/components/dashboard/review/EnhanceCoveragePanel";
@@ -204,13 +204,13 @@ export function ReviewResumePanel({ entry, onRefresh, aiEnabled }: ReviewResumeP
   const actions: DocumentToolbarAction[] = [
     {
       id: "studio",
-      label: "Studio Edit",
+      label: JOB_RESUME_STUDIO_LABEL,
       icon: "studio",
       variant: "mintOutline",
       href: entry.hasTailoredResume ? jobTrackerReviewStudioUrl(entry.id) : undefined,
       disabled: !entry.hasTailoredResume,
       title: entry.hasTailoredResume
-        ? "Open full-screen resume Studio"
+        ? `Open ${JOB_RESUME_STUDIO_LABEL}`
         : "Tailor a resume for this job first",
     },
     {

@@ -24,14 +24,17 @@ export function OverviewRightRail({ weeklyProgress }: OverviewRightRailProps) {
   );
 
   return (
-    <aside>
-      <section className="rounded-xl border border-border bg-surface/60 p-4">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="font-display text-sm font-semibold">This week</h2>
-          <TrendingUp className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+    <aside aria-label="Weekly progress">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h2 className="font-display text-base font-semibold">This week</h2>
+          <p className="mt-1 text-xs text-muted-foreground">Captured, tailored, and applied</p>
         </div>
+        <TrendingUp className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+      </div>
 
-        <div className="mt-4 space-y-3">
+      <section className="rounded-xl border border-border bg-surface/60 p-4">
+        <div className="space-y-3">
           {WEEKLY_METRICS.map((metric) => {
             const value = weeklyProgress[metric.key];
             const percent = weeklyProgressBarPercent(value, maxWeekly);

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   defaultReviewScreenPanel,
+  JOB_RESUME_STUDIO_LABEL,
   jobTrackerReviewScreenUrl,
   jobTrackerReviewStudioUrl,
 } from "@/lib/job-tracker/review-screen-ui";
@@ -21,6 +22,10 @@ describe("review-screen-ui", () => {
     expect(jobTrackerReviewStudioUrl("abc")).toBe(
       "/dashboard/job-tracker/abc/resume?from=review",
     );
+  });
+
+  it("exposes dashboard label for job resume studio", () => {
+    expect(JOB_RESUME_STUDIO_LABEL).toBe("Resume Studio");
   });
 });
 

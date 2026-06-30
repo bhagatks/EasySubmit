@@ -74,7 +74,7 @@ export const SCREEN_CATALOG: Record<ScreenId, ScreenCatalogEntry> = {
   resume_studio: { id: "resume_studio", name: "Resume Studio", zone: "dashboard" },
   job_tracker: { id: "job_tracker", name: "Job Tracker", zone: "dashboard" },
   review_screen: { id: "review_screen", name: "Review Screen", zone: "overlay" },
-  job_review_studio: { id: "job_review_studio", name: "Job Review Studio", zone: "dashboard" },
+  job_review_studio: { id: "job_review_studio", name: "Resume Studio", zone: "dashboard" },
   ats_scores: { id: "ats_scores", name: "ATS Scores", zone: "dashboard" },
   ats_guidelines: { id: "ats_guidelines", name: "ATS Guidelines", zone: "dashboard" },
   dashboard_extension: { id: "dashboard_extension", name: "Extension (dashboard)", zone: "dashboard" },

@@ -1,4 +1,5 @@
 import { extensionButtonClass } from "../brand-buttons";
+import { RESUME_STUDIO_LABEL } from "../brand";
 import {
   escapeHintAttr,
   floatingHintStyles,
@@ -24,7 +25,7 @@ export const PREVIEW_TOOLBAR_HINTS = {
   enhanceRulesOnlyTitle: "Enable AI in Settings for smarter enhancements",
   downloadWord: "Download Word",
   downloadPdf: "Download PDF",
-  studioWeb: "Edit in Studio Web",
+  studioWeb: RESUME_STUDIO_LABEL,
   save: "Save changes",
   discard: "Discard changes",
 } as const;

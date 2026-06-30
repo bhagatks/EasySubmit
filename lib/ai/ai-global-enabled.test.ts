@@ -54,7 +54,10 @@ describe("ai-global-enabled", () => {
 
     it("returns false when preference is disabled", () => {
       expect(isUserAiEnhancementEnabled("disabled")).toBe(false);
-      expect(isUserAiEnhancementEnabled(null)).toBe(false);
+    });
+
+    it("defaults null preference to enabled when globally on", () => {
+      expect(isUserAiEnhancementEnabled(null)).toBe(true);
     });
 
     it("returns true for auto when globally enabled", () => {

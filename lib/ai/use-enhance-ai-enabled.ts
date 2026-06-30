@@ -29,7 +29,7 @@ export function useEnhanceAiEnabled(active = true): boolean {
             ? data.aiGloballyEnabled
             : isClientAiGloballyEnabled();
         setAiEnabled(
-          globallyOn && (data.aiSourcePreference ?? "disabled") !== "disabled",
+          globallyOn && (data.aiSourcePreference ?? "auto") !== "disabled",
         );
       })
       .catch(() => undefined);

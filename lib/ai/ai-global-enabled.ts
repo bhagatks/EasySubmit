@@ -11,12 +11,12 @@ export function isClientAiGloballyEnabled(): boolean {
 export function isUserAiEnhancementEnabled(
   preference: string | null | undefined,
 ): boolean {
-  return (preference ?? "disabled") !== "disabled" && isAiGloballyEnabled();
+  return (preference ?? "auto") !== "disabled" && isAiGloballyEnabled();
 }
 
 /** Client-side mirror of {@link isUserAiEnhancementEnabled} for dashboard UI. */
 export function isClientUserAiEnhancementEnabled(
   preference: string | null | undefined,
 ): boolean {
-  return (preference ?? "disabled") !== "disabled" && isClientAiGloballyEnabled();
+  return (preference ?? "auto") !== "disabled" && isClientAiGloballyEnabled();
 }

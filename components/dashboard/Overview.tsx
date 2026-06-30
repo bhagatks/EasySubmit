@@ -64,7 +64,7 @@ export async function DashboardOverview({
         appliedThisWeek={overview.appliedThisWeek}
       />
 
-      <div className="grid min-w-0 gap-6 lg:grid-cols-[2fr_1fr]">
+      <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[2fr_1fr]">
         <OverviewActionQueue items={overview.actionQueue} waitingCount={overview.waitingCount} />
         <OverviewRightRail weeklyProgress={overview.weeklyProgress} />
       </div>

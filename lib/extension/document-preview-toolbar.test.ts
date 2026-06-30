@@ -39,9 +39,9 @@ describe("renderDocumentPreviewToolbar", () => {
     expect(html.indexOf('data-document-enhance="1"')).toBeLessThan(
       html.indexOf('data-document-download="doc"'),
     );
-    expect(html).toContain('data-hint="Edit in Studio Web"');
+    expect(html).toContain('data-hint="Resume Studio"');
     expect(html).toContain('data-open-dashboard-header="1"');
-    expect(html).not.toContain("Studio Edition");
+    expect(html).toContain("Resume Studio");
     expect(html).not.toContain("detail-save-btn");
   });
 

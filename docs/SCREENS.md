@@ -84,7 +84,7 @@ Sidebar labels match `components/dashboard/DashboardShell.tsx`.
 | **New resume profile** | `/dashboard/resume-profiles/new` | — | Copy default or blank |
 | **Resume Studio** | `/dashboard/resume-profiles/[id]/edit` | — | Profile editor (Editor \| Layout tabs) |
 | **Job Tracker** | `/dashboard/job-tracker` | Job Tracker | Pipeline rows → Review Screen |
-| **Job Review Studio** | `/dashboard/job-tracker/[id]/resume` | — | Studio edit from Review Screen (`?from=review`) |
+| **Resume Studio** | `/dashboard/job-tracker/[id]/resume` | — | Full per-job editor from tracker row or Review Screen (`?from=review`) |
 | **ATS Scores** | `/dashboard/ats-scores` | ATS Scores | Cross-job readiness workspace |
 | **ATS Guidelines** | `/dashboard/ats-guidelines` | ATS Guidelines | In-app ATS rules reference |
 | **Extension** | `/dashboard/extension` | Extension (when not connected) | Install + connect bridge; sidebar item hidden once extension is connected on this browser |
@@ -141,7 +141,7 @@ For which screen triggers resume enhance, see [`north-star.md` §3.1](./north-st
 | F2 | Extension pipeline tailor |
 | F3 | Review Screen → Resume tab |
 | F4 | Extension card manual enhance |
-| F5 | Job Resume Studio |
+| F5 | Resume Studio |
 | F6 | Base Resume Studio |
 | F7 | Dev testing page |
 

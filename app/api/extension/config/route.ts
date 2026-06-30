@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
     byokKeyInvalid,
     aiEnabled:
       isAiGloballyEnabled() &&
-      (userPrefs?.aiSourcePreference ?? "disabled") !== "disabled",
+      (userPrefs?.aiSourcePreference ?? "auto") !== "disabled",
     forceUpgradeEnabled: forceUpgrade.enabled,
     minExtensionVersion: forceUpgrade.minVersion,
     forceUpgradeMessage: forceUpgrade.message,

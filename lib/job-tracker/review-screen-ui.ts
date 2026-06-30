@@ -1,3 +1,4 @@
+import { RESUME_STUDIO_LABEL } from "@/src/shared/brand";
 import type { JobTrackerStatus } from "@/lib/generated/prisma/client";
 
 export type ReviewScreenPanel = "job" | "resume" | "cover" | "ats";
@@ -28,6 +29,12 @@ export function jobTrackerReviewScreenUrl(
   const params = new URLSearchParams({ job: jobId, panel });
   return `/dashboard/job-tracker?${params.toString()}`;
 }
+
+/** User-facing label for per-job tailored resume editor (`/dashboard/job-tracker/[id]/resume`). */
+export const JOB_RESUME_STUDIO_LABEL = RESUME_STUDIO_LABEL;
+
+export const JOB_RESUME_STUDIO_LINK_TITLE =
+  `Open tailored resume in ${RESUME_STUDIO_LABEL}` as const;
 
 /** Query value for job resume Studio opened from Review Screen (hides dashboard chrome). */
 export const REVIEW_STUDIO_FROM_PARAM = "review";

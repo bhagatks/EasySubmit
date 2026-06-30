@@ -130,7 +130,7 @@ export async function enhanceCoverLetterForUserId(
     };
   }
 
-  const preference = (user.aiSourcePreference ?? "disabled") as AiSourcePreference;
+  const preference = (user.aiSourcePreference ?? "auto") as AiSourcePreference;
   if (!isAiGloballyEnabled() || preference === "disabled") {
     return {
       success: false,
