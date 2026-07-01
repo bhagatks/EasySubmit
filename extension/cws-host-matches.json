@@ -26,7 +26,6 @@
     "https://apply.workable.com/*",
     "https://jobs.workable.com/*",
     "https://*.bamboohr.com/*",
-    "https://*.adp.com/*",
     "https://workforcenow.adp.com/*",
     "https://*.rippling.com/*",
     "https://jobs.rippling.com/*",
@@ -37,7 +36,6 @@
     "https://careers.paycom.com/*",
     "https://app.clearcompany.com/*",
     "https://*.teamtailor.com/*",
-    "https://*.oracle.com/*",
     "https://jobs.slalom.com/*",
     "https://*.ziprecruiter.com/*",
     "https://*.glassdoor.com/*",
@@ -50,16 +48,6 @@
     "https://*.seek.com.au/*",
     "https://*.seek.co.nz/*",
     "https://*.careerbuilder.com/*",
-    "https://*.simplyhired.com/*",
-    "https://*/*/jobs/*",
-    "https://*/*/job/*",
-    "https://*/*/careers/*",
-    "https://*/*/career/*",
-    "https://*/*/openings/*",
-    "https://*/*/postings/*",
-    "https://*/*/vacancies/*",
-    "https://*/*jobdetail*",
-    "https://*/*careersmarketplace*",
-    "https://*/*gh_jid=*"
+    "https://*.simplyhired.com/*"
   ]
 }

@@ -61,7 +61,7 @@ Use a **second Chrome profile** so prod and dev extensions do not share storage 
 
 This listing uses **Verified CRX uploads** — upload the signed **`.crx`**, not a plain zip.
 
-Store builds use **scoped host permissions** (`extension/cws-host-matches.json`) instead of `https://*/*` — known ATS hosts plus `/jobs/`, `/careers/`, etc. Dev builds (`dist/extension-dev/`) keep broad permissions for local testing.
+Store builds use **scoped host permissions** (`extension/cws-host-matches.json`) — named ATS and job-board hosts only (no `https://*/*` or any-host path wildcards). Custom company career sites use the toolbar **“Show job card on this page”** action (`activeTab`). Dev builds (`dist/extension-dev/`) keep broad permissions for local testing.
 
 1. Bump `version` in `extension/manifest.json` (store rejects duplicate versions).
 2. Deploy the web app if bridge/auth behavior changed.

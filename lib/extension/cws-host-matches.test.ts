@@ -25,9 +25,9 @@ describe("cws-host-matches.json", () => {
     expect(matches.some((m) => m.includes("myworkdayjobs.com"))).toBe(true);
   });
 
-  it("includes path patterns for company career pages", () => {
+  it("does not use any-host path wildcards (CWS broad permission warning)", () => {
     const matches = loadMatches();
-    expect(matches.some((m) => m.includes("/careers/"))).toBe(true);
-    expect(matches.some((m) => m.includes("/jobs/"))).toBe(true);
+    expect(matches.some((m) => /^https:\/\/\*\//.test(m))).toBe(false);
+    expect(matches.some((m) => m === "https://*/*")).toBe(false);
   });
 });

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "EasySubmit.ai — Job Tracker",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Save jobs to EasySubmit.ai Job Tracker from any supported career site.",
   "permissions": ["storage", "tabs", "scripting", "contextMenus"],
   "host_permissions": ["https://*/*", "http://localhost:*/*"],
