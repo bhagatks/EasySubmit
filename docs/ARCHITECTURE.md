@@ -20,7 +20,7 @@ Postgres (Prisma) + Supabase Vault BYOK + client Zustand stores. Login identity 
 | Auth signup | Supabase Auth (legacy path) | `/auth/signup` |
 | Dashboard | NextAuth-protected shell + sidebar nav | `/dashboard` (+ `/dashboard/resume-profiles`, `/dashboard/job-tracker`, `/dashboard/ats-guidelines`, `/dashboard/about`, `/dashboard/settings`) |
 | Extension landing | Static marketing | `/extension` |
-| Chrome extension | MV3 in-page job card v0.1 | `dist/extension/` (load unpacked) |
+| Chrome extension | MV3 in-page job card v0.1 | `dist/extension-dev/` (dev) · `dist/extension/` (prod / CWS) |
 
 ## Auth & route protection
 
@@ -184,6 +184,7 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 
 | Date | Summary |
 |------|---------|
+| 2026-07-01 | Extension build outputs split — `dist/extension-dev/` (localhost) vs `dist/extension/` (prod / CWS only). |
 | 2026-06-30 | **AI default on** — `users.aiSourcePreference` default restored to `auto` (new users + null fallbacks); per-user **disabled** toggle unchanged in Settings. |
 | 2026-06-30 | **Resume Studio label** — unified user-facing copy (`RESUME_STUDIO_LABEL` in `src/shared/brand.ts`) across Job Tracker, Review Screen, extension card, analytics catalog. |
 | 2026-06-30 | **Job Tracker row chrome** — fixed action slots (`tracker-row-chrome.ts`), stall detection + Retry optimize, tailor crash → `pipelineError`; Extension sidebar hidden when connected. |

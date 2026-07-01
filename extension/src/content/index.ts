@@ -1,4 +1,5 @@
 import { setupBridgeRelay } from "./bridge-relay";
+import { buildExtensionBridgePath } from "@shared/extension/connect-account-url";
 import { EXTENSION_MESSAGE, STORAGE_KEYS, EXTENSION_ENHANCE_TIMEOUT_MS } from "@shared/extension/constants";
 import { detectJobPage } from "@shared/extension/detect-job-page";
 import { buildFallbackJobMetadata } from "@shared/extension/force-metadata";
@@ -2194,10 +2195,10 @@ function renderExpandedCard(root: ShadowRoot): void {
     void openDashboardPath(path);
   });
 
-  root.querySelector("[data-reconnect-account]")?.addEventListener("click", (event) => {
+  root.querySelector("[data-open-extension-bridge]")?.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
-    void sendMessage({ action: EXTENSION_MESSAGE.OPEN_LOGIN });
+    void openExtensionBridgeOnDashboard();
   });
 
   root.querySelector("[data-force-upgrade-update]")?.addEventListener("click", (event) => {
@@ -2765,7 +2766,7 @@ function bindHeaderButton(root: ParentNode, selector: string, onActivate: () => 
 
 function isInteractiveGripTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
-  return Boolean(target.closest("[data-minimize], [data-refresh-card], [data-settings], [data-settings-dashboard], [data-settings-reconnect], [data-fix-ai-dashboard], [data-force-upgrade-update], .settings-menu, [data-profile-picker], [data-profile-id], .profile-picker-menu, .ai-health-banner, button, a"));
+  return Boolean(target.closest("[data-minimize], [data-refresh-card], [data-settings], [data-settings-dashboard], [data-fix-ai-dashboard], [data-open-extension-bridge], [data-force-upgrade-update], .settings-menu, [data-profile-picker], [data-profile-id], .profile-picker-menu, .ai-health-banner, button, a"));
 }
 
 function renderCard(root: ShadowRoot): void {
@@ -2854,7 +2855,7 @@ function inferExtensionUiAction(el: Element): { action: string; target: string }
     "data-refresh-card",
     "data-settings",
     "data-settings-dashboard",
-    "data-settings-reconnect",
+    "data-open-extension-bridge",
     "data-fix-ai-dashboard",
     "data-force-upgrade-update",
     "data-update-resume",
@@ -2970,10 +2971,6 @@ function renderSettingsMenuMarkup(): string {
           ${DASHBOARD_ICON_SVG}
           <span>Open Job Tracker</span>
         </button>
-        <button type="button" class="settings-menu-item" data-settings-reconnect="1" role="menuitem">
-          ${SETTINGS_ICON_SVG}
-          <span>Reconnect account</span>
-        </button>
       </div>`
     : "";
 
@@ -3041,7 +3038,7 @@ function renderReconnectBannerMarkup(
       <div class="ai-health-banner-inner">
         <span class="ai-health-banner-icon">${AI_HEALTH_ALERT_ICON}</span>
         <p class="ai-health-banner-message" title="${hint}">${hint}</p>
-        <button type="button" class="ai-health-banner-cta" data-reconnect-account="1" aria-label="${escapeHtml(banner.ctaLabel)}">${escapeHtml(banner.ctaLabel)}</button>
+        <button type="button" class="ai-health-banner-cta" data-open-extension-bridge="1" aria-label="${escapeHtml(banner.ctaLabel)}">${escapeHtml(banner.ctaLabel)}</button>
       </div>
     </div>
   `;
@@ -3134,7 +3131,7 @@ function openSettingsMenu(): void {
           node instanceof Element &&
           Boolean(
             node.closest?.(
-              "[data-settings], [data-settings-dashboard], [data-settings-reconnect], .settings-menu",
+              "[data-settings], [data-settings-dashboard], .settings-menu",
             ),
           ),
       );
@@ -3174,14 +3171,6 @@ function setupSettingsMenuDelegation(shadow: ShadowRoot): void {
       event.preventDefault();
       closeSettingsMenu();
       void openJobTrackerDashboard({ review: true });
-      return;
-    }
-
-    if (target.closest("[data-settings-reconnect]")) {
-      event.stopPropagation();
-      event.preventDefault();
-      closeSettingsMenu();
-      void sendMessage({ action: EXTENSION_MESSAGE.OPEN_LOGIN });
       return;
     }
 
@@ -3860,6 +3849,10 @@ async function openDashboardPath(path: string): Promise<void> {
   await sendMessage({ action: EXTENSION_MESSAGE.OPEN_DASHBOARD, path });
 }
 
+async function openExtensionBridgeOnDashboard(): Promise<void> {
+  await openDashboardPath(buildExtensionBridgePath(chrome.runtime.id));
+}
+
 async function openJobTrackerDashboard(options?: {
   review?: boolean;
   panel?: "job" | "resume" | "cover" | "apply";
@@ -4173,9 +4166,8 @@ async function startApplyPipeline(): Promise<void> {
 
   const tokenRes = await sendMessage<{ token: string | null }>({ action: EXTENSION_MESSAGE.GET_AUTH });
   if (!tokenRes?.token) {
-    if (tokenRes) {
-      await sendMessage({ action: EXTENSION_MESSAGE.OPEN_LOGIN });
-    }
+    saveError = "Link this extension from your EasySubmit dashboard, then try again.";
+    if (cardHost) renderCard(cardHost.shadow);
     return;
   }
 

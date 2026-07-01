@@ -35,7 +35,7 @@ Pipeline (`scripts/run.mjs dev`):
 2. DB safety — block prod `DATABASE_URL`, validate connection
 3. `prisma generate` + `prisma migrate deploy` (uses `DIRECT_URL`)
 4. `npm test` (skip with `run easy fast`)
-5. `npm run build:extensions` → `dist/extension/` (dev) + `dist/extension-prod/` (prod QA, separate Chrome profile)
+5. `npm run build:extensions` → `dist/extension-dev/` (localhost) + `dist/extension/` (prod) — see [`EXTENSION_BUILD.md`](./EXTENSION_BUILD.md)
 6. `next dev` on port 3000
 
 Fast iteration (skip tests): `run easy fast` or `npm run dev:fast`

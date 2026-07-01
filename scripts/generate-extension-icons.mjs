@@ -5,11 +5,10 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
 const svgPath = resolve(root, "extension/icons/icon.svg");
-const outDir = resolve(root, "dist/extension/icons");
-
 /** Rasterize extension/icons/icon.svg into 16/48/128 PNGs for Chrome.
  *  SVG fill must match BRAND_COLORS.logo.fill in src/shared/brand-colors.ts */
-export async function generateExtensionIcons() {
+export async function generateExtensionIcons(iconsOutDir) {
+  const outDir = iconsOutDir ?? resolve(root, "dist/extension-dev/icons");
   mkdirSync(outDir, { recursive: true });
 
   let sharp;

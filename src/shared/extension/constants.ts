@@ -1,7 +1,6 @@
 export const EXTENSION_MESSAGE = {
   AUTH_TOKEN: "EASYSUBMIT_AUTH_TOKEN",
   GET_AUTH: "EASYSUBMIT_GET_AUTH",
-  OPEN_LOGIN: "EASYSUBMIT_OPEN_LOGIN",
   SAVE_JOB: "EASYSUBMIT_SAVE_JOB",
   UPDATE_JOB_FIELDS: "EASYSUBMIT_UPDATE_JOB_FIELDS",
   GET_COVER_LETTER_BODY: "EASYSUBMIT_GET_COVER_LETTER_BODY",
@@ -47,19 +46,6 @@ export const STORAGE_KEYS = {
   pendingApplyJobId: "easysubmit_pending_apply_job_id_v1",
   aiEnabled: "easysubmit_ai_enabled_v1",
 } as const;
-
-export const DEFAULT_API_BASE = readDefaultApiBase();
-
-function readDefaultApiBase(): string {
-  const fromEnv =
-    typeof process !== "undefined"
-      ? process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXTAUTH_URL
-      : undefined;
-  if (typeof fromEnv === "string" && fromEnv.startsWith("http")) {
-    return fromEnv.replace(/\/$/, "");
-  }
-  return "http://localhost:3000";
-}
 
 /** Sent on every extension → dashboard API request (`manifest.version`). */
 export const EXTENSION_VERSION_HEADER = "X-Extension-Version";

@@ -1,5 +1,53 @@
 # Action Items
 
+## QA & E2E testing (priority)
+
+**Enhance playbook:** [`docs/enhance-qa-playbook.md`](./enhance-qa-playbook.md) · **Pipeline matrix:** [`docs/north-star.md`](./north-star.md) §14 · **Dev harness:** `/dashboard/testing-resume` (dev only)
+
+Code fixes from the first AI on/off review (Phases 1–6, D-01–D-22) are **Done**. The **testing program** below is **not** complete — track here until signed off.
+
+### Enhance QA — finish AI on/off testing program
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Re-run **Case 001** A/B/C (base → AI off → AI on) on Review | **Todo** | Bhagath eng × iRhythm procurement — manual sign-off per playbook §2.3 |
+| **Case 002+** — same-domain + other JD categories | **Todo** | Playbook §6 — SWE, PM, procurement-native, etc. |
+| **North-star §14 test matrix** — full pass / sign-off | **Todo** | AI off/on, quota, BYOK, pool down, extension card — Wave C in `north-star.md` |
+| **3-artifact regression** — pipeline-level, not unit slices | **Todo** | Extend `enhance-qa-case-001.test.ts` or add `run-resume-enhance-pipeline.test.ts`; D-22 partial today |
+| **Dev harness A/B/C** — AI off vs on in one session | **Todo** | `/dashboard/testing-resume` — toggle + side-by-side diff; today uses user setting only |
+| Extension pipeline tailor — AI off/on on `variant: pipeline` | **Todo** | Same A/B/C protocol as Review |
+| Playbook product items **P-01**, **P-02**, **P-03** | **Todo** / **Partial** | Cross-domain role suggestions; feedback tiers; export without JD injection when AI off |
+
+### Resume E2E (test separately from jobs)
+
+End-to-end **resume profile** flows — no JD / job tracker required.
+
+| Flow | Status | Notes |
+|------|--------|-------|
+| Onboarding — Identity → Import (PDF/DOCX) → parse → Studio → validate → Finalize | **Todo** | Post-parse `validateResume` banner + section highlights; smoke in prod checklist below |
+| Dashboard — new profile via upload (`FuelPanel`) → Studio → save | **Todo** | `/dashboard/resume-profiles/new` |
+| Dashboard — edit profile → Studio save gate | **Todo** | `saveResumeProfileStudio()` + validation errors |
+| Parse quality — golden template + Bhagath sample | **Todo** | `npm run validate:ats-template`; browser `parseResumeFile` parity manual |
+| Export — PDF / Word / HTML preview from saved profile | **Todo** | `lib/job-tracker/export/*` — ATS section order per `docs/resume/RULES.md` |
+| Onboarding enhance (deterministic only, no JD) | **Todo** | Auto `enhanceResumeOnboarding()` after upload — baseline only |
+
+### Job E2E (test separately from resume profiles)
+
+End-to-end **job tracker + tailor** flows — assumes a base resume profile exists.
+
+| Flow | Status | Notes |
+|------|--------|-------|
+| Dashboard — manual add job (paste JD) → capture → async tailor | **Todo** | `JobTrackerPageContent` — no extension |
+| Extension — detect → capture → pipeline tailor → `RESUME_READY` | **Todo** | `POST /api/extension/jobs/pipeline` |
+| Review Screen — Job \| Resume \| Cover \| Apply tabs | **Todo** | Open from tracker row; toolbar exports + Enhance |
+| Tailor — **AI off** enhance → persist `job_resume_tailors` | **Todo** | Part of Enhance QA A/B/C on a real job entry |
+| Tailor — **AI on** enhance → same job entry | **Todo** | Compare to base + AI off artifacts |
+| Cover letter — template + optional AI enhance | **Todo** | Review Cover tab |
+| Status transitions — `CAPTURED` → tailor → `RESUME_READY` → Apply CTA | **Todo** | Retry optimize on stuck `CAPTURED` — row action exists; verify E2E |
+| Keyword gap overlay on extension card (`READY_TO_APPLY`) | **Todo** | `GET_KEYWORD_GAP` — verify on live apply page |
+
+---
+
 ## Deploy to Vercel + Chrome Web Store
 
 **Guides:** [`DEPLOYMENT.md`](./DEPLOYMENT.md) · [`DEPLOYMENT_TROUBLESHOOTING.md`](./DEPLOYMENT_TROUBLESHOOTING.md) · [`PROD_CUTOVER.md`](./PROD_CUTOVER.md)
@@ -85,22 +133,20 @@ Single source: `lib/pricing/plan-display.ts` + `components/pricing/PricingPlansS
 
 - ~~Add `@testing-library/react` harness for onboarding UI~~ — **Done** (`config/vitest.component.config.ts`, 14 component tests across `OnboardingNextButton`, `OnboardingFlowShell`, `PhaseProgressBar`)
 
-### Enhance QA — AI on/off review playbook
+### Enhance QA — code fixes (complete)
 
-**Playbook (system of record):** [`docs/enhance-qa-playbook.md`](./enhance-qa-playbook.md)
+**Active testing backlog:** see **[QA & E2E testing (priority)](#qa--e2e-testing-priority)** above.
 
-Repeated practice: **base resume → AI off enhance → AI on enhance → review all three.** Case 001 (Bhagath eng profile × iRhythm procurement JD) documented there.
+**Playbook:** [`docs/enhance-qa-playbook.md`](./enhance-qa-playbook.md) — protocol: **base → AI off → AI on → review all three.**
 
 | Phase | Defect IDs | Status |
 |-------|------------|--------|
 | 1 — Deterministic safety (junk skills, filter bypass) | D-01, D-02, D-03, D-18, D-19 | **Done** |
 | 2 — Summary integrity (`[review]s`, fabricated claims, identity swap) | D-04, D-05, D-06, D-08, D-20 | **Done** |
-| 3 — Coherence & UX (cross-domain warn, ATS honesty) | D-07, D-09, D-10, D-11, P-02 | **Done** |
+| 3 — Coherence & UX (cross-domain warn, ATS honesty) | D-07, D-09, D-10, D-11, P-02 | **Done** (P-02 product tiering **partial**) |
 | 4 — Domain & bullets | D-13, D-14, D-17, D-12 | **Done** |
 | 5 — Merge polish (dates, contact) | D-15, D-16 | **Done** |
-| 6 — Regression lock (fixture + debug doc) | D-22, D-21 | **Done** |
-
-Update defect status in playbook §4 + §7 change log when each phase ships; re-run Case 001 A/B/C.
+| 6 — Regression lock (fixture + debug doc) | D-22, D-21 | **Partial** — unit slices + Case 001 manual pass; full 3-artifact pipeline automation **Todo** (top section) |
 
 ## JD AI observability (completed 2026-06-27)
 

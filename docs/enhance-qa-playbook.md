@@ -1,5 +1,7 @@
 # Enhance QA Playbook — AI On / Off Review
 
+> **Active backlog:** open QA/E2E items tracked in [`docs/ACTION_ITEMS.md`](./ACTION_ITEMS.md) § **QA & E2E testing (priority)**.
+
 > **System of record** for repeated resume-enhance testing.  
 > Use this doc instead of re-explaining context in chat. Point the agent at: *“Read `docs/enhance-qa-playbook.md` and run review for case \<id\>.”*
 
@@ -212,7 +214,7 @@ Track status here and in [`ACTION_ITEMS.md`](./ACTION_ITEMS.md). Update status w
 | D-19 | Tier-3 skills use `isKnownSkillToken()` fragments not full labels | `jd-skills-deterministic.ts` | done |
 | D-20 | AI summary aggressive vs conservative bullets — inconsistent grounding policy | AI prompt + validators | done |
 | D-21 | Enhance journey debug logs not documented for QA | Dev env · `enhance-logger.ts` | done |
-| D-22 | No automated regression fixture for 3-artifact protocol | Tests · `lib/job-tracker/enhance/` | done |
+| D-22 | No automated regression fixture for 3-artifact protocol | Tests · `lib/job-tracker/enhance/` | partial — unit slices in `enhance-qa-case-001.test.ts`; full pipeline A/B/C **Todo** (see `ACTION_ITEMS.md`) |
 
 ### Product / process (not pure code)
 

@@ -21,7 +21,7 @@ export function resolveExtensionReconnectBanner(
   if (!isExtensionReconnectRequiredError(error, code)) return null;
   return {
     message: "Your extension session is out of date.",
-    ctaLabel: "Reconnect",
+    ctaLabel: "Open dashboard",
   };
 }
 

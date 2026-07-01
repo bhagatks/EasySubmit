@@ -90,7 +90,7 @@ function deliverViaExternalMessage(
       resolve({
         success: false,
         error:
-          "Open this page in Chrome with the EasySubmit extension loaded (dist/extension).",
+          "Open this page in Chrome with the EasySubmit extension loaded (dist/extension-dev for local dev).",
       });
       return;
     }

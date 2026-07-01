@@ -32,7 +32,7 @@ POSTHOG_PROD_PROJECT_ID=488042
 
 **Vercel Preview** deployments should use the **dev** PostHog key and `NEXT_PUBLIC_ANALYTICS_ENV=dev`.
 
-**Extension builds** inline `NEXT_PUBLIC_*` at `npm run build:extension` (reads `.env.local`). Use dev key for unpacked dev; prod key before Chrome Web Store publish.
+**Extension builds** inline `NEXT_PUBLIC_*` at build time (reads `.env.local`). Dev: `npm run build:extension` → `dist/extension-dev/`. Store: `npm run build:extension:store` → `dist/extension/`. See [`EXTENSION_BUILD.md`](./EXTENSION_BUILD.md).
 
 ## Code layout
 
@@ -189,7 +189,7 @@ LOG_LEVEL=debug
 - [ ] **A4.** Complete OAuth → see `login_completed` + `$identify`
 - [ ] **A5.** Walk onboarding → see `onboarding_phase_viewed` / `onboarding_phase_completed`
 - [ ] **A6.** Open Review Screen → `review_screen_opened`, tab change events
-- [ ] **A7.** Rebuild extension: `npm run build:extension` (reads `.env.local`) → load unpacked → `extension_card_opened`
+- [ ] **A7.** Rebuild extension: `npm run build:extension` → load unpacked `dist/extension-dev/` → `extension_card_opened`
 - [ ] **A8.** (Optional) Tag your traffic: after first login copy user id → `NEXT_PUBLIC_ANALYTICS_INTERNAL_USER_IDS=<id>`
 - [ ] **A9.** (Optional) Dashboards: `POSTHOG_PERSONAL_API_KEY=phx_… npm run analytics:setup`
 
@@ -208,7 +208,7 @@ LOG_LEVEL=info
 
 - [ ] **B3.** Deploy: `run easy prod` (after DB/OAuth cutover prerequisites)
 - [ ] **B4.** Prod smoke: login on live domain → Live events with `environment: prod`
-- [ ] **B5.** Before Chrome Web Store: `NEXT_PUBLIC_ANALYTICS_ENV=prod` + prod key in env → `npm run build:extension`
+- [ ] **B5.** Before Chrome Web Store: `npm run build:extension:store` (prod key in env) → zip `dist/extension/`
 
 ### Phase C — Later (not blocking)
 

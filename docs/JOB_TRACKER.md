@@ -34,7 +34,7 @@ Last updated: **2026-06-22**
 
 ### Chrome extension (v0.1.1)
 - Source: `extension/` + shared logic `src/shared/extension/`
-- Build: `npm run build:extension` → `dist/extension/` (icons rasterized from `extension/icons/icon.svg`)
+- Build outputs: [`EXTENSION_BUILD.md`](./EXTENSION_BUILD.md) — `dist/extension-dev/` (local) · `dist/extension/` (prod / CWS)
 - **Toolbar popup** — click the extension icon → **Show job card on this page**
 - **Context menu** — right-click the extension icon → **Show job card on this page** (forces card even when auto-detect fails)
 - In-page job card (Shadow DOM): **EasySubmit.ai** header, draggable grip; Workday one-click → **Apply with EasySubmit** runs capture → tailor (`pipelineBusyLabel`); manual flow → **Save to Tracker**; **Stage 1 animated nudge** below the card
@@ -79,9 +79,9 @@ npm run db:seed   # or prisma db seed
 npm run build:extension
 
 # 4. Chrome
-# chrome://extensions → Developer mode → Load unpacked → dist/extension
+# chrome://extensions → Developer mode → Load unpacked → dist/extension-dev
 
-# 5. Connect account
+5. Connect from the dashboard: `/extension/bridge?extensionId=<id>` (not from the extension popup)
 # Open any job page → Save → Sign in flow, or visit:
 # http://localhost:3000/extension/bridge?extensionId=<your-extension-id>
 

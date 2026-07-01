@@ -2,7 +2,7 @@
 
 EasySubmit uses **command-specific env injection** — variables are loaded into process memory per command. Runners never rename, copy, or hide `.env` files at runtime.
 
-Full env reference: [`ENV.md`](./ENV.md) · Production deploy: [`DEPLOYMENT.md`](./DEPLOYMENT.md) · Prod cutover: [`PROD_CUTOVER.md`](./PROD_CUTOVER.md)
+Full env reference: [`ENV.md`](./ENV.md) · Production deploy: [`DEPLOYMENT.md`](./DEPLOYMENT.md) · Prod cutover: [`PROD_CUTOVER.md`](./PROD_CUTOVER.md) · Extension builds: [`EXTENSION_BUILD.md`](./EXTENSION_BUILD.md)
 
 ---
 
@@ -23,7 +23,7 @@ This prevents dev credentials from leaking into prod commands and vice versa.
 
 | Command | Env source | Pipeline |
 |---------|------------|----------|
-| `run easy` | `.env.local` | 1 preflight → 2 DB safety → 3 prisma → 4 tests → 5 extensions (dev + prod QA) → 6 `next dev` |
+| `run easy` | `.env.local` | 1 preflight → 2 DB safety → 3 prisma → 4 tests → 5 extensions (`dist/extension-dev` + `dist/extension`) → 6 `next dev` |
 | `run easy fast` | `.env.local` | same, skip step 4 (tests) |
 | `run easy prod` | Vercel dashboard | 1 preflight → 2 tests → 3 prisma validate → 4 deploy → 5 smoke reminder |
 | `run easy prod fast` | Vercel dashboard | deploy only (steps 2–3 skipped) |
@@ -93,3 +93,5 @@ cp .env.example .env.local   # or: run easy (auto-creates on first run)
 # Edit .env.local: DATABASE_URL, DIRECT_URL, OAuth, Supabase keys
 run easy                     # or: run easy fast (skip tests)
 ```
+
+Extension output folders (`dist/extension-dev` vs `dist/extension`): [`EXTENSION_BUILD.md`](./EXTENSION_BUILD.md)

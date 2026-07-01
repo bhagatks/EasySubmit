@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { LogoIcon } from "@/components/ui/logo";
 import { deliverTokenToExtension } from "@/lib/extension/deliver-token-to-extension";
 import { storeExtensionIdForDashboard } from "@/lib/extension/start-job-apply-from-dashboard";
+import { buildExtensionBridgePath } from "@/src/shared/extension/connect-account-url";
 
 type BridgeState = "loading" | "success" | "error" | "no-extension-id";
 
@@ -23,6 +24,10 @@ export default function ExtensionBridgeClient() {
       storeExtensionIdForDashboard(extensionId);
     }
   }, [extensionId]);
+
+  const bridgeHref = extensionId
+    ? buildExtensionBridgePath(extensionId)
+    : "/extension/bridge";
 
   useEffect(() => {
     if (!extensionId) return;
@@ -41,11 +46,15 @@ export default function ExtensionBridgeClient() {
         };
 
         if (!res.ok || !data.success || !data.token) {
+          if (res.status === 401) {
+            window.location.replace(
+              `/login?callbackUrl=${encodeURIComponent(bridgeHref)}`,
+            );
+            return;
+          }
           setState("error");
           if (res.status === 403 && data.error?.includes("onboarding")) {
             setMessage("Finish onboarding first, then return to this page to connect the extension.");
-          } else if (res.status === 401) {
-            setMessage("Sign in to connect the extension.");
           } else {
             setMessage(data.error ?? "Could not issue extension token. Sign in and try again.");
           }
@@ -73,11 +82,7 @@ export default function ExtensionBridgeClient() {
         setMessage("Network error while connecting the extension.");
       }
     })();
-  }, [extensionId]);
-
-  const bridgeHref = extensionId
-    ? `/extension/bridge?extensionId=${encodeURIComponent(extensionId)}`
-    : "/extension/bridge";
+  }, [bridgeHref, extensionId]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-6 py-12">

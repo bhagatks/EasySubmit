@@ -1,10 +1,10 @@
 import {
-  DEFAULT_API_BASE,
   EXTENSION_ENHANCE_TIMEOUT_MS,
   EXTENSION_MESSAGE,
   EXTENSION_VERSION_HEADER,
   STORAGE_KEYS,
 } from "@shared/extension/constants";
+import { DEFAULT_API_BASE } from "@shared/extension/extension-api-base";
 import {
   appOriginsMatch,
   buildDashboardUrl,
@@ -15,6 +15,10 @@ import {
   type AppTabCandidate,
 } from "@shared/extension/open-dashboard";
 import { jobUrlsMatch } from "@shared/extension/job-url";
+import {
+  resolveExtensionApiBase,
+  shouldClearStaleLocalApiBasePin,
+} from "@shared/extension/resolve-api-base";
 import { mergeExtensionRuntimeConfig } from "@shared/extension/runtime-config-merge";
 import type {
   ExtensionRuntimeConfig,
@@ -58,28 +62,22 @@ async function findOpenAppOrigin(): Promise<string | null> {
 
 async function getApiBase(): Promise<string> {
   const stored = await chrome.storage.local.get(STORAGE_KEYS.apiBaseUrl);
-  const storedValue =
+  let storedRaw =
     typeof stored[STORAGE_KEYS.apiBaseUrl] === "string"
-      ? stored[STORAGE_KEYS.apiBaseUrl].replace(/\/$/, "")
+      ? stored[STORAGE_KEYS.apiBaseUrl]
       : null;
 
-  const tabOrigin = await findOpenAppOrigin();
-  if (tabOrigin) {
-    if (!storedValue || isLocalApiBase(storedValue)) {
-      return tabOrigin;
-    }
-    if (appOriginsMatch(tabOrigin, storedValue)) {
-      return storedValue;
-    }
-    if (!isLocalApiBase(tabOrigin)) {
-      return tabOrigin;
-    }
+  if (shouldClearStaleLocalApiBasePin(DEFAULT_API_BASE, storedRaw)) {
+    storedRaw = null;
+    void chrome.storage.local.remove(STORAGE_KEYS.apiBaseUrl);
   }
 
-  if (storedValue?.startsWith("http")) {
-    return storedValue;
-  }
-  return DEFAULT_API_BASE;
+  const tabOrigin = await findOpenAppOrigin();
+  return resolveExtensionApiBase({
+    buildDefault: DEFAULT_API_BASE,
+    storedApiBaseUrl: storedRaw,
+    openTabOrigin: tabOrigin,
+  });
 }
 
 async function getAuthToken(): Promise<string | null> {
@@ -170,11 +168,15 @@ async function loadRuntimeConfig(): Promise<ExtensionRuntimeConfig> {
   const data = await apiFetch<ExtensionRuntimeConfig & { success?: boolean }>(
     "/api/extension/config",
   );
-  // Pin to the host we actually reached — do not drift to NEXT_PUBLIC_APP_URL from the body.
-  await chrome.storage.local.set({ [STORAGE_KEYS.apiBaseUrl]: base });
+  const pinnedBase = isLocalApiBase(DEFAULT_API_BASE)
+    ? base
+    : isLocalApiBase(base)
+      ? DEFAULT_API_BASE
+      : base;
+  await chrome.storage.local.set({ [STORAGE_KEYS.apiBaseUrl]: pinnedBase });
   const merged = mergeExtensionRuntimeConfig({
     ...data,
-    apiBaseUrl: base,
+    apiBaseUrl: pinnedBase,
     jobCardEnabled: Boolean(data.jobCardEnabled),
   });
   await chrome.storage.local.set({
@@ -237,14 +239,6 @@ async function openDashboardPath(path: string): Promise<{ success: boolean }> {
 
   await chrome.tabs.create({ url: targetUrl, active: true });
   return { success: true };
-}
-
-async function openLoginBridge(): Promise<void> {
-  const base = await getApiBase();
-  const extensionId = chrome.runtime.id;
-  await chrome.tabs.create({
-    url: `${base}/extension/bridge?extensionId=${encodeURIComponent(extensionId)}`,
-  });
 }
 
 function isRestrictedUrl(url?: string): boolean {
@@ -338,7 +332,7 @@ function registerContextMenus(): void {
 chrome.runtime.onInstalled.addListener((details) => {
   registerContextMenus();
   if (details.reason === "install") {
-    void openLoginBridge();
+    void openDashboardPath("/extension");
   }
 });
 
@@ -416,11 +410,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (action === EXTENSION_MESSAGE.GET_AUTH) {
     void getAuthToken().then((token) => sendResponse({ token }));
-    return true;
-  }
-
-  if (action === EXTENSION_MESSAGE.OPEN_LOGIN) {
-    void openLoginBridge().then(() => sendResponse({ success: true }));
     return true;
   }
 

@@ -18,10 +18,14 @@ export const BRAND = {
   autoSuggestCta: "Apply with Auto Suggest",
   extension: {
     manifestName: "EasySubmit.ai — Job Tracker",
+    /** Chrome toolbar name for unpacked dev build (`dist/extension-dev`). */
+    devManifestName: "Dev Easy",
     manifestDescription:
       "Save jobs to EasySubmit.ai Job Tracker from any supported career site.",
     actionTitle: "EasySubmit.ai Job Tracker",
+    devActionTitle: "Dev Easy",
     popupTitle: "EasySubmit.ai Job Tracker",
+    devPopupTitle: "Dev Easy",
     productLine: "Job Tracker",
   },
 } as const;

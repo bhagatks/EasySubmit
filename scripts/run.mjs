@@ -70,8 +70,8 @@ function printDevEnvTarget(env) {
     console.log(`→ Supabase ref: ${ref} (expected dev ${DEV_SUPABASE_REF})`);
   }
   console.log(`→ App: ${loginUrl}`);
-  console.log("→ Extension dev: dist/extension/ (main Chrome profile)");
-  console.log("→ Extension prod QA: dist/extension-prod/ (separate Chrome profile)");
+  console.log("→ Extension dev: dist/extension-dev/ (main Chrome profile, localhost:3000)");
+  console.log("→ Extension prod: dist/extension/ (separate Chrome profile, easysubmit.ai)");
 }
 
 function clearStaleShellDatabaseUrl() {

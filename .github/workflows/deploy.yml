@@ -48,7 +48,7 @@ jobs:
         run: npx vitest run --config config/vitest.config.ts
 
       - name: Build extension (Chrome Web Store)
-        run: EXTENSION_STORE_BUILD=1 npm run build:extension
+        run: npm run build:extension:store
         env:
           # Optional: add GitHub secret EXTENSION_POSTHOG_KEY (prod phc_) for store analytics
           NEXT_PUBLIC_APP_URL: https://www.easysubmit.ai

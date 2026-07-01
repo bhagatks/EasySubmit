@@ -17,8 +17,7 @@ const panelForceUpgrade = document.getElementById("panel-force-upgrade")!;
 const panelConnected = document.getElementById("panel-connected")!;
 
 const accountEmailEl = document.getElementById("account-email")!;
-const reconnectBtn = document.getElementById("reconnect") as HTMLButtonElement;
-const connectBtn = document.getElementById("connect") as HTMLButtonElement;
+const openDashboardBtn = document.getElementById("open-dashboard") as HTMLButtonElement;
 const upgradeMessageEl = document.getElementById("upgrade-message")!;
 const upgradeExtensionBtn = document.getElementById("upgrade-extension") as HTMLButtonElement;
 const tabStatusEl = document.getElementById("tab-status")!;
@@ -35,8 +34,16 @@ function hidePanelLoading(): void {
   panelLoading.removeAttribute("aria-busy");
 }
 
+function extensionPopupTitle(): string {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  if (/localhost|127\.0\.0\.1/i.test(appUrl)) {
+    return BRAND.extension.devPopupTitle;
+  }
+  return BRAND.extension.popupTitle;
+}
+
 function applyBrandToPopup(): void {
-  document.title = BRAND.extension.popupTitle;
+  document.title = extensionPopupTitle();
 
   const style = document.createElement("style");
   style.textContent = extensionPopupButtonCss();
@@ -120,8 +127,12 @@ async function sendToActiveTab<T>(message: Record<string, unknown>): Promise<T> 
   }
 }
 
-function openConnectFlow(): void {
-  void chrome.runtime.sendMessage({ action: EXTENSION_MESSAGE.OPEN_LOGIN });
+function openDashboardForSetup(): void {
+  void chrome.runtime.sendMessage({
+    action: EXTENSION_MESSAGE.OPEN_DASHBOARD,
+    path: "/dashboard/job-tracker",
+  });
+  window.close();
 }
 
 function openForceUpgradeUrl(url: string): void {
@@ -161,14 +172,9 @@ async function fetchJobStats(): Promise<ExtensionJobStatsResponse | null> {
   return stats?.success ? stats : null;
 }
 
-function isStaleSession(config: ExtensionRuntimeConfig | null): boolean {
-  return !config?.connectedUser?.email?.trim();
-}
-
 function renderForceUpgradePanel(config: ExtensionRuntimeConfig, email: string | null): void {
   setPopupView("force-upgrade");
   accountEmailEl.textContent = email ? truncateEmail(email) : "Connected";
-  reconnectBtn.classList.add("hidden");
 
   upgradeMessageEl.textContent =
     config.forceUpgradeMessage?.trim() || "Update the EasySubmit extension to continue.";
@@ -183,7 +189,6 @@ function renderConnectedPanel(
 
   const email = config.connectedUser?.email?.trim();
   accountEmailEl.textContent = email ? truncateEmail(email) : "Connected";
-  reconnectBtn.classList.toggle("hidden", !isStaleSession(config));
 
   renderStats(stats);
 
@@ -305,8 +310,7 @@ document.getElementById("header-refresh")?.addEventListener("click", () => {
   void refreshThisTab();
 });
 
-connectBtn.addEventListener("click", openConnectFlow);
-reconnectBtn.addEventListener("click", openConnectFlow);
+openDashboardBtn.addEventListener("click", openDashboardForSetup);
 upgradeExtensionBtn.addEventListener("click", () => {
   openForceUpgradeUrl(forceUpgradeUpdateUrl);
 });

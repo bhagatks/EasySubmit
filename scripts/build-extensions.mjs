@@ -1,22 +1,28 @@
 #!/usr/bin/env node
 /**
- * Dev + prod-QA extension builds for `run easy` (step 5).
- * - dist/extension/      → main Chrome profile + localhost
- * - dist/extension-prod/ → separate Chrome profile + www.easysubmit.ai
- *
- * Does not touch .env.local or pull Vercel prod secrets.
+ * Dev + prod extension builds for `run easy` (step 5).
+ * - dist/extension-dev/ → localhost:3000 (main Chrome profile)
+ * - dist/extension/     → www.easysubmit.ai (store-ready; separate profile for prod QA)
  */
+import { cpSync, mkdirSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   EXTENSION_DEV_OUT_DIR,
-  EXTENSION_PROD_QA_OUT_DIR,
+  EXTENSION_PROD_OUT_DIR,
+  EXTENSION_ROOT,
   buildExtension,
 } from "./build-extension.mjs";
 import { generateExtensionIcons } from "./generate-extension-icons.mjs";
 
 async function main() {
-  console.log("→ Extension builds: dev + prod QA (isolated output folders)\n");
+  console.log("→ Extension builds: dev + prod (isolated output folders)\n");
 
-  await generateExtensionIcons();
+  const devIconsDir = resolve(EXTENSION_ROOT, EXTENSION_DEV_OUT_DIR, "icons");
+  const prodIconsDir = resolve(EXTENSION_ROOT, EXTENSION_PROD_OUT_DIR, "icons");
+
+  await generateExtensionIcons(devIconsDir);
+  mkdirSync(prodIconsDir, { recursive: true });
+  cpSync(devIconsDir, prodIconsDir, { recursive: true });
 
   await buildExtension({
     outDir: EXTENSION_DEV_OUT_DIR,
@@ -26,19 +32,19 @@ async function main() {
   });
 
   await buildExtension({
-    outDir: EXTENSION_PROD_QA_OUT_DIR,
+    outDir: EXTENSION_PROD_OUT_DIR,
     storeBuild: true,
     appUrl: "https://www.easysubmit.ai",
     analyticsEnv: "prod",
     skipIcons: true,
-    label: "prod-qa",
+    label: "prod",
   });
 
   console.log("\n✔ Extensions ready");
-  console.log(`   Dev:     chrome://extensions → Load unpacked → ${EXTENSION_DEV_OUT_DIR}/`);
-  console.log("            Use your main Chrome profile + http://localhost:3000");
-  console.log(`   Prod QA: separate Chrome profile → Load unpacked → ${EXTENSION_PROD_QA_OUT_DIR}/`);
-  console.log("            Connect on https://www.easysubmit.ai/extension/bridge");
+  console.log(`   Dev:  chrome://extensions → Load unpacked → ${EXTENSION_DEV_OUT_DIR}/`);
+  console.log("         API base http://localhost:3000");
+  console.log(`   Prod: separate Chrome profile → Load unpacked → ${EXTENSION_PROD_OUT_DIR}/`);
+  console.log("         API base https://www.easysubmit.ai");
 }
 
 main().catch((err) => {

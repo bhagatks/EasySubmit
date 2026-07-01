@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 /**
- * Bundles MV3 extension into dist/extension/ (or --out-dir).
+ * Bundles MV3 extension into fixed output folders:
+ *   dist/extension-dev/  — local dev (http://localhost:3000, localhost in manifest)
+ *   dist/extension/      — prod + Chrome Web Store (https://www.easysubmit.ai)
+ *
  * Usage:
- *   npm run build:extension              — local dev (keeps localhost in manifest)
- *   npm run build:extension:store        — Chrome Web Store (strips localhost URLs)
- *   npm run build:extensions             — dev + prod-QA folders (run easy step 5)
+ *   npm run build:extension        — dev → dist/extension-dev
+ *   npm run build:extension:store  — prod → dist/extension (CWS-safe manifest)
+ *   npm run build:extensions       — both folders (run easy step 5)
  */
 import { build } from "esbuild";
 import { config as loadEnv } from "dotenv";
@@ -15,20 +18,28 @@ import { generateExtensionIcons } from "./generate-extension-icons.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const EXTENSION_ROOT = resolve(__dirname, "..");
-export const EXTENSION_DEV_OUT_DIR = "dist/extension";
-export const EXTENSION_PROD_QA_OUT_DIR = "dist/extension-prod";
+/** Prod + Chrome Web Store — always https://www.easysubmit.ai */
+export const EXTENSION_PROD_OUT_DIR = "dist/extension";
+/** Local dev — always http://localhost:3000 */
+export const EXTENSION_DEV_OUT_DIR = "dist/extension-dev";
 const extRoot = resolve(EXTENSION_ROOT, "extension");
+/** Must match BRAND.extension.devManifestName in src/shared/brand.ts */
+const EXTENSION_DEV_DISPLAY_NAME = "Dev Easy";
 
 loadEnv({ path: resolve(EXTENSION_ROOT, ".env.local") });
 
-function parseOutDirArg() {
-  const flag = process.argv.find((arg) => arg.startsWith("--out-dir="));
-  if (flag) return flag.slice("--out-dir=".length);
-  return process.env.EXTENSION_OUT_DIR?.trim() || EXTENSION_DEV_OUT_DIR;
-}
-
 function isStoreBuildFlag() {
   return process.env.EXTENSION_STORE_BUILD === "1" || process.argv.includes("--store");
+}
+
+function defaultOutDir(storeBuild) {
+  return storeBuild ? EXTENSION_PROD_OUT_DIR : EXTENSION_DEV_OUT_DIR;
+}
+
+function parseOutDirArg(storeBuild) {
+  const flag = process.argv.find((arg) => arg.startsWith("--out-dir="));
+  if (flag) return flag.slice("--out-dir=".length);
+  return process.env.EXTENSION_OUT_DIR?.trim() || defaultOutDir(storeBuild);
 }
 
 function isLocalhostMatch(url) {
@@ -36,6 +47,25 @@ function isLocalhostMatch(url) {
 }
 
 /** Chrome Web Store rejects localhost in host_permissions and externally_connectable. */
+const MV3_FORBIDDEN_PATTERNS = [
+  "__PosthogExtensions__.loadExternalDependency=",
+  "loadExternalDependency=(t,e,i)",
+];
+
+function assertExtensionBundleMv3Safe(outDir) {
+  const bundles = ["content.js", "popup/popup.js", "background.js"];
+  for (const relativePath of bundles) {
+    const source = readFileSync(resolve(outDir, relativePath), "utf8");
+    for (const pattern of MV3_FORBIDDEN_PATTERNS) {
+      if (source.includes(pattern)) {
+        throw new Error(
+          `[${relativePath}] MV3 violation: found forbidden PostHog remote-loader pattern "${pattern}"`,
+        );
+      }
+    }
+  }
+}
+
 function manifestForStore(manifest) {
   const out = structuredClone(manifest);
   if (Array.isArray(out.host_permissions)) {
@@ -51,11 +81,12 @@ function manifestForStore(manifest) {
 
 function resolveExtensionEnv({ storeBuild, appUrl, analyticsEnv, analyticsEnabled }) {
   const defaultAppUrl = storeBuild ? "https://www.easysubmit.ai" : "http://localhost:3000";
-  const resolvedAppUrl =
-    appUrl ??
-    process.env.NEXT_PUBLIC_APP_URL ??
-    (storeBuild ? undefined : process.env.NEXTAUTH_URL) ??
-    defaultAppUrl;
+  const resolvedAppUrl = storeBuild
+    ? (appUrl ?? defaultAppUrl)
+    : (appUrl ??
+      process.env.NEXT_PUBLIC_APP_URL ??
+      process.env.NEXTAUTH_URL ??
+      defaultAppUrl);
 
   return {
     NODE_ENV: "production",
@@ -85,11 +116,11 @@ function resolveExtensionEnv({ storeBuild, appUrl, analyticsEnv, analyticsEnable
  */
 export async function buildExtension(options = {}) {
   const storeBuild = options.storeBuild ?? isStoreBuildFlag();
-  const outDir = resolve(EXTENSION_ROOT, options.outDir ?? parseOutDirArg());
-  const label = options.label ?? (storeBuild ? "store" : "dev");
+  const outDir = resolve(EXTENSION_ROOT, options.outDir ?? parseOutDirArg(storeBuild));
+  const label = options.label ?? (storeBuild ? "prod" : "dev");
 
   if (!options.skipIcons) {
-    await generateExtensionIcons();
+    await generateExtensionIcons(resolve(outDir, "icons"));
   }
 
   const extensionEnv = resolveExtensionEnv({
@@ -99,14 +130,23 @@ export async function buildExtension(options = {}) {
     analyticsEnabled: options.analyticsEnabled,
   });
 
+  const extensionApiBase = extensionEnv.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
+
   const analyticsDefine = {
     "process.env": JSON.stringify(extensionEnv),
+    __EASYSUBMIT_EXTENSION_API_BASE__: JSON.stringify(extensionApiBase),
   };
 
   mkdirSync(outDir, { recursive: true });
 
   const raw = readFileSync(resolve(extRoot, "manifest.json"), "utf8");
   const manifest = JSON.parse(raw);
+  if (!storeBuild) {
+    manifest.name = EXTENSION_DEV_DISPLAY_NAME;
+    if (manifest.action) {
+      manifest.action.default_title = EXTENSION_DEV_DISPLAY_NAME;
+    }
+  }
   const finalManifest = storeBuild ? manifestForStore(manifest) : manifest;
   writeFileSync(resolve(outDir, "manifest.json"), `${JSON.stringify(finalManifest, null, 2)}\n`);
   if (storeBuild) {
@@ -120,6 +160,11 @@ export async function buildExtension(options = {}) {
   const sharedAlias = {
     "@shared": resolve(EXTENSION_ROOT, "src/shared"),
     "@": EXTENSION_ROOT,
+    // MV3: never bundle posthog-js (CWS rejects loadExternalDependency remote loaders).
+    "@/src/shared/analytics/browser": resolve(
+      EXTENSION_ROOT,
+      "src/shared/analytics/browser-extension.ts",
+    ),
   };
 
   const commonBuild = {
@@ -166,6 +211,8 @@ export async function buildExtension(options = {}) {
     format: "esm",
   });
 
+  assertExtensionBundleMv3Safe(outDir);
+
   console.log(`→ [${label}] Built → ${outDir}`);
   console.log(`   API base: ${extensionEnv.NEXT_PUBLIC_APP_URL}`);
   return { outDir, extensionEnv, storeBuild };
@@ -178,7 +225,7 @@ async function main() {
   if (result.storeBuild) {
     console.log("\nChrome Web Store: zip dist/extension and upload easysubmit-extension.zip");
   } else {
-    console.log("\nLoad unpacked in Chrome: chrome://extensions → dist/extension");
+    console.log("\nLoad unpacked in Chrome: chrome://extensions → dist/extension-dev");
   }
 }
 

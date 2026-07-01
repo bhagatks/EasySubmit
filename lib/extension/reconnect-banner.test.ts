@@ -18,7 +18,7 @@ describe("reconnect-banner", () => {
       "Your extension session is out of date. Sign in again and reconnect from Settings.",
       "EXTENSION_RECONNECT_REQUIRED",
     );
-    expect(banner?.ctaLabel).toBe("Reconnect");
+    expect(banner?.ctaLabel).toBe("Open dashboard");
     expect(banner?.message).toContain("out of date");
   });
 

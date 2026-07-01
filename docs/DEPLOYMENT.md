@@ -94,9 +94,11 @@ Workflow: [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml)
 
 ### Pipeline
 
+Full extension build layout: [`EXTENSION_BUILD.md`](./EXTENSION_BUILD.md)
+
 1. `npm ci`
 2. `npx vitest run --config config/vitest.config.ts`
-3. `EXTENSION_STORE_BUILD=1 npm run build:extension` → `dist/extension/`
+3. `EXTENSION_STORE_BUILD=1 npm run build:extension:store` → `dist/extension/`
 4. Zip with **manifest.json at archive root** (`cd dist/extension && zip …`)
 5. Upload artifact `easysubmit-extension.zip`
 6. Publish via `mnao305/chrome-extension-upload@v4.0.1`
@@ -123,9 +125,11 @@ Bump `version` in `extension/manifest.json`. Chrome Web Store **rejects** duplic
 
 ### Local extension build (no CWS)
 
+See [`EXTENSION_BUILD.md`](./EXTENSION_BUILD.md). Quick reference:
+
 ```bash
-run easy                    # dev build → load unpacked dist/extension/
-npm run build:extension:store   # store build locally
+run easy                    # dev → dist/extension-dev/
+npm run build:extension:store   # prod / CWS → dist/extension/
 cd dist/extension && zip -r ../../easysubmit-extension.zip .
 ```
 
