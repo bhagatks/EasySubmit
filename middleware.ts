@@ -3,7 +3,15 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { resolveSafeCallbackUrl } from "@/lib/auth/safe-callback-url";
 
-const PUBLIC_PATHS = ["/", "/login", "/terms", "/privacy", "/pricing", "/help"] as const;
+const PUBLIC_PATHS = [
+  "/",
+  "/login",
+  "/terms",
+  "/privacy",
+  "/pricing",
+  "/help",
+  "/support",
+] as const;
 const PUBLIC_PREFIXES = ["/auth/"] as const;
 const ONBOARDING_PATH = "/onboarding";
 const PLAN_PATH = "/select-plan";
@@ -48,8 +56,16 @@ function isProfileApiPath(pathname: string): boolean {
   return pathname.startsWith("/api/profile");
 }
 
+function isSeoMetadataPath(pathname: string): boolean {
+  return pathname === "/sitemap.xml" || pathname === "/robots.txt";
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  if (isSeoMetadataPath(pathname)) {
+    return NextResponse.next();
+  }
 
   if (
     isAuthApiPath(pathname) ||
@@ -145,6 +161,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|sitemap\\.xml|robots\\.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
