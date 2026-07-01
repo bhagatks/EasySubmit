@@ -1,5 +1,6 @@
 | Date | Item |
 |------|------|
+| 2026-07-01 | Extension CI CRX pipeline — `pack-extension-crx.mjs`, `upload-extension-cws.mjs`, `deploy.yml` artifacts + Verified CRX publish |
 | 2026-07-01 | Extension build docs — `docs/EXTENSION_BUILD.md`; fixed outputs `dist/extension-dev/` (localhost) vs `dist/extension/` (prod / CWS) |
 | 2026-06-29 | Prod PostHog fix — static `NEXT_PUBLIC_*` in `getAnalyticsConfig` (client inlining); Vercel analytics env sync scripts; `vercel-build` validate gate; `npm run prod:verify-posthog` |
 | 2026-06-29 | `run easy` / `run easy prod` pipeline cleanup — numbered steps, `run easy fast` / `run easy prod fast`, removed PostHog journey from default paths; docs in `ENV.md`, `DEVELOPMENT_WORKFLOW.md`, `DEPLOYMENT_TROUBLESHOOTING.md` |

@@ -59,25 +59,36 @@ Use a **second Chrome profile** so prod and dev extensions do not share storage 
 
 ## Chrome Web Store upload
 
+This listing uses **Verified CRX uploads** — upload the signed **`.crx`**, not a plain zip.
+
+Store builds use **scoped host permissions** (`extension/cws-host-matches.json`) instead of `https://*/*` — known ATS hosts plus `/jobs/`, `/careers/`, etc. Dev builds (`dist/extension-dev/`) keep broad permissions for local testing.
+
 1. Bump `version` in `extension/manifest.json` (store rejects duplicate versions).
 2. Deploy the web app if bridge/auth behavior changed.
-3. Build the store bundle:
+3. Build and pack the store bundle:
+
+   ```bash
+   npm run package:extension:store
+   ```
+
+   Or step by step:
 
    ```bash
    npm run build:extension:store
+   npm run pack:extension:crx
    ```
 
-4. Zip with **manifest.json at the archive root**:
+   Outputs at repo root:
+   - `easysubmit-extension.crx` — **upload this** to CWS
+   - `easysubmit-extension.zip` — inspection / backup only
 
-   ```bash
-   cd dist/extension && zip -r ../../easysubmit-extension.zip .
-   ```
+   Local signing uses `easysubmit_private.pem` at repo root (gitignored). CI uses GitHub secret `CHROME_CRX_PRIVATE_KEY` (full PEM text).
 
-5. Upload `easysubmit-extension.zip` in the [Chrome Web Store developer dashboard](https://chrome.google.com/webstore/devconsole).
+4. Upload `easysubmit-extension.crx` in the [Chrome Web Store developer dashboard](https://chrome.google.com/webstore/devconsole).
 
-CI does the same via `.github/workflows/deploy.yml` when the extension publish job runs.
+CI builds the same artifacts via `.github/workflows/deploy.yml` (download from Actions artifacts).
 
-**Upload `dist/extension/` only** — never zip `dist/extension-dev/` (it contains localhost permissions).
+**Upload `dist/extension/` only** when loading unpacked for QA — never zip `dist/extension-dev/` for the store (localhost permissions).
 
 ---
 

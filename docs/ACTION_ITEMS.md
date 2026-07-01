@@ -56,7 +56,7 @@ End-to-end **job tracker + tailor** flows — assumes a base resume profile exis
 |------|--------|-------|
 | Env injection refactor (`run easy`, no file swap) | **Done** | `docs/DEVELOPMENT_WORKFLOW.md` |
 | Web CI workflow (tests only) | **Done** | `.github/workflows/ci.yml` |
-| Extension CI workflow (build + artifact) | **Done** | `.github/workflows/deploy.yml` — CWS publish manual until listing approved |
+| Extension CI workflow (build + signed CRX artifact) | **Done** | `.github/workflows/deploy.yml` — add `CHROME_CRX_PRIVATE_KEY` secret; CWS publish manual until listing approved |
 | Vercel Production env vars | **Done** | Dashboard only — **do not re-sync on each deploy** |
 | `prisma.config.ts` / `DIRECT_URL` build fix | **Done** | No `directUrl` in config; migrate via `prisma-migrate-deploy.mjs` |
 | Prod web deploy (`www.easysubmit.ai`) | **Done** | Jun 2026 |

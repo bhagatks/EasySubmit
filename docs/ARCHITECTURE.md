@@ -184,6 +184,7 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 
 | Date | Summary |
 |------|---------|
+| 2026-07-01 | Extension CWS host permissions — store builds use `extension/cws-host-matches.json` (scoped ATS + career paths) instead of `https://*/*`; adds `activeTab`. |
 | 2026-07-01 | Extension build outputs split — `dist/extension-dev/` (localhost) vs `dist/extension/` (prod / CWS only). |
 | 2026-06-30 | **AI default on** — `users.aiSourcePreference` default restored to `auto` (new users + null fallbacks); per-user **disabled** toggle unchanged in Settings. |
 | 2026-06-30 | **Resume Studio label** — unified user-facing copy (`RESUME_STUDIO_LABEL` in `src/shared/brand.ts`) across Job Tracker, Review Screen, extension card, analytics catalog. |

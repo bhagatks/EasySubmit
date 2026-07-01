@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       publish_to_cws:
-        description: Upload to Chrome Web Store (enable only after the listing is approved)
+        description: Upload signed CRX to Chrome Web Store (enable only after listing is approved)
         type: boolean
         default: false
   push:
@@ -14,6 +14,8 @@ on:
       - "extension/**"
       - "src/shared/**"
       - "scripts/build-extension.mjs"
+      - "scripts/pack-extension-crx.mjs"
+      - "scripts/upload-extension-cws.mjs"
       - "scripts/generate-extension-icons.mjs"
       - ".github/workflows/deploy.yml"
 
@@ -57,23 +59,26 @@ jobs:
           NEXT_PUBLIC_ANALYTICS_ENABLED: "true"
           NEXT_PUBLIC_ANALYTICS_ENV: prod
 
-      - name: Zip extension (manifest.json at archive root)
-        run: cd dist/extension && zip -r ../../easysubmit-extension.zip .
+      - name: Pack signed CRX + zip (Verified CRX uploads)
+        run: node scripts/pack-extension-crx.mjs
+        env:
+          CHROME_CRX_PRIVATE_KEY: ${{ secrets.CHROME_CRX_PRIVATE_KEY }}
 
-      - name: Upload zip artifact
+      - name: Upload store artifacts
         uses: actions/upload-artifact@v4
         with:
           name: easysubmit-extension
-          path: easysubmit-extension.zip
+          path: |
+            easysubmit-extension.crx
+            easysubmit-extension.zip
           retention-days: 30
 
       - name: Publish to Chrome Web Store
         if: github.event_name == 'workflow_dispatch' && inputs.publish_to_cws == true
-        uses: mnao305/chrome-extension-upload@v4.0.1
-        with:
-          file-path: easysubmit-extension.zip
-          extension-id: ${{ secrets.CHROME_EXTENSION_ID }}
-          client-id: ${{ secrets.CHROME_CLIENT_ID }}
-          client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
-          refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
-          publish: true
+        run: node scripts/upload-extension-cws.mjs
+        env:
+          CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+          CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+          CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+          CWS_PUBLISH: "true"

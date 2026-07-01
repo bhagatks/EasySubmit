@@ -66,16 +66,43 @@ function assertExtensionBundleMv3Safe(outDir) {
   }
 }
 
+function loadCwsHostMatches() {
+  const raw = readFileSync(resolve(extRoot, "cws-host-matches.json"), "utf8");
+  const parsed = JSON.parse(raw);
+  if (!Array.isArray(parsed.matches) || parsed.matches.length === 0) {
+    throw new Error("extension/cws-host-matches.json must define a non-empty matches array");
+  }
+  return parsed.matches;
+}
+
 function manifestForStore(manifest) {
   const out = structuredClone(manifest);
-  if (Array.isArray(out.host_permissions)) {
-    out.host_permissions = out.host_permissions.filter((p) => !isLocalhostMatch(p));
+  const cwsMatches = loadCwsHostMatches();
+
+  out.host_permissions = cwsMatches;
+
+  if (Array.isArray(out.content_scripts)) {
+    for (const entry of out.content_scripts) {
+      entry.matches = cwsMatches;
+    }
   }
+
+  if (Array.isArray(out.web_accessible_resources)) {
+    for (const entry of out.web_accessible_resources) {
+      entry.matches = cwsMatches;
+    }
+  }
+
+  if (Array.isArray(out.permissions) && !out.permissions.includes("activeTab")) {
+    out.permissions.push("activeTab");
+  }
+
   if (out.externally_connectable?.matches) {
     out.externally_connectable.matches = out.externally_connectable.matches.filter(
       (p) => !isLocalhostMatch(p),
     );
   }
+
   return out;
 }
 
@@ -150,7 +177,9 @@ export async function buildExtension(options = {}) {
   const finalManifest = storeBuild ? manifestForStore(manifest) : manifest;
   writeFileSync(resolve(outDir, "manifest.json"), `${JSON.stringify(finalManifest, null, 2)}\n`);
   if (storeBuild) {
-    console.log(`→ [${label}] Store manifest: removed localhost (CWS requirement)`);
+    console.log(
+      `→ [${label}] Store manifest: scoped host permissions (${loadCwsHostMatches().length} patterns, no localhost)`,
+    );
   }
 
   mkdirSync(resolve(outDir, "popup"), { recursive: true });
@@ -223,7 +252,7 @@ async function main() {
   const result = await buildExtension({ storeBuild });
 
   if (result.storeBuild) {
-    console.log("\nChrome Web Store: zip dist/extension and upload easysubmit-extension.zip");
+    console.log("\nChrome Web Store: npm run pack:extension:crx → easysubmit-extension.crx");
   } else {
     console.log("\nLoad unpacked in Chrome: chrome://extensions → dist/extension-dev");
   }

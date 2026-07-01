@@ -99,11 +99,11 @@ Full extension build layout: [`EXTENSION_BUILD.md`](./EXTENSION_BUILD.md)
 1. `npm ci`
 2. `npx vitest run --config config/vitest.config.ts`
 3. `EXTENSION_STORE_BUILD=1 npm run build:extension:store` → `dist/extension/`
-4. Zip with **manifest.json at archive root** (`cd dist/extension && zip …`)
-5. Upload artifact `easysubmit-extension.zip`
-6. Publish via `mnao305/chrome-extension-upload@v4.0.1`
+4. `node scripts/pack-extension-crx.mjs` → `easysubmit-extension.crx` + `easysubmit-extension.zip`
+5. Upload artifacts (CRX + zip)
+6. Optional publish via `node scripts/upload-extension-cws.mjs` (signed CRX + Verified CRX upload headers)
 
-Store build strips `localhost` from manifest (Chrome Web Store requirement).
+The listing uses **Verified CRX uploads** — plain zip uploads are rejected by CWS.
 
 ### GitHub repository secrets
 
@@ -111,6 +111,7 @@ Settings → Secrets and variables → Actions:
 
 | Secret | Purpose |
 |--------|---------|
+| `CHROME_CRX_PRIVATE_KEY` | PEM private key for Verified CRX signing (paste full `easysubmit_private.pem` contents) |
 | `CHROME_EXTENSION_ID` | Extension ID from Chrome Web Store developer dashboard |
 | `CHROME_CLIENT_ID` | Google OAuth client for **CWS Publish API** (not login OAuth) |
 | `CHROME_CLIENT_SECRET` | CWS OAuth secret |
@@ -129,8 +130,7 @@ See [`EXTENSION_BUILD.md`](./EXTENSION_BUILD.md). Quick reference:
 
 ```bash
 run easy                    # dev → dist/extension-dev/
-npm run build:extension:store   # prod / CWS → dist/extension/
-cd dist/extension && zip -r ../../easysubmit-extension.zip .
+npm run package:extension:store   # prod / CWS → easysubmit-extension.crx + .zip
 ```
 
 ---
