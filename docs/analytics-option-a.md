@@ -30,6 +30,12 @@ POSTHOG_DEV_PROJECT_ID=488025
 POSTHOG_PROD_PROJECT_ID=488042
 ```
 
+**PostHog admin scripts** (`analytics:closeout`, `analytics:configure`, `analytics:setup`) read **only** the `phx_` / project ID keys above from `.env.local` — never `DATABASE_URL` or `DIRECT_URL`. See [`docs/rules/env-domains.md`](./rules/env-domains.md).
+
+```bash
+npm run analytics:closeout   # configure UI + dashboards (dev 488025 + prod 488042)
+```
+
 **Vercel Preview** deployments should use the **dev** PostHog key and `NEXT_PUBLIC_ANALYTICS_ENV=dev`.
 
 **Extension builds** inline `NEXT_PUBLIC_*` at build time (reads `.env.local`). Dev: `npm run build:extension` → `dist/extension-dev/`. Store: `npm run build:extension:store` → `dist/extension/`. See [`EXTENSION_BUILD.md`](./EXTENSION_BUILD.md).

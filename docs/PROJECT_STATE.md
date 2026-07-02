@@ -50,7 +50,7 @@
 
 - Extension v1 prod — **Part 2 shipped:** popup launcher redesign (`GET_JOB_STATS`, account chip, THIS TAB, settings); Part 1 manual capture live ([`docs/EXTENSION_POPUP_REDESIGN.md`](./EXTENSION_POPUP_REDESIGN.md))
 - Extension v2 — Tier 1 ATS adapters (Lever, Ashby, iCIMS, SmartRecruiters, Taleo, Jobvite); detection architecture in [`docs/EXTENSION_DETECTION.md`](./EXTENSION_DETECTION.md)
-- **Production deploy** — web live at `www.easysubmit.ai`; push `main` or `run easy prod`; extension CI builds artifact (CWS publish when approved) — [`docs/DEPLOYMENT.md`](./DEPLOYMENT.md)
+- **Production deploy** — web live at `www.easysubmit.ai`; push `main` or `run easy prod`; env domains separate DB vs PostHog (`docs/rules/env-domains.md`); extension CI builds artifact (CWS publish when approved) — [`docs/DEPLOYMENT.md`](./DEPLOYMENT.md)
 - **Application Field Memory** — spec in [`docs/APPLICATION_FIELD_MEMORY.md`](./APPLICATION_FIELD_MEMORY.md); agent lanes in [`docs/ACTIVE_WORK.md`](./ACTIVE_WORK.md)
 
 Full tracker: [`docs/JOB_TRACKER.md`](./JOB_TRACKER.md)

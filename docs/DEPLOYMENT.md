@@ -7,7 +7,23 @@ EasySubmit has **two independent production deploy paths**. They share the same 
 | **Web app** | Next.js dashboard at `https://www.easysubmit.ai` | Push/merge to `main` → **Vercel** (native GitHub integration) | **Vercel Dashboard** → Production |
 | **Chrome extension** | MV3 bundle on **Chrome Web Store** | Push to `main` (extension paths) or manual workflow | **GitHub** → Actions secrets |
 
-Local dev is separate: [DEVELOPMENT_WORKFLOW.md](./DEVELOPMENT_WORKFLOW.md) · env vars: [ENV.md](./ENV.md)
+Local dev is separate: [DEVELOPMENT_WORKFLOW.md](./DEVELOPMENT_WORKFLOW.md) · env vars: [ENV.md](./ENV.md) · **env domains:** [rules/env-domains.md](./rules/env-domains.md)
+
+**Live prod web:** https://www.easysubmit.ai
+
+---
+
+## Env domains (critical)
+
+| Path | Secrets source | Never loads `.env.local` DB URLs |
+|------|----------------|----------------------------------|
+| Push `main` → Vercel build | Vercel Production | ✓ (build env) |
+| `run easy prod` | Vercel (deploy uses dashboard) | ✓ (`prisma validate` uses skip flag) |
+| `run.mjs admin` / `prod:health` | `vercel env run` + ephemeral pull | ✓ (stripped / Vercel-only) |
+| `analytics:closeout` | `phx_` from `.env.local` only | ✓ (PostHog keys only) |
+| `run easy` (local dev) | Full `.env.local` via `run.mjs` | N/A (dev only) |
+
+Full rules: [`rules/env-domains.md`](./rules/env-domains.md)
 
 ---
 
@@ -76,9 +92,14 @@ Migrations run **during Vercel build** via `prisma-migrate-deploy.mjs` (uses `DI
 
 **Troubleshooting:** [`DEPLOYMENT_TROUBLESHOOTING.md`](./DEPLOYMENT_TROUBLESHOOTING.md) — build failures, env mistakes, emergency rollback.
 
-### First prod checklist
+### Post-deploy checklist
 
-Full DB + OAuth cutover: [PROD_CUTOVER.md](./PROD_CUTOVER.md)
+```bash
+npm run prod:smoke
+npm run prod:verify-posthog
+npm run prod:health
+npm run analytics:closeout    # optional — phx_ in .env.local; PostHog only
+```
 
 ---
 
@@ -158,7 +179,10 @@ npm run package:extension:store   # prod / CWS → easysubmit-extension.crx + .z
 | `run easy fast` | Local dev without tests |
 | `run easy prod` | Tests → prisma validate → `npx vercel deploy --prod --yes` |
 | `run easy prod fast` / `npm run prod:repair` | Deploy only |
-| `npm run prod:health` | Ephemeral Vercel env pull → prod DB/migration health check |
+| `npm run prod:health` | Vercel Production env → prod DB/migration health (no `.env.local`) |
+| `npm run prod:smoke` | HTTP smoke against www.easysubmit.ai |
+| `npm run prod:verify-posthog` | Prod bundle has PostHog key |
+| `npm run analytics:closeout` | PostHog UI + dashboards (`phx_` only — see `rules/env-domains.md`) |
 | `npm run env:whoami` | Confirm `.env.local` targets dev Supabase (not prod) |
 
 ---
@@ -173,6 +197,7 @@ Workflow [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs vitest o
 
 - [DEPLOYMENT_TROUBLESHOOTING.md](./DEPLOYMENT_TROUBLESHOOTING.md) — **start here if a deploy fails**
 
+- [`rules/env-domains.md`](./rules/env-domains.md) — database vs PostHog env separation
 - [ENV.md](./ENV.md) — env files and local vs prod variables
 - [DEVELOPMENT_WORKFLOW.md](./DEVELOPMENT_WORKFLOW.md) — local dev injection model
 - [PROD_CUTOVER.md](./PROD_CUTOVER.md) — first-time prod DB, OAuth, smoke tests

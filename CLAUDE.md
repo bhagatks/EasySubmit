@@ -8,6 +8,7 @@ The following files in `docs/rules/` are the single source of truth — both Cla
 |---|---|
 | Observability & logging | `docs/rules/observability-logging.md` |
 | Documentation maintenance | `docs/rules/documentation.md` |
+| **Env domains (DB vs PostHog)** | `docs/rules/env-domains.md` |
 | Sidepanel completion gate | `docs/rules/sidepanel-completion.md` |
 | Testing & coverage gate | `docs/rules/testing.md` |
 | Analytics & PostHog events | `docs/rules/analytics.md` |
@@ -131,6 +132,7 @@ The `/docs` folder is the **system of record**. After any meaningful change:
 | DB schema / Prisma model | `docs/database-schema.md` |
 | Auth / onboarding gate | `docs/FLOW.md` |
 | Resume engine contracts | `docs/resume/RULES.md` |
+| Env / deploy scripts / `prisma.config.ts` | `docs/rules/env-domains.md` |
 | Follow-up / action items | `docs/ACTION_ITEMS.md` |
 | Finished deliverables | `docs/COMPLETED_ITEMS.md` with date |
 
@@ -163,6 +165,7 @@ The `/docs` folder is the **system of record**. After any meaningful change:
 - No half-finished implementations — if a feature isn't ready, don't wire it up
 - Do not add error handling for impossible cases — trust internal contracts
 - Nominatim API: always debounce
+- **Env domains:** PostHog admin scripts use `buildPostHogAdminEnv()` only — never `dotenv.config(".env.local")` or full `process.env` merge for DB URLs; `prisma.config.ts` does not load `.env.local` — see `docs/rules/env-domains.md`
 
 ---
 

@@ -28,7 +28,7 @@ npm run build        # production build
 | `scripts/` | Dev/bootstrap/validation scripts |
 | `prisma/` | Schema + migrations |
 
-**Deploy (web + extension):** [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)
+**Deploy (web + extension):** [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) · **Env domains:** [`docs/rules/env-domains.md`](docs/rules/env-domains.md)
 
 ### Root files (required by tooling)
 

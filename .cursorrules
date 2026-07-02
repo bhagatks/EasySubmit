@@ -21,4 +21,5 @@
 - When using Nominatim API, always implement a debounce.
 - Ensure all components are responsive.
 - Extension UI must be injected via Shadow DOM to prevent CSS leaks.
+- **Env domains:** PostHog/deploy scripts must not load `DATABASE_URL` from `.env.local` — see `.cursor/rules/env-domains.mdc` and `docs/rules/env-domains.md`.
 - **Logging is mandatory** for new features, pipeline steps, gates, and server actions — see `.cursor/rules/observability-logging.mdc`.

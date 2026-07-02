@@ -3,6 +3,7 @@
 Single checklist for shipping EasySubmit to Vercel. Local dev can use a **different** Supabase project and OAuth clients than production — do not copy `.env.local` wholesale into Vercel.
 
 **Deploy overview (web + extension):** [`DEPLOYMENT.md`](./DEPLOYMENT.md)  
+**Env domains (DB vs PostHog):** [`rules/env-domains.md`](./rules/env-domains.md)  
 **Deploy command (manual):** `run easy prod` (see [`ENV.md`](./ENV.md))  
 **OAuth setup guide:** [`oauth-setup.md`](./oauth-setup.md)  
 **DB migration recovery (P3009):** [`MIGRATION_RECOVERY.md`](./MIGRATION_RECOVERY.md)
@@ -16,10 +17,10 @@ Prod Supabase project: **`yofgnflcqajqsepbfdkc`** (see `.env.vercel.example`).
 | Step | Status | Notes |
 |------|--------|-------|
 | **Unlock P3009 — mark init as applied** | **Do first** | Point `DATABASE_URL` at prod, then: `npx prisma migrate resolve --applied 20260618043606_init` — tables already exist, this just clears the stuck flag |
-| Apply remaining migrations | **Done** | Via Vercel `vercel-build` + `prisma-migrate-deploy.mjs` |
-| Verify migration status | Pending | `npx prisma migrate status` must show **Database schema is up to date** |
+| Apply remaining migrations | **Done** (ongoing) | Via Vercel `vercel-build` + `prisma-migrate-deploy.mjs`; pending: `20260702120000_enable_rls_public_tables` (RLS on public tables, no policies) |
+| Verify migration status | Pending | `node scripts/run.mjs admin -- npx prisma migrate status` or `npm run prod:health` |
 | Vault SQL functions (`vault_user_key`, etc.) | Verify | Re-apply `scripts/vault-functions-only.sql` if Ignition BYOK fails after migrate |
-| Pending migrations after local work | Check | `20260627120000_north_star_jd_skills_enhance_meta`, `20260627140000_extension_install_prompt_config` — confirm committed before deploy |
+| Pending migrations after local work | Check | Confirm committed before deploy — latest: `20260702120000_enable_rls_public_tables` |
 | Job Tracker Realtime (optional) | QA done locally | Run `scripts/sql/job-tracker-realtime-setup.sql` on prod Supabase if Realtime needed |
 | System Gemini keys in vault | Optional | `npm run db:import-system-keys` against prod when using system AI |
 
@@ -122,6 +123,13 @@ If migrate fails on prod, stop and follow [`MIGRATION_RECOVERY.md`](./MIGRATION_
 ---
 
 ## 7. Post-deploy smoke test
+
+```bash
+npm run prod:smoke
+npm run prod:verify-posthog
+npm run prod:health
+npm run analytics:closeout    # optional — phx_ in .env.local; PostHog only (see rules/env-domains.md)
+```
 
 - [x] `/login` — **Google** OAuth completes → `/onboarding` (or `/dashboard` if onboarding done)
 - [x] `/login` — **LinkedIn** OAuth completes

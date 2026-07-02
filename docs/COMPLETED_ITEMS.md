@@ -3,7 +3,8 @@
 | 2026-07-01 | Extension CI CRX pipeline — `pack-extension-crx.mjs`, `upload-extension-cws.mjs`, `deploy.yml` artifacts + Verified CRX publish |
 | 2026-07-01 | Extension build docs — `docs/EXTENSION_BUILD.md`; fixed outputs `dist/extension-dev/` (localhost) vs `dist/extension/` (prod / CWS) |
 | 2026-06-29 | Prod PostHog fix — static `NEXT_PUBLIC_*` in `getAnalyticsConfig` (client inlining); Vercel analytics env sync scripts; `vercel-build` validate gate; `npm run prod:verify-posthog` |
-| 2026-07-02 | Env precedence hardening — `lib/env/env-resolution.mjs`; `prisma.config.ts` skips `.env.local` when Vercel/prod/`vercel env run` injected; admin migrate deploy routes through wrapper; tests lock precedence |
+| 2026-07-02 | Docs sync — env domains in ENV, DEPLOYMENT, DEVELOPMENT_WORKFLOW, TROUBLESHOOTING, PROD_CUTOVER, ACTION_ITEMS; RLS migration noted |
+| 2026-07-02 | Env domains — PostHog admin isolated from DATABASE_URL (`buildPostHogAdminEnv`, `docs/rules/env-domains.md`); `prisma.config.ts` never loads `.env.local` |
 | 2026-06-29 | `run easy` / `run easy prod` pipeline cleanup — numbered steps, `run easy fast` / `run easy prod fast`, removed PostHog journey from default paths; docs in `ENV.md`, `DEVELOPMENT_WORKFLOW.md`, `DEPLOYMENT_TROUBLESHOOTING.md` |
 | 2026-06-29 | Prod deploy hardening — `prisma.config.ts` drops `directUrl`; `resolveMigrateEnv`; web live at `www.easysubmit.ai` |
 | 2026-06-28 | Env + deploy pipeline — command-specific injection (`scripts/run.mjs`, `env-lib.mjs`, `prisma-migrate-deploy.mjs`); no `.env` file swapping; `docs/DEVELOPMENT_WORKFLOW.md` + `docs/DEPLOYMENT.md`; Chrome extension CI `.github/workflows/deploy.yml` |

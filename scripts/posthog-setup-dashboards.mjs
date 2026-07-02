@@ -3,23 +3,22 @@
  * Bootstrap PostHog dashboards for dev + prod projects.
  * Requires POSTHOG_PERSONAL_API_KEY (phx_...) with project write access.
  */
-import { config as loadEnv } from "dotenv";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { assertPostHogOnlyEnv, resolveAnalyticsAdminEnv } from "./env-lib.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
 
-loadEnv({ path: resolve(root, ".env.local") });
-loadEnv({ path: resolve(root, ".env") });
-
-const apiKey = process.env.POSTHOG_PERSONAL_API_KEY;
-const host = process.env.NEXT_PUBLIC_POSTHOG_HOST ?? "https://us.i.posthog.com";
+const adminEnv = resolveAnalyticsAdminEnv(process.env);
+assertPostHogOnlyEnv(adminEnv, "posthog-setup-dashboards");
+const apiKey = adminEnv.POSTHOG_PERSONAL_API_KEY;
+const host = adminEnv.NEXT_PUBLIC_POSTHOG_HOST ?? "https://us.i.posthog.com";
 const apiHost = host.replace("us.i.posthog.com", "us.posthog.com");
 
 const projects = [
-  { label: "dev", id: process.env.POSTHOG_DEV_PROJECT_ID ?? "488025" },
-  { label: "prod", id: process.env.POSTHOG_PROD_PROJECT_ID ?? "488042" },
+  { label: "dev", id: adminEnv.POSTHOG_DEV_PROJECT_ID ?? "488025" },
+  { label: "prod", id: adminEnv.POSTHOG_PROD_PROJECT_ID ?? "488042" },
 ];
 
 const FUNNELS = [

@@ -18,8 +18,10 @@ import {
   isProdDB,
   loadEnv,
   mergeEnv,
+  resolveLocalDevEnv,
   runCommand,
   spawnCommand,
+  stripLocalDatabaseEnv,
   withNodeMemoryLimit,
 } from "./env-lib.mjs";
 import {
@@ -105,12 +107,12 @@ function bootstrapLocalEnv() {
 function loadLocalDevEnv() {
   clearStaleShellDatabaseUrl();
   bootstrapLocalEnv();
-  const { path, vars } = loadEnv(LOCAL_ENV_FILE);
+  const { path } = loadEnv(LOCAL_ENV_FILE);
   if (!existsSync(path)) {
     console.error(`❌ Missing ${LOCAL_ENV_FILE} after bootstrap`);
     process.exit(1);
   }
-  return mergeEnv({ ...process.env }, vars);
+  return resolveLocalDevEnv({ ...process.env });
 }
 
 function runValidateDatabase(env) {
@@ -312,9 +314,13 @@ function runAdmin() {
   }
 
   console.log("→ Running with Vercel Production env (vercel env run)");
-  runCommand("npx", ["vercel", "env", "run", "-e", "production", "--", ...cmd], process.env, {
-    cwd: root,
-  });
+  console.log("→ Stripped laptop DATABASE_URL / DIRECT_URL from parent env");
+  runCommand(
+    "npx",
+    ["vercel", "env", "run", "-e", "production", "--", ...cmd],
+    stripLocalDatabaseEnv(process.env),
+    { cwd: root },
+  );
 }
 
 switch (mode) {

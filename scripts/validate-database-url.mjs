@@ -4,13 +4,10 @@
  * Expects env injected by scripts/run.mjs or dotenv from .env.local when run standalone.
  */
 import pg from "pg";
-import { isProdDB, loadEnv, mergeEnv, LOCAL_ENV_FILE, shouldSkipLocalEnvFile } from "./env-lib.mjs";
+import { isProdDB, LOCAL_ENV_FILE, resolveLocalDevEnv } from "./env-lib.mjs";
 import { assertSafeForDevServer } from "./db-safety.mjs";
 
-const { vars } = loadEnv(LOCAL_ENV_FILE);
-const env = shouldSkipLocalEnvFile(process.env)
-  ? mergeEnv(vars, process.env)
-  : mergeEnv(process.env, vars);
+const env = resolveLocalDevEnv(process.env);
 
 const connectionString = env.DATABASE_URL;
 

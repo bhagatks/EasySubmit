@@ -17,6 +17,8 @@ Full env reference: [`ENV.md`](./ENV.md) · Production deploy: [`DEPLOYMENT.md`]
 
 This prevents dev credentials from leaking into prod commands and vice versa.
 
+**Env domains** (enforced in `lib/env/env-resolution.mjs`): database scripts and PostHog admin scripts are isolated — see [`rules/env-domains.md`](./rules/env-domains.md).
+
 ---
 
 ## Daily commands
@@ -49,16 +51,16 @@ No sync script — set prod values directly in Vercel.
 
 ## Database URLs (Prisma 7)
 
-Configured in `prisma.config.ts` (not `schema.prisma`):
+`prisma.config.ts` does **not** load `.env.local`. URLs are injected by `scripts/run.mjs` (local) or Vercel (prod).
 
 | Variable | Purpose | Supabase source |
 |----------|---------|-----------------|
-| `DATABASE_URL` | App runtime + pooler queries | **Transaction** pooler `:6543?pgbouncer=true` (prod) or **Session** `:5432` (local dev) |
-| `DIRECT_URL` | `prisma migrate` only | **Direct** `db.<ref>.supabase.co:5432` |
+| `DATABASE_URL` | App runtime | Transaction pooler `:6543?pgbouncer=true` (prod) or session `:6543` (local dev) |
+| `DIRECT_URL` | `prisma migrate` only | Session pooler **`:5432`** (local + prod) |
 
-Migrations need `DIRECT_URL` because PgBouncer transaction mode does not support advisory locks.
+Migrations need `DIRECT_URL` because PgBouncer transaction mode does not support advisory locks. Wrapper: `scripts/prisma-migrate-deploy.mjs` · local: `npm run db:migrate`.
 
-Production migrations run automatically during Vercel build via `vercel-build` → `prisma migrate deploy`.
+Production migrations run during Vercel build via `vercel-build` → `prisma-migrate-deploy.mjs`.
 
 ---
 
@@ -72,15 +74,16 @@ Production migrations run automatically during Vercel build via `vercel-build` �
 
 ## Admin tasks against production
 
-Use ephemeral injection — no local prod env file:
+Vercel Production env only — `run.mjs admin` strips laptop `DATABASE_URL` / `DIRECT_URL` before `vercel env run`:
 
 ```bash
 npm run prod:health
 npm run prod:ensure-avatars-bucket
-
-# Arbitrary command with Vercel Production env (temp pull, memory only):
+node scripts/run.mjs admin -- node scripts/prisma-migrate-deploy.mjs   # prod migrate
 node scripts/run.mjs admin -- npx prisma migrate status
 ```
+
+PostHog closeout is **not** admin — it uses `buildPostHogAdminEnv()` and never reads DB URLs: `npm run analytics:closeout`.
 
 Requires one-time `vercel link` and secrets in the Vercel dashboard.
 

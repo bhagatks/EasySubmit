@@ -55,6 +55,7 @@ End-to-end **job tracker + tailor** flows — assumes a base resume profile exis
 | Step | Status | Notes |
 |------|--------|-------|
 | Env injection refactor (`run easy`, no file swap) | **Done** | `docs/DEVELOPMENT_WORKFLOW.md` |
+| **Env domains** (PostHog vs DATABASE_URL) | **Done** | `lib/env/env-resolution.mjs`, `docs/rules/env-domains.md`; Jul 2026 |
 | Web CI workflow (tests only) | **Done** | `.github/workflows/ci.yml` |
 | Extension CI workflow (build + signed CRX artifact) | **Done** | `.github/workflows/deploy.yml` — add `CHROME_CRX_PRIVATE_KEY` secret; CWS publish manual until listing approved |
 | Vercel Production env vars | **Done** | Dashboard only — **do not re-sync on each deploy** |
@@ -64,10 +65,11 @@ End-to-end **job tracker + tailor** flows — assumes a base resume profile exis
 | **Google OAuth — prod redirect URIs** | **Done** | Prod smoke test Jul 2026 |
 | LinkedIn OAuth redirect URI (prod) | **Done** | Prod smoke test Jul 2026 |
 | Run Prisma migrate on production DB | **Done** | Via Vercel build (`prisma-migrate-deploy.mjs`) |
+| **RLS on public tables** (`20260702120000_enable_rls_public_tables`) | **Pending** | Ships on next Vercel deploy; closes Supabase linter finding; app uses BYPASSRLS via pooler |
 | Supabase Storage bucket `avatars` | **Done** | Bucket exists on prod; `npm run prod:ensure-avatars-bucket` |
 | Chrome Web Store publish | **Blocked** | Listing under review — manual workflow + `publish_to_cws` after approval |
 | **PostHog analytics — Vercel prod** | **Done** | Key synced; build gate + `npm run prod:verify-posthog` |
-| **PostHog UI settings** (both projects) | **Closeout** | One command: `npm run analytics:closeout` (needs `POSTHOG_PERSONAL_API_KEY` in `.env.local`) |
+| **PostHog UI settings** (both projects) | **Closeout** | `npm run analytics:closeout` — PostHog keys only; see [`docs/rules/env-domains.md`](./rules/env-domains.md) |
 | **PostHog dashboards** | **Closeout** | Included in `analytics:closeout` |
 | **`prod:health` from laptop** | **Done** | `npx vercel link` + `npm run prod:health` (uses `vercel env run -e production`) |
 

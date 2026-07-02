@@ -1,6 +1,16 @@
 # Environment
 
-Command-specific injection — see [`DEVELOPMENT_WORKFLOW.md`](./DEVELOPMENT_WORKFLOW.md) for philosophy and safety rules.
+Command-specific injection — see [`DEVELOPMENT_WORKFLOW.md`](./DEVELOPMENT_WORKFLOW.md) for philosophy and [`rules/env-domains.md`](./rules/env-domains.md) for **permanent separation** of database vs PostHog env.
+
+## Env domains (do not mix)
+
+| Domain | Commands | `.env.local` | `DATABASE_URL` |
+|--------|----------|--------------|----------------|
+| **database** | `run easy`, `db:migrate`, `prod:health`, Vercel build | Full file (local dev only) | Yes |
+| **posthog-admin** | `analytics:closeout`, `analytics:configure`, `analytics:setup` | `phx_` + project IDs **only** | **Never** |
+| **posthog-runtime** | Next.js, extension build | `NEXT_PUBLIC_POSTHOG_*` (dev) | No |
+
+Implementation: `lib/env/env-resolution.mjs` (`buildPostHogAdminEnv`, `stripLocalDatabaseEnv`). `prisma.config.ts` does **not** load `.env.local`.
 
 | Command | Purpose |
 |---------|---------|
@@ -87,7 +97,7 @@ Fast deploy only (skip local gates): `run easy prod fast` or `npm run prod:repai
 | `DATABASE_URL` | Transaction pooler — app runtime |
 | `DIRECT_URL` | Session pooler `:5432` — all `prisma migrate *` commands (local + Vercel build) |
 
-`prisma.config.ts` uses `DATABASE_URL` for app commands; when argv includes `migrate`, it swaps to `DIRECT_URL`. Prefer `npm run db:migrate` (wrapper logs the host). Do **not** add `directUrl` to `prisma.config.ts` — breaks `next build` types.
+`prisma.config.ts` **never loads `.env.local`**. DB URLs come from injected env only (`run.mjs`, Vercel, `vercel env run`). Local migrate: `npm run db:migrate`.
 
 ## Admin / prod diagnostics
 
@@ -98,7 +108,7 @@ npm run prod:smoke              # HTTP smoke (no secrets)
 npm run prod:verify-posthog     # PostHog key in prod bundle
 npm run prod:health             # DB migrations + avatars bucket (vercel env run)
 npm run prod:ensure-avatars-bucket
-npm run analytics:closeout      # PostHog UI + dashboards (needs POSTHOG_PERSONAL_API_KEY in .env.local)
+npm run analytics:closeout      # PostHog UI + dashboards (phx_ key only — never DATABASE_URL)
 node scripts/run.mjs admin -- npx prisma migrate status
 ```
 
@@ -111,9 +121,9 @@ Login uses NextAuth (Google + LinkedIn). Required vars: `NEXTAUTH_URL`, `NEXTAUT
 
 ## Troubleshooting
 
-**`◇ injected env from .env.local` on Prisma CLI:** Only appears for **local dev** commands. Prod/Vercel/`vercel env run` contexts skip `.env.local` automatically (`lib/env/env-resolution.mjs` + `prisma.config.ts`). If you see it during prod admin/migrate, stop — you are not using injected env.
+**Prod/admin commands never use laptop `DATABASE_URL`.** `run.mjs admin` strips DB vars before `vercel env run`. `prod:health` uses Vercel pull only.
 
-**Never run raw `npx prisma migrate deploy` against prod.** Use `npm run db:migrate` (local) or `node scripts/run.mjs admin -- node scripts/prisma-migrate-deploy.mjs` (prod).
+**Local migrate:** `npm run db:migrate` or `run easy` — injects `.env.local` via `run.mjs`, not `prisma.config.ts`.
 
 **Deploy failed?** Start with [`DEPLOYMENT_TROUBLESHOOTING.md`](./DEPLOYMENT_TROUBLESHOOTING.md).
 
@@ -127,17 +137,29 @@ Login uses NextAuth (Google + LinkedIn). Required vars: `NEXTAUTH_URL`, `NEXTAUT
 
 **OAuth loops locally:** fresh incognito window, or `EASY_OPEN_BROWSER=1 npm run dev`. See [`oauth-setup.md`](./oauth-setup.md).
 
+## Post-deploy verification (prod)
+
+```bash
+npm run prod:smoke
+npm run prod:verify-posthog
+npm run prod:health              # Vercel DB env only — not .env.local
+npm run analytics:closeout       # PostHog UI + dashboards (phx_ only)
+```
+
 ## Analytics (PostHog)
 
-See [`docs/analytics-option-a.md`](./analytics-option-a.md).
+See [`docs/analytics-option-a.md`](./analytics-option-a.md) and [`rules/env-domains.md`](./rules/env-domains.md).
 
 | Variable | Dev (`.env.local`) | Prod (Vercel) |
 |----------|-------------------|---------------|
 | `NEXT_PUBLIC_POSTHOG_KEY` | Dev project `488025` | Prod project `488042` |
 | `NEXT_PUBLIC_ANALYTICS_ENV` | `dev` | `prod` |
-| `POSTHOG_PERSONAL_API_KEY` | `phx_…` (for journey report) | optional |
+| `POSTHOG_PERSONAL_API_KEY` | `phx_…` (closeout / dashboards only) | — |
 
-Journey report: `npm run posthog:journey`
+```bash
+npm run analytics:closeout   # configure UI + dashboards — never touches DATABASE_URL
+npm run posthog:journey      # dev journey report (DB section uses local dev env explicitly)
+```
 
 ## Production deployment
 

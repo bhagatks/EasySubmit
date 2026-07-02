@@ -1,13 +1,35 @@
 #!/usr/bin/env npx tsx
-import dotenv from "dotenv";
+import { buildPostHogAdminEnv } from "../lib/env/env-resolution.mjs";
+import { loadEnv, resolveLocalDevEnv } from "./env-lib.mjs";
 
-dotenv.config({ path: ".env" });
-dotenv.config({ path: ".env.local" });
+const { vars } = loadEnv(".env.local");
+const posthogEnv = buildPostHogAdminEnv(process.env, vars);
 
-const apiKey = process.env.POSTHOG_PERSONAL_API_KEY;
-const host = process.env.NEXT_PUBLIC_POSTHOG_HOST ?? "https://us.i.posthog.com";
+const apiKey = posthogEnv.POSTHOG_PERSONAL_API_KEY;
+const host = posthogEnv.NEXT_PUBLIC_POSTHOG_HOST ?? "https://us.i.posthog.com";
 const apiHost = host.replace("us.i.posthog.com", "us.posthog.com");
-const devProjectId = process.env.POSTHOG_DEV_PROJECT_ID ?? "488025";
+const devProjectId = posthogEnv.POSTHOG_DEV_PROJECT_ID ?? "488025";
+const prodProjectId = posthogEnv.POSTHOG_PROD_PROJECT_ID ?? "488042";
+
+const DB_ENV_KEYS = ["DATABASE_URL", "DIRECT_URL"] as const;
+
+function restoreEnv(previous: Record<string, string | undefined>) {
+  for (const key of DB_ENV_KEYS) {
+    if (previous[key] === undefined) delete process.env[key];
+    else process.env[key] = previous[key];
+  }
+}
+
+function applyLocalDevDatabaseEnv() {
+  const devEnv = resolveLocalDevEnv(process.env);
+  const previous: Record<string, string | undefined> = {};
+  for (const key of DB_ENV_KEYS) {
+    previous[key] = process.env[key];
+    if (devEnv[key]) process.env[key] = devEnv[key];
+    else delete process.env[key];
+  }
+  return () => restoreEnv(previous);
+}
 
 async function hogql(projectId: string, query: string) {
   const res = await fetch(`${apiHost}/api/projects/${projectId}/query/`, {
@@ -23,6 +45,8 @@ async function hogql(projectId: string, query: string) {
 }
 
 async function reportDb(): Promise<string | null> {
+  const restore = applyLocalDevDatabaseEnv();
+  try {
   const { prisma } = await import("../lib/prisma");
   const { getAiHealthCheckForUser } = await import("../lib/ai/ai-health-status");
   const { getAiReadinessForUser } = await import("../lib/ai/ai-readiness-gate-for-user");
@@ -111,19 +135,25 @@ async function reportDb(): Promise<string | null> {
 
   await prisma.$disconnect();
   return user.id;
+  } finally {
+    restore();
+  }
 }
 
 async function backfillFromDb(userId: string) {
-  const captureKey = process.env.NEXT_PUBLIC_POSTHOG_KEY;
+  const devEnv = resolveLocalDevEnv(process.env);
+  const captureKey = devEnv.NEXT_PUBLIC_POSTHOG_KEY;
   if (!captureKey) {
     console.log("\nBackfill SKIP: NEXT_PUBLIC_POSTHOG_KEY missing");
     return;
   }
-  if (process.env.NEXT_PUBLIC_ANALYTICS_ENV === "prod") {
+  if (devEnv.NEXT_PUBLIC_ANALYTICS_ENV === "prod") {
     console.log("\nBackfill SKIP: analytics env is prod");
     return;
   }
 
+  const restore = applyLocalDevDatabaseEnv();
+  try {
   const { prisma } = await import("../lib/prisma");
   const lastJob = await prisma.jobTrackerEntry.findFirst({
     where: { userId },
@@ -235,9 +265,10 @@ async function backfillFromDb(userId: string) {
   }
 
   await prisma.$disconnect();
+  } finally {
+    restore();
+  }
 }
-
-async function reportPostHog() {
   console.log(`\n── PostHog dev project ${devProjectId} ──`);
   if (!apiKey) {
     console.log("SKIP read: POSTHOG_PERSONAL_API_KEY missing in .env.local");
@@ -267,7 +298,7 @@ async function reportPostHog() {
     console.log(`${event}: count=${count}`);
   }
 
-  const prodId = process.env.POSTHOG_PROD_PROJECT_ID ?? "488042";
+  const prodId = prodProjectId;
   if (prodId !== devProjectId) {
     try {
       const prodCounts = await countsForProject(prodId);

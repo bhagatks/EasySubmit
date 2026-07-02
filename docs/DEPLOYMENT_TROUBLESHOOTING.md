@@ -14,6 +14,23 @@ Lessons from the June 2026 prod cutover. **Normal deploy = push to `main` only**
 | Prod migrate via `prisma-migrate-deploy.mjs` / Vercel `vercel-build` | Raw `npx prisma migrate deploy` when prod is the target |
 | Fix one env var in dashboard → redeploy | Run ad-hoc env sync scripts against prod |
 | Use GitHub CI for **tests** + extension build only | Expect CI to deploy the web app |
+| PostHog closeout (`analytics:closeout`) for `phx_` keys only | Let PostHog scripts load full `.env.local` or spread `process.env` with DB URLs |
+
+---
+
+## Env domains
+
+PostHog admin scripts and database scripts **must not share env loading**:
+
+| Script type | Allowed from `.env.local` | `DATABASE_URL` |
+|-------------|---------------------------|----------------|
+| `analytics:closeout` | `POSTHOG_PERSONAL_API_KEY`, project IDs | **Never** |
+| `run easy` / `db:migrate` | Full file (dev) | Yes (dev) |
+| `prod:health` / Vercel build | — (Vercel only) | Yes (prod) |
+
+See [`rules/env-domains.md`](./rules/env-domains.md). Implementation: `lib/env/env-resolution.mjs`.
+
+**Symptom:** `◇ injected env from .env.local` during prod migrate, or `P1000` with dev Supabase ref during prod ops → env domain violation; use `run.mjs admin` or Vercel build, not raw `npx prisma migrate deploy`.
 
 ---
 
@@ -70,6 +87,7 @@ Sensitive values are **hidden** after save. You cannot "view" them in the list.
 | `P1001: Can't reach database server at …:5432` | Bad/unreachable `DIRECT_URL` | Set session pooler `:5432` in Vercel; redeploy |
 | `DIRECT_URL is required` | Missing in Vercel Production | Add per `.env.vercel.example` |
 | `P3009` / failed migration | Stuck `_prisma_migrations` | [`MIGRATION_RECOVERY.md`](./MIGRATION_RECOVERY.md) |
+| `P1000` password auth failed on prod ops | Laptop `.env.local` leaked into Prisma/admin | Use `run.mjs admin`; `prisma.config.ts` must not load `.env.local`; see env domains |
 | `npm run prod:health` → DATABASE_URL missing | Empty var in Vercel or pull failed | Edit `DATABASE_URL` in dashboard |
 
 ---
@@ -109,6 +127,7 @@ npm run env:whoami               # confirm local .env.local is dev, not prod
 
 ## Related
 
+- [`rules/env-domains.md`](./rules/env-domains.md) — PostHog vs database env
 - [`DEPLOYMENT.md`](./DEPLOYMENT.md) — architecture + secrets map
 - [`ENV.md`](./ENV.md) — local vs prod files
 - [`PROD_CUTOVER.md`](./PROD_CUTOVER.md) — first-time checklist

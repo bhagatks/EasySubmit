@@ -1,13 +1,17 @@
 #!/usr/bin/env node
 /**
  * Prod DB + avatar storage health check.
- * Run: npm run prod:health  (ephemeral Vercel Production env via scripts/run.mjs admin)
+ * Run: npm run prod:health  (Vercel Production env only — never .env.local)
  */
 import pg from "pg";
 import { createClient } from "@supabase/supabase-js";
 import { readdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { loadEphemeralVercelProductionEnv } from "./env-lib.mjs";
+import {
+  extractSupabaseRef,
+  isProdDB,
+  loadEphemeralVercelProductionEnv,
+} from "./env-lib.mjs";
 import { validateAnalyticsEnvForDeploy } from "./validate-analytics-env.mjs";
 
 const MIGRATIONS_DIR = resolve(process.cwd(), "prisma/migrations");
@@ -17,29 +21,27 @@ let prodOverlay = {};
 try {
   prodOverlay = loadEphemeralVercelProductionEnv(process.cwd());
 } catch {
-  // Linked Vercel project required for analytics overlay.
+  // vercel env run may still supply production vars
 }
 
 function productionEnv() {
+  const vercelInjected = isProdDB(process.env.DATABASE_URL) ? process.env : {};
+  const source = prodOverlay.DATABASE_URL ? prodOverlay : vercelInjected;
+
+  if (!source.DATABASE_URL) {
+    return null;
+  }
+
   return {
-    ...process.env,
-    DATABASE_URL: prodOverlay.DATABASE_URL ?? process.env.DATABASE_URL,
-    DIRECT_URL: prodOverlay.DIRECT_URL ?? process.env.DIRECT_URL,
-    NEXT_PUBLIC_SUPABASE_URL:
-      prodOverlay.NEXT_PUBLIC_SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL,
-    NEXT_PUBLIC_POSTHOG_KEY:
-      prodOverlay.NEXT_PUBLIC_POSTHOG_KEY ?? process.env.NEXT_PUBLIC_POSTHOG_KEY,
-    NEXT_PUBLIC_POSTHOG_HOST:
-      prodOverlay.NEXT_PUBLIC_POSTHOG_HOST ?? process.env.NEXT_PUBLIC_POSTHOG_HOST,
-    NEXT_PUBLIC_ANALYTICS_ENABLED:
-      prodOverlay.NEXT_PUBLIC_ANALYTICS_ENABLED ?? process.env.NEXT_PUBLIC_ANALYTICS_ENABLED,
-    NEXT_PUBLIC_ANALYTICS_ENV:
-      prodOverlay.NEXT_PUBLIC_ANALYTICS_ENV ?? process.env.NEXT_PUBLIC_ANALYTICS_ENV,
+    DATABASE_URL: source.DATABASE_URL,
+    DIRECT_URL: source.DIRECT_URL ?? source.DATABASE_URL,
+    NEXT_PUBLIC_SUPABASE_URL: source.NEXT_PUBLIC_SUPABASE_URL,
+    NEXT_PUBLIC_POSTHOG_KEY: source.NEXT_PUBLIC_POSTHOG_KEY,
+    NEXT_PUBLIC_POSTHOG_HOST: source.NEXT_PUBLIC_POSTHOG_HOST,
+    NEXT_PUBLIC_ANALYTICS_ENABLED: source.NEXT_PUBLIC_ANALYTICS_ENABLED,
+    NEXT_PUBLIC_ANALYTICS_ENV: source.NEXT_PUBLIC_ANALYTICS_ENV,
     SUPABASE_SERVICE_ROLE_KEY:
-      prodOverlay.SUPABASE_SERVICE_ROLE_KEY ??
-      prodOverlay.SUPABASE_SECRET_KEY ??
-      process.env.SUPABASE_SERVICE_ROLE_KEY ??
-      process.env.SUPABASE_SECRET_KEY,
+      source.SUPABASE_SERVICE_ROLE_KEY ?? source.SUPABASE_SECRET_KEY,
   };
 }
 
@@ -70,15 +72,17 @@ async function queryDb(databaseUrl, sql, params = []) {
 }
 
 const deployEnv = productionEnv();
-const databaseUrl = deployEnv.DATABASE_URL;
-if (!databaseUrl) {
-  console.error("❌ DATABASE_URL missing after Vercel env pull.");
-  console.error("   → Vercel → Settings → Environment Variables → Production");
-  console.error("   → Confirm DATABASE_URL is set (Sensitive vars hide values; use Edit if empty).");
-  console.error("   → Run: npm run prod:health");
+if (!deployEnv?.DATABASE_URL) {
+  console.error("❌ Production DATABASE_URL missing — laptop .env.local is not used for prod:health.");
+  console.error("   → Run: npm run prod:health  (uses vercel env run + ephemeral pull)");
+  console.error("   → Vercel → Production → DATABASE_URL / DIRECT_URL");
   process.exit(1);
 }
 
+const ref = extractSupabaseRef(deployEnv);
+console.log(`→ Prod health target: ${ref ?? "unknown ref"} (Vercel only)\n`);
+
+const databaseUrl = deployEnv.DATABASE_URL;
 const migrationUrl = toMigrationDatabaseUrl(deployEnv.DIRECT_URL?.trim() || databaseUrl);
 const localMigrations = localMigrationNames();
 

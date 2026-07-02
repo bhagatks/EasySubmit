@@ -1,24 +1,10 @@
 // Prisma 7 — URLs live here, not in schema.prisma.
-import dotenv from "dotenv";
+//
+// IMPORTANT: Do not load `.env.local` in this file.
+// Env is injected by scripts/run.mjs, Vercel, or `vercel env run` only.
+// Loading `.env.local` here was overriding prod credentials on every deploy.
 import { defineConfig, env } from "prisma/config";
-import {
-  applyMigrateDatasourceUrl,
-  shouldSkipLocalEnvFile,
-} from "./lib/env/env-resolution.mjs";
-
-const preservedDatabaseUrl = process.env.DATABASE_URL?.trim();
-const preservedDirectUrl = process.env.DIRECT_URL?.trim();
-const skipLocalEnv = shouldSkipLocalEnvFile(process.env);
-
-// Never load laptop secrets when Vercel / vercel env run / prod URLs are already injected.
-if (!skipLocalEnv) {
-  dotenv.config({ path: ".env.local" });
-  if (preservedDatabaseUrl) process.env.DATABASE_URL = preservedDatabaseUrl;
-  if (preservedDirectUrl) process.env.DIRECT_URL = preservedDirectUrl;
-} else {
-  if (preservedDatabaseUrl) process.env.DATABASE_URL = preservedDatabaseUrl;
-  if (preservedDirectUrl) process.env.DIRECT_URL = preservedDirectUrl;
-}
+import { applyMigrateDatasourceUrl } from "./lib/env/env-resolution.mjs";
 
 applyMigrateDatasourceUrl(process.env, process.argv.includes("migrate"));
 
@@ -29,8 +15,6 @@ export default defineConfig({
     seed: "npx --yes tsx prisma/seed.ts",
   },
   datasource: {
-    // App runtime — transaction pooler on Vercel (:6543).
-    // Migrations use DIRECT_URL (swapped above + scripts/prisma-migrate-deploy.mjs).
     url: env("DATABASE_URL"),
   },
 });

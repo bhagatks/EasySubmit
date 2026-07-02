@@ -12,6 +12,7 @@ When you change architecture, entry flows, major modules, or user-visible behavi
 | DB schema / Prisma model | `docs/database-schema.md` |
 | Auth / onboarding gate | `docs/FLOW.md` |
 | Resume engine contracts | `docs/resume/RULES.md` |
+| Env / deploy pipeline / Vercel vs local | `docs/ENV.md`, `docs/DEPLOYMENT.md`, `docs/rules/env-domains.md` |
 | Follow-up / action items | `docs/ACTION_ITEMS.md` |
 | Finished deliverables | `docs/COMPLETED_ITEMS.md` with date |
 

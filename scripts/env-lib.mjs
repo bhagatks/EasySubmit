@@ -10,11 +10,16 @@ import {
   PROD_SUPABASE_REF,
   SKIP_LOCAL_ENV_FLAG,
   applyMigrateDatasourceUrl,
+  assertPostHogOnlyEnv,
+  buildPostHogAdminEnv,
   extractSupabaseRef,
   isProdDB,
+  loadLocalAnalyticsAdminVars,
   mergeEnv,
+  resolveAppEnvRecord,
   resolveMigrateEnvRecord,
   shouldSkipLocalEnvFile,
+  stripLocalDatabaseEnv,
 } from "../lib/env/env-resolution.mjs";
 
 export {
@@ -22,11 +27,16 @@ export {
   LOCAL_ENV_FILE,
   PROD_SUPABASE_REF,
   SKIP_LOCAL_ENV_FLAG,
+  assertPostHogOnlyEnv,
+  buildPostHogAdminEnv,
   extractSupabaseRef,
   isProdDB,
+  loadLocalAnalyticsAdminVars,
   mergeEnv,
+  resolveAppEnvRecord,
   resolveMigrateEnvRecord,
   shouldSkipLocalEnvFile,
+  stripLocalDatabaseEnv,
 };
 
 /** Parse a .env file into a plain object — never writes to disk. */
@@ -59,8 +69,25 @@ export function prismaMigrateEnv(env) {
 
 /** Merge env for migrate deploy: production/shell wins over `.env.local`. */
 export function resolveMigrateEnv(baseEnv = process.env) {
+  if (shouldSkipLocalEnvFile(baseEnv)) {
+    return resolveMigrateEnvRecord(baseEnv, {}).env;
+  }
   const { vars } = loadEnv(LOCAL_ENV_FILE);
   return resolveMigrateEnvRecord(baseEnv, vars).env;
+}
+
+/** Local dev only — inject full `.env.local`. */
+export function resolveLocalDevEnv(baseEnv = process.env) {
+  const { vars } = loadEnv(LOCAL_ENV_FILE);
+  return resolveAppEnvRecord(baseEnv, vars).env;
+}
+
+/** PostHog admin only — isolated env; never DATABASE_URL / DIRECT_URL. */
+export function resolveAnalyticsAdminEnv(baseEnv = process.env) {
+  const { vars } = loadEnv(LOCAL_ENV_FILE);
+  const env = buildPostHogAdminEnv(baseEnv, vars);
+  assertPostHogOnlyEnv(env, "resolveAnalyticsAdminEnv");
+  return env;
 }
 
 export function runCommand(command, args, env, options = {}) {
