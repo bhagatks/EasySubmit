@@ -6,10 +6,17 @@
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { resolveMigrateEnv } from "./env-lib.mjs";
+import {
+  extractSupabaseRef,
+  isProdDB,
+  loadEnv,
+  LOCAL_ENV_FILE,
+  resolveMigrateEnvRecord,
+} from "./env-lib.mjs";
 
 const root = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
-const env = resolveMigrateEnv(process.env);
+const { vars: localVars } = loadEnv(LOCAL_ENV_FILE);
+const { env, remoteWins } = resolveMigrateEnvRecord(process.env, localVars);
 
 const direct = env.DIRECT_URL?.trim();
 if (!direct) {
@@ -19,7 +26,16 @@ if (!direct) {
 }
 
 const host = direct.match(/@([^:/]+)/)?.[1] ?? "database";
-console.log(`→ prisma migrate deploy via ${host} (DIRECT_URL)`);
+const ref = extractSupabaseRef(env);
+const target =
+  remoteWins || isProdDB(env.DATABASE_URL) || isProdDB(direct)
+    ? `production (${ref ?? "prod ref"})`
+    : `local dev (${ref ?? "dev ref"})`;
+
+console.log(`→ prisma migrate deploy via ${host} (DIRECT_URL) — ${target}`);
+if (remoteWins) {
+  console.log(`→ Skipped ${LOCAL_ENV_FILE} — injected/Vercel env wins`);
+}
 
 const result = spawnSync("npx", ["prisma", "migrate", "deploy"], {
   stdio: "inherit",

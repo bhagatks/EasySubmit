@@ -14,6 +14,7 @@ import {
   DEV_SUPABASE_REF,
   LOCAL_ENV_FILE,
   PROD_SUPABASE_REF,
+  SKIP_LOCAL_ENV_FLAG,
   isProdDB,
   loadEnv,
   mergeEnv,
@@ -255,6 +256,7 @@ function runDeployProd() {
     console.log("\n3/5 Prisma validate (schema + prisma.config.ts)");
     const validateEnv = {
       ...process.env,
+      [SKIP_LOCAL_ENV_FLAG]: "1",
       DATABASE_URL:
         process.env.DATABASE_URL?.trim() ||
         "postgresql://ci:ci@127.0.0.1:5432/ci?schema=public",
@@ -284,10 +286,17 @@ function runDeployProd() {
 
 function runAdmin() {
   const sep = process.argv.indexOf("--");
-  const cmd = sep >= 0 ? process.argv.slice(sep + 1) : [];
+  let cmd = sep >= 0 ? process.argv.slice(sep + 1) : [];
   if (cmd.length === 0) {
     console.error("Usage: node scripts/run.mjs admin -- <command...>");
     process.exit(1);
+  }
+
+  // Route migrate deploy through wrapper so prisma.config never re-loads .env.local over prod.
+  const joined = cmd.join(" ");
+  if (/\bprisma\b/.test(joined) && /\bmigrate\b/.test(joined) && /\bdeploy\b/.test(joined)) {
+    console.log("→ Admin migrate deploy: using scripts/prisma-migrate-deploy.mjs (not raw prisma CLI)");
+    cmd = [process.execPath, resolve(root, "scripts/prisma-migrate-deploy.mjs")];
   }
 
   requireVercelCli();

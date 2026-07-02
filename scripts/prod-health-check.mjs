@@ -23,6 +23,10 @@ try {
 function productionEnv() {
   return {
     ...process.env,
+    DATABASE_URL: prodOverlay.DATABASE_URL ?? process.env.DATABASE_URL,
+    DIRECT_URL: prodOverlay.DIRECT_URL ?? process.env.DIRECT_URL,
+    NEXT_PUBLIC_SUPABASE_URL:
+      prodOverlay.NEXT_PUBLIC_SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_POSTHOG_KEY:
       prodOverlay.NEXT_PUBLIC_POSTHOG_KEY ?? process.env.NEXT_PUBLIC_POSTHOG_KEY,
     NEXT_PUBLIC_POSTHOG_HOST:
@@ -65,7 +69,8 @@ async function queryDb(databaseUrl, sql, params = []) {
   }
 }
 
-const databaseUrl = process.env.DATABASE_URL;
+const deployEnv = productionEnv();
+const databaseUrl = deployEnv.DATABASE_URL;
 if (!databaseUrl) {
   console.error("❌ DATABASE_URL missing after Vercel env pull.");
   console.error("   → Vercel → Settings → Environment Variables → Production");
@@ -74,7 +79,7 @@ if (!databaseUrl) {
   process.exit(1);
 }
 
-const migrationUrl = toMigrationDatabaseUrl(databaseUrl);
+const migrationUrl = toMigrationDatabaseUrl(deployEnv.DIRECT_URL?.trim() || databaseUrl);
 const localMigrations = localMigrationNames();
 
 console.log("━━━ EasySubmit prod health check ━━━\n");
@@ -140,7 +145,7 @@ if (bucketRow) {
   console.log(`❌ "${AVATAR_BUCKET}" bucket missing — run npm run prod:ensure-avatars-bucket`);
 }
 
-const analytics = validateAnalyticsEnvForDeploy(productionEnv());
+const analytics = validateAnalyticsEnvForDeploy(deployEnv);
 console.log("\nPostHog analytics (Vercel Production env):");
 if (analytics.ok) {
   console.log("✔ NEXT_PUBLIC_POSTHOG_KEY and related vars configured");
@@ -149,8 +154,7 @@ if (analytics.ok) {
   console.log("   → npm run prod:repair-analytics");
 }
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const deployEnv = productionEnv();
+const supabaseUrl = deployEnv.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = deployEnv.SUPABASE_SERVICE_ROLE_KEY;
 
 console.log("\nSupabase admin credentials (Vercel Production):");

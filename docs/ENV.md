@@ -111,7 +111,9 @@ Login uses NextAuth (Google + LinkedIn). Required vars: `NEXTAUTH_URL`, `NEXTAUT
 
 ## Troubleshooting
 
-**`◇ injected env from .env.local` on Prisma CLI:** Expected — `prisma.config.ts` loads `.env.local`. For migrate commands it then uses `DIRECT_URL` (`:5432`), not the `:6543` pooler. Prefer `npm run db:migrate` for a clear host log line.
+**`◇ injected env from .env.local` on Prisma CLI:** Only appears for **local dev** commands. Prod/Vercel/`vercel env run` contexts skip `.env.local` automatically (`lib/env/env-resolution.mjs` + `prisma.config.ts`). If you see it during prod admin/migrate, stop — you are not using injected env.
+
+**Never run raw `npx prisma migrate deploy` against prod.** Use `npm run db:migrate` (local) or `node scripts/run.mjs admin -- node scripts/prisma-migrate-deploy.mjs` (prod).
 
 **Deploy failed?** Start with [`DEPLOYMENT_TROUBLESHOOTING.md`](./DEPLOYMENT_TROUBLESHOOTING.md).
 

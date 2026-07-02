@@ -10,7 +10,8 @@ Lessons from the June 2026 prod cutover. **Normal deploy = push to `main` only**
 |----|--------|
 | Set prod secrets **once** in Vercel → Production | Re-sync or bulk-copy env vars on every deploy |
 | Push code to `main` (Vercel auto-builds) | Put `DATABASE_URL` / OAuth in GitHub Actions |
-| Keep dev secrets in `.env.local` only | Copy `.env.local` into Vercel |
+| Keep dev secrets in `.env.local` only | Let `.env.local` load during `vercel env run` or Vercel build |
+| Prod migrate via `prisma-migrate-deploy.mjs` / Vercel `vercel-build` | Raw `npx prisma migrate deploy` when prod is the target |
 | Fix one env var in dashboard → redeploy | Run ad-hoc env sync scripts against prod |
 | Use GitHub CI for **tests** + extension build only | Expect CI to deploy the web app |
 
