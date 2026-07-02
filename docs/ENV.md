@@ -85,17 +85,20 @@ Fast deploy only (skip local gates): `run easy prod fast` or `npm run prod:repai
 | Variable | Use |
 |----------|-----|
 | `DATABASE_URL` | Transaction pooler — app runtime |
-| `DIRECT_URL` | Session pooler `:5432` — `prisma migrate deploy` on Vercel build only |
+| `DIRECT_URL` | Session pooler `:5432` — all `prisma migrate *` commands (local + Vercel build) |
 
-`prisma.config.ts` sets `url` only. Migrations swap in `DIRECT_URL` in `scripts/prisma-migrate-deploy.mjs` (do **not** add `directUrl` to `prisma.config.ts` — breaks `next build` types).
+`prisma.config.ts` uses `DATABASE_URL` for app commands; when argv includes `migrate`, it swaps to `DIRECT_URL`. Prefer `npm run db:migrate` (wrapper logs the host). Do **not** add `directUrl` to `prisma.config.ts` — breaks `next build` types.
 
 ## Admin / prod diagnostics
 
-Ephemeral Vercel env pull (no local prod file):
+Requires one-time `npx vercel link --project project-easy-submit --yes` (creates `.vercel/`; gitignored).
 
 ```bash
-npm run prod:health
+npm run prod:smoke              # HTTP smoke (no secrets)
+npm run prod:verify-posthog     # PostHog key in prod bundle
+npm run prod:health             # DB migrations + avatars bucket (vercel env run)
 npm run prod:ensure-avatars-bucket
+npm run analytics:closeout      # PostHog UI + dashboards (needs POSTHOG_PERSONAL_API_KEY in .env.local)
 node scripts/run.mjs admin -- npx prisma migrate status
 ```
 
@@ -107,6 +110,8 @@ Login uses NextAuth (Google + LinkedIn). Required vars: `NEXTAUTH_URL`, `NEXTAUT
 **Production cutover:** [`docs/PROD_CUTOVER.md`](./PROD_CUTOVER.md)
 
 ## Troubleshooting
+
+**`◇ injected env from .env.local` on Prisma CLI:** Expected — `prisma.config.ts` loads `.env.local`. For migrate commands it then uses `DIRECT_URL` (`:5432`), not the `:6543` pooler. Prefer `npm run db:migrate` for a clear host log line.
 
 **Deploy failed?** Start with [`DEPLOYMENT_TROUBLESHOOTING.md`](./DEPLOYMENT_TROUBLESHOOTING.md).
 

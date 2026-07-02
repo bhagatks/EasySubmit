@@ -60,25 +60,26 @@ End-to-end **job tracker + tailor** flows — assumes a base resume profile exis
 | Vercel Production env vars | **Done** | Dashboard only — **do not re-sync on each deploy** |
 | `prisma.config.ts` / `DIRECT_URL` build fix | **Done** | No `directUrl` in config; migrate via `prisma-migrate-deploy.mjs` |
 | Prod web deploy (`www.easysubmit.ai`) | **Done** | Jun 2026 |
-| Connect GitHub repo to Vercel | **Verify** | Auto-deploy on `main` if linked |
-| **Google OAuth — prod redirect URIs** | **Verify** | Smoke test login at `https://www.easysubmit.ai/login` |
-| LinkedIn OAuth redirect URI (prod) | **Verify** | Re-check against live domain |
+| Connect GitHub repo to Vercel | **Done** | Auto-deploy on `main` — `bhagatks/EasySubmit` |
+| **Google OAuth — prod redirect URIs** | **Done** | Prod smoke test Jul 2026 |
+| LinkedIn OAuth redirect URI (prod) | **Done** | Prod smoke test Jul 2026 |
 | Run Prisma migrate on production DB | **Done** | Via Vercel build (`prisma-migrate-deploy.mjs`) |
-| Supabase Storage bucket `avatars` | **Verify** | `npm run prod:ensure-avatars-bucket` |
-| Chrome Web Store publish | **Blocked** | Listing under review — `publish_to_cws` after approval |
+| Supabase Storage bucket `avatars` | **Done** | Bucket exists on prod; `npm run prod:ensure-avatars-bucket` |
+| Chrome Web Store publish | **Blocked** | Listing under review — manual workflow + `publish_to_cws` after approval |
 | **PostHog analytics — Vercel prod** | **Done** | Key synced; build gate + `npm run prod:verify-posthog` |
-| **PostHog UI settings** (both projects) | **Todo** | Web autocapture on; replay on; errors on; blocklist; masking |
-| **PostHog dashboards** (optional) | **Todo** | `POSTHOG_PERSONAL_API_KEY=phx_… npm run analytics:setup` |
+| **PostHog UI settings** (both projects) | **Closeout** | One command: `npm run analytics:closeout` (needs `POSTHOG_PERSONAL_API_KEY` in `.env.local`) |
+| **PostHog dashboards** | **Closeout** | Included in `analytics:closeout` |
+| **`prod:health` from laptop** | **Done** | `npx vercel link` + `npm run prod:health` (uses `vercel env run -e production`) |
 
 ## Post-deploy smoke test
 
 See also [`PROD_CUTOVER.md`](./PROD_CUTOVER.md) §7.
 
-- [ ] `/login` — Google OAuth completes → `/onboarding`
-- [ ] `/login` — LinkedIn OAuth completes
-- [ ] `/onboarding` — wizard steps advance
-- [ ] Resume upload → `/onboarding/step-4` animation → `/dashboard`
-- [ ] Unauthenticated `/dashboard` → `/login`
+- [x] `/login` — Google OAuth completes → `/onboarding`
+- [x] `/login` — LinkedIn OAuth completes
+- [x] `/onboarding` — wizard steps advance
+- [x] Resume upload → `/onboarding/step-4` animation → `/dashboard`
+- [x] Unauthenticated `/dashboard` → `/login`
 - [x] PostHog — prod `$pageview` on `/login` (project `488042`, `environment = prod`)
 
 ## Follow-up (not blocking deploy)

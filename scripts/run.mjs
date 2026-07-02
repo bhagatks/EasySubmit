@@ -16,7 +16,6 @@ import {
   PROD_SUPABASE_REF,
   isProdDB,
   loadEnv,
-  loadEphemeralVercelProductionEnv,
   mergeEnv,
   runCommand,
   spawnCommand,
@@ -241,7 +240,12 @@ function runDeployProd() {
 
   if (!existsSync(resolve(root, ".vercel/project.json"))) {
     console.log("→ Linking Vercel project (one-time)");
-    spawnSync("npx", ["vercel", "link"], { stdio: "inherit", cwd: root });
+    runCommand(
+      "npx",
+      ["vercel", "link", "--project", "project-easy-submit", "--yes"],
+      process.env,
+      { cwd: root },
+    );
   }
 
   if (!fast) {
@@ -286,10 +290,22 @@ function runAdmin() {
     process.exit(1);
   }
 
-  console.log("→ Loading Vercel Production env (ephemeral — no local file written)");
-  const vercelVars = loadEphemeralVercelProductionEnv(root);
-  const env = mergeEnv({ ...process.env }, vercelVars);
-  runCommand(cmd[0], cmd.slice(1), env, { cwd: root });
+  requireVercelCli();
+
+  if (!existsSync(resolve(root, ".vercel/project.json"))) {
+    console.log("→ Linking Vercel project (one-time)");
+    runCommand(
+      "npx",
+      ["vercel", "link", "--project", "project-easy-submit", "--yes"],
+      process.env,
+      { cwd: root },
+    );
+  }
+
+  console.log("→ Running with Vercel Production env (vercel env run)");
+  runCommand("npx", ["vercel", "env", "run", "-e", "production", "--", ...cmd], process.env, {
+    cwd: root,
+  });
 }
 
 switch (mode) {

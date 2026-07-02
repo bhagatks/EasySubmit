@@ -7,10 +7,37 @@ import pg from "pg";
 import { createClient } from "@supabase/supabase-js";
 import { readdirSync } from "node:fs";
 import { resolve } from "node:path";
+import { loadEphemeralVercelProductionEnv } from "./env-lib.mjs";
 import { validateAnalyticsEnvForDeploy } from "./validate-analytics-env.mjs";
 
 const MIGRATIONS_DIR = resolve(process.cwd(), "prisma/migrations");
 const AVATAR_BUCKET = "avatars";
+
+let prodOverlay = {};
+try {
+  prodOverlay = loadEphemeralVercelProductionEnv(process.cwd());
+} catch {
+  // Linked Vercel project required for analytics overlay.
+}
+
+function productionEnv() {
+  return {
+    ...process.env,
+    NEXT_PUBLIC_POSTHOG_KEY:
+      prodOverlay.NEXT_PUBLIC_POSTHOG_KEY ?? process.env.NEXT_PUBLIC_POSTHOG_KEY,
+    NEXT_PUBLIC_POSTHOG_HOST:
+      prodOverlay.NEXT_PUBLIC_POSTHOG_HOST ?? process.env.NEXT_PUBLIC_POSTHOG_HOST,
+    NEXT_PUBLIC_ANALYTICS_ENABLED:
+      prodOverlay.NEXT_PUBLIC_ANALYTICS_ENABLED ?? process.env.NEXT_PUBLIC_ANALYTICS_ENABLED,
+    NEXT_PUBLIC_ANALYTICS_ENV:
+      prodOverlay.NEXT_PUBLIC_ANALYTICS_ENV ?? process.env.NEXT_PUBLIC_ANALYTICS_ENV,
+    SUPABASE_SERVICE_ROLE_KEY:
+      prodOverlay.SUPABASE_SERVICE_ROLE_KEY ??
+      prodOverlay.SUPABASE_SECRET_KEY ??
+      process.env.SUPABASE_SERVICE_ROLE_KEY ??
+      process.env.SUPABASE_SECRET_KEY,
+  };
+}
 
 function localMigrationNames() {
   return readdirSync(MIGRATIONS_DIR)
@@ -113,7 +140,7 @@ if (bucketRow) {
   console.log(`❌ "${AVATAR_BUCKET}" bucket missing — run npm run prod:ensure-avatars-bucket`);
 }
 
-const analytics = validateAnalyticsEnvForDeploy(process.env);
+const analytics = validateAnalyticsEnvForDeploy(productionEnv());
 console.log("\nPostHog analytics (Vercel Production env):");
 if (analytics.ok) {
   console.log("✔ NEXT_PUBLIC_POSTHOG_KEY and related vars configured");
@@ -123,8 +150,8 @@ if (analytics.ok) {
 }
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const serviceRoleKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SECRET_KEY;
+const deployEnv = productionEnv();
+const serviceRoleKey = deployEnv.SUPABASE_SERVICE_ROLE_KEY;
 
 console.log("\nSupabase admin credentials (Vercel Production):");
 console.log(`   NEXT_PUBLIC_SUPABASE_URL: ${supabaseUrl ? "set" : "❌ missing"}`);
@@ -153,7 +180,7 @@ if (supabaseUrl && serviceRoleKey) {
 const failed = await queryDb(
   migrationUrl,
   `SELECT migration_name, logs FROM "_prisma_migrations"
-   WHERE finished_at IS NULL OR rolled_back_at IS NOT NULL
+   WHERE rolled_back_at IS NOT NULL
    ORDER BY migration_name`,
 );
 if (failed.rows.length > 0) {

@@ -308,8 +308,9 @@ export const authOptions: NextAuthOptions = {
         session.user.lastName = (token.lastName as string | null | undefined) ?? null;
         session.user.name =
           (token.name as string | null | undefined) ?? session.user.name ?? null;
-        session.user.image =
-          (token.image as string | null | undefined) ?? session.user.image ?? null;
+        session.user.image = Object.hasOwn(token, "image")
+          ? ((token.image as string | null | undefined) ?? null)
+          : (session.user.image ?? null);
       }
 
       if (token.id) {

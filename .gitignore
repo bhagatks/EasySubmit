@@ -32,3 +32,4 @@ npm-debug.log*
 .vercel
 coverage
 coverage-tmp/
+.env*

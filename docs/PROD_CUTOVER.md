@@ -32,7 +32,7 @@ Prod Supabase project: **`yofgnflcqajqsepbfdkc`** (see `.env.vercel.example`).
 
 | Step | Status | Notes |
 |------|--------|-------|
-| Connect GitHub repo | Deferred | `bhagatks/EasySubmit` |
+| Connect GitHub repo | **Done** | `bhagatks/EasySubmit` — auto-deploy on `main` |
 | Production domain known | **Done** | `https://www.easysubmit.ai` |
 | `npm run build` passes | Done | Fix regressions before deploy |
 | `npm test` passes | Required | `run easy prod` runs tests first |
@@ -78,10 +78,10 @@ Local Google OAuth was recreated (June 2026) for `http://localhost:3000` only. *
 
 | Step | Status | Notes |
 |------|--------|-------|
-| Prod redirect URI in Google Cloud | **Todo** | `https://<prod-domain>/api/auth/callback/google` |
-| Prod JavaScript origin | **Todo** | `https://<prod-domain>` |
-| Prod Web client ID + secret in Vercel | **Todo** | Same client can list both local + prod URLs, or use a dedicated prod client |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` in Vercel | **Todo** | Must match prod client — **not** the localhost-only dev credentials |
+| Prod redirect URI in Google Cloud | **Done** | `https://www.easysubmit.ai/api/auth/callback/google` |
+| Prod JavaScript origin | **Done** | `https://www.easysubmit.ai` |
+| Prod Web client ID + secret in Vercel | **Done** | Prod smoke test Jul 2026 |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` in Vercel | **Done** | Must match prod client — **not** the localhost-only dev credentials |
 | OAuth consent screen | Verify | Publish or add prod test users if still in Testing mode |
 
 Full walkthrough: [`oauth-setup.md`](./oauth-setup.md).
@@ -90,8 +90,8 @@ Full walkthrough: [`oauth-setup.md`](./oauth-setup.md).
 
 | Step | Status | Notes |
 |------|--------|-------|
-| Prod redirect URI | Verify | `https://<prod-domain>/api/auth/callback/linkedin` |
-| Vercel `LINKEDIN_*` vars | Deferred | Previously marked registered — re-verify against live domain |
+| Prod redirect URI | **Done** | `https://www.easysubmit.ai/api/auth/callback/linkedin` |
+| Vercel `LINKEDIN_*` vars | **Done** | Prod smoke test Jul 2026 |
 
 ---
 
@@ -99,7 +99,7 @@ Full walkthrough: [`oauth-setup.md`](./oauth-setup.md).
 
 | Step | Status | Notes |
 |------|--------|-------|
-| Storage bucket `avatars` (public read) | Needed | See `lib/profile/avatar-storage.ts` |
+| Storage bucket `avatars` (public read) | **Done** | Bucket exists on prod (`public=true`) |
 | Storage bucket `resumes` | **Cancelled** | PDFs on-demand only — see `APPLICATION_PROFILE.md` |
 
 ---
@@ -123,11 +123,11 @@ If migrate fails on prod, stop and follow [`MIGRATION_RECOVERY.md`](./MIGRATION_
 
 ## 7. Post-deploy smoke test
 
-- [ ] `/login` — **Google** OAuth completes → `/onboarding` (or `/dashboard` if onboarding done)
-- [ ] `/login` — **LinkedIn** OAuth completes
-- [ ] `/onboarding` — wizard / workbench loads
-- [ ] Resume upload → dashboard path works
-- [ ] Unauthenticated `/dashboard` → `/login`
+- [x] `/login` — **Google** OAuth completes → `/onboarding` (or `/dashboard` if onboarding done)
+- [x] `/login` — **LinkedIn** OAuth completes
+- [x] `/onboarding` — wizard / workbench loads
+- [x] Resume upload → dashboard path works
+- [x] Unauthenticated `/dashboard` → `/login`
 - [ ] Ignition / BYOK validate + save (confirms vault migration)
 - [ ] Avatar upload on prod (if `avatars` bucket + service role configured)
 - [ ] PostHog Live events — `login_completed` after prod OAuth (project `488042`)
@@ -144,30 +144,30 @@ Full spec: [`analytics-option-a.md`](./analytics-option-a.md). Code is shipped; 
 | Step | Status | Notes |
 |------|--------|-------|
 | Prod project exists | Done | ID `488042`, US Cloud |
-| Autocapture | **Todo** | **On** for web (`NEXT_PUBLIC_POSTHOG_AUTOCAPTURE=true`); extension build keeps autocapture off |
-| Session replay | **Todo** | **On**, sample ~10–20% |
-| Error tracking | **Todo** | **On** |
-| Property blocklist | **Todo** | `apiKey`, `password`, `resumeText`, `coverLetter`, `jobDescription`, `token`, … |
-| Replay masking | **Todo** | Mask all inputs |
+| Autocapture | **Script** | `npm run analytics:closeout` — or set `NEXT_PUBLIC_POSTHOG_AUTOCAPTURE=true` in Vercel |
+| Session replay | **Script** | Prod 15% sample via `analytics:configure` |
+| Error tracking | **Script** | `autocapture_exceptions_opt_in` via `analytics:configure` |
+| Property blocklist | **Done** | Client: `sanitize.ts`; server script sets `data_attributes` blocklist |
+| Replay masking | **Script** | `maskAllInputs` via `analytics:configure` |
 
 ### Vercel Production env
 
 | Step | Status | Notes |
 |------|--------|-------|
 | `NEXT_PUBLIC_POSTHOG_KEY` | **Done** | Prod project `488042` — set via `npm run prod:repair-analytics` or Vercel dashboard |
-| `NEXT_PUBLIC_POSTHOG_HOST` | **Todo** | `https://us.i.posthog.com` |
-| `NEXT_PUBLIC_ANALYTICS_ENABLED` | **Todo** | `true` |
-| `NEXT_PUBLIC_ANALYTICS_ENV` | **Todo** | `prod` |
-| `NEXT_PUBLIC_POSTHOG_AUTOCAPTURE` | **Todo** | `true` (web dashboard only) |
-| `LOG_LEVEL` | **Todo** | `info` |
+| `NEXT_PUBLIC_POSTHOG_HOST` | **Done** | `https://us.i.posthog.com` |
+| `NEXT_PUBLIC_ANALYTICS_ENABLED` | **Done** | `true` |
+| `NEXT_PUBLIC_ANALYTICS_ENV` | **Done** | `prod` |
+| `NEXT_PUBLIC_POSTHOG_AUTOCAPTURE` | **Done** | `true` (web dashboard only) |
+| `LOG_LEVEL` | **Done** | `info` |
 
 ### After deploy
 
 | Step | Status | Notes |
 |------|--------|-------|
-| Smoke: Live events on prod login | **Todo** | Filter `environment = prod` |
-| Dashboards | Optional | `POSTHOG_PERSONAL_API_KEY=phx_… npm run analytics:setup` |
-| Chrome extension prod build | **Todo** | Rebuild with prod `NEXT_PUBLIC_*` before CWS publish |
+| Smoke: Live events on prod login | **Done** | `$pageview` + OAuth smoke verified Jul 2026 |
+| Dashboards | **Script** | `npm run analytics:closeout` (needs `POSTHOG_PERSONAL_API_KEY`) |
+| Chrome extension prod build | **Done** | Extension CI success on latest `main` push |
 | Privacy policy copy | Deferred | PostHog/replay disclosure — [`ACTION_ITEMS.md`](./ACTION_ITEMS.md) Phase C |
 | EU cookie consent | Deferred | Evaluate if EU users — [`ACTION_ITEMS.md`](./ACTION_ITEMS.md) Phase C |
 

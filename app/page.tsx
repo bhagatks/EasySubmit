@@ -14,6 +14,7 @@ import {
   Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BrandWordmark } from "@/components/ui/brand-wordmark";
 import { LogoIcon } from "@/components/ui/logo";
 import { Navbar } from "@/components/Navbar";
 import { PricingPlansSection } from "@/components/pricing/PricingPlansSection";
@@ -25,12 +26,15 @@ import {
   PRICING_PAGE_COPY,
 } from "@/lib/pricing/plan-display";
 
+const HOME_PAGE_PURPOSE =
+  `${BRAND.full} is a job application platform that helps you tailor resumes to each job posting, verify ATS compatibility, track applications, and apply faster with our Chrome extension. Sign in with Google to create your account and save your resume profiles securely.`;
+
 export const metadata = {
   title: `${BRAND.full} — AI Resume Tailoring that beats every ATS`,
-  description: PRICING_PAGE_COPY.metaDescription,
+  description: HOME_PAGE_PURPOSE,
   openGraph: {
     title: `${BRAND.full} — Beat every ATS, free with your own AI key`,
-    description: PRICING_PAGE_COPY.metaDescription,
+    description: HOME_PAGE_PURPOSE,
   },
 };
 
@@ -53,12 +57,21 @@ function Hero({ storeUrl }: { storeUrl: string }) {
 
       <div className="relative mx-auto flex min-h-[calc(100dvh-4rem)] max-w-7xl flex-col justify-center px-6 pb-10 pt-12 md:pb-12 md:pt-16">
         <div className="mx-auto max-w-3xl text-center">
-          <h1 className="font-display text-5xl font-semibold leading-[1.05] tracking-tight md:text-7xl">
+          <p className="text-sm font-medium uppercase tracking-wide text-mint">
+            Job application platform
+          </p>
+          <h1 className="mt-3 font-display text-5xl font-semibold leading-[1.05] tracking-tight md:text-7xl">
+            <BrandWordmark className="text-5xl md:text-7xl" />
+          </h1>
+          <p className="mt-4 font-display text-3xl font-semibold leading-tight tracking-tight md:text-4xl">
             Land interviews.
             <br />
             <span className="text-gradient">Beat every ATS.</span>
-          </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground md:text-xl">
+          </p>
+          <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-foreground/90 md:text-lg">
+            {HOME_PAGE_PURPOSE}
+          </p>
+          <p className="mx-auto mt-4 max-w-2xl text-sm text-muted-foreground md:text-base">
             {PRICING_PAGE_COPY.subhead}
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">

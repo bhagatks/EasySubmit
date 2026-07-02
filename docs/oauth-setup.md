@@ -51,6 +51,15 @@ Use this when credentials were deleted, rotated, or the Cloud project was miscon
 5. While status is **Testing**, add your Google account under **Test users**
 6. Save
 
+**Brand verification (logo + app name on Google sign-in)**
+
+Google will not show your logo or app name until brand verification is approved. The homepage at `https://www.easysubmit.ai` must:
+
+- Display the OAuth app name **`EasySubmit.ai`** prominently (hero `<h1>` on `app/page.tsx`)
+- Include a plain-language paragraph explaining what the app does and why users sign in with Google
+
+After deploying homepage updates, use **Verification Center → I have fixed the issues → Request re-verification**.
+
 ### 3. Create OAuth client (Web application)
 
 1. **APIs & Services → Credentials → Create credentials → OAuth client ID**

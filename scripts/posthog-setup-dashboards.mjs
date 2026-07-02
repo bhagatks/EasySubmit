@@ -70,7 +70,23 @@ async function post(path, body) {
   return res.json();
 }
 
+async function get(path) {
+  const res = await fetch(`${apiHost}${path}`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`${path} ${res.status}: ${text}`);
+  }
+  return res.json();
+}
+
 async function ensureDashboard(projectId, name) {
+  const list = await get(`/api/projects/${projectId}/dashboards/`);
+  const existing = list.results?.find((dashboard) => dashboard.name === name);
+  if (existing) {
+    return existing;
+  }
   return post(`/api/projects/${projectId}/dashboards/`, {
     name,
     description: "EasySubmit Option A analytics (auto-created)",
@@ -78,14 +94,25 @@ async function ensureDashboard(projectId, name) {
 }
 
 async function ensureFunnelInsight(projectId, dashboardId, funnel) {
+  const list = await get(`/api/projects/${projectId}/insights/?search=${encodeURIComponent(funnel.name)}`);
+  const existing = list.results?.find((insight) => insight.name === funnel.name);
+  if (existing) {
+    return existing;
+  }
   return post(`/api/projects/${projectId}/insights/`, {
     name: funnel.name,
     dashboards: [dashboardId],
-    filters: {
-      insight: "FUNNELS",
-      events: funnel.events.map((event) => ({ id: event, name: event, type: "events" })),
-      funnel_viz_type: "steps",
-      date_from: "-30d",
+    query: {
+      kind: "InsightVizNode",
+      source: {
+        kind: "FunnelsQuery",
+        series: funnel.events.map((event) => ({
+          kind: "EventsNode",
+          event,
+          name: event,
+        })),
+        dateRange: { date_from: "-30d" },
+      },
     },
   });
 }
@@ -100,6 +127,16 @@ async function main() {
 
   for (const project of projects) {
     console.log(`\n→ Project ${project.label} (${project.id})`);
+    try {
+      await get(`/api/projects/${project.id}/`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes(" 404:")) {
+        console.warn(`  skipped — project not visible to this API key (404)`);
+        continue;
+      }
+      throw error;
+    }
     const dashboard = await ensureDashboard(project.id, `EasySubmit — ${project.label}`);
     const dashboardId = dashboard.id;
     console.log(`  Dashboard: ${dashboardId}`);
