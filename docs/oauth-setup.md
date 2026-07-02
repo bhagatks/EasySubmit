@@ -55,25 +55,27 @@ Use this when credentials were deleted, rotated, or the Cloud project was miscon
 
 Google will not show your logo or app name until brand verification is approved.
 
-**Recommended:** set **Application home page** to `https://www.easysubmit.ai/about` — a plain verification page with app name, purpose, Google data use, and legal links.
+**Critical:** Google rejects homepages that **redirect** (e.g. `https://easysubmit.ai` → `www`). Every Console URL must use **`https://www.easysubmit.ai`** — no apex, no redirects.
+
+**Recommended Application home page:** `https://www.easysubmit.ai/oauth-brand.html` — static HTML with zero JavaScript, plain `EasySubmit.ai` heading, purpose, Google data use, and legal links. Served from `public/oauth-brand.html`.
 
 **URL literals must match the OAuth consent screen exactly** (Google compares `href` values, not redirect targets):
 
 | Console field | Use exactly |
 |---|---|
-| Application home page | `https://www.easysubmit.ai/about` |
-| Privacy policy | `https://easysubmit.ai/privacy` |
-| Terms of service | `https://easysubmit.ai/terms` |
+| Application home page | `https://www.easysubmit.ai/oauth-brand.html` |
+| Privacy policy | `https://www.easysubmit.ai/privacy` |
+| Terms of service | `https://www.easysubmit.ai/terms` |
 
-Constants: `OAUTH_BRANDING_URLS` in `src/shared/brand.ts` — homepage links use these absolute URLs.
+Constants: `OAUTH_BRANDING_URLS` in `src/shared/brand.ts` — site links use these absolute www URLs.
 
-The homepage must also:
+The verification page must:
 
-- Display **`EasySubmit.ai`** as plain text in the `<h1>` and navbar (exact OAuth app name)
-- Include a **"What is EasySubmit.ai?"** section explaining purpose and Google sign-in data use
-- Link **Privacy Policy** and **Terms of Service** with the absolute URLs above
+- Display **`EasySubmit.ai`** as plain text in the `<h1>` (exact OAuth app name)
+- Explain application purpose and how Google sign-in data is used
+- Link **Privacy Policy** and **Terms of Service** with the absolute www URLs above
 
-After deploying, use **Verification Center → I have fixed the issues → Request re-verification**.
+After deploying, update **all three** Console URLs if any still use apex (`easysubmit.ai` without `www`), then use **Verification Center → I have fixed the issues → Request re-verification**.
 
 ### 3. Create OAuth client (Web application)
 

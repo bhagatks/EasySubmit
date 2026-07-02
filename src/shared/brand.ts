@@ -30,12 +30,14 @@ export const BRAND = {
   },
 } as const;
 
-/** Must match Google Cloud OAuth consent screen URLs exactly (href literals for verification crawlers). */
+/** Must match Google Cloud OAuth consent screen URLs exactly (href literals for verification crawlers). All www — apex redirects and fails Google's static-URL check. */
 export const OAUTH_BRANDING_URLS = {
   home: "https://www.easysubmit.ai",
+  /** Static HTML — no JS; use as Application home page in Google Cloud Console. */
+  verification: "https://www.easysubmit.ai/oauth-brand.html",
   about: "https://www.easysubmit.ai/about",
-  privacy: "https://easysubmit.ai/privacy",
-  terms: "https://easysubmit.ai/terms",
+  privacy: "https://www.easysubmit.ai/privacy",
+  terms: "https://www.easysubmit.ai/terms",
 } as const;
 
 export type BrandClassNames = {
