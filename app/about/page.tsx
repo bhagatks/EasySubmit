@@ -8,6 +8,9 @@ const ABOUT_PURPOSE =
 const ABOUT_GOOGLE_DATA =
   `When you sign in with Google, ${BRAND.full} requests your email address, name, and profile photo to create your account and authenticate you. ${BRAND.full} does not read Gmail, Google Drive, Calendar, Contacts, or other Google user data.`;
 
+/** Full HTML in initial response (no CSR bailout) for OAuth brand verification crawlers. */
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: BRAND.full,
   description: `${ABOUT_PURPOSE} ${ABOUT_GOOGLE_DATA}`,
@@ -20,7 +23,7 @@ export const metadata: Metadata = {
   },
 };
 
-export default function AboutPage() {
+export default async function AboutPage() {
   return (
     <div className="min-h-screen bg-background font-sans text-foreground">
       <main className="mx-auto max-w-2xl px-6 py-16">

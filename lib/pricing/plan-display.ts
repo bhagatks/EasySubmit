@@ -1,4 +1,5 @@
 import type { SubscriptionConfig } from "@/src/lib/services/subscription-config";
+import { BRAND } from "@/lib/brand";
 
 export const FREE_PLAN_VISIBLE_FEATURES = [
   "Connect your own AI key",
@@ -30,7 +31,7 @@ export const FREE_PLAN_ALL_FEATURES = [
 ] as const;
 
 export const PAID_PLAN_VISIBLE_FEATURES = [
-  "EasySubmit AI included — no API key needed",
+  `${BRAND.full} included — no API key needed`,
   "Tailor every resume to the job",
   "ATS score, keywords, and bullet quality",
   "Chrome extension — capture jobs and preview on site",
@@ -38,7 +39,7 @@ export const PAID_PLAN_VISIBLE_FEATURES = [
 ] as const;
 
 export const PAID_PLAN_ALL_FEATURES = [
-  "EasySubmit AI included — no API key needed",
+  `${BRAND.full} included — no API key needed`,
   "Tailor every resume to the job",
   "ATS score, keywords, and bullet quality",
   "Preview what ATS systems extract from your resume",
@@ -62,14 +63,14 @@ export const PAID_PLAN_ALL_FEATURES = [
 /** Shared marketing copy — keep `/`, `/pricing`, and `/select-plan` in sync. */
 export const PRICING_PAGE_COPY = {
   metaDescription:
-    "Free with your own AI key. Paid plans with EasySubmit AI — coming soon.",
+    `Free with your own AI key. Paid plans with ${BRAND.full} — coming soon.`,
   eyebrow: "Simple pricing",
   title: "Free with your key.",
   titleAccent: "Pay for ours.",
   subhead:
-    "Free plan uses your own API key with a daily resume limit. Paid plans with EasySubmit AI are coming soon.",
+    `Free plan uses your own API key with a daily resume limit. Paid plans with ${BRAND.full} are coming soon.`,
   footerDailyLimit: "Daily limits reset at midnight UTC on the free plan.",
-  footerPaidComingSoon: "Paid subscriptions with EasySubmit AI — coming soon.",
+  footerPaidComingSoon: `Paid subscriptions with ${BRAND.full} — coming soon.`,
 } as const;
 
 export const PRICING_FAQ = [
@@ -123,7 +124,7 @@ export function buildPricingDisplayPlans(sub: SubscriptionConfig): PricingDispla
   const yearlyMonthlyEquiv = yearly.price / 12;
 
   const paidTier = {
-    label: "EasySubmit AI",
+    label: BRAND.full,
     detail: "No API key required",
   };
 
@@ -147,7 +148,7 @@ export function buildPricingDisplayPlans(sub: SubscriptionConfig): PricingDispla
       name: "Weekly",
       price: formatSubscriptionPrice(weekly.price),
       period: "/ week",
-      description: "EasySubmit AI for active job seekers.",
+      description: `${BRAND.full} for active job seekers.`,
       comingSoon: !live,
       tiers: [paidTier],
       ...paidFeatures,

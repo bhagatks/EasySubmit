@@ -289,7 +289,7 @@ function ByokBand() {
               "Free forever with your own key — no credit card",
               "Choose the model you trust for each enhance",
               "Keys are vaulted securely — never stored in plain text",
-              "Prefer hands-off? Paid plans with EasySubmit AI are coming soon",
+              `Prefer hands-off? Paid plans with ${BRAND.full} are coming soon`,
             ].map((p) => (
               <li key={p} className="flex items-start gap-3">
                 <Check className="mt-0.5 h-4 w-4 shrink-0 text-mint" />

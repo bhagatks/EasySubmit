@@ -55,7 +55,7 @@ describe("buildPricingDisplayPlans", () => {
     expect(yearly?.allFeatures).not.toContain("Connect your own AI key");
     expect(yearly?.savingsNote).toMatch(/saves \$35\.89 vs monthly/);
     expect(yearly?.tiers[0]).toEqual({
-      label: "EasySubmit AI",
+      label: "EasySubmit.ai",
       detail: "No API key required",
     });
   });

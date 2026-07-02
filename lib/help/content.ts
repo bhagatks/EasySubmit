@@ -548,7 +548,7 @@ const HELP_ARTICLES: HelpArticle[] = [
       ),
       p(
         inlineText(
-          "Paid plans with EasySubmit AI (no key required) are coming soon — see pricing for updates.",
+          "Paid plans with EasySubmit.ai (no key required) are coming soon — see pricing for updates.",
         ),
       ),
     ],
