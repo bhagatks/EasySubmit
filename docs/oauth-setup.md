@@ -55,8 +55,9 @@ Use this when credentials were deleted, rotated, or the Cloud project was miscon
 
 Google will not show your logo or app name until brand verification is approved. The homepage at `https://www.easysubmit.ai` must:
 
-- Display the OAuth app name **`EasySubmit.ai`** prominently (hero `<h1>` on `app/page.tsx`)
-- Include a plain-language paragraph explaining what the app does and why users sign in with Google
+- Display the OAuth app name **`EasySubmit.ai`** prominently as plain text in the hero `<h1>` on `app/page.tsx` (must match the OAuth consent screen name exactly)
+- Include a **"What is EasySubmit.ai?"** section explaining app purpose, features, and why Google sign-in is used
+- Link **Privacy Policy** and **Terms of Service** on the homepage (hero + footer); URLs must match OAuth consent screen config
 
 After deploying homepage updates, use **Verification Center → I have fixed the issues → Request re-verification**.
 

@@ -14,7 +14,6 @@ import {
   Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { BrandWordmark } from "@/components/ui/brand-wordmark";
 import { LogoIcon } from "@/components/ui/logo";
 import { Navbar } from "@/components/Navbar";
 import { PricingPlansSection } from "@/components/pricing/PricingPlansSection";
@@ -27,14 +26,19 @@ import {
 } from "@/lib/pricing/plan-display";
 
 const HOME_PAGE_PURPOSE =
-  `${BRAND.full} is a job application platform that helps you tailor resumes to each job posting, verify ATS compatibility, track applications, and apply faster with our Chrome extension. Sign in with Google to create your account and save your resume profiles securely.`;
+  `${BRAND.full} is a job application platform that helps you tailor resumes to each job posting, verify ATS compatibility, track applications, and apply faster with our Chrome extension.`;
+
+const HOME_PAGE_GOOGLE_SIGNIN =
+  `When you sign in with Google, ${BRAND.full} uses your email address, name, and profile photo only to create your account and keep you signed in. We do not access your Gmail, Google Drive, Calendar, or other Google data.`;
 
 export const metadata = {
   title: `${BRAND.full} — AI Resume Tailoring that beats every ATS`,
-  description: HOME_PAGE_PURPOSE,
+  description: `${HOME_PAGE_PURPOSE} ${HOME_PAGE_GOOGLE_SIGNIN}`,
+  applicationName: BRAND.full,
   openGraph: {
     title: `${BRAND.full} — Beat every ATS, free with your own AI key`,
     description: HOME_PAGE_PURPOSE,
+    siteName: BRAND.full,
   },
 };
 
@@ -57,20 +61,51 @@ function Hero({ storeUrl }: { storeUrl: string }) {
 
       <div className="relative mx-auto flex min-h-[calc(100dvh-4rem)] max-w-7xl flex-col justify-center px-6 pb-10 pt-12 md:pb-12 md:pt-16">
         <div className="mx-auto max-w-3xl text-center">
-          <p className="text-sm font-medium uppercase tracking-wide text-mint">
+          <h1 className="font-display text-5xl font-semibold leading-[1.05] tracking-tight text-white md:text-7xl">
+            {BRAND.full}
+          </h1>
+          <p className="mt-3 text-sm font-medium uppercase tracking-wide text-mint">
             Job application platform
           </p>
-          <h1 className="mt-3 font-display text-5xl font-semibold leading-[1.05] tracking-tight md:text-7xl">
-            <BrandWordmark className="text-5xl md:text-7xl" />
-          </h1>
           <p className="mt-4 font-display text-3xl font-semibold leading-tight tracking-tight md:text-4xl">
             Land interviews.
             <br />
             <span className="text-gradient">Beat every ATS.</span>
           </p>
-          <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-foreground/90 md:text-lg">
-            {HOME_PAGE_PURPOSE}
-          </p>
+          <div className="mx-auto mt-8 max-w-2xl rounded-2xl border border-border/80 bg-surface/40 p-6 text-left">
+            <h2 className="font-display text-lg font-semibold text-foreground">
+              What is {BRAND.full}?
+            </h2>
+            <p className="mt-3 text-base leading-relaxed text-foreground/90">
+              {HOME_PAGE_PURPOSE}
+            </p>
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+              {HOME_PAGE_GOOGLE_SIGNIN}
+            </p>
+            <ul className="mt-4 space-y-2 text-sm text-foreground/90">
+              <li className="flex gap-2">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-mint" aria-hidden="true" />
+                Tailor resumes to each job and export ATS-safe PDF or Word files
+              </li>
+              <li className="flex gap-2">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-mint" aria-hidden="true" />
+                Track applications with the dashboard and Chrome extension
+              </li>
+              <li className="flex gap-2">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-mint" aria-hidden="true" />
+                Score keyword gaps, bullet quality, and ATS parse integrity per role
+              </li>
+            </ul>
+            <p className="mt-4 text-sm text-muted-foreground">
+              <Link href="/privacy" className="text-mint underline-offset-4 hover:underline">
+                Privacy Policy
+              </Link>
+              {" · "}
+              <Link href="/terms" className="text-mint underline-offset-4 hover:underline">
+                Terms of Service
+              </Link>
+            </p>
+          </div>
           <p className="mx-auto mt-4 max-w-2xl text-sm text-muted-foreground md:text-base">
             {PRICING_PAGE_COPY.subhead}
           </p>
