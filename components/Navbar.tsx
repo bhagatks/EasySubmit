@@ -5,7 +5,6 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Download, ExternalLink, LayoutDashboard } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { BrandWordmark } from "@/components/ui/brand-wordmark";
 import { Button } from "@/components/ui/button";
 import { LogoIcon } from "@/components/ui/logo";
 import { NavbarProfileMenu } from "@/components/nav/NavbarProfileMenu";
@@ -13,7 +12,7 @@ import {
   dashboardHeaderMintPillClassName,
   dashboardHeaderMintPillStyle,
 } from "@/lib/dashboard/dashboard-header-chrome";
-import { EXTENSION_STORE_URL } from "@/lib/brand";
+import { BRAND, EXTENSION_STORE_URL } from "@/lib/brand";
 
 type NavbarProps = {
   storeUrl?: string;
@@ -34,8 +33,10 @@ export function Navbar({ storeUrl = EXTENSION_STORE_URL }: NavbarProps) {
     <header className="sticky top-0 z-50 border-b border-white/5 bg-background/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
         <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-90">
-          <LogoIcon className="h-8 w-8 shrink-0" />
-          <BrandWordmark className="text-lg" />
+          <LogoIcon className="h-8 w-8 shrink-0" aria-hidden="true" />
+          <span className="font-display text-lg font-semibold tracking-tight text-white">
+            {BRAND.full}
+          </span>
         </Link>
 
         <nav className="hidden items-center gap-8 text-sm text-muted-foreground md:flex">

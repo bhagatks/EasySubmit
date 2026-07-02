@@ -53,13 +53,27 @@ Use this when credentials were deleted, rotated, or the Cloud project was miscon
 
 **Brand verification (logo + app name on Google sign-in)**
 
-Google will not show your logo or app name until brand verification is approved. The homepage at `https://www.easysubmit.ai` must:
+Google will not show your logo or app name until brand verification is approved.
 
-- Display the OAuth app name **`EasySubmit.ai`** prominently as plain text in the hero `<h1>` on `app/page.tsx` (must match the OAuth consent screen name exactly)
-- Include a **"What is EasySubmit.ai?"** section explaining app purpose, features, and why Google sign-in is used
-- Link **Privacy Policy** and **Terms of Service** on the homepage (hero + footer); URLs must match OAuth consent screen config
+**Recommended:** set **Application home page** to `https://www.easysubmit.ai/about` — a plain verification page with app name, purpose, Google data use, and legal links.
 
-After deploying homepage updates, use **Verification Center → I have fixed the issues → Request re-verification**.
+**URL literals must match the OAuth consent screen exactly** (Google compares `href` values, not redirect targets):
+
+| Console field | Use exactly |
+|---|---|
+| Application home page | `https://www.easysubmit.ai/about` |
+| Privacy policy | `https://easysubmit.ai/privacy` |
+| Terms of service | `https://easysubmit.ai/terms` |
+
+Constants: `OAUTH_BRANDING_URLS` in `src/shared/brand.ts` — homepage links use these absolute URLs.
+
+The homepage must also:
+
+- Display **`EasySubmit.ai`** as plain text in the `<h1>` and navbar (exact OAuth app name)
+- Include a **"What is EasySubmit.ai?"** section explaining purpose and Google sign-in data use
+- Link **Privacy Policy** and **Terms of Service** with the absolute URLs above
+
+After deploying, use **Verification Center → I have fixed the issues → Request re-verification**.
 
 ### 3. Create OAuth client (Web application)
 

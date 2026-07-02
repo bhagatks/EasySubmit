@@ -30,6 +30,14 @@ export const BRAND = {
   },
 } as const;
 
+/** Must match Google Cloud OAuth consent screen URLs exactly (href literals for verification crawlers). */
+export const OAUTH_BRANDING_URLS = {
+  home: "https://www.easysubmit.ai",
+  about: "https://www.easysubmit.ai/about",
+  privacy: "https://easysubmit.ai/privacy",
+  terms: "https://easysubmit.ai/terms",
+} as const;
+
 export type BrandClassNames = {
   wrap?: string;
   name?: string;

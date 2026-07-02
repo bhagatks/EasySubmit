@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { LogoIcon } from "@/components/ui/logo";
 import { Navbar } from "@/components/Navbar";
 import { PricingPlansSection } from "@/components/pricing/PricingPlansSection";
-import { BRAND, brandCopyright } from "@/lib/brand";
+import { BRAND, OAUTH_BRANDING_URLS, brandCopyright } from "@/lib/brand";
 import { getExtensionStoreUrl } from "@/lib/extension/force-upgrade-gate";
 import {
 
@@ -32,13 +32,14 @@ const HOME_PAGE_GOOGLE_SIGNIN =
   `When you sign in with Google, ${BRAND.full} uses your email address, name, and profile photo only to create your account and keep you signed in. We do not access your Gmail, Google Drive, Calendar, or other Google data.`;
 
 export const metadata = {
-  title: `${BRAND.full} — AI Resume Tailoring that beats every ATS`,
+  title: BRAND.full,
   description: `${HOME_PAGE_PURPOSE} ${HOME_PAGE_GOOGLE_SIGNIN}`,
   applicationName: BRAND.full,
   openGraph: {
-    title: `${BRAND.full} — Beat every ATS, free with your own AI key`,
+    title: BRAND.full,
     description: HOME_PAGE_PURPOSE,
     siteName: BRAND.full,
+    url: OAUTH_BRANDING_URLS.home,
   },
 };
 
@@ -67,10 +68,8 @@ function Hero({ storeUrl }: { storeUrl: string }) {
           <p className="mt-3 text-sm font-medium uppercase tracking-wide text-mint">
             Job application platform
           </p>
-          <p className="mt-4 font-display text-3xl font-semibold leading-tight tracking-tight md:text-4xl">
-            Land interviews.
-            <br />
-            <span className="text-gradient">Beat every ATS.</span>
+          <p className="mt-4 font-display text-2xl font-semibold leading-tight tracking-tight text-muted-foreground md:text-3xl">
+            Land interviews. <span className="text-gradient">Beat every ATS.</span>
           </p>
           <div className="mx-auto mt-8 max-w-2xl rounded-2xl border border-border/80 bg-surface/40 p-6 text-left">
             <h2 className="font-display text-lg font-semibold text-foreground">
@@ -97,13 +96,19 @@ function Hero({ storeUrl }: { storeUrl: string }) {
               </li>
             </ul>
             <p className="mt-4 text-sm text-muted-foreground">
-              <Link href="/privacy" className="text-mint underline-offset-4 hover:underline">
+              <a
+                href={OAUTH_BRANDING_URLS.privacy}
+                className="text-mint underline-offset-4 hover:underline"
+              >
                 Privacy Policy
-              </Link>
+              </a>
               {" · "}
-              <Link href="/terms" className="text-mint underline-offset-4 hover:underline">
+              <a
+                href={OAUTH_BRANDING_URLS.terms}
+                className="text-mint underline-offset-4 hover:underline"
+              >
                 Terms of Service
-              </Link>
+              </a>
             </p>
           </div>
           <p className="mx-auto mt-4 max-w-2xl text-sm text-muted-foreground md:text-base">
@@ -371,8 +376,8 @@ function Footer() {
         </div>
         <div className="flex items-center gap-6">
           <Link href="/help" className="hover:text-foreground">Help</Link>
-          <Link href="/privacy" className="hover:text-foreground">Privacy</Link>
-          <Link href="/terms" className="hover:text-foreground">Terms</Link>
+          <a href={OAUTH_BRANDING_URLS.privacy} className="hover:text-foreground">Privacy</a>
+          <a href={OAUTH_BRANDING_URLS.terms} className="hover:text-foreground">Terms</a>
           <a href="#" className="inline-flex items-center gap-1.5 hover:text-foreground">
             <Code2 className="h-4 w-4" /> Open source
           </a>
