@@ -269,6 +269,8 @@ async function backfillFromDb(userId: string) {
     restore();
   }
 }
+
+async function reportPostHog() {
   console.log(`\n── PostHog dev project ${devProjectId} ──`);
   if (!apiKey) {
     console.log("SKIP read: POSTHOG_PERSONAL_API_KEY missing in .env.local");
