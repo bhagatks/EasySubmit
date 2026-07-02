@@ -5,7 +5,6 @@ import {
   Check,
   ChevronRight,
   FileText,
-  Code2,
   Key,
   Puzzle,
   ShieldCheck,
@@ -375,12 +374,10 @@ function Footer() {
           <span>{brandCopyright(new Date().getFullYear())}</span>
         </div>
         <div className="flex items-center gap-6">
+          <Link href="/about" className="hover:text-foreground">About</Link>
           <Link href="/help" className="hover:text-foreground">Help</Link>
           <a href={OAUTH_BRANDING_URLS.privacy} className="hover:text-foreground">Privacy</a>
           <a href={OAUTH_BRANDING_URLS.terms} className="hover:text-foreground">Terms</a>
-          <a href="#" className="inline-flex items-center gap-1.5 hover:text-foreground">
-            <Code2 className="h-4 w-4" /> Open source
-          </a>
         </div>
       </div>
     </footer>

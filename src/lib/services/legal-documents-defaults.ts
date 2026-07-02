@@ -54,7 +54,7 @@ export const LEGAL_DOCUMENTS_DEFAULTS: LegalDocumentsConfig = {
       {
         kind: "ul",
         items: [
-          "Your resume content (excluding contact details we intentionally exclude from AI requests) may be processed by EasySubmit AI or your own API key (BYOK).",
+          "Your resume content (excluding contact details we intentionally exclude from AI requests) may be processed by EasySubmit.ai or your own API key (BYOK).",
           "AI output is provided for informational and assistive purposes only — not as legal, career counseling, or employment advice.",
           {
             inlines: [
@@ -74,7 +74,7 @@ export const LEGAL_DOCUMENTS_DEFAULTS: LegalDocumentsConfig = {
           {
             kind: "text",
             value:
-              "Similar to platforms such as Teal and Rezi, we may use third-party AI providers (e.g. Google Gemini) when you use EasySubmit AI, or your chosen provider when you use BYOK.",
+              "Similar to platforms such as Teal and Rezi, we may use third-party AI providers (e.g. Google Gemini) when you use EasySubmit.ai's AI, or your chosen provider when you use BYOK.",
           },
         ],
       },
@@ -274,7 +274,7 @@ export const LEGAL_DOCUMENTS_DEFAULTS: LegalDocumentsConfig = {
         kind: "p",
         inlines: [
           { kind: "text", value: "When you use " },
-          { kind: "strong", value: "EasySubmit AI" },
+          { kind: "strong", value: "EasySubmit.ai" },
           {
             kind: "text",
             value:
@@ -309,7 +309,7 @@ export const LEGAL_DOCUMENTS_DEFAULTS: LegalDocumentsConfig = {
       {
         kind: "p",
         inlines: [
-          { kind: "text", value: "Google's Gemini API terms apply to EasySubmit AI usage: " },
+          { kind: "text", value: "Google's Gemini API terms apply to EasySubmit.ai usage: " },
           {
             kind: "href",
             href: "https://ai.google.dev/gemini-api/terms",

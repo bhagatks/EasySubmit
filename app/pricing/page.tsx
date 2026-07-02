@@ -29,6 +29,7 @@ export default async function PricingPage() {
             <span>{brandCopyright(new Date().getFullYear())}</span>
           </div>
           <div className="flex items-center gap-6">
+            <Link href="/about" className="hover:text-foreground">About</Link>
             <Link href="/privacy" className="hover:text-foreground">Privacy</Link>
             <Link href="/terms" className="hover:text-foreground">Terms</Link>
             <Link href="/" className="hover:text-foreground">Home</Link>
