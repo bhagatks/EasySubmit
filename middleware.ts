@@ -11,6 +11,7 @@ const PUBLIC_PATHS = [
   "/pricing",
   "/help",
   "/support",
+  "/about",
 ] as const;
 const PUBLIC_PREFIXES = ["/auth/"] as const;
 const ONBOARDING_PATH = "/onboarding";
