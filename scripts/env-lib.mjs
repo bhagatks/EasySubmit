@@ -56,10 +56,14 @@ export function prismaMigrateEnv(env) {
   return { ...env, DATABASE_URL: direct };
 }
 
-/** Merge env for migrate deploy: Vercel dashboard wins; locally .env.local wins. */
+/** Merge env for migrate deploy: production/shell wins over `.env.local`. */
 export function resolveMigrateEnv(baseEnv = process.env) {
   const { vars } = loadEnv(LOCAL_ENV_FILE);
-  const merged = baseEnv.VERCEL ? mergeEnv(vars, baseEnv) : mergeEnv(baseEnv, vars);
+  const remoteWins =
+    Boolean(baseEnv.VERCEL) ||
+    isProdDB(baseEnv.DATABASE_URL) ||
+    isProdDB(baseEnv.DIRECT_URL);
+  const merged = remoteWins ? mergeEnv(vars, baseEnv) : mergeEnv(baseEnv, vars);
   return prismaMigrateEnv(merged);
 }
 
