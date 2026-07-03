@@ -2,8 +2,18 @@ import type { FeatureSurface } from "@/lib/features/types";
 import type { EnhanceResumeProfileInput } from "@/lib/ai/enhance-resume-for-user";
 import { analyzeJobIntelligenceWithOnet } from "@/lib/job-tracker/ats/job-intelligence";
 import { analyzeKeywordGapFromIntelligence } from "@/lib/job-tracker/ats/keyword-gap";
+import {
+  detectPlatform,
+  getPlatformRules,
+  resolvePlatformStrategy,
+  type AtsPlatform,
+} from "@/lib/job-tracker/ats/platform-rules";
+import { buildPlatformStrategyInstructionBlock } from "@/lib/job-tracker/ats/platform-strategy-instructions";
 import { computeResumeReadiness } from "@/lib/job-tracker/ats/resume-readiness-score";
-import { fetchRoleVocabulary } from "@/lib/job-tracker/ats/onet-service";
+import {
+  fetchRoleVocabulary,
+  resolveOnetVocabularyPipelineOutcome,
+} from "@/lib/job-tracker/ats/onet-service";
 import type { ResumeEnhanceBrief } from "@/lib/job-tracker/enhance/enhance-brief";
 import { buildJdAtomList } from "@/lib/job-tracker/enhance/build-jd-atom-list";
 import { buildJdCoverageReport } from "@/lib/job-tracker/enhance/build-jd-coverage-report";
@@ -39,6 +49,8 @@ import {
   pipelineDebugStep,
   type PipelineDebugHookContext,
 } from "@/lib/extension/pipeline-debug-hooks";
+import { dataArtifact, externalApiArtifactsFromExchanges } from "@/lib/extension/pipeline-debug-sanitize";
+import type { ExternalApiDebugExchange } from "@/lib/extension/external-api-debug";
 
 export type BuildEnhanceBriefInput = {
   form: HubRefineryForm;
@@ -74,6 +86,7 @@ async function loadJdCaches(jobEntryId?: string): Promise<{
   jdHash: string | null;
   jdSkillsVocabulary: JdSkillsVocabulary | null;
   jdSkillsHash: string | null;
+  atsPlatform: AtsPlatform;
 }> {
   if (!jobEntryId) {
     return {
@@ -81,6 +94,7 @@ async function loadJdCaches(jobEntryId?: string): Promise<{
       jdHash: null,
       jdSkillsVocabulary: null,
       jdSkillsHash: null,
+      atsPlatform: "unknown",
     };
   }
 
@@ -91,6 +105,8 @@ async function loadJdCaches(jobEntryId?: string): Promise<{
       jdDescriptionHash: true,
       jdSkillsVocabulary: true,
       jdSkillsHash: true,
+      canonicalUrl: true,
+      platform: true,
     },
   });
 
@@ -99,6 +115,7 @@ async function loadJdCaches(jobEntryId?: string): Promise<{
     jdHash: entry?.jdDescriptionHash ?? null,
     jdSkillsVocabulary: (entry?.jdSkillsVocabulary as JdSkillsVocabulary | null) ?? null,
     jdSkillsHash: entry?.jdSkillsHash ?? null,
+    atsPlatform: detectPlatform(entry?.canonicalUrl ?? "", entry?.platform),
   };
 }
 
@@ -169,12 +186,61 @@ export async function buildEnhanceBrief(
   });
 
   const pages = inferResumePagesFromForm(input.form, input.targetRole);
-  const onet = await fetchRoleVocabulary(input.targetRole);
+  const onetApiDebug: ExternalApiDebugExchange[] = [];
 
+  let atsPlatform: AtsPlatform = "unknown";
+  let jdCaches: Awaited<ReturnType<typeof loadJdCaches>> | null = null;
+  if (input.jobEntryId) {
+    jdCaches = await loadJdCaches(input.jobEntryId);
+    atsPlatform = jdCaches.atsPlatform;
+  }
+  const platformRules = getPlatformRules(atsPlatform);
+  const atsStrategy = resolvePlatformStrategy(atsPlatform);
+  const strategyInstructions = buildPlatformStrategyInstructionBlock(atsStrategy);
+
+  logEnhanceDiag({
+    traceId: input.traceId,
+    designStep: "9",
+    track: "resume",
+    pipelineStep: ENHANCE_PIPELINE.PRE_BRIEF_START,
+    phase: "done",
+    level: "low",
+    event: "brief.platform",
+    scope: "server",
+    userId: input.userId,
+    params: {
+      atsPlatform,
+      atsStrategy,
+      platformLabel: platformRules.label,
+    },
+  });
+
+  const onet = await fetchRoleVocabulary(input.targetRole, {
+    apiDebug: debug ? onetApiDebug : undefined,
+  });
+
+  const onetArtifacts = externalApiArtifactsFromExchanges(onetApiDebug);
+  if (onet.source === "cache") {
+    onetArtifacts.push(
+      dataArtifact("Vocabulary source", { source: "cache", jobTitle: input.targetRole }, "flags"),
+    );
+  }
+  onetArtifacts.push(
+    dataArtifact("Vocabulary summary", {
+      matchedTitle: onet.matchedTitle,
+      onetCode: onet.onetCode,
+      source: onet.source,
+      skillsSample: onet.skills.slice(0, 20),
+      toolsSample: onet.tools.slice(0, 20),
+    }, "output"),
+  );
+
+  const onetOutcome = resolveOnetVocabularyPipelineOutcome(onet, onetApiDebug);
   pipelineDebugStep(debug, "pre_onet", {
-    status: "done",
-    detail: onet.matchedTitle ?? input.targetRole,
-    meta: { skills: onet.skills.length, tools: onet.tools.length },
+    status: onetOutcome.status,
+    detail: onetOutcome.detail,
+    meta: { skills: onet.skills.length, tools: onet.tools.length, source: onet.source },
+    artifacts: onetArtifacts,
   });
   pipelineDebugAdvance(debug, "pre_intelligence", "pre_onet");
 
@@ -229,6 +295,16 @@ export async function buildEnhanceBrief(
       weakBulletCount: weakBullets.length,
       structuralWarnings: jobIntelligence.structuralWarnings.length,
     },
+    artifacts: [
+      dataArtifact("Job intelligence", {
+        coveragePercent: jobIntelligence.coveragePercent,
+        structuralWarnings: jobIntelligence.structuralWarnings.slice(0, 12),
+        weakBulletsSample: weakBullets.slice(0, 5).map((b) => ({
+          issues: b.issues,
+          bulletPreview: b.bulletText.slice(0, 120),
+        })),
+      }, "output"),
+    ],
   });
 
   logEnhanceDiag({
@@ -252,7 +328,8 @@ export async function buildEnhanceBrief(
 
   if (hasJd) {
     pipelineDebugAdvance(debug, "pre_jd_skills", "pre_intelligence");
-    const caches = await loadJdCaches(input.jobEntryId);
+    const caches = jdCaches ?? (await loadJdCaches(input.jobEntryId));
+    atsPlatform = caches.atsPlatform;
     const aiEngine = input.aiRoute ? await getAppConfig("aiEngine") : null;
     const quotaContext =
       input.quotaUser && aiEngine
@@ -262,13 +339,41 @@ export async function buildEnhanceBrief(
           }
         : undefined;
 
+    const escoApiDebug: ExternalApiDebugExchange[] = [];
     const jdSkillsVocabulary = await fetchJdSkillsVocabulary({
       jobDescription: trimmedJd,
       jobTitle: input.targetRole,
       targetRole: input.targetRole,
       cachedVocabulary: caches.jdSkillsVocabulary,
       cachedHash: caches.jdSkillsHash,
+      apiDebug: debug ? escoApiDebug : undefined,
     });
+
+    const jdSkillsArtifacts = externalApiArtifactsFromExchanges(escoApiDebug);
+    if (jdSkillsVocabulary.source === "cache") {
+      jdSkillsArtifacts.push(
+        dataArtifact(
+          "JD skills source",
+          { source: "cache", descriptionHash: jdSkillsVocabulary.descriptionHash },
+          "flags",
+        ),
+      );
+    }
+    jdSkillsArtifacts.push(
+      dataArtifact(
+        "JD skills summary",
+        {
+          source: jdSkillsVocabulary.source,
+          providers: jdSkillsVocabulary.providersUsed,
+          skillsSample: jdSkillsVocabulary.skills.slice(0, 12).map((skill) => ({
+            label: skill.label,
+            source: skill.source,
+            confidence: skill.confidence,
+          })),
+        },
+        "output",
+      ),
+    );
 
     logEnhance("server", "pre.jd_skills.done", {
       traceId: input.traceId,
@@ -304,6 +409,7 @@ export async function buildEnhanceBrief(
       status: "done",
       detail: `${jdSkillsVocabulary.skills.length} skills (${jdSkillsVocabulary.source})`,
       meta: { source: jdSkillsVocabulary.source, providers: jdSkillsVocabulary.providersUsed },
+      artifacts: jdSkillsArtifacts,
     });
     pipelineDebugAdvance(debug, "pre_jd_brain", "pre_jd_skills");
 
@@ -419,6 +525,13 @@ export async function buildEnhanceBrief(
         missingCount: keywordGap.missing.length,
         topMissing: keywordGap.topMissing.slice(0, 5),
       },
+      artifacts: [
+        dataArtifact("Keyword gap", {
+          coveragePercent: keywordGap.coveragePercent,
+          topMissing: keywordGap.topMissing.slice(0, 12),
+          missingSample: keywordGap.missing.slice(0, 12),
+        }, "output"),
+      ],
     });
     pipelineDebugAdvance(debug, "pre_directive", "pre_keyword_gap");
     pipelineDebugStep(debug, "pre_directive", {
@@ -428,6 +541,13 @@ export async function buildEnhanceBrief(
         mustAddSkills: directive.mustAddSkills.slice(0, 8),
         effectiveTargetRole: directive.effectiveTargetRole,
       },
+      artifacts: [
+        dataArtifact("Enhance directive", {
+          mustAddSkills: directive.mustAddSkills.slice(0, 20),
+          mustRemoveSkills: directive.mustRemoveSkills.slice(0, 12),
+          effectiveTargetRole: directive.effectiveTargetRole,
+        }, "output"),
+      ],
     });
 
     const atoms = buildJdAtomList(jdResult.intelligence, directive, jdSkillsVocabulary);
@@ -472,6 +592,7 @@ export async function buildEnhanceBrief(
     input.targetRole,
     hasJd ? trimmedJd : "",
     hasJd ? jdSlice!.intelligence : undefined,
+    atsPlatform,
   );
 
   const plan = buildEnhancePlan(
@@ -501,6 +622,13 @@ export async function buildEnhanceBrief(
       skillsToAdd: plan.skillsToAdd.slice(0, 8),
       weakBullets: plan.weakBullets.length,
     },
+    artifacts: [
+      dataArtifact("Enhance plan", {
+        skillsToAdd: plan.skillsToAdd.slice(0, 20),
+        weakBullets: plan.weakBullets.slice(0, 8),
+        readinessBreakdown: readiness.pillars,
+      }, "output"),
+    ],
   });
 
   const jdKeywords = hasJd && jdSlice
@@ -568,6 +696,13 @@ export async function buildEnhanceBrief(
     readiness,
     plan,
     summaryIdentity,
+    platform: {
+      id: atsPlatform,
+      label: platformRules.label,
+      strategy: atsStrategy,
+      strategyInstructions,
+      tip: platformRules.tip,
+    },
   };
 
   logEnhance("server", "pre.brief.ready", {
@@ -577,6 +712,8 @@ export async function buildEnhanceBrief(
     readiness: readiness.total,
     coverageBefore: jdSlice?.coverageBefore.coveragePercent ?? null,
     gapsCount: jdSlice?.coverageBefore.gaps.length ?? 0,
+    atsPlatform,
+    atsStrategy,
   });
 
   logEnhanceDiag({
@@ -597,6 +734,8 @@ export async function buildEnhanceBrief(
       isCrossDomain: summaryIdentity.isCrossDomain,
       summaryIdentity: summaryIdentity.identity,
       skillsToAdd: plan.skillsToAdd.length,
+      atsPlatform,
+      atsStrategy,
     },
   });
 

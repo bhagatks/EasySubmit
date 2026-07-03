@@ -142,6 +142,13 @@ function buildBrief(form: HubRefineryForm): ResumeEnhanceBrief {
     readiness,
     plan,
     summaryIdentity,
+    platform: {
+      id: "unknown",
+      label: "Unknown ATS",
+      strategy: "keyword_search",
+      strategyInstructions: "",
+      tip: "",
+    },
   };
 }
 

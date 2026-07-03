@@ -37,4 +37,16 @@ describe("normalizeSaveJobInput", () => {
     });
     expect(result).toEqual({ error: "role title is required for manual capture" });
   });
+
+  it("resolves platform from URL when client sends generic", () => {
+    const result = normalizeSaveJobInput({
+      url: "https://apply.workable.com/acme/j/abc",
+      title: "Engineer",
+      description: "x".repeat(150),
+      platform: "generic",
+    });
+    expect("error" in result).toBe(false);
+    if ("error" in result) return;
+    expect(result.platform).toBe("workable");
+  });
 });

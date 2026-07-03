@@ -1,5 +1,6 @@
 import { enhanceResumeForUserId } from "@/lib/ai/enhance-resume-for-user";
 import { enhanceCoverLetterForUserId } from "@/lib/ai/enhance-cover-letter-for-user";
+import { detectPlatform, resolvePlatformStrategy } from "@/lib/job-tracker/ats/platform-rules";
 import { computeResumeReadiness } from "@/lib/job-tracker/ats/resume-readiness-score";
 import { generateResumeLatex } from "@/lib/job-tracker/latex/review-latex";
 import { buildCoverLetterDocumentPatch } from "@/lib/job-tracker/persist-cover-letter";
@@ -54,6 +55,8 @@ async function loadJobRow(userId: string, jobId: string) {
       title: true,
       company: true,
       description: true,
+      canonicalUrl: true,
+      platform: true,
       resumeTailor: { select: { id: true, coverLetter: true } },
     },
   });
@@ -80,9 +83,17 @@ export async function enhanceJobResumeForUser(
   }
 
   const traceId = createEnhanceTraceId();
+  const atsPlatform = detectPlatform(job.canonicalUrl, job.platform);
+  const atsStrategy = resolvePlatformStrategy(atsPlatform);
 
   const beforePrime = refineryFormToPrimeResume(merged.form);
-  const beforeScore = computeResumeReadiness(beforePrime, merged.targetTitle, description).total;
+  const beforeScore = computeResumeReadiness(
+    beforePrime,
+    merged.targetTitle,
+    description,
+    undefined,
+    atsPlatform,
+  ).total;
 
   const source = await findProfileForUser(userId, merged.sourceProfileId);
   if (!source) {
@@ -96,6 +107,8 @@ export async function enhanceJobResumeForUser(
     userId,
     jobId,
     atsScoreBefore: beforeScore,
+    atsPlatform,
+    atsStrategy,
   });
   const enhanced = await enhanceResumeForUserId(userId, {
     profileId: merged.sourceProfileId,
@@ -146,7 +159,13 @@ export async function enhanceJobResumeForUser(
   await updateJobReviewDocuments(userId, jobId, { resumeLatex });
 
   const afterPrime = refineryFormToPrimeResume(enhanced.form);
-  let afterScore = computeResumeReadiness(afterPrime, enhanced.targetRole, description).total;
+  let afterScore = computeResumeReadiness(
+    afterPrime,
+    enhanced.targetRole,
+    description,
+    undefined,
+    atsPlatform,
+  ).total;
 
   const isCrossDomain = enhanced.coherenceWarnings?.some((w) =>
     w.includes("may not match your experience"),
@@ -163,6 +182,8 @@ export async function enhanceJobResumeForUser(
     atsScoreBefore: beforeScore,
     atsScoreAfter: afterScore,
     atsDelta: afterScore - beforeScore,
+    atsPlatform,
+    atsStrategy,
   });
 
   return {

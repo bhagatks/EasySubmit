@@ -2,6 +2,7 @@ import {
   MAX_JOB_DESCRIPTION_CHARS,
   type SaveJobTrackerInput,
 } from "@/lib/extension/job-service";
+import { resolveJobTrackerPlatform } from "@/src/shared/ats-platform-detection";
 import { canApplyCapture } from "@/src/shared/extension/apply-gate";
 import { resolveJobIdentity } from "@/src/shared/extension/job-identity";
 
@@ -79,7 +80,7 @@ export function normalizeSaveJobInput(
     location: input.location?.trim() || null,
     salaryText: input.salaryText?.trim() || null,
     description,
-    platform: input.platform?.trim() || null,
+    platform: resolveJobTrackerPlatform(url, input.platform),
     sourceProfileId: input.sourceProfileId?.trim() || null,
     metadata: {
       ...existingMeta,

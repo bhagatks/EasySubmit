@@ -3,6 +3,7 @@ import {
   initPipelineDebugProgress,
   setPipelineDebugStep,
 } from "@/lib/extension/pipeline-debug-progress";
+import { captureValidateArtifacts } from "@/lib/extension/pipeline-debug-artifact-builders";
 import {
   saveJobTrackerEntry,
   type SaveJobTrackerInput,
@@ -21,6 +22,7 @@ export async function captureJob(
 ): Promise<{ id: string; status: JobTrackerStatus }> {
   const saved = await saveJobTrackerEntry(userId, input);
   const traceId = createEnhanceTraceId();
+  const persistedPlatform = saved.platform;
 
   await initPipelineDebugProgress(userId, saved.id, traceId);
   await setPipelineDebugStep(userId, saved.id, "capture_validate", {
@@ -31,9 +33,17 @@ export async function captureJob(
       title: saved.title,
       company: saved.company,
       descriptionChars: input.description?.trim().length ?? 0,
-      platform: input.platform ?? null,
+      platform: persistedPlatform,
       sourceProfileId: input.sourceProfileId ?? null,
     },
+    artifacts: captureValidateArtifacts({
+      url: input.url,
+      title: saved.title,
+      company: saved.company,
+      descriptionChars: input.description?.trim().length ?? 0,
+      platform: persistedPlatform,
+      sourceProfileId: input.sourceProfileId ?? null,
+    }),
   });
   await setPipelineDebugStep(userId, saved.id, "capture_save", {
     status: "done",

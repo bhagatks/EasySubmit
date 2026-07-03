@@ -12,6 +12,26 @@ import {
   pipelineDebugStep,
 } from "@/lib/extension/pipeline-debug-hooks";
 import {
+  featureFlagsArtifacts,
+  formDeltaArtifacts,
+} from "@/lib/extension/pipeline-debug-artifact-builders";
+import { dataArtifact } from "@/lib/extension/pipeline-debug-sanitize";
+import { getFeatureFlags } from "@/src/lib/services/feature-flags-service";
+import {
+  logEnhance,
+  logJourneyStep,
+  RESUME_JOURNEY,
+  resolveJourneyAiCallStatus,
+  sanitizeRouteForLog,
+  summarizeFormDelta,
+} from "@/src/lib/ai/engine/enhance-logger";
+import { ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
+import {
+  beginEnhanceDiagnosticSession,
+  endEnhanceDiagnosticSession,
+  logEnhanceDiag,
+} from "@/src/lib/ai/engine/enhance-diagnostics";
+import {
   experienceBlobFromForm,
   normalizeExperienceDateFields,
   postProcessSummaryOutput,
@@ -29,13 +49,6 @@ import {
   SYSTEM_QUOTA_PIPELINE_ESTIMATED_CALLS,
 } from "@/src/lib/ai/engine/system-quota-gate";
 import { getAppConfig } from "@/src/lib/services/config-service";
-import { logEnhance, logJourneyStep, RESUME_JOURNEY, resolveJourneyAiCallStatus, summarizeFormDelta } from "@/src/lib/ai/engine/enhance-logger";
-import { ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
-import {
-  beginEnhanceDiagnosticSession,
-  endEnhanceDiagnosticSession,
-  logEnhanceDiag,
-} from "@/src/lib/ai/engine/enhance-diagnostics";
 
 const MIN_JD_CHARS = 120;
 
@@ -198,6 +211,25 @@ async function runResumeEnhancePipelineInner(
   pipelineDebugAdvance(debug, "ai_gates", "pre_plan", {
     detail: "Pre-process brief ready",
   });
+
+  logEnhanceDiag({
+    traceId,
+    designStep: "9",
+    track: "resume",
+    pipelineStep: ENHANCE_PIPELINE.PRE_BRIEF_READY,
+    phase: "done",
+    level: "low",
+    event: "pipeline.platform_strategy",
+    scope: "server",
+    userId,
+    params: {
+      atsPlatform: brief.platform.id,
+      atsStrategy: brief.platform.strategy,
+      platformLabel: brief.platform.label,
+    },
+  });
+
+  const featureFlags = await getFeatureFlags();
   if (allowAi && aiUpgrade) {
     if (aiUpgrade.aiAllowed && aiUpgrade.route) {
       pipelineDebugStep(debug, "ai_gates", {
@@ -211,6 +243,11 @@ async function runResumeEnhancePipelineInner(
           vaultKeyId:
             aiUpgrade.route.mode === "customer" ? aiUpgrade.route.vaultKeyId : null,
         },
+        artifacts: featureFlagsArtifacts(featureFlags, {
+          aiAllowed: true,
+          route: sanitizeRouteForLog(aiUpgrade.route),
+          quota: brief.readiness,
+        }),
       });
     } else {
       pipelineDebugStep(debug, "ai_gates", {
@@ -220,6 +257,10 @@ async function runResumeEnhancePipelineInner(
           aiAllowed: false,
           reason: aiUpgrade.reason ?? null,
         },
+        artifacts: featureFlagsArtifacts(featureFlags, {
+          aiAllowed: false,
+          reason: aiUpgrade.reason ?? null,
+        }),
       });
       pipelineDebugStep(debug, "ai_pass1", {
         status: "skipped",
@@ -275,6 +316,10 @@ async function runResumeEnhancePipelineInner(
       bulletsWoven: baseline.changes.bulletsWoven,
       summaryRewritten: baseline.changes.summaryRewritten,
     },
+    artifacts: [
+      ...formDeltaArtifacts("Baseline form delta", input.form, baseline.form),
+      dataArtifact("Baseline changes", baseline.changes, "output"),
+    ],
   });
 
   logJourneyStep("server", "pipeline.baseline.done", {
@@ -470,6 +515,10 @@ async function runResumeEnhancePipelineInner(
     status: "done",
     detail: `Changed sections: ${changedSections.join(", ") || "none"}`,
     meta: { engineMode, aiSucceeded, changedSections, readinessDelta },
+    artifacts: [
+      ...formDeltaArtifacts("Final form delta", input.form, finalForm),
+      dataArtifact("Readiness delta", readinessDelta, "output"),
+    ],
   });
 
   const { quotaRow, resetPatch } = resolveQuotaRowWithReset(user);

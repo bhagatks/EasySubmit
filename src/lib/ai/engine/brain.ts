@@ -119,6 +119,14 @@ function buildGapsBlock(
   ].join("\n");
 }
 
+function buildPlatformStrategyBlock(
+  brief?: import("@/lib/job-tracker/enhance/enhance-brief").ResumeEnhanceBrief,
+): string {
+  const instructions = brief?.platform?.strategyInstructions?.trim();
+  if (!instructions) return "";
+  return `\n${instructions}\n`;
+}
+
 export function buildEnhanceUserPrompt(
   ctx: CandidateContext,
   pass: "generate" | "optimize",
@@ -127,6 +135,7 @@ export function buildEnhanceUserPrompt(
   brief?: import("@/lib/job-tracker/enhance/enhance-brief").ResumeEnhanceBrief,
 ): string {
   const jdBlock = buildJdBlockForPass(pass, ctx, brief?.jd?.segments);
+  const platformStrategyBlock = buildPlatformStrategyBlock(brief);
 
   const rawSnippet = ctx.rawResumeSnippet
     ? `\nSOURCE RESUME SNIPPET (ground truth):\n"""\n${ctx.rawResumeSnippet}\n"""\n`
@@ -150,6 +159,7 @@ export function buildEnhanceUserPrompt(
       "Refine this pre-enhanced resume for the target role. Baseline improvements (skills, bullets, summary) are already applied — improve quality without undoing them.",
       briefHints,
       identityRule,
+      platformStrategyBlock,
       `JD target role (keywords/skills only): ${jdRole}`,
       jdBlock || "Mode: general ATS enhancement (no job description).",
       rawSnippet,
@@ -193,6 +203,7 @@ export function buildEnhanceUserPrompt(
     brief?.summaryIdentity
       ? `Summary identity: ${brief.summaryIdentity.identity}. JD target: ${brief.summaryIdentity.jdTargetRole}.`
       : `Target role: ${jdRole}`,
+    platformStrategyBlock,
     jdBlock,
     intelligenceBlock,
     briefBlock,

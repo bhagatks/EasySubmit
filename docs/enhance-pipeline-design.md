@@ -354,6 +354,45 @@ PostHog `resume_journey_step` remains unchanged; diagnostics are **dev terminal 
 
 ---
 
+## Platform strategy layer (2026-07-03)
+
+Per-job ATS platform is detected from the tracker row’s `canonicalUrl` + persisted `platform` field (URL fingerprint at capture via `resolveJobTrackerPlatform`). The enhance brief carries `platform.id`, `platform.strategy`, and `platform.strategyInstructions`.
+
+### Strategy archetypes
+
+| Strategy | Emphasis in AI enhance brief |
+|----------|------------------------------|
+| `keyword_search` | Exact JD phrasing, acronym + spelled-out skill forms, repeat top 3–5 skills across summary/skills/bullets |
+| `ai_match` | Skills-taxonomy breadth (JD + O\*NET/ESCO), mirror stated years/must-haves/certs in plain text |
+| `parse_first` | Standard job titles, strict MM/YYYY dates, canonical cert names; keywords secondary |
+| `human_review` | Readable quantified bullets, tight summary; keyword density dialed down |
+| `unknown` | Treated as `keyword_search` |
+
+Resume export format and section order (`docs/resume/RULES.md`) are **never** changed per platform — strategy adjusts scoring emphasis, ATS panel tips, and enhance instructions only.
+
+### Platform set (prioritized)
+
+- **Core 20 + ORC (required):** linkedin, indeed, greenhouse, workday, lever, ashby, smartrecruiters, icims, taleo, jobvite, successfactors, workable, bamboohr, adp, rippling, jazzhr, paylocity, paycom, clearcompany, teamtailor, **oraclecloud**
+- **Recommended:** breezy, recruitee
+- **Optional (phase 3):** wellfound, ziprecruiter, phenom — detection + `ai_match` rules; Phenom is a careers-page front-end (e.g. CVS), not a separate apply surface
+
+Site adapter expansion (Phase 2 field scraping) is a **separate follow-up** — not part of this layer.
+
+### Code map
+
+| Module | Role |
+|--------|------|
+| `src/shared/ats-platform-detection.ts` | Canonical URL patterns + `resolveJobTrackerPlatform` at capture |
+| `lib/job-tracker/ats/platform-rules.ts` | Per-platform rules + `strategy` + ATS panel tips |
+| `lib/job-tracker/ats/platform-strategy-instructions.ts` | Strategy instruction blocks for AI prompts |
+| `lib/job-tracker/enhance/build-enhance-brief.ts` | Resolves platform → attaches `brief.platform` |
+| `src/lib/ai/engine/brain.ts` | Injects `strategyInstructions` into generate/optimize prompts |
+| `components/dashboard/review/AtsPanel.tsx` | Shows detected platform label + strategy tip |
+
+Diagnostics: `[EnhanceDiag]` events `brief.platform` and `pipeline.platform_strategy` log `atsPlatform` + `atsStrategy`.
+
+---
+
 ## Files quick reference
 
 | What | Where |

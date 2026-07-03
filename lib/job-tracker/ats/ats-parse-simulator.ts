@@ -205,7 +205,7 @@ function getPlatformWarnings(
       break;
     case "greenhouse":
       if (content.summary && content.summary.length < 50) {
-        warnings.push("Greenhouse weights the summary heavily — expand to at least 2 sentences for better keyword density.");
+        warnings.push("Greenhouse recruiters read your summary on scorecards — expand to at least 2 sentences with quantified, role-relevant impact.");
       }
       break;
     case "lever": {

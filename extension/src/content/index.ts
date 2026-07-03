@@ -1,4 +1,5 @@
 import { setupBridgeRelay } from "./bridge-relay";
+import { resolveJobTrackerPlatform } from "@shared/ats-platform-detection";
 import { maybeAutoConnectExtensionFromDashboard } from "@shared/extension/dashboard-auto-connect";
 import { buildExtensionBridgePath } from "@shared/extension/connect-account-url";
 import { EXTENSION_MESSAGE, STORAGE_KEYS, EXTENSION_ENHANCE_TIMEOUT_MS } from "@shared/extension/constants";
@@ -30,19 +31,11 @@ import {
   logCaptureDiagnostics,
 } from "@shared/extension/capture-diagnostics";
 import { pollJobStatusUntil } from "@shared/extension/pipeline-status-poll";
-import type {
-  PipelineDebugProgress,
-  PipelineDebugStepStatus,
-} from "@shared/extension/pipeline-debug-types";
 import {
-  createLocalPipelineDebugSteps,
-  localPipelineDebugProgress,
-  markLocalPipelineDebugStep,
-  isPipelineDebugOverlayEnabled,
-  showPipelineDebugOverlay,
-  startPipelineDebugPolling,
-  updatePipelineDebugOverlay,
-} from "./pipeline-debug-overlay";
+  pipelineDebugDashboardHref,
+  isWebPipelineDebugAvailable,
+} from "@shared/extension/pipeline-debug-web";
+import type { PipelineDebugStepStatus } from "@shared/extension/pipeline-debug-types";
 import { isApplyPipelineStepAnalyticsEnabledClient } from "@shared/extension/apply-pipeline-step-analytics-gate";
 import { runWorkdayAutofill, type WorkdayFillData } from "@shared/extension/workday-autofill";
 import { setupFieldCaptureBridge } from "@shared/extension/field-capture-bridge";
@@ -62,7 +55,9 @@ import {
   type ProfileSetupScreen1ValidationIssue,
   type ApplicationProfileScreen3Input,
 } from "@/lib/profile/application-profile-setup";
-import { BRAND, renderBrandMarkup } from "@shared/brand";
+import { BRAND, renderExtensionCardBrandMarkup } from "@shared/brand";
+import type { JobTrackerStatus } from "@/lib/generated/prisma/client";
+import { APPLY_PIPELINE_USER_LINES, resolveExtensionUserMessage } from "@shared/extension/apply-pipeline-user-messages";
 import { brandExtensionTokens } from "@shared/brand-colors";
 import { extensionButtonStyles } from "@shared/brand-buttons";
 import { SETTINGS_AI_AUTO_HREF } from "@/lib/dashboard/settings-ai-links";
@@ -75,7 +70,13 @@ import {
   type EasySubmitAnimationController,
 } from "@shared/extension/easysubmit-brand-canvas-animation";
 import { ENHANCE_PROGRESS_CAPTION, wrapContentWithBrandProgressOverlay } from "@shared/extension/enhance-progress-overlay";
-import { PIPELINE_SUB_LABELS } from "@/lib/job-tracker/pipeline-sub-labels";
+import {
+  failApplyPipelineLoader,
+  isApplyPipelineLoaderRunning,
+  startApplyPipelineLoader,
+  stopApplyPipelineLoader,
+  succeedApplyPipelineLoader,
+} from "@shared/extension/apply-pipeline-loader";
 import {
   DOCUMENT_PREVIEW_AI_SETTINGS_LABEL,
   DOCUMENT_PREVIEW_FIX_KEY_LABEL,
@@ -252,6 +253,7 @@ let savedStatus: {
   status?: string;
   id?: string;
   canReapply?: boolean;
+  issueMessage?: string | null;
 } = { saved: false };
 let runtimeConfig: ExtensionRuntimeConfig | null = null;
 let connectedAccountEmail: string | null = null;
@@ -332,9 +334,29 @@ let enhanceAnimationController: EasySubmitAnimationController | null = null;
 let enhanceAnimationCanvas: HTMLCanvasElement | null = null;
 let enhanceAnimationUntil: Promise<void> | null = null;
 let resolveEnhanceAnimationUntil: (() => void) | null = null;
-let pipelineProgressAnimationTracked = false;
-let pipelineDebugLocalSteps = createLocalPipelineDebugSteps();
 let applyPipelineSessionId: string | null = null;
+let pipelineDebugWindow: Window | null = null;
+
+function openWebPipelineDebugPanel(entryId?: string | null): void {
+  if (!isWebPipelineDebugAvailable()) return;
+  const trimmedEntryId = entryId?.trim();
+  if (!trimmedEntryId) return;
+
+  const config = runtimeConfig ?? EXTENSION_RUNTIME_DEFAULTS;
+  const href = pipelineDebugDashboardHref(config.apiBaseUrl, trimmedEntryId);
+
+  // Named target reuses one dashboard tab; noopener breaks reuse (returns null → second tab).
+  const opened = window.open(href, "easysubmit-pipeline-debug");
+  if (opened) {
+    pipelineDebugWindow = opened;
+    opened.focus();
+    return;
+  }
+  if (pipelineDebugWindow && !pipelineDebugWindow.closed) {
+    pipelineDebugWindow.location.href = href;
+    pipelineDebugWindow.focus();
+  }
+}
 
 function trackClientApplyPipelineStep(
   stepId: string,
@@ -375,36 +397,7 @@ function patchLocalApplyPipelineStep(
   },
   entryId?: string | null,
 ): void {
-  if (isPipelineDebugOverlayEnabled()) {
-    pipelineDebugLocalSteps = markLocalPipelineDebugStep(
-      pipelineDebugLocalSteps,
-      stepId,
-      update,
-    );
-    pushLocalPipelineDebugOverlay();
-  }
   trackClientApplyPipelineStep(stepId, update, entryId);
-}
-
-async function fetchPipelineDebugProgress(
-  entryId: string,
-): Promise<PipelineDebugProgress | null> {
-  const res = await sendMessage<{
-    success: boolean;
-    progress?: PipelineDebugProgress | null;
-  }>({
-    action: EXTENSION_MESSAGE.GET_PIPELINE_DEBUG,
-    entryId,
-  });
-  if (!res?.success || !res.progress) return null;
-  return res.progress;
-}
-
-function pushLocalPipelineDebugOverlay(): void {
-  if (!isPipelineDebugOverlayEnabled()) return;
-  updatePipelineDebugOverlay(
-    localPipelineDebugProgress("local", pipelineDebugLocalSteps),
-  );
 }
 
 function resetEnhanceAnimationUntil(): void {
@@ -425,35 +418,61 @@ function releaseEnhanceAnimationUntil(): void {
   resetEnhanceAnimationUntil();
 }
 
-function isPipelineProgressActive(): boolean {
+function extensionHasPipelineFailure(): boolean {
+  return resolveExtensionUserMessage({
+    saved: savedStatus.saved,
+    status: (savedStatus.status as JobTrackerStatus | undefined) ?? null,
+    pipelineBusy: false,
+    pipelineBusyLabel: null,
+    saveError,
+    issueMessage: savedStatus.issueMessage,
+  }).kind === "error";
+}
+
+/** Job info + resume optimization in flight — EasySubmit button hidden, loader shown. */
+function isEasySubmitPipelineInFlight(): boolean {
   if (pipelineBusy) return true;
-  return Boolean(
-    savedStatus.saved && savedStatus.status === "CAPTURED" && !savedStatus.canReapply,
-  );
+  if (!savedStatus.saved || savedStatus.canReapply) return false;
+  if (savedStatus.status !== "CAPTURED") return false;
+  return !extensionHasPipelineFailure();
 }
 
 function pipelineProgressCaption(): string {
   const label = pipelineBusyLabel?.trim();
-  if (label) return label;
-  return PIPELINE_SUB_LABELS.optimizingResume;
+  if (label) {
+    if (label.toLowerCase().includes("optimiz")) return APPLY_PIPELINE_USER_LINES.optimizingResume;
+    if (label.toLowerCase().includes("captur") || label.toLowerCase().includes("saving")) {
+      return APPLY_PIPELINE_USER_LINES.jobCapturing;
+    }
+    return label.replace(/…/g, "").trim();
+  }
+  return APPLY_PIPELINE_USER_LINES.optimizingResume;
 }
 
-function syncPipelineProgressAnimation(): void {
-  const active = isPipelineProgressActive();
-  if (active && !pipelineProgressAnimationTracked) {
-    pipelineProgressAnimationTracked = true;
-    if (!documentEnhanceBusy) beginEnhanceAnimationUntil();
+/**
+ * Reconcile the independent apply-pipeline loader with pipeline state.
+ * Forward-only: start while in flight, dismiss on terminal success/failure.
+ */
+function syncApplyPipelineLoader(root: ShadowRoot): void {
+  const slot = root.querySelector("[data-apply-loader-slot]") as HTMLElement | null;
+
+  if (isEasySubmitPipelineInFlight()) {
+    if (slot) startApplyPipelineLoader({ slot });
     return;
   }
-  if (!active && pipelineProgressAnimationTracked) {
-    pipelineProgressAnimationTracked = false;
-    if (!documentEnhanceBusy) releaseEnhanceAnimationUntil();
+
+  if (!isApplyPipelineLoaderRunning()) return;
+
+  if (extensionHasPipelineFailure()) {
+    failApplyPipelineLoader();
+    return;
   }
+
+  succeedApplyPipelineLoader();
 }
 
 function syncEnhanceBrandAnimation(root: ShadowRoot): void {
-  const animationActive = documentEnhanceBusy || isPipelineProgressActive();
-  if (!animationActive) {
+  if (!documentEnhanceBusy) {
     stopEasySubmitAnimation();
     enhanceAnimationController = null;
     enhanceAnimationCanvas = null;
@@ -463,7 +482,7 @@ function syncEnhanceBrandAnimation(root: ShadowRoot): void {
   const canvas = root.querySelector("#brand-canvas") as HTMLCanvasElement | null;
   if (!canvas) return;
 
-  const subtext = documentEnhanceBusy ? ENHANCE_PROGRESS_CAPTION : pipelineProgressCaption();
+  const subtext = ENHANCE_PROGRESS_CAPTION;
   const subtextEl = root.querySelector("#status-subtext") as HTMLElement | null;
   if (subtextEl) subtextEl.textContent = subtext;
 
@@ -534,6 +553,7 @@ function teardownStaleExtensionContext(): void {
   contentWindow.__easysubmitTeardownDone = true;
   console.log("[EasySubmit] lifecycle:teardown — stale context, cleaning up", { url: location.href });
   stopAllExtensionTimers();
+  stopApplyPipelineLoader();
   void stopJobStatusRealtime();
   removeCard();
 }
@@ -605,25 +625,75 @@ function resolveExtensionJourneyDisplayLocal() {
     pipelineBusy,
     pipelineBusyLabel,
     saveError,
+    issueMessage: savedStatus.issueMessage,
   });
+}
+
+function getExtensionStatusPresentation(): {
+  line: string | null;
+  kind: "idle" | "progress" | "success" | "warning" | "error";
+} {
+  const message = resolveExtensionUserMessage({
+    saved: savedStatus.saved,
+    status: (savedStatus.status as JobTrackerStatus | undefined) ?? null,
+    pipelineBusy,
+    pipelineBusyLabel,
+    saveError,
+    issueMessage: savedStatus.issueMessage,
+  });
+  return { line: message.line, kind: message.kind };
 }
 
 function getPrimaryCtaLabel(): string {
   if (cardPresentation === "manual_capture" && !savedStatus.saved) {
     return "Save to tracker";
   }
-  const journey = resolveExtensionJourneyDisplayLocal();
-  if (!savedStatus.saved) return BRAND.applyCta;
-  if (savedStatus.canReapply) return BRAND.autoSuggestCta;
-  if (journey.stage === "error") return BRAND.applyCta;
-  return journey.label;
+  return BRAND.applyCta;
 }
 
 function getJourneyStatusLabel(): string | null {
-  if (!savedStatus.saved) return null;
+  return getExtensionStatusPresentation().line;
+}
+
+function showExtensionApplyActions(): boolean {
+  return (
+    profileSetupScreen === 0 &&
+    cardPresentation === "job" &&
+    cardView === "summary"
+  );
+}
+
+function resolveExtensionApplyCtaState(applyEnabled: boolean): {
+  showEasySubmitCta: boolean;
+  showAutoSuggestCta: boolean;
+  easySubmitDisabled: boolean;
+  autoSuggestDisabled: boolean;
+} {
   const journey = resolveExtensionJourneyDisplayLocal();
-  if (journey.stage === "error") return null;
-  return journey.statusLabel;
+  const hasError = journey.stage === "error";
+  const inFlight = isEasySubmitPipelineInFlight();
+  const { saved, status, canReapply } = savedStatus;
+
+  const autoSuggestReady =
+    saved && (status === "READY_TO_APPLY" || canReapply) && !hasError && !inFlight;
+
+  const showAutoSuggestCta =
+    saved &&
+    !hasError &&
+    !inFlight &&
+    (status === "RESUME_READY" || status === "READY_TO_APPLY" || Boolean(canReapply));
+
+  const showEasySubmitCta =
+    !inFlight &&
+    !showAutoSuggestCta &&
+    (!saved || hasError || (status === "CAPTURED" && extensionHasPipelineFailure()));
+
+  return {
+    showEasySubmitCta,
+    showAutoSuggestCta,
+    easySubmitDisabled: !applyEnabled || inFlight,
+    autoSuggestDisabled: !autoSuggestReady,
+  };
 }
 
 function resetCoverDetailEditState(): void {
@@ -1810,7 +1880,7 @@ function getCaptureContext(): {
       location: currentMetadata?.location ?? null,
       salaryText: currentMetadata?.salaryText ?? null,
       description: manualCaptureDraft.description,
-      platform: currentMetadata?.platform ?? "generic",
+      platform: resolveJobTrackerPlatform(manualCaptureDraft.jobUrl, currentMetadata?.platform ?? "generic"),
       confidence: currentMetadata?.confidence ?? 0,
     };
   }
@@ -1831,7 +1901,7 @@ function getCaptureContext(): {
     location: meta?.location ?? null,
     salaryText: meta?.salaryText ?? null,
     description: meta?.description ?? null,
-    platform: meta?.platform ?? "generic",
+    platform: resolveJobTrackerPlatform(url, meta?.platform ?? "generic"),
     confidence: meta?.confidence ?? 0,
   };
 }
@@ -1989,6 +2059,9 @@ function renderExpandedCard(root: ShadowRoot): void {
     journey.applyButtonState === "completed" && !savedStatus.canReapply;
   const capture = getCaptureContext();
   const applyEnabled = isApplyEnabled();
+  const applyActions = showExtensionApplyActions();
+  const applyCtaState = applyActions ? resolveExtensionApplyCtaState(applyEnabled) : null;
+  const statusPresentation = getExtensionStatusPresentation();
   const uiMode = getPipelineUiMode(runtimeConfig);
   const manualStep = getManualPipelineStep();
   const showPrimaryCta =
@@ -2015,12 +2088,18 @@ function renderExpandedCard(root: ShadowRoot): void {
     : reconnectBanner
       ? null
       : resolveExtensionAiHealthBanner(runtimeConfig, saveError);
-  const cardSaveError =
+  const cardSaveErrorRaw =
     reconnectBanner || shouldHideSaveErrorForReconnectBanner(reconnectBanner, saveError)
       ? null
       : shouldHidePipelineErrorInBody(aiHealthBanner, saveError)
         ? null
         : saveError;
+  const cardSaveError =
+    cardSaveErrorRaw &&
+    statusPresentation.line &&
+    (statusPresentation.kind === "error" || statusPresentation.kind === "warning")
+      ? null
+      : cardSaveErrorRaw;
   const upgradeBlockMessage = getExtensionForceUpgradeBlockMessage(
     runtimeConfig,
     getExtensionManifestVersion(),
@@ -2064,7 +2143,7 @@ function renderExpandedCard(root: ShadowRoot): void {
         saveError: cardSaveError,
         escapeHtml,
       });
-    bodyMarkup = isPipelineProgressActive()
+    bodyMarkup = pipelineBusy
       ? wrapContentWithBrandProgressOverlay(manualBody, {
           caption: pipelineProgressCaption(),
           showCancel: false,
@@ -2197,17 +2276,19 @@ function renderExpandedCard(root: ShadowRoot): void {
       showMetaRow: savedStatus.saved,
       showReviewRow: journey.showReviewRow,
       statusLabel: getJourneyStatusLabel(),
+      statusKind: statusPresentation.kind,
       showPrimaryCta,
+      showEasySubmitCta: applyCtaState?.showEasySubmitCta ?? false,
+      showAutoSuggestCta: applyCtaState?.showAutoSuggestCta ?? false,
       showAppliedActions: false,
       ctaClass,
-      ctaLabel,
-      ctaDisabled: !applyEnabled || pipelineBusy,
+      ctaLabel: getPrimaryCtaLabel(),
+      ctaDisabled: applyCtaState?.easySubmitDisabled ?? (!applyEnabled || pipelineBusy),
+      autoSuggestDisabled: applyCtaState?.autoSuggestDisabled ?? true,
       ctaIcon,
       applyHint,
       saveError: cardSaveError,
       keywordGap: keywordGapData,
-      pipelineProgressActive: isPipelineProgressActive(),
-      pipelineProgressLabel: pipelineProgressCaption(),
       escapeHtml,
     });
   }
@@ -2244,7 +2325,7 @@ function renderExpandedCard(root: ShadowRoot): void {
             <div class="grip${cardPresentation === "loading" || waitingForJobScrape ? " is-reading" : ""}" data-grip="1">
               <div class="grip-left">
                 <span class="dots">⋮⋮</span>
-                ${renderBrandMarkup({}, extensionIconUrl("128"))}
+                ${renderExtensionCardBrandMarkup({}, extensionIconUrl("128"))}
               </div>
               <div class="grip-actions">
                 ${renderProfilePickerMarkup()}
@@ -2265,6 +2346,14 @@ function renderExpandedCard(root: ShadowRoot): void {
 
   root.querySelector("[data-save]")?.addEventListener("click", () => {
     void onPrimaryClick();
+  });
+
+  root.querySelector("[data-apply-easysubmit]")?.addEventListener("click", () => {
+    void onPrimaryClick();
+  });
+
+  root.querySelector("[data-auto-suggest]")?.addEventListener("click", () => {
+    void onAutoSuggestClick();
   });
 
   root.querySelector("[data-manual-capture]")?.addEventListener("click", () => {
@@ -2865,7 +2954,7 @@ function renderCard(root: ShadowRoot): void {
     return;
   }
   renderExpandedCard(root);
-  syncPipelineProgressAnimation();
+  syncApplyPipelineLoader(root);
   syncEnhanceBrandAnimation(root);
   if (cardHost) {
     applyHostPosition(cardHost.host, cardHost.position);
@@ -3525,6 +3614,7 @@ function resetExtensionJourneyToStage0(reason: string): void {
   saveError = null;
   pipelineBusy = false;
   pipelineBusyLabel = null;
+  stopApplyPipelineLoader();
   pendingPipelinePhase = null;
   autofillRunForEntryId = null;
   keywordGapData = null;
@@ -3596,6 +3686,7 @@ async function applyServerJourneyRefresh(reason: string): Promise<void> {
     serverIssueMessage: sync?.issueMessage,
     saved: after.saved,
     syncSucceeded: sync !== null,
+    status: after.status,
   });
 
   if (transition !== "unchanged" || previousSaveError !== saveError) {
@@ -3687,6 +3778,7 @@ async function refreshSavedStatus(): Promise<{
     status: res.status,
     id: typeof res.id === "string" ? res.id : undefined,
     canReapply: Boolean(res.canReapply),
+    issueMessage: res.issueMessage ?? null,
   };
   return { issueMessage: res.issueMessage };
 }
@@ -4234,11 +4326,7 @@ async function startApplyPipeline(): Promise<void> {
   if (isExtensionForceUpgradeRequired(config, getExtensionManifestVersion())) return;
   if (isExtensionApplyBlockedByAiHealth(config)) return;
 
-  pipelineDebugLocalSteps = createLocalPipelineDebugSteps();
   applyPipelineSessionId = crypto.randomUUID();
-  if (isPipelineDebugOverlayEnabled()) {
-    showPipelineDebugOverlay(pipelineDebugLocalSteps);
-  }
   patchLocalApplyPipelineStep("capture_validate", {
     status: "active",
     detail: "Validating scrape + apply gate…",
@@ -4335,7 +4423,7 @@ async function startApplyPipeline(): Promise<void> {
   // [ES:LOG] EXT → pipeline start — user clicked "Apply with EasySubmit"
   console.log("[EasySubmit] pipeline:start", { url: capture.url, platform: capture.platform });
   pipelineBusy = true;
-  pipelineBusyLabel = "Optimizing resume…";
+  pipelineBusyLabel = APPLY_PIPELINE_USER_LINES.jobCapturing;
   saveError = null;
   if (cardHost) renderCard(cardHost.shadow);
 
@@ -4355,6 +4443,9 @@ async function startApplyPipeline(): Promise<void> {
         { status: "error", detail: saveError },
         captureRes?.id,
       );
+      pipelineBusy = false;
+      pipelineBusyLabel = null;
+      if (cardHost) renderCard(cardHost.shadow);
       return;
     }
 
@@ -4376,27 +4467,16 @@ async function startApplyPipeline(): Promise<void> {
       jobStatus: captureRes.status ?? "CAPTURED",
     });
     const jobId = captureRes.id;
-    if (isPipelineDebugOverlayEnabled()) {
-      pipelineDebugLocalSteps = markLocalPipelineDebugStep(
-        pipelineDebugLocalSteps,
-        "capture_save",
-        {
-          status: "done",
-          detail: `CAPTURED · ${jobId}`,
-          meta: { entryId: jobId, status: captureRes.status },
-        },
-      );
-      pipelineDebugLocalSteps = markLocalPipelineDebugStep(
-        pipelineDebugLocalSteps,
-        "profile_load",
-        { status: "active", detail: "Tailor dispatched — loading server progress…" },
-      );
-      pushLocalPipelineDebugOverlay();
-      startPipelineDebugPolling({
-        entryId: jobId,
-        fetchProgress: fetchPipelineDebugProgress,
-      });
-    }
+    openWebPipelineDebugPanel(jobId);
+    patchLocalApplyPipelineStep(
+      "capture_save",
+      {
+        status: "done",
+        detail: `CAPTURED · ${jobId}`,
+        meta: { entryId: jobId, status: captureRes.status },
+      },
+      jobId,
+    );
 
     savedStatus = {
       saved: true,
@@ -4437,6 +4517,23 @@ async function startApplyPipeline(): Promise<void> {
   }
 }
 
+async function onAutoSuggestClick(): Promise<void> {
+  if (!currentMetadata || pipelineBusy || !savedStatus.saved) return;
+  await ensureRuntimeConfig();
+  if (isExtensionForceUpgradeRequired(runtimeConfig, getExtensionManifestVersion())) return;
+  if (isExtensionApplyBlockedByAiHealth(runtimeConfig)) return;
+  if (requireApplicationProfileSetupBeforeApply()) return;
+
+  if (savedStatus.canReapply) {
+    await startApplyPipeline();
+    return;
+  }
+
+  if (savedStatus.status === "READY_TO_APPLY") {
+    await openJobTrackerDashboard({ review: true, panel: "apply" });
+  }
+}
+
 async function onPrimaryClick(): Promise<void> {
   console.log("[EasySubmit] user:primary-click", { saved: savedStatus.saved, status: savedStatus.status, canReapply: savedStatus.canReapply, presentation: cardPresentation });
   if (!currentMetadata || pipelineBusy) return;
@@ -4453,7 +4550,6 @@ async function onPrimaryClick(): Promise<void> {
       await startApplyPipeline();
       return;
     }
-    await openJobTrackerDashboard({ review: true });
     return;
   }
 

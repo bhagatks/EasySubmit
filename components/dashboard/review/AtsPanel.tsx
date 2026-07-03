@@ -7,6 +7,7 @@ import { analyzeBulletQuality } from "@/lib/job-tracker/ats/bullet-quality";
 import { analyzeKeywordGap } from "@/lib/job-tracker/ats/keyword-gap";
 import { computeSemanticSimilarity } from "@/lib/job-tracker/ats/semantic-similarity";
 import { computeResumeReadiness } from "@/lib/job-tracker/ats/resume-readiness-score";
+import { detectPlatform, getPlatformRules } from "@/lib/job-tracker/ats/platform-rules";
 import { computePlatformScores, type PlatformScoreResult } from "@/lib/job-tracker/ats/platform-score";
 import type { JobTrackerDetail } from "@/lib/job-tracker/types";
 import { trackAtsScoreViewed } from "@/src/shared/analytics";
@@ -17,6 +18,28 @@ type AtsPanelProps = {
   /** "modal" = fixed-height scrollable (Review Screen). "inline" = natural page flow. */
   variant?: "modal" | "inline";
 };
+
+const STRATEGY_LABELS: Record<string, string> = {
+  keyword_search: "Keyword search",
+  ai_match: "AI match",
+  parse_first: "Parse first",
+  human_review: "Human review",
+};
+
+function PlatformStrategyBanner({ platform }: { platform: ReturnType<typeof getPlatformRules> }) {
+  return (
+    <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <ShieldCheck className="h-4 w-4 shrink-0 text-primary" />
+        <p className="font-display text-sm font-semibold text-foreground">{platform.label}</p>
+        <span className="rounded-full bg-surface/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {STRATEGY_LABELS[platform.strategy] ?? platform.strategy}
+        </span>
+      </div>
+      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{platform.tip}</p>
+    </div>
+  );
+}
 
 // ─── Score ring ───────────────────────────────────────────────────────────────
 
@@ -561,9 +584,16 @@ function AtsPanelBody({ entry, preview, activeSection, onSectionChange, variant 
   const targetTitle = preview.targetTitle;
   const jobDescription = entry.description ?? "";
 
+  const atsPlatform = useMemo(
+    () => detectPlatform(entry.canonicalUrl, entry.platform),
+    [entry.canonicalUrl, entry.platform],
+  );
+
+  const platformRules = useMemo(() => getPlatformRules(atsPlatform), [atsPlatform]);
+
   const readiness = useMemo(
-    () => computeResumeReadiness(data, targetTitle, jobDescription),
-    [data, targetTitle, jobDescription],
+    () => computeResumeReadiness(data, targetTitle, jobDescription, undefined, atsPlatform),
+    [data, targetTitle, jobDescription, atsPlatform],
   );
 
   const bulletQuality = useMemo(() => analyzeBulletQuality(data), [data]);
@@ -651,6 +681,8 @@ function AtsPanelBody({ entry, preview, activeSection, onSectionChange, variant 
 
       {activeSection === "score" && (
         <div className="space-y-5">
+
+          <PlatformStrategyBanner platform={platformRules} />
 
           {/* Hero score + platforms passed */}
           <div className="flex items-center gap-5 rounded-xl border border-border/60 bg-surface/40 px-4 py-4">
