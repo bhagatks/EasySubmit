@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { getExtensionConnectionStatus } from "@/lib/extension/extension-dashboard-connection";
 import { isSemverBelowMinimum } from "@/src/shared/extension/semver";
 import { EXTENSION_STORE_URL } from "@/lib/brand";
+import { extensionBridgeHref } from "@/lib/dashboard/dashboard-extension-links";
+import { readExtensionIdForDashboard } from "@/lib/extension/start-job-apply-from-dashboard";
 
 type ExtensionStatusButtonProps = {
   minVersion?: string;
@@ -50,7 +52,7 @@ export function ExtensionStatusButton({ minVersion }: ExtensionStatusButtonProps
   if (btnState.kind === "reconnect") {
     return (
       <Button size="sm" className="rounded-xl bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0" asChild>
-        <a href="/extension/bridge">
+        <a href={extensionBridgeHref(readExtensionIdForDashboard())}>
           <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
           Connect extension
         </a>

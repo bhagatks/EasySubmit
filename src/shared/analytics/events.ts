@@ -33,6 +33,9 @@ export const AnalyticsEvents = {
   JOB_TRACKER_MANUAL_ADD_OPENED: "job_tracker_manual_add_opened",
   JOB_TRACKER_MANUAL_ADD_COMPLETED: "job_tracker_manual_add_completed",
   EXTENSION_APPLY_STARTED: "extension_apply_started",
+  /** One event per Apply pipeline step — mirrors QA overlay (`pipelineDebug` metadata). */
+  EXTENSION_APPLY_PIPELINE_STARTED: "extension_apply_pipeline_started",
+  EXTENSION_APPLY_PIPELINE_STEP: "extension_apply_pipeline_step",
   EXTENSION_AUTOFILL_STARTED: "extension_autofill_started",
   EXTENSION_AUTOFILL_COMPLETED: "extension_autofill_completed",
 

@@ -81,8 +81,9 @@ npm run build:extension
 # 4. Chrome
 # chrome://extensions → Developer mode → Load unpacked → dist/extension-dev
 
-5. Connect from the dashboard: `/extension/bridge?extensionId=<id>` (not from the extension popup)
-# Open any job page → Save → Sign in flow, or visit:
+5. Connect from the dashboard: visit any signed-in dashboard page (auto-connect) or `/extension/bridge?extensionId=<id>` if needed
+# Auto-connect runs when the extension content script loads on /dashboard while you are signed in.
+# Manual bridge (fallback):
 # http://localhost:3000/extension/bridge?extensionId=<your-extension-id>
 
 # 6. Force-show card on stubborn pages (Workday, etc.)

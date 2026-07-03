@@ -20,6 +20,7 @@ import {
   shouldClearStaleLocalApiBasePin,
 } from "@shared/extension/resolve-api-base";
 import { mergeExtensionRuntimeConfig } from "@shared/extension/runtime-config-merge";
+import { isPipelineDebugEnabled } from "@shared/extension/pipeline-debug-gate";
 import type {
   ExtensionRuntimeConfig,
   JobSavePayload,
@@ -568,6 +569,19 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       },
     ).catch(() => undefined);
     sendResponse({ success: true });
+    return true;
+  }
+
+  if (action === EXTENSION_MESSAGE.GET_PIPELINE_DEBUG && typeof message.entryId === "string") {
+    if (!isPipelineDebugEnabled()) {
+      sendResponse({ success: false, error: "Not available" });
+      return true;
+    }
+    void apiFetch<{ success: boolean; progress?: unknown; error?: string }>(
+      `/api/extension/jobs/${encodeURIComponent(message.entryId)}/pipeline-debug`,
+    )
+      .then((data) => sendResponse(data))
+      .catch(() => sendResponse({ success: false, error: "Network error" }));
     return true;
   }
 

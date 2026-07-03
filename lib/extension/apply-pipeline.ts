@@ -9,6 +9,7 @@ import {
   runPipelineTailor,
 } from "@/lib/extension/pipeline-tailor";
 import { mergeJobEntryMetadata, recordPipelineTailorError } from "@/lib/extension/pipeline-metadata";
+import { setPipelineDebugStep } from "@/lib/extension/pipeline-debug-progress";
 import type { ApplyPipelinePhase } from "@/lib/extension/pipeline-types";
 import { isOneClickPlatform } from "@/lib/extension/pipeline-types";
 import { getExtensionUserPrefs } from "@/lib/extension/user-prefs";
@@ -76,6 +77,10 @@ export async function advancePipelineAfterAutofill(
 ): Promise<void> {
   const { updateJobTrackerStatus } = await import("@/lib/extension/job-service");
   await updateJobTrackerStatus(userId, entryId, "READY_TO_APPLY");
+  await setPipelineDebugStep(userId, entryId, "status_ready", {
+    status: "done",
+    detail: "READY_TO_APPLY — pipeline complete",
+  });
 }
 
 async function ensureApplyAssistStatus(
@@ -128,6 +133,30 @@ export async function tailorJobPipeline(
         pipelineError: null,
         pipelineErrorCode: null,
       });
+      for (const stepId of [
+        "profile_load",
+        "pre_validate",
+        "pre_onet",
+        "pre_intelligence",
+        "pre_jd_skills",
+        "pre_jd_brain",
+        "ai_jd_extract",
+        "pre_keyword_gap",
+        "pre_directive",
+        "pre_rules",
+        "pre_plan",
+        "ai_gates",
+        "baseline",
+        "ai_pass1",
+        "ai_pass2",
+        "post_process",
+        "persist_overrides",
+      ]) {
+        await setPipelineDebugStep(userId, entryId, stepId, {
+          status: "skipped",
+          detail: "Customize resume is off",
+        });
+      }
       return { success: true, status: "READY_TO_APPLY" };
     }
 

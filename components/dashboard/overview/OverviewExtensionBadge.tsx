@@ -10,6 +10,10 @@ import {
   dashboardHeaderNeutralPillStyle,
 } from "@/lib/dashboard/dashboard-header-chrome";
 import { EXTENSION_STORE_URL } from "@/lib/brand";
+import {
+  extensionBridgeHref,
+} from "@/lib/dashboard/dashboard-extension-links";
+import { readExtensionIdForDashboard } from "@/lib/extension/start-job-apply-from-dashboard";
 
 type OverviewExtensionBadgeProps = {
   className?: string;
@@ -68,7 +72,10 @@ export function OverviewExtensionBadge({ className }: OverviewExtensionBadgeProp
   }
 
   const label = status.state === "not-installed" ? "Install extension" : "Extension offline";
-  const href = status.state === "not-installed" ? EXTENSION_STORE_URL : "/dashboard/extension/bridge";
+  const href =
+    status.state === "not-installed"
+      ? EXTENSION_STORE_URL
+      : extensionBridgeHref(readExtensionIdForDashboard());
   const isExternal = status.state === "not-installed";
 
   return (

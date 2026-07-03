@@ -1,6 +1,11 @@
 import { enhanceResumeForUserId } from "@/lib/ai/enhance-resume-for-user";
 import type { SaveJobTrackerInput } from "@/lib/extension/job-service";
 import { updateJobTrackerStatus } from "@/lib/extension/job-service";
+import {
+  pipelineDebugAdvance,
+  pipelineDebugContext,
+  pipelineDebugStep,
+} from "@/lib/extension/pipeline-debug-hooks";
 import { resolveJobIdentity } from "@/src/shared/extension/job-identity";
 import {
   mergeJobEntryMetadata,
@@ -62,6 +67,9 @@ export async function runPipelineTailor(
   input: PipelineTailorInput,
 ): Promise<PipelineTailorResult> {
   const traceId = createEnhanceTraceId();
+  const debug = pipelineDebugContext(userId, input.entryId);
+
+  pipelineDebugAdvance(debug, "profile_load");
 
   logEnhance("pipeline", "tailor.start", {
     traceId,
@@ -85,8 +93,18 @@ export async function runPipelineTailor(
       minChars: MIN_JD_CHARS,
     });
     await recordPipelineTailorError(userId, input.entryId, message, "missing_description");
+    pipelineDebugStep(debug, "pre_validate", {
+      status: "error",
+      detail: message,
+      meta: { jobDescriptionChars: input.jobDescription?.trim().length ?? 0 },
+    });
     return { success: false, error: message, code: "missing_description" };
   }
+
+  pipelineDebugStep(debug, "pre_validate", {
+    status: "done",
+    detail: `JD ${input.jobDescription!.trim().length} chars`,
+  });
 
   logEnhance("pipeline", "tailor.jd_ok", {
     traceId,
@@ -103,6 +121,7 @@ export async function runPipelineTailor(
       reason: "invalid_title",
     });
     await recordPipelineTailorError(userId, input.entryId, message, "invalid_title");
+    pipelineDebugStep(debug, "profile_load", { status: "error", detail: message });
     return { success: false, error: message, code: "invalid_title" };
   }
 
@@ -115,11 +134,25 @@ export async function runPipelineTailor(
       reason: "no_source_profile",
     });
     await recordPipelineTailorError(userId, input.entryId, message, "no_source_profile");
+    pipelineDebugStep(debug, "profile_load", { status: "error", detail: message });
     return { success: false, error: message, code: "no_source_profile" };
   }
 
   const baseForm = hubRefineryFormFromProfile(source);
   const baseTargetTitle = targetTitleFromProfile(source);
+
+  pipelineDebugStep(debug, "profile_load", {
+    status: "done",
+    detail:
+      [source.firstName, source.lastName].filter(Boolean).join(" ").trim() || source.id,
+    meta: {
+      sourceProfileId: source.id,
+      profileName: [source.firstName, source.lastName].filter(Boolean).join(" ").trim() || null,
+      targetTitle: baseTargetTitle,
+      experienceCount: baseForm.experience.filter((e) => !e.hidden).length,
+      skillsCount: (baseForm.skillsText ?? "").split(",").filter(Boolean).length,
+    },
+  });
 
   logEnhance("pipeline", "tailor.source_profile", {
     traceId,
@@ -161,6 +194,11 @@ export async function runPipelineTailor(
       enhanced.error,
       enhanced.code ?? "enhance_failed",
     );
+    pipelineDebugStep(debug, "baseline", {
+      status: "error",
+      detail: enhanced.error,
+      meta: { code: enhanced.code ?? null },
+    });
     return {
       success: false,
       error: enhanced.error,
@@ -185,6 +223,17 @@ export async function runPipelineTailor(
     step: TAILOR_PIPELINE.TAILOR_PERSIST,
     entryId: input.entryId,
     sourceProfileId: source.id,
+  });
+
+  pipelineDebugAdvance(debug, "persist_overrides", "post_process", {
+    detail: "Enhance complete — persisting overrides",
+    meta: {
+      engineMode: enhanced.engineMode,
+      aiMode: enhanced.aiMode,
+      aiAttempted: enhanced.aiAttempted,
+      aiSucceeded: enhanced.aiSucceeded,
+      changedSections: enhanced.changedSections,
+    },
   });
 
   const persist = await persistEnhancedResume({
@@ -212,6 +261,7 @@ export async function runPipelineTailor(
       error: persist.error,
     });
     await recordPipelineTailorError(userId, input.entryId, message, "persist_failed");
+    pipelineDebugStep(debug, "persist_overrides", { status: "error", detail: message });
     return { success: false, error: message, code: "persist_failed" };
   }
 
@@ -224,6 +274,12 @@ export async function runPipelineTailor(
     pipelinePhases: ["capture", "tailor"],
     lastTailoredAt: new Date().toISOString(),
     sourceProfileId: source.id,
+  });
+
+  pipelineDebugStep(debug, "persist_overrides", {
+    status: "done",
+    detail: `Changed: ${changedSections.join(", ") || "none"}`,
+    meta: { changedSections },
   });
 
   logEnhance("pipeline", "post.pipeline_state.done", {

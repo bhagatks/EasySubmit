@@ -165,6 +165,7 @@ Post-login routing: `docs/FLOW.md`, identity rules: `docs/IDENTITY_AND_BOOT_RULE
 | `/login?error=OAuthAccountNotLinked` | Same email, different provider history | Use original provider, or retry — linking is enabled in `lib/auth.ts` |
 | `/login?error=...` (generic) | Bad secret, DB error, or stale session | Verify env vars; try incognito; check server logs |
 | OAuth loop (keeps returning to login) | Stale cookies / mixed sessions | Incognito window, or `EASY_OPEN_BROWSER=1 run easy` |
+| Stuck on “Redirecting…” / buttons disabled after Back from Google | OAuth loading state stuck in bfcache/history | Fixed in `app/login/page.tsx` — clears on pageshow, focus, popstate, and `sessionStorage` pending flag |
 | Stuck on “Redirecting…” | Bad `NEXTAUTH_URL` or dev server 500 | Confirm `NEXTAUTH_URL`; check terminal for build errors |
 
 **Generate a new session secret**

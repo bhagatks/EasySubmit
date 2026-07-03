@@ -45,6 +45,10 @@ import {
   generateGeminiTextWith503Resilience,
 } from "@/src/lib/ai/engine/gemini-resilience";
 import { logApiCall, type ApiCallStatus } from "@/src/shared/observability";
+import {
+  pipelineDebugAdvance,
+  pipelineDebugStep,
+} from "@/lib/extension/pipeline-debug-hooks";
 
 export type RunEnhanceInput = {
   form: HubRefineryForm;
@@ -60,6 +64,8 @@ export type RunEnhanceInput = {
   enhanceDirective?: import("@/lib/job-tracker/jd/jd-intelligence").ResumeEnhanceDirective;
   /** Phase 1 brief — baseline already applied; AI refines only. */
   brief?: import("@/lib/job-tracker/enhance/enhance-brief").ResumeEnhanceBrief;
+  /** Temporary QA overlay — live AI pass updates. */
+  pipelineDebug?: import("@/lib/extension/pipeline-debug-hooks").PipelineDebugHookContext;
 };
 
 export type RunEnhanceSuccess = {
@@ -921,8 +927,19 @@ export async function runResumeEnhance(
   let apiCallCount = 0;
   let partialEnhance = false;
   let partialEnhanceMessage: string | undefined;
+  const debug = input.pipelineDebug ?? null;
 
   try {
+    pipelineDebugStep(debug, "ai_pass1", {
+      status: "active",
+      detail: "Calling generateText pass 1",
+      meta: {
+        routeMode: input.route.mode,
+        modelId: input.route.modelId,
+        provider: input.route.mode === "customer" ? input.route.provider : "system",
+      },
+    });
+
     const pass1 = await runPass(
       input.route,
       ctx,
@@ -982,6 +999,11 @@ export async function runResumeEnhance(
         ...ctx,
         resumeBody: finalBody,
       };
+
+      pipelineDebugAdvance(debug, "ai_pass2", "ai_pass1", {
+        detail: "Pass 1 OK — starting pass 2 optimize",
+        meta: { modelId: pass1.modelId, tokensUsed: pass1.tokensUsed },
+      });
 
       try {
         const pass2 = await runPass(

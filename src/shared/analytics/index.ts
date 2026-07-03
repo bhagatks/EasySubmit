@@ -28,6 +28,12 @@ export {
 
 export { captureDevJourneyStep, type DevJourneyCaptureInput } from "@/src/shared/analytics/server-dev-capture";
 export { captureApiCallLogged, type ApiCallPostHogCaptureInput } from "@/src/shared/analytics/server-api-call-capture";
+export {
+  captureApplyPipelineStep,
+  captureApplyPipelineStarted,
+  type ApplyPipelineStepPostHogInput,
+} from "@/src/shared/analytics/server-pipeline-step-capture";
+export { buildApplyPipelineStepProperties } from "@/src/shared/analytics/apply-pipeline-step";
 
 export {
   trackEnhanceClicked,
@@ -47,6 +53,8 @@ export {
   trackResumeExported,
   trackStudioTabChanged,
   trackSettingsSectionViewed,
+  trackApplyPipelineStep,
+  trackApplyPipelineStarted,
   type PricingAnalyticsSurface,
 } from "@/src/shared/analytics/product-events";
 

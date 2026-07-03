@@ -1,4 +1,5 @@
 import { setupBridgeRelay } from "./bridge-relay";
+import { maybeAutoConnectExtensionFromDashboard } from "@shared/extension/dashboard-auto-connect";
 import { buildExtensionBridgePath } from "@shared/extension/connect-account-url";
 import { EXTENSION_MESSAGE, STORAGE_KEYS, EXTENSION_ENHANCE_TIMEOUT_MS } from "@shared/extension/constants";
 import { detectJobPage } from "@shared/extension/detect-job-page";
@@ -29,6 +30,19 @@ import {
   logCaptureDiagnostics,
 } from "@shared/extension/capture-diagnostics";
 import { pollJobStatusUntil } from "@shared/extension/pipeline-status-poll";
+import type {
+  PipelineDebugProgress,
+  PipelineDebugStepStatus,
+} from "@shared/extension/pipeline-debug-types";
+import {
+  createLocalPipelineDebugSteps,
+  localPipelineDebugProgress,
+  markLocalPipelineDebugStep,
+  isPipelineDebugOverlayEnabled,
+  showPipelineDebugOverlay,
+  startPipelineDebugPolling,
+  updatePipelineDebugOverlay,
+} from "./pipeline-debug-overlay";
 import { runWorkdayAutofill, type WorkdayFillData } from "@shared/extension/workday-autofill";
 import { setupFieldCaptureBridge } from "@shared/extension/field-capture-bridge";
 import type { FieldCapturePayload } from "@shared/extension/field-descriptor";
@@ -79,6 +93,7 @@ import {
   trackEnhanceClicked,
   trackEnhanceCompleted,
   trackResumeJourneyStep,
+  trackApplyPipelineStep,
   trackScreenOverlay,
   trackUiInteraction,
 } from "@shared/analytics";
@@ -317,6 +332,72 @@ let enhanceAnimationCanvas: HTMLCanvasElement | null = null;
 let enhanceAnimationUntil: Promise<void> | null = null;
 let resolveEnhanceAnimationUntil: (() => void) | null = null;
 let pipelineProgressAnimationTracked = false;
+let pipelineDebugLocalSteps = createLocalPipelineDebugSteps();
+let applyPipelineSessionId: string | null = null;
+
+function trackClientApplyPipelineStep(
+  stepId: string,
+  update: {
+    status: PipelineDebugStepStatus;
+    detail?: string;
+    meta?: Record<string, unknown>;
+  },
+  entryId?: string | null,
+): void {
+  if (update.status === "pending") return;
+  if (entryId && stepId !== "capture_validate") return;
+
+  trackApplyPipelineStep({
+    stepId,
+    status: update.status,
+    applySessionId: applyPipelineSessionId,
+    entryId: entryId ?? undefined,
+    detail: update.detail ?? null,
+    meta: update.meta ?? null,
+  });
+}
+
+function patchLocalApplyPipelineStep(
+  stepId: string,
+  update: {
+    status: PipelineDebugStepStatus;
+    detail?: string;
+    meta?: Record<string, unknown>;
+  },
+  entryId?: string | null,
+): void {
+  if (!isPipelineDebugOverlayEnabled()) return;
+  pipelineDebugLocalSteps = markLocalPipelineDebugStep(
+    pipelineDebugLocalSteps,
+    stepId,
+    update,
+  );
+  trackClientApplyPipelineStep(stepId, update, entryId);
+  if (isPipelineDebugOverlayEnabled()) {
+    pushLocalPipelineDebugOverlay();
+  }
+}
+
+async function fetchPipelineDebugProgress(
+  entryId: string,
+): Promise<PipelineDebugProgress | null> {
+  const res = await sendMessage<{
+    success: boolean;
+    progress?: PipelineDebugProgress | null;
+  }>({
+    action: EXTENSION_MESSAGE.GET_PIPELINE_DEBUG,
+    entryId,
+  });
+  if (!res?.success || !res.progress) return null;
+  return res.progress;
+}
+
+function pushLocalPipelineDebugOverlay(): void {
+  if (!isPipelineDebugOverlayEnabled()) return;
+  updatePipelineDebugOverlay(
+    localPipelineDebugProgress("local", pipelineDebugLocalSteps),
+  );
+}
 
 function resetEnhanceAnimationUntil(): void {
   enhanceAnimationUntil = null;
@@ -4145,6 +4226,16 @@ async function startApplyPipeline(): Promise<void> {
   if (isExtensionForceUpgradeRequired(config, getExtensionManifestVersion())) return;
   if (isExtensionApplyBlockedByAiHealth(config)) return;
 
+  pipelineDebugLocalSteps = createLocalPipelineDebugSteps();
+  applyPipelineSessionId = crypto.randomUUID();
+  if (isPipelineDebugOverlayEnabled()) {
+    showPipelineDebugOverlay(pipelineDebugLocalSteps);
+  }
+  patchLocalApplyPipelineStep("capture_validate", {
+    status: "active",
+    detail: "Validating scrape + apply gate…",
+  });
+
   const captureForAnalytics = getCaptureContext();
   captureAnalyticsEvent(AnalyticsEvents.EXTENSION_APPLY_STARTED, {
     platform: captureForAnalytics.platform ?? "unknown",
@@ -4159,6 +4250,10 @@ async function startApplyPipeline(): Promise<void> {
     });
     if (blockReason) {
       saveError = blockReason;
+      patchLocalApplyPipelineStep("capture_validate", {
+        status: "error",
+        detail: blockReason,
+      });
       if (cardHost) renderCard(cardHost.shadow);
       return;
     }
@@ -4167,6 +4262,10 @@ async function startApplyPipeline(): Promise<void> {
   const tokenRes = await sendMessage<{ token: string | null }>({ action: EXTENSION_MESSAGE.GET_AUTH });
   if (!tokenRes?.token) {
     saveError = "Link this extension from your EasySubmit dashboard, then try again.";
+    patchLocalApplyPipelineStep("capture_validate", {
+      status: "error",
+      detail: saveError,
+    });
     if (cardHost) renderCard(cardHost.shadow);
     return;
   }
@@ -4191,6 +4290,22 @@ async function startApplyPipeline(): Promise<void> {
     enrichmentsApplied: lastScrapeContext?.enrichments ?? [],
   });
   logCaptureDiagnostics(captureDiagnostics, { phase: "extension-save" });
+
+  patchLocalApplyPipelineStep("capture_validate", {
+    status: "done",
+    detail: "Client validation passed",
+    meta: {
+      platform: capture.platform,
+      title: capture.title,
+      company: capture.company,
+      descriptionChars: capture.description?.length ?? 0,
+      sourceProfileId: selectedProfileId,
+    },
+  });
+  patchLocalApplyPipelineStep("capture_save", {
+    status: "active",
+    detail: "Saving job…",
+  });
 
   const payload = {
     url: capture.url,
@@ -4227,6 +4342,11 @@ async function startApplyPipeline(): Promise<void> {
       saveError =
         captureRes?.error ??
         "Could not save this job. Reconnect the extension from the dashboard, then try again.";
+      patchLocalApplyPipelineStep(
+        "capture_save",
+        { status: "error", detail: saveError },
+        captureRes?.id,
+      );
       return;
     }
 
@@ -4248,6 +4368,28 @@ async function startApplyPipeline(): Promise<void> {
       jobStatus: captureRes.status ?? "CAPTURED",
     });
     const jobId = captureRes.id;
+    if (isPipelineDebugOverlayEnabled()) {
+      pipelineDebugLocalSteps = markLocalPipelineDebugStep(
+        pipelineDebugLocalSteps,
+        "capture_save",
+        {
+          status: "done",
+          detail: `CAPTURED · ${jobId}`,
+          meta: { entryId: jobId, status: captureRes.status },
+        },
+      );
+      pipelineDebugLocalSteps = markLocalPipelineDebugStep(
+        pipelineDebugLocalSteps,
+        "profile_load",
+        { status: "active", detail: "Tailor dispatched — loading server progress…" },
+      );
+      pushLocalPipelineDebugOverlay();
+      startPipelineDebugPolling({
+        entryId: jobId,
+        fetchProgress: fetchPipelineDebugProgress,
+      });
+    }
+
     savedStatus = {
       saved: true,
       status: captureRes.status ?? "CAPTURED",
@@ -4695,6 +4837,14 @@ if (window.top === window.self) {
       window.localStorage.setItem(STORAGE_KEYS.extensionId, chrome.runtime.id);
     } catch {
       // ignore private mode / quota errors
+    }
+    if (!isBridgePage) {
+      void maybeAutoConnectExtensionFromDashboard(chrome.runtime);
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+          void maybeAutoConnectExtensionFromDashboard(chrome.runtime);
+        }
+      });
     }
   }
 

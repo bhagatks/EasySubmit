@@ -55,4 +55,26 @@ describe("oauth login client helpers", () => {
     clearOAuthRedirectPending();
     expect(hasOAuthRedirectPending()).toBe(false);
   });
+
+  it("handles unavailable sessionStorage", () => {
+    vi.stubGlobal("sessionStorage", {
+      getItem: () => {
+        throw new Error("blocked");
+      },
+      setItem: () => {
+        throw new Error("blocked");
+      },
+      removeItem: () => {
+        throw new Error("blocked");
+      },
+    });
+
+    markOAuthRedirectPending("google");
+    markLoginTermsAccepted();
+    expect(readLoginTermsAccepted()).toBe(false);
+    expect(consumeOAuthRedirectPending()).toBe(false);
+    expect(hasOAuthRedirectPending()).toBe(false);
+    clearOAuthRedirectPending();
+    clearLoginTermsAccepted();
+  });
 });

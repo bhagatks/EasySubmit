@@ -6,6 +6,8 @@ import { ExtensionCardMock } from "@/components/marketing/ExtensionCardMock";
 import { GlossyModal } from "@/components/ui/glossy-modal";
 import { Button } from "@/components/ui/button";
 import { EXTENSION_STORE_URL } from "@/lib/brand";
+import { extensionBridgeHref } from "@/lib/dashboard/dashboard-extension-links";
+import { readExtensionIdForDashboard } from "@/lib/extension/start-job-apply-from-dashboard";
 
 type ExtensionInstallPromptModalProps = {
   open: boolean;
@@ -52,11 +54,11 @@ export function ExtensionInstallPromptModal({
             <p className="text-sm font-medium">After installing</p>
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
-            Open a job posting and click the EasySubmit icon in your toolbar, or{" "}
-            <Link href="/extension/bridge" className="font-medium text-primary underline-offset-2 hover:underline">
-              connect the extension
-            </Link>{" "}
-            to this account.
+            Open a job posting and click the EasySubmit icon in your toolbar. If you are already signed in here, visiting the dashboard connects the extension automatically — or{" "}
+            <Link href={extensionBridgeHref(readExtensionIdForDashboard())} className="font-medium text-primary underline-offset-2 hover:underline">
+              connect manually
+            </Link>
+            .
           </p>
         </div>
       </div>

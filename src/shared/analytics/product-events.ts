@@ -3,11 +3,48 @@ import {
   type EnhanceAnalyticsSurface,
   type EnhanceDocumentKind,
 } from "@/src/shared/analytics/events";
+import { buildApplyPipelineStepProperties } from "@/src/shared/analytics/apply-pipeline-step";
+import type { PipelineDebugStepStatus } from "@/src/shared/extension/pipeline-debug-types";
 import {
   captureAnalyticsEvent,
   captureDevAnalyticsEvent,
 } from "@/src/shared/analytics/browser";
 import type { JourneyAiCallStatus } from "@/src/lib/ai/engine/enhance-logger";
+
+export function trackApplyPipelineStep(input: {
+  stepId: string;
+  status: PipelineDebugStepStatus;
+  entryId?: string | null;
+  traceId?: string | null;
+  applySessionId?: string | null;
+  detail?: string | null;
+  meta?: Record<string, unknown> | null;
+}): void {
+  captureDevAnalyticsEvent(AnalyticsEvents.EXTENSION_APPLY_PIPELINE_STEP, {
+    ...buildApplyPipelineStepProperties({
+      stepId: input.stepId,
+      status: input.status,
+      entryId: input.entryId,
+      traceId: input.traceId,
+      applySessionId: input.applySessionId,
+      detail: input.detail,
+      meta: input.meta,
+    }),
+  });
+}
+
+export function trackApplyPipelineStarted(input: {
+  entryId: string;
+  traceId: string;
+  applySessionId?: string | null;
+}): void {
+  captureDevAnalyticsEvent(AnalyticsEvents.EXTENSION_APPLY_PIPELINE_STARTED, {
+    surface: "extension",
+    entry_id: input.entryId,
+    trace_id: input.traceId,
+    apply_session_id: input.applySessionId ?? undefined,
+  });
+}
 
 export function trackEnhanceClicked(input: {
   surface: EnhanceAnalyticsSurface;

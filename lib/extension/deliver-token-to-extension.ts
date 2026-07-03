@@ -24,10 +24,11 @@ function getChromeBridge(): ChromeBridge | undefined {
 /** Prefer content-script relay; fall back to chrome.runtime.sendMessage from the page. */
 export async function deliverTokenToExtension(
   token: string,
-  extensionId: string,
+  extensionId?: string | null,
 ): Promise<{ success: boolean; error?: string }> {
   const relay = await deliverViaContentRelay(token);
   if (relay.success) return relay;
+  if (!extensionId?.trim()) return relay;
   return deliverViaExternalMessage(token, extensionId);
 }
 

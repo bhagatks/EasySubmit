@@ -28,6 +28,14 @@ vi.mock("@/lib/extension/pipeline-metadata", () => ({
   recordPipelineTailorError: vi.fn(),
 }));
 
+vi.mock("@/lib/extension/pipeline-debug-hooks", () => ({
+  pipelineDebugStep: vi.fn(),
+  pipelineDebugAdvance: vi.fn(),
+  pipelineDebugContext: vi.fn((userId?: string, entryId?: string) =>
+    userId && entryId ? { userId, entryId } : null,
+  ),
+}));
+
 vi.mock("@/src/lib/ai/engine/enhance-logger", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/src/lib/ai/engine/enhance-logger")>();
   return {
@@ -102,6 +110,7 @@ describe("runPipelineTailor", () => {
         engineMode: "ai",
         aiAttempted: true,
         aiSucceeded: true,
+        enhanceSummary: null,
       },
     });
     vi.mocked(persistEnhancedResume).mockResolvedValue({

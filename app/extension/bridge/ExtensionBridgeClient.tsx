@@ -8,15 +8,16 @@ import { LogoIcon } from "@/components/ui/logo";
 import { deliverTokenToExtension } from "@/lib/extension/deliver-token-to-extension";
 import { storeExtensionIdForDashboard } from "@/lib/extension/start-job-apply-from-dashboard";
 import { buildExtensionBridgePath } from "@/src/shared/extension/connect-account-url";
+import { readExtensionIdForDashboard } from "@/lib/extension/start-job-apply-from-dashboard";
 
-type BridgeState = "loading" | "success" | "error" | "no-extension-id";
+type BridgeState = "loading" | "success" | "error";
 
 export default function ExtensionBridgeClient() {
   const searchParams = useSearchParams();
-  const extensionId = searchParams.get("extensionId") ?? "";
-  const [state, setState] = useState<BridgeState>(
-    extensionId ? "loading" : "no-extension-id",
-  );
+  const extensionIdFromQuery = searchParams.get("extensionId") ?? "";
+  const extensionId =
+    extensionIdFromQuery.trim() || readExtensionIdForDashboard() || "";
+  const [state, setState] = useState<BridgeState>("loading");
   const [message, setMessage] = useState("Connecting extension to your account…");
 
   useEffect(() => {
@@ -30,8 +31,6 @@ export default function ExtensionBridgeClient() {
     : "/extension/bridge";
 
   useEffect(() => {
-    if (!extensionId) return;
-
     void (async () => {
       try {
         const res = await fetch("/api/extension/auth/token", {
@@ -61,7 +60,10 @@ export default function ExtensionBridgeClient() {
           return;
         }
 
-        const result = await deliverTokenToExtension(data.token, extensionId);
+        const result = await deliverTokenToExtension(
+          data.token,
+          extensionId || null,
+        );
         if (!result.success) {
           setState("error");
           setMessage(
@@ -97,18 +99,16 @@ export default function ExtensionBridgeClient() {
           </Button>
         ) : null}
 
-        {state === "error" || state === "no-extension-id" ? (
+        {state === "error" ? (
           <div className="mt-6 flex flex-col gap-2">
-            {state === "error" ? (
-              <Button variant="mint" onClick={() => window.location.reload()}>
-                Try again
-              </Button>
-            ) : null}
+            <Button variant="mint" onClick={() => window.location.reload()}>
+              Try again
+            </Button>
             <Button variant="outline" asChild>
               <Link href={`/login?callbackUrl=${encodeURIComponent(bridgeHref)}`}>Sign in</Link>
             </Button>
             <Button variant="ghost" asChild>
-              <Link href="/extension">Extension setup</Link>
+              <Link href="/dashboard/extension">Extension setup</Link>
             </Button>
           </div>
         ) : null}

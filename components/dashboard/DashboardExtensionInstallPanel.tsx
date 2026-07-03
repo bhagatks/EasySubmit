@@ -12,6 +12,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { isExtensionConnectedForDashboard } from "@/lib/extension/extension-dashboard-connection";
 import { EXTENSION_STORE_URL } from "@/lib/brand";
+import { extensionBridgeHref } from "@/lib/dashboard/dashboard-extension-links";
+import { readExtensionIdForDashboard } from "@/lib/extension/start-job-apply-from-dashboard";
 import { cn } from "@/lib/utils";
 
 type DashboardExtensionInstallPanelProps = {
@@ -109,9 +111,12 @@ export function DashboardExtensionInstallPanel({
               </li>
             </ol>
 
-            <div className="mt-6">
+            <div className="mt-6 space-y-2">
+              <p className="text-xs text-muted-foreground">
+                Signed in on this browser? Reload this page — the extension connects automatically.
+              </p>
               <Button variant="outline" className="w-full rounded-xl" asChild>
-                <Link href="/extension/bridge">Connect extension</Link>
+                <Link href={extensionBridgeHref(readExtensionIdForDashboard())}>Connect extension</Link>
               </Button>
             </div>
           </div>

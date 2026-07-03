@@ -7,6 +7,11 @@ import type { EnhanceOffReason } from "@/lib/features/types";
 import type { EnhanceRunResult, ResumeEnhancePipelineInput } from "@/lib/job-tracker/enhance/enhance-result";
 import { resolveAiUpgrade } from "@/lib/job-tracker/enhance/resolve-ai-upgrade";
 import {
+  pipelineDebugAdvance,
+  pipelineDebugContext,
+  pipelineDebugStep,
+} from "@/lib/extension/pipeline-debug-hooks";
+import {
   experienceBlobFromForm,
   normalizeExperienceDateFields,
   postProcessSummaryOutput,
@@ -56,6 +61,7 @@ async function runResumeEnhancePipelineInner(
 ): Promise<EnhanceRunResult> {
   const { userId, user, traceId } = input;
   const aiEngine = await getAppConfig("aiEngine");
+  const debug = pipelineDebugContext(userId, input.jobEntryId);
 
   logEnhanceDiag({
     traceId,
@@ -146,6 +152,7 @@ async function runResumeEnhancePipelineInner(
 
   let brief;
   try {
+    pipelineDebugAdvance(debug, "pre_onet");
     brief = await buildEnhanceBrief({
       form: input.form,
       targetRole: input.targetRole,
@@ -158,6 +165,7 @@ async function runResumeEnhancePipelineInner(
       userId,
       quotaUser: user,
       aiRoute: aiUpgrade?.route ?? null,
+      pipelineDebug: debug ?? undefined,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -187,10 +195,62 @@ async function runResumeEnhancePipelineInner(
     };
   }
 
+  pipelineDebugAdvance(debug, "ai_gates", "pre_plan", {
+    detail: "Pre-process brief ready",
+  });
+  if (allowAi && aiUpgrade) {
+    if (aiUpgrade.aiAllowed && aiUpgrade.route) {
+      pipelineDebugStep(debug, "ai_gates", {
+        status: "done",
+        detail: "AI allowed",
+        meta: {
+          routeMode: aiUpgrade.route.mode,
+          provider:
+            aiUpgrade.route.mode === "customer" ? aiUpgrade.route.provider : "system",
+          modelId: aiUpgrade.route.modelId,
+          vaultKeyId:
+            aiUpgrade.route.mode === "customer" ? aiUpgrade.route.vaultKeyId : null,
+        },
+      });
+    } else {
+      pipelineDebugStep(debug, "ai_gates", {
+        status: "done",
+        detail: aiUpgrade.warning ?? "AI blocked — baseline only",
+        meta: {
+          aiAllowed: false,
+          reason: aiUpgrade.reason ?? null,
+        },
+      });
+      pipelineDebugStep(debug, "ai_pass1", {
+        status: "skipped",
+        detail: aiUpgrade.reason ?? "AI not available",
+      });
+      pipelineDebugStep(debug, "ai_pass2", {
+        status: "skipped",
+        detail: aiUpgrade.reason ?? "AI not available",
+      });
+    }
+  } else {
+    pipelineDebugStep(debug, "ai_gates", {
+      status: "skipped",
+      detail: "Onboarding or AI upgrade disabled for surface",
+    });
+    pipelineDebugStep(debug, "ai_pass1", { status: "skipped", detail: "Surface skips AI" });
+    pipelineDebugStep(debug, "ai_pass2", { status: "skipped", detail: "Surface skips AI" });
+  }
+
+  if (brief.jdAiCallCount === 0) {
+    pipelineDebugStep(debug, "ai_jd_extract", {
+      status: "skipped",
+      detail: "Cache hit or deterministic-only JD",
+    });
+  }
+
   const readinessBefore = brief.readiness.total;
 
   let baseline;
   try {
+    pipelineDebugAdvance(debug, "baseline", "ai_gates");
     baseline = applyBaselineEnhance(input.form, brief, traceId, userId);
   } catch (err) {
     logEnhance("server", "pipeline.baseline.error", {
@@ -205,6 +265,17 @@ async function runResumeEnhancePipelineInner(
       code: "provider_error",
     };
   }
+
+  pipelineDebugStep(debug, "baseline", {
+    status: "done",
+    detail: baseline.enhanceSummary,
+    meta: {
+      skillsAdded: baseline.changes.skillsAdded.length,
+      bulletsRewritten: baseline.changes.bulletsRewritten,
+      bulletsWoven: baseline.changes.bulletsWoven,
+      summaryRewritten: baseline.changes.summaryRewritten,
+    },
+  });
 
   logJourneyStep("server", "pipeline.baseline.done", {
     traceId,
@@ -250,6 +321,14 @@ async function runResumeEnhancePipelineInner(
         estimatedCalls,
       });
 
+      pipelineDebugAdvance(debug, "ai_pass1", "baseline", {
+        detail: "Starting AI pass 1 — generate",
+        meta: {
+          routeMode: aiUpgrade.route.mode,
+          modelId: aiUpgrade.route.modelId,
+        },
+      });
+
       const result = await runResumeEnhance(
         {
           form: baseline.form,
@@ -262,6 +341,7 @@ async function runResumeEnhancePipelineInner(
           jobIntelligence: brief.jd?.jobIntelligence,
           enhanceDirective: brief.jd?.directive,
           brief,
+          pipelineDebug: debug ?? undefined,
         },
         pricingMap,
       );
@@ -276,6 +356,27 @@ async function runResumeEnhancePipelineInner(
         apiCallCount = result.apiCallCount + brief.jdAiCallCount;
         modelId = result.modelId;
         partialEnhance = result.partialEnhance;
+        pipelineDebugStep(debug, "ai_pass1", {
+          status: "done",
+          detail: `Pass 1 complete — ${result.modelId}`,
+          meta: { tokensUsed: result.tokensUsed, apiCallCount: result.apiCallCount },
+        });
+        if (partialEnhance) {
+          pipelineDebugStep(debug, "ai_pass2", {
+            status: "error",
+            detail: result.partialEnhanceMessage ?? "Pass 2 failed — kept pass 1",
+          });
+        } else if (input.jobDescription?.trim()) {
+          pipelineDebugStep(debug, "ai_pass2", {
+            status: "done",
+            detail: "Pass 2 optimize complete",
+          });
+        } else {
+          pipelineDebugStep(debug, "ai_pass2", {
+            status: "skipped",
+            detail: "No JD — pass 2 not run",
+          });
+        }
         if (result.partialEnhance) {
           warning =
             result.partialEnhanceMessage ??
@@ -309,6 +410,12 @@ async function runResumeEnhancePipelineInner(
       } else {
         warning = result.error;
         aiBlockCode = (result.code ?? "provider_error") as typeof aiBlockCode;
+        pipelineDebugStep(debug, "ai_pass1", {
+          status: "error",
+          detail: result.error,
+          meta: { code: result.code ?? null },
+        });
+        pipelineDebugStep(debug, "ai_pass2", { status: "skipped", detail: "Pass 1 failed" });
         logEnhance("server", "pipeline.ai.fail", {
           traceId,
           userId,
@@ -358,6 +465,12 @@ async function runResumeEnhancePipelineInner(
     before: readinessBefore,
     after: readinessAfter,
   };
+
+  pipelineDebugStep(debug, "post_process", {
+    status: "done",
+    detail: `Changed sections: ${changedSections.join(", ") || "none"}`,
+    meta: { engineMode, aiSucceeded, changedSections, readinessDelta },
+  });
 
   const { quotaRow, resetPatch } = resolveQuotaRowWithReset(user);
   const quotaCallCount = enhanceApiCallCount + brief.jdAiCallCount;
