@@ -15,9 +15,13 @@ type RealtimeTokenResponse = {
   error?: string;
 };
 
+type RealtimeTokenResult =
+  | { ok: true; token: string; userId: string; supabaseUrl: string; supabaseKey: string }
+  | { ok: false; success: boolean; error?: string };
+
 async function fetchRealtimeToken(
   sendMessage: (msg: Record<string, unknown>) => Promise<RealtimeTokenResponse | undefined>,
-): Promise<{ token: string; userId: string; supabaseUrl: string; supabaseKey: string } | null> {
+): Promise<RealtimeTokenResult> {
   const res = await sendMessage({ action: EXTENSION_MESSAGE.GET_REALTIME_TOKEN });
   console.log("[EasySubmit] realtime:token-response", { success: res?.success, hasToken: Boolean(res?.token) });
   if (
@@ -27,19 +31,23 @@ async function fetchRealtimeToken(
     !res.supabaseUrl ||
     !res.supabaseKey
   ) {
-    return null;
+    return { ok: false, success: Boolean(res?.success), error: res?.error };
   }
-  return { token: res.token, userId: res.userId, supabaseUrl: res.supabaseUrl, supabaseKey: res.supabaseKey };
+  return { ok: true, token: res.token, userId: res.userId, supabaseUrl: res.supabaseUrl, supabaseKey: res.supabaseKey };
 }
 
 export async function startJobStatusRealtimeImpl(
   options: ExtensionJobRealtimeOptions & { jobId: string; onStatus: JobStatusChangeHandler },
 ): Promise<() => Promise<void>> {
-  const credentials = await fetchRealtimeToken(options.sendMessage);
-  if (!credentials) {
-    console.warn("[EasySubmit] realtime:subscribe aborted — no credentials", { jobId: options.jobId });
+  const result = await fetchRealtimeToken(options.sendMessage);
+  if (!result.ok) {
+    console.warn(
+      `[EasySubmit] realtime:subscribe aborted — no credentials (success=${result.success}, error=${result.error ?? "none"})`,
+      { jobId: options.jobId },
+    );
     return async () => undefined;
   }
+  const credentials = result;
 
   const supabase = createClient(credentials.supabaseUrl, credentials.supabaseKey, {
     auth: { persistSession: false, autoRefreshToken: false },
