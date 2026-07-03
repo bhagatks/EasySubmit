@@ -141,3 +141,47 @@ describe("ats-fingerprint extension mapping", () => {
     ).toBe("generic");
   });
 });
+
+describe("platform detection edge cases", () => {
+  it("detects unknown platform and defaults to keyword_search strategy", () => {
+    expect(detectPlatform("https://random-ats-xyz.example.com/job/1", null)).toBe("unknown");
+    expect(resolvePlatformStrategy("unknown")).toBe("keyword_search");
+  });
+
+  it("handles malformed and empty URLs gracefully", () => {
+    expect(detectPlatform("not a url", null)).toBe("unknown");
+    expect(detectPlatform("", null)).toBe("unknown");
+    expect(detectPlatform("   ", null)).toBe("unknown");
+  });
+
+  it("platform field fallback is case-insensitive", () => {
+    expect(detectPlatform("https://example.com", "workday")).toBe("workday");
+    expect(detectPlatform("https://example.com", "WORKDAY")).toBe("workday");
+    expect(detectPlatform("https://example.com", "WorkDay")).toBe("workday");
+    expect(detectPlatform("https://example.com", "greenhouse")).toBe("greenhouse");
+    expect(detectPlatform("https://example.com", "GREENHOUSE")).toBe("greenhouse");
+  });
+
+  it("rejects invalid platform field names", () => {
+    expect(detectPlatform("https://example.com", "unknown platform name")).toBe("unknown");
+    expect(detectPlatform("https://example.com", "xyz123")).toBe("unknown");
+    expect(detectPlatform("https://example.com", "   ")).toBe("unknown");
+  });
+
+  it("prefers exact URL match over platform field fallback", () => {
+    expect(detectPlatform("https://myworkdayjobs.com/job/1", "greenhouse")).toBe("workday");
+    expect(detectPlatform("https://jobs.ashbyhq.com/acme/job/1", "workday")).toBe("ashby");
+  });
+
+  it("handles URLs with query params and fragments", () => {
+    expect(detectPlatform("https://myworkdayjobs.com/job/1?ref=social", null)).toBe("workday");
+    expect(detectPlatform("https://indeed.com/viewjob?jk=abc#hash", null)).toBe("indeed");
+  });
+
+  it("handles LinkedIn and Indeed with various URL formats", () => {
+    expect(detectPlatform("https://www.linkedin.com/jobs/view/123", null)).toBe("linkedin");
+    expect(detectPlatform("https://linkedin.com/jobs/view/123", null)).toBe("linkedin");
+    expect(detectPlatform("https://www.indeed.com/viewjob?jk=abc", null)).toBe("indeed");
+    expect(detectPlatform("https://indeed.com/jobs?q=engineer", null)).toBe("indeed");
+  });
+});

@@ -26,17 +26,42 @@ const STRATEGY_LABELS: Record<string, string> = {
   human_review: "Human review",
 };
 
+const STRATEGY_EXPLANATIONS: Record<string, string> = {
+  keyword_search: "Uses boolean/keyword search. Exact keyword matching and repetition matter most.",
+  ai_match: "Algorithmically ranks candidates. Skills taxonomy breadth and requirement matching matter.",
+  parse_first: "Extracts structured fields first. Parser fidelity, standard titles, and dates matter most.",
+  human_review: "No algorithmic scoring. Recruiters read your resume directly. Readability matters most.",
+};
+
 function PlatformStrategyBanner({ platform }: { platform: ReturnType<typeof getPlatformRules> }) {
+  const [showExplanation, setShowExplanation] = useState(false);
+
   return (
     <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
       <div className="flex flex-wrap items-center gap-2">
         <ShieldCheck className="h-4 w-4 shrink-0 text-primary" />
         <p className="font-display text-sm font-semibold text-foreground">{platform.label}</p>
-        <span className="rounded-full bg-surface/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <span
+          className="rounded-full bg-surface/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground cursor-help relative"
+          title={STRATEGY_EXPLANATIONS[platform.strategy] ?? platform.strategy}
+        >
           {STRATEGY_LABELS[platform.strategy] ?? platform.strategy}
         </span>
+        <button
+          onClick={() => setShowExplanation(!showExplanation)}
+          className="ml-auto text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          {showExplanation ? "Hide" : "Why?"}
+        </button>
       </div>
       <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{platform.tip}</p>
+      {showExplanation && (
+        <div className="mt-3 pt-3 border-t border-primary/10">
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            <span className="font-semibold">How it works:</span> {STRATEGY_EXPLANATIONS[platform.strategy]}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

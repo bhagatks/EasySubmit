@@ -521,6 +521,28 @@ async function runResumeEnhancePipelineInner(
     ],
   });
 
+  logEnhanceDiag({
+    traceId,
+    designStep: "14b",
+    track: "resume",
+    pipelineStep: ENHANCE_PIPELINE.POST_PROCESS,
+    phase: "done",
+    level: "medium",
+    event: "enhance.strategy.impact",
+    scope: "server",
+    userId,
+    params: {
+      atsPlatform: brief.platform.id,
+      atsStrategy: brief.platform.strategy,
+      readinessDeltaPercent: ((readinessAfter - readinessBefore) / 100).toFixed(1),
+      readinessBefore,
+      readinessAfter,
+      changedSections,
+      engineMode,
+      aiSucceeded,
+    },
+  });
+
   const { quotaRow, resetPatch } = resolveQuotaRowWithReset(user);
   const quotaCallCount = enhanceApiCallCount + brief.jdAiCallCount;
   const shouldIncrementQuota = aiSucceeded || brief.jdAiCallCount > 0;
