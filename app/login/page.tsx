@@ -4,7 +4,8 @@ import { JetBrains_Mono } from "next/font/google";
 import { signIn, signOut } from "next-auth/react";
 import { clearClientSessionState } from "@/lib/auth/sign-out-client";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { MarketTruth } from "@/components/MarketTruth";
 import { TermsPrivacyConsent } from "@/components/legal/terms-privacy-consent";
 import { InlineAlert } from "@/components/ui/inline-alert";
@@ -18,6 +19,15 @@ import {
 } from "@/components/ui/tooltip";
 import { BRAND, brandCopyright } from "@/lib/brand";
 import { resolveSafeCallbackUrl } from "@/lib/auth/safe-callback-url";
+import {
+  clearOAuthRedirectPending,
+  clearLoginTermsAccepted,
+  consumeOAuthRedirectPending,
+  hasOAuthRedirectPending,
+  markLoginTermsAccepted,
+  markOAuthRedirectPending,
+  readLoginTermsAccepted,
+} from "@/lib/auth/oauth-login-client";
 import { AnalyticsEvents, captureAnalyticsEvent } from "@/src/shared/analytics";
 import { cn } from "@/lib/utils";
 
@@ -164,6 +174,17 @@ function LoginPanel() {
   const [loadingProvider, setLoadingProvider] = useState<AuthProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const oauthInFlightRef = useRef(false);
+
+  useEffect(() => {
+    if (readLoginTermsAccepted()) {
+      setTermsAccepted(true);
+    }
+    if (consumeOAuthRedirectPending()) {
+      oauthInFlightRef.current = false;
+      setLoadingProvider(null);
+    }
+  }, []);
 
   useEffect(() => {
     const authError = searchParams.get("error");
@@ -180,11 +201,20 @@ function LoginPanel() {
 
   useEffect(() => {
     function resetOAuthLoading() {
-      setLoadingProvider(null);
+      oauthInFlightRef.current = false;
+      clearOAuthRedirectPending();
+      if (readLoginTermsAccepted()) {
+        flushSync(() => {
+          setTermsAccepted(true);
+        });
+      }
+      flushSync(() => {
+        setLoadingProvider(null);
+      });
     }
 
     function onPageShow(event: PageTransitionEvent) {
-      if (event.persisted) {
+      if (event.persisted || hasOAuthRedirectPending()) {
         resetOAuthLoading();
       }
     }
@@ -195,11 +225,23 @@ function LoginPanel() {
       }
     }
 
+    function onFocus() {
+      resetOAuthLoading();
+    }
+
+    function onPopState() {
+      resetOAuthLoading();
+    }
+
     window.addEventListener("pageshow", onPageShow);
     document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("popstate", onPopState);
     return () => {
       window.removeEventListener("pageshow", onPageShow);
       document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("popstate", onPopState);
     };
   }, []);
 
@@ -207,8 +249,9 @@ function LoginPanel() {
   const oauthEnabled = termsAccepted && !isLoading;
 
   async function handleOAuth(provider: AuthProvider) {
-    if (!termsAccepted || loadingProvider !== null) return;
+    if (!termsAccepted || oauthInFlightRef.current) return;
 
+    oauthInFlightRef.current = true;
     setLoadingProvider(provider);
     setError(null);
 
@@ -216,11 +259,15 @@ function LoginPanel() {
 
     try {
       // Clear stale EasySubmit client drafts before OAuth and drop any surviving session cookie.
+      // clearEasySubmitClientStorage() wipes every sessionStorage key prefixed "easysubmit" —
+      // mark terms-accepted after this runs, or the flag it sets gets wiped immediately.
       clearClientSessionState();
       await signOut({ redirect: false });
     } catch {
       // Already signed out — continue into provider OAuth.
     }
+
+    markLoginTermsAccepted();
 
     const authParams: Record<string, string> =
       provider === "linkedin"
@@ -237,18 +284,28 @@ function LoginPanel() {
       const result = await signIn(provider, { callbackUrl, redirect: false }, authParams);
 
       if (result?.error) {
+        oauthInFlightRef.current = false;
+        clearOAuthRedirectPending();
         setLoadingProvider(null);
         setError("Authentication failed. Please try again.");
         return;
       }
 
       if (result?.url) {
+        markOAuthRedirectPending(provider);
+        flushSync(() => {
+          setLoadingProvider(null);
+        });
         window.location.assign(result.url);
         return;
       }
 
+      oauthInFlightRef.current = false;
+      clearOAuthRedirectPending();
       setLoadingProvider(null);
     } catch {
+      oauthInFlightRef.current = false;
+      clearOAuthRedirectPending();
       setLoadingProvider(null);
       setError("Authentication failed. Please try again.");
     }
@@ -300,7 +357,11 @@ function LoginPanel() {
 
               <TermsPrivacyConsent
                 checked={termsAccepted}
-                onCheckedChange={setTermsAccepted}
+                onCheckedChange={(checked) => {
+                  setTermsAccepted(checked);
+                  if (checked) markLoginTermsAccepted();
+                  else clearLoginTermsAccepted();
+                }}
                 disabled={isLoading}
                 variant="glass"
                 overlayPlacement="login-panel"
