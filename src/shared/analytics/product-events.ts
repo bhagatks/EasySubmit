@@ -5,6 +5,7 @@ import {
 } from "@/src/shared/analytics/events";
 import { buildApplyPipelineStepProperties } from "@/src/shared/analytics/apply-pipeline-step";
 import type { PipelineDebugStepStatus } from "@/src/shared/extension/pipeline-debug-types";
+import { isApplyPipelineStepAnalyticsEnabledClient } from "@/src/shared/extension/apply-pipeline-step-analytics-gate";
 import {
   captureAnalyticsEvent,
   captureDevAnalyticsEvent,
@@ -19,31 +20,58 @@ export function trackApplyPipelineStep(input: {
   applySessionId?: string | null;
   detail?: string | null;
   meta?: Record<string, unknown> | null;
+  /** From extension runtime config — prod PostHog when true. Dev always emits. */
+  applyPipelineStepAnalytics?: boolean | null;
 }): void {
-  captureDevAnalyticsEvent(AnalyticsEvents.EXTENSION_APPLY_PIPELINE_STEP, {
-    ...buildApplyPipelineStepProperties({
-      stepId: input.stepId,
-      status: input.status,
-      entryId: input.entryId,
-      traceId: input.traceId,
-      applySessionId: input.applySessionId,
-      detail: input.detail,
-      meta: input.meta,
-    }),
+  if (
+    !isApplyPipelineStepAnalyticsEnabledClient(input.applyPipelineStepAnalytics)
+  ) {
+    return;
+  }
+
+  const properties = buildApplyPipelineStepProperties({
+    stepId: input.stepId,
+    status: input.status,
+    entryId: input.entryId,
+    traceId: input.traceId,
+    applySessionId: input.applySessionId,
+    detail: input.detail,
+    meta: input.meta,
   });
+
+  if (process.env.NEXT_PUBLIC_ANALYTICS_ENV !== "prod") {
+    captureDevAnalyticsEvent(AnalyticsEvents.EXTENSION_APPLY_PIPELINE_STEP, properties);
+    return;
+  }
+
+  captureAnalyticsEvent(AnalyticsEvents.EXTENSION_APPLY_PIPELINE_STEP, properties);
 }
 
 export function trackApplyPipelineStarted(input: {
   entryId: string;
   traceId: string;
   applySessionId?: string | null;
+  applyPipelineStepAnalytics?: boolean | null;
 }): void {
-  captureDevAnalyticsEvent(AnalyticsEvents.EXTENSION_APPLY_PIPELINE_STARTED, {
+  if (
+    !isApplyPipelineStepAnalyticsEnabledClient(input.applyPipelineStepAnalytics)
+  ) {
+    return;
+  }
+
+  const properties = {
     surface: "extension",
     entry_id: input.entryId,
     trace_id: input.traceId,
     apply_session_id: input.applySessionId ?? undefined,
-  });
+  };
+
+  if (process.env.NEXT_PUBLIC_ANALYTICS_ENV !== "prod") {
+    captureDevAnalyticsEvent(AnalyticsEvents.EXTENSION_APPLY_PIPELINE_STARTED, properties);
+    return;
+  }
+
+  captureAnalyticsEvent(AnalyticsEvents.EXTENSION_APPLY_PIPELINE_STARTED, properties);
 }
 
 export function trackEnhanceClicked(input: {

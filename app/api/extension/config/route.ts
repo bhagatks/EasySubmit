@@ -65,6 +65,7 @@ export async function GET(request: NextRequest) {
     customizeResume: userPrefs?.customizeResume ?? true,
     oneClickApplyPlatforms: ONE_CLICK_APPLY_PLATFORMS,
     autoApplyEnabled: config.autoApplyEnabled,
+    applyPipelineStepAnalytics: config.applyPipelineStepAnalytics,
     connectedUser,
     aiHealthError,
     systemQuotaExceeded,

@@ -5,10 +5,6 @@ vi.mock("@/lib/extension/pipeline-debug-progress", () => ({
   advancePipelineDebugStep: vi.fn(async () => undefined),
 }));
 
-vi.mock("@/src/shared/extension/pipeline-debug-gate", () => ({
-  isPipelineDebugEnabled: vi.fn(() => true),
-}));
-
 import {
   pipelineDebugAdvance,
   pipelineDebugContext,
@@ -18,12 +14,10 @@ import {
   advancePipelineDebugStep,
   setPipelineDebugStep,
 } from "@/lib/extension/pipeline-debug-progress";
-import { isPipelineDebugEnabled } from "@/src/shared/extension/pipeline-debug-gate";
 
 describe("pipeline debug hooks", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(isPipelineDebugEnabled).mockReturnValue(true);
   });
 
   it("builds context only when ids are present", () => {
@@ -34,24 +28,7 @@ describe("pipeline debug hooks", () => {
     expect(pipelineDebugContext(undefined, "job-1")).toBeNull();
   });
 
-  it("no-ops when debug is disabled", () => {
-    vi.mocked(isPipelineDebugEnabled).mockReturnValue(false);
-    pipelineDebugStep({ userId: "user-1", entryId: "job-1" }, "capture_validate", {
-      status: "done",
-    });
-    expect(setPipelineDebugStep).not.toHaveBeenCalled();
-  });
-
-  it("no-ops when context is missing", () => {
-    vi.mocked(isPipelineDebugEnabled).mockReturnValue(true);
-    pipelineDebugStep(null, "capture_validate", { status: "done" });
-    pipelineDebugAdvance(null, "capture_save");
-    expect(setPipelineDebugStep).not.toHaveBeenCalled();
-    expect(advancePipelineDebugStep).not.toHaveBeenCalled();
-  });
-
-  it("forwards updates when enabled", () => {
-    vi.mocked(isPipelineDebugEnabled).mockReturnValue(true);
+  it("forwards updates even when overlay gate would be off (progress store gates internally)", () => {
     const ctx = { userId: "user-1", entryId: "job-1" };
 
     pipelineDebugStep(ctx, "capture_validate", { status: "done" });
@@ -59,5 +36,12 @@ describe("pipeline debug hooks", () => {
 
     expect(setPipelineDebugStep).toHaveBeenCalled();
     expect(advancePipelineDebugStep).toHaveBeenCalled();
+  });
+
+  it("no-ops when context is missing", () => {
+    pipelineDebugStep(null, "capture_validate", { status: "done" });
+    pipelineDebugAdvance(null, "capture_save");
+    expect(setPipelineDebugStep).not.toHaveBeenCalled();
+    expect(advancePipelineDebugStep).not.toHaveBeenCalled();
   });
 });

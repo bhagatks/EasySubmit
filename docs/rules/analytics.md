@@ -57,9 +57,24 @@ Strip before sending. Never include:
 
 Use `sanitizeProperties()` from `@/src/shared/analytics/sanitize` if unsure.
 
-### 5. Extension Apply pipeline step events (dev only)
+### 5. Extension Apply pipeline step events
 
-Every step in the extension Apply pipeline (same catalog as the dev QA debug overlay) emits PostHog events **only in dev** (`NEXT_PUBLIC_ANALYTICS_ENV !== "prod"`) so you can reconstruct per-resume progress while debugging locally. Nothing from this feature runs in production deploys or store extension builds.
+Every step in the extension Apply pipeline (same catalog as the dev QA debug overlay) emits PostHog step events **in parallel** with the overlay. The overlay and analytics are independent:
+
+| Surface | Dev | Production |
+|---|---|---|
+| QA debug overlay + DB progress | On (`NEXT_PUBLIC_ANALYTICS_ENV !== "prod"`) | Off |
+| PostHog `extension_apply_pipeline_step` | Same flag: `feature_flags.extension_apply_pipeline_step_analytics` | Same flag |
+
+Registry fallback is **off** (`defaultEnabled: false`). Seed creates the row **on** (`seedEnabled: true`); re-seed does not overwrite `enabled` so ops toggles stick.
+
+Toggle without redeploying:
+
+```sql
+UPDATE feature_flags SET enabled = true WHERE key = 'extension_apply_pipeline_step_analytics';
+```
+
+Events route to the PostHog project for that deploy (`NEXT_PUBLIC_ANALYTICS_ENV` — dev project locally, prod project in production).
 
 | Event | When |
 |---|---|

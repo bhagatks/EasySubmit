@@ -59,6 +59,7 @@ describe("getAiHealthStatusForUser", () => {
       enhanceWithAiResumeProfile: true,
       extensionGlobalSwitch: true,
       extensionAutoApply: true,
+      extensionApplyPipelineStepAnalytics: false,
       systemAiEnabled: true,
     });
     vi.mocked(prisma.user.findUnique).mockResolvedValue({

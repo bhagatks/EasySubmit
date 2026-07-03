@@ -4,6 +4,10 @@ vi.mock("@/src/shared/extension/pipeline-debug-gate", () => ({
   isPipelineDebugEnabled: vi.fn(() => true),
 }));
 
+vi.mock("@/lib/extension/apply-pipeline-step-analytics", () => ({
+  isApplyPipelineStepAnalyticsEnabled: vi.fn(async () => true),
+}));
+
 vi.mock("@/src/shared/analytics/server-pipeline-step-capture", () => ({
   captureApplyPipelineStarted: vi.fn(),
   captureApplyPipelineStep: vi.fn(),
@@ -29,6 +33,8 @@ import {
   captureApplyPipelineStarted,
   captureApplyPipelineStep,
 } from "@/src/shared/analytics/server-pipeline-step-capture";
+import { isApplyPipelineStepAnalyticsEnabled } from "@/lib/extension/apply-pipeline-step-analytics";
+import { isPipelineDebugEnabled } from "@/src/shared/extension/pipeline-debug-gate";
 import { PIPELINE_DEBUG_METADATA_KEY } from "@/src/shared/extension/pipeline-debug-types";
 
 const userId = "user-1";
@@ -167,5 +173,35 @@ describe("pipeline debug progress store", () => {
         where: { id: entryId, userId },
       }),
     );
+  });
+
+  it("emits analytics without writing overlay progress when overlay is off", async () => {
+    vi.mocked(isPipelineDebugEnabled).mockReturnValue(false);
+    vi.mocked(isApplyPipelineStepAnalyticsEnabled).mockResolvedValue(true);
+
+    await setPipelineDebugStep(userId, entryId, "capture_validate", {
+      status: "done",
+      detail: "Validated",
+    });
+
+    expect(prisma.jobTrackerEntry.updateMany).not.toHaveBeenCalled();
+    expect(captureApplyPipelineStep).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId,
+        entryId,
+        stepId: "capture_validate",
+        status: "done",
+      }),
+    );
+  });
+
+  it("skips everything when both overlay and analytics are off", async () => {
+    vi.mocked(isPipelineDebugEnabled).mockReturnValue(false);
+    vi.mocked(isApplyPipelineStepAnalyticsEnabled).mockResolvedValue(false);
+
+    await setPipelineDebugStep(userId, entryId, "capture_validate", { status: "done" });
+
+    expect(prisma.jobTrackerEntry.updateMany).not.toHaveBeenCalled();
+    expect(captureApplyPipelineStep).not.toHaveBeenCalled();
   });
 });

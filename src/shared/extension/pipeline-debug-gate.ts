@@ -1,9 +1,8 @@
 import { isDevAnalyticsEnvironment } from "@/src/shared/analytics/config";
 
 /**
- * Dev-only Apply pipeline QA overlay + step progress.
- * Active when NEXT_PUBLIC_ANALYTICS_ENV !== "prod" (local dev + dev extension build).
- * Never active on production deploys or Chrome Web Store extension builds.
+ * Dev-only Apply pipeline QA overlay + DB step progress.
+ * Independent from PostHog step analytics (see apply-pipeline-step-analytics).
  */
 export function isPipelineDebugEnabled(): boolean {
   if (process.env.NODE_ENV === "test") return false;

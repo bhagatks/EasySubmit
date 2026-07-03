@@ -211,7 +211,7 @@ async function main() {
         where: { key: flag.key },
         create: {
           key: flag.key,
-          enabled: flag.defaultEnabled,
+          enabled: flag.seedEnabled ?? flag.defaultEnabled,
           description: flag.description,
           ...(flag.defaultExtra
             ? { extra: flag.defaultExtra as Prisma.InputJsonValue }

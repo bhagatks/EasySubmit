@@ -1,5 +1,6 @@
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { isApplyPipelineStepAnalyticsEnabled } from "@/lib/extension/apply-pipeline-step-analytics";
 import {
   captureApplyPipelineStarted,
   captureApplyPipelineStep,
@@ -81,6 +82,27 @@ function emitApplyPipelineStepAnalytics(
   });
 }
 
+function emitApplyPipelineStepFromUpdate(
+  userId: string,
+  entryId: string,
+  traceId: string,
+  stepId: string,
+  update: PipelineDebugStepUpdate,
+): void {
+  const status = update.status;
+  if (!status || status === "pending") return;
+
+  captureApplyPipelineStep({
+    userId,
+    entryId,
+    traceId,
+    stepId,
+    status,
+    detail: update.detail,
+    meta: update.meta,
+  });
+}
+
 async function writePipelineDebugProgress(
   userId: string,
   entryId: string,
@@ -107,7 +129,10 @@ export async function initPipelineDebugProgress(
   entryId: string,
   traceId: string,
 ): Promise<void> {
-  if (!isPipelineDebugEnabled()) return;
+  const overlayOn = isPipelineDebugEnabled();
+  const analyticsOn = await isApplyPipelineStepAnalyticsEnabled();
+  if (!overlayOn && !analyticsOn) return;
+
   const row = await prisma.jobTrackerEntry.findFirst({
     where: { id: entryId, userId },
     select: { metadata: true },
@@ -115,11 +140,17 @@ export async function initPipelineDebugProgress(
   if (!row) return;
 
   const metadata = readMetadataObject(row.metadata);
-  if (parsePipelineDebugProgress(metadata[PIPELINE_DEBUG_METADATA_KEY])) return;
+  const existing = parsePipelineDebugProgress(metadata[PIPELINE_DEBUG_METADATA_KEY]);
+  if (existing) return;
 
-  const progress = emptyPipelineDebugProgress(traceId);
-  await writePipelineDebugProgress(userId, entryId, progress);
-  captureApplyPipelineStarted({ userId, entryId, traceId });
+  if (overlayOn) {
+    const progress = emptyPipelineDebugProgress(traceId);
+    await writePipelineDebugProgress(userId, entryId, progress);
+  }
+
+  if (analyticsOn) {
+    captureApplyPipelineStarted({ userId, entryId, traceId });
+  }
 }
 
 export async function setPipelineDebugStep(
@@ -128,7 +159,10 @@ export async function setPipelineDebugStep(
   stepId: string,
   update: PipelineDebugStepUpdate,
 ): Promise<void> {
-  if (!isPipelineDebugEnabled()) return;
+  const overlayOn = isPipelineDebugEnabled();
+  const analyticsOn = await isApplyPipelineStepAnalyticsEnabled();
+  if (!overlayOn && !analyticsOn) return;
+
   const row = await prisma.jobTrackerEntry.findFirst({
     where: { id: entryId, userId },
     select: { metadata: true },
@@ -136,13 +170,22 @@ export async function setPipelineDebugStep(
   if (!row) return;
 
   const metadata = readMetadataObject(row.metadata);
-  let progress =
-    parsePipelineDebugProgress(metadata[PIPELINE_DEBUG_METADATA_KEY]) ??
-    emptyPipelineDebugProgress(entryId);
+  const existingProgress = parsePipelineDebugProgress(metadata[PIPELINE_DEBUG_METADATA_KEY]);
+  const traceId = existingProgress?.traceId ?? entryId;
 
-  progress = touchStep(progress, stepId, update);
-  await writePipelineDebugProgress(userId, entryId, progress);
-  emitApplyPipelineStepAnalytics(userId, entryId, progress, stepId);
+  if (overlayOn) {
+    let progress = existingProgress ?? emptyPipelineDebugProgress(traceId);
+    progress = touchStep(progress, stepId, update);
+    await writePipelineDebugProgress(userId, entryId, progress);
+    if (analyticsOn) {
+      emitApplyPipelineStepAnalytics(userId, entryId, progress, stepId);
+    }
+    return;
+  }
+
+  if (analyticsOn) {
+    emitApplyPipelineStepFromUpdate(userId, entryId, traceId, stepId, update);
+  }
 }
 
 export async function getPipelineDebugProgress(
@@ -168,7 +211,10 @@ export async function advancePipelineDebugStep(
   completeStepId?: string,
   completeUpdate?: PipelineDebugStepUpdate,
 ): Promise<void> {
-  if (!isPipelineDebugEnabled()) return;
+  const overlayOn = isPipelineDebugEnabled();
+  const analyticsOn = await isApplyPipelineStepAnalyticsEnabled();
+  if (!overlayOn && !analyticsOn) return;
+
   const row = await prisma.jobTrackerEntry.findFirst({
     where: { id: entryId, userId },
     select: { metadata: true },
@@ -176,19 +222,39 @@ export async function advancePipelineDebugStep(
   if (!row) return;
 
   const metadata = readMetadataObject(row.metadata);
-  let progress =
-    parsePipelineDebugProgress(metadata[PIPELINE_DEBUG_METADATA_KEY]) ??
-    emptyPipelineDebugProgress(entryId);
+  const existingProgress = parsePipelineDebugProgress(metadata[PIPELINE_DEBUG_METADATA_KEY]);
+  const traceId = existingProgress?.traceId ?? entryId;
 
-  if (completeStepId) {
-    progress = touchStep(progress, completeStepId, {
-      status: "done",
-      ...completeUpdate,
-    });
-    emitApplyPipelineStepAnalytics(userId, entryId, progress, completeStepId);
+  if (overlayOn) {
+    let progress = existingProgress ?? emptyPipelineDebugProgress(traceId);
+
+    if (completeStepId) {
+      progress = touchStep(progress, completeStepId, {
+        status: "done",
+        ...completeUpdate,
+      });
+      if (analyticsOn) {
+        emitApplyPipelineStepAnalytics(userId, entryId, progress, completeStepId);
+      }
+    }
+
+    progress = touchStep(progress, activeStepId, { status: "active" });
+    await writePipelineDebugProgress(userId, entryId, progress);
+    if (analyticsOn) {
+      emitApplyPipelineStepAnalytics(userId, entryId, progress, activeStepId);
+    }
+    return;
   }
 
-  progress = touchStep(progress, activeStepId, { status: "active" });
-  await writePipelineDebugProgress(userId, entryId, progress);
-  emitApplyPipelineStepAnalytics(userId, entryId, progress, activeStepId);
+  if (analyticsOn) {
+    if (completeStepId) {
+      emitApplyPipelineStepFromUpdate(userId, entryId, traceId, completeStepId, {
+        status: "done",
+        ...completeUpdate,
+      });
+    }
+    emitApplyPipelineStepFromUpdate(userId, entryId, traceId, activeStepId, {
+      status: "active",
+    });
+  }
 }

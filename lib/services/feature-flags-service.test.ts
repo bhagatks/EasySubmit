@@ -57,6 +57,7 @@ describe("getFeatureFlags", () => {
       enhanceWithAiResumeProfile: false,
       extensionGlobalSwitch: true,
       extensionAutoApply: true,
+      extensionApplyPipelineStepAnalytics: false,
       systemAiEnabled: false,
     });
   });

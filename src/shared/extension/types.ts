@@ -75,6 +75,8 @@ export type ExtensionRuntimeConfig = {
   forceUpgradeEnabled?: boolean;
   minExtensionVersion?: string | null;
   forceUpgradeMessage?: string | null;
+  /** Prod PostHog apply-pipeline step events — dev always emits regardless. */
+  applyPipelineStepAnalytics?: boolean;
 };
 
 export type ApplyPipelineResponse = {

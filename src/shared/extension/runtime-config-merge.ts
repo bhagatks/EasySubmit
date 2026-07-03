@@ -11,6 +11,7 @@ export const EXTENSION_RUNTIME_DEFAULTS: ExtensionRuntimeConfig = {
   oneClickApplyPlatforms: ["workday"],
   autoApplyEnabled: true,
   aiEnabled: true,
+  applyPipelineStepAnalytics: false,
 };
 
 /** Merge API config with safe defaults so Workday/generic detection keeps working. */
@@ -50,5 +51,6 @@ export function mergeExtensionRuntimeConfig(
     forceUpgradeEnabled: partial.forceUpgradeEnabled ?? false,
     minExtensionVersion: partial.minExtensionVersion ?? null,
     forceUpgradeMessage: partial.forceUpgradeMessage ?? null,
+    applyPipelineStepAnalytics: partial.applyPipelineStepAnalytics ?? false,
   };
 }

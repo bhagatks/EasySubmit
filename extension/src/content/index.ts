@@ -43,6 +43,7 @@ import {
   startPipelineDebugPolling,
   updatePipelineDebugOverlay,
 } from "./pipeline-debug-overlay";
+import { isApplyPipelineStepAnalyticsEnabledClient } from "@shared/extension/apply-pipeline-step-analytics-gate";
 import { runWorkdayAutofill, type WorkdayFillData } from "@shared/extension/workday-autofill";
 import { setupFieldCaptureBridge } from "@shared/extension/field-capture-bridge";
 import type { FieldCapturePayload } from "@shared/extension/field-descriptor";
@@ -346,6 +347,13 @@ function trackClientApplyPipelineStep(
 ): void {
   if (update.status === "pending") return;
   if (entryId && stepId !== "capture_validate") return;
+  if (
+    !isApplyPipelineStepAnalyticsEnabledClient(
+      runtimeConfig?.applyPipelineStepAnalytics,
+    )
+  ) {
+    return;
+  }
 
   trackApplyPipelineStep({
     stepId,
@@ -354,6 +362,7 @@ function trackClientApplyPipelineStep(
     entryId: entryId ?? undefined,
     detail: update.detail ?? null,
     meta: update.meta ?? null,
+    applyPipelineStepAnalytics: runtimeConfig?.applyPipelineStepAnalytics,
   });
 }
 
@@ -366,16 +375,15 @@ function patchLocalApplyPipelineStep(
   },
   entryId?: string | null,
 ): void {
-  if (!isPipelineDebugOverlayEnabled()) return;
-  pipelineDebugLocalSteps = markLocalPipelineDebugStep(
-    pipelineDebugLocalSteps,
-    stepId,
-    update,
-  );
-  trackClientApplyPipelineStep(stepId, update, entryId);
   if (isPipelineDebugOverlayEnabled()) {
+    pipelineDebugLocalSteps = markLocalPipelineDebugStep(
+      pipelineDebugLocalSteps,
+      stepId,
+      update,
+    );
     pushLocalPipelineDebugOverlay();
   }
+  trackClientApplyPipelineStep(stepId, update, entryId);
 }
 
 async function fetchPipelineDebugProgress(

@@ -3,7 +3,6 @@ import {
   setPipelineDebugStep,
   type PipelineDebugStepUpdate,
 } from "@/lib/extension/pipeline-debug-progress";
-import { isPipelineDebugEnabled } from "@/src/shared/extension/pipeline-debug-gate";
 
 export type PipelineDebugHookContext = {
   userId: string;
@@ -14,13 +13,12 @@ function ctxReady(ctx?: PipelineDebugHookContext | null): ctx is PipelineDebugHo
   return Boolean(ctx?.userId && ctx?.entryId);
 }
 
-/** Fire-and-forget debug overlay update — never blocks the pipeline. */
+/** Fire-and-forget pipeline step — overlay (dev) and PostHog (dev + prod flag) gate independently inside progress store. */
 export function pipelineDebugStep(
   ctx: PipelineDebugHookContext | null | undefined,
   stepId: string,
   update: PipelineDebugStepUpdate,
 ): void {
-  if (!isPipelineDebugEnabled()) return;
   if (!ctxReady(ctx)) return;
   void setPipelineDebugStep(ctx.userId, ctx.entryId, stepId, update).catch(() => undefined);
 }
@@ -31,7 +29,6 @@ export function pipelineDebugAdvance(
   completeStepId?: string,
   completeUpdate?: PipelineDebugStepUpdate,
 ): void {
-  if (!isPipelineDebugEnabled()) return;
   if (!ctxReady(ctx)) return;
   void advancePipelineDebugStep(
     ctx.userId,

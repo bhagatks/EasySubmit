@@ -32,6 +32,7 @@ const defaultFlags = {
   enhanceWithAiResumeProfile: true,
   extensionGlobalSwitch: true,
   extensionAutoApply: true,
+  extensionApplyPipelineStepAnalytics: false,
   systemAiEnabled: true,
 };
 

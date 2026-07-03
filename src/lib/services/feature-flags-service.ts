@@ -5,6 +5,7 @@ export const FEATURE_FLAG_KEYS = {
   enhanceWithAiResumeProfile: "enhance_with_ai_resume_profile",
   extensionGlobalSwitch: "extension_global_switch",
   extensionAutoApply: "extension_auto_apply",
+  extensionApplyPipelineStepAnalytics: "extension_apply_pipeline_step_analytics",
   systemAiEnabled: "system_ai_enabled",
 } as const;
 
@@ -21,7 +22,10 @@ export type FeatureFlagDetail = {
 type FeatureFlagDefinition = {
   key: FeatureFlagKey;
   description: string;
+  /** Runtime fallback when no DB row exists. */
   defaultEnabled: boolean;
+  /** Initial value on seed create — defaults to `defaultEnabled`. */
+  seedEnabled?: boolean;
   defaultExtra?: FeatureFlagExtra | null;
 };
 
@@ -46,6 +50,13 @@ export const FEATURE_FLAG_REGISTRY: Record<
       "Extension one-click apply pipeline (Workday). Off = manual Save → Update resume → Apply",
     defaultEnabled: true,
   },
+  extensionApplyPipelineStepAnalytics: {
+    key: FEATURE_FLAG_KEYS.extensionApplyPipelineStepAnalytics,
+    description:
+      "PostHog extension_apply_pipeline_step events (dev and prod). Off when pipeline is stable.",
+    defaultEnabled: false,
+    seedEnabled: true,
+  },
   systemAiEnabled: {
     key: FEATURE_FLAG_KEYS.systemAiEnabled,
     description: "Global kill switch for EasySubmit system AI pool (BYOK unaffected)",
@@ -57,6 +68,7 @@ export type FeatureFlagsSnapshot = {
   enhanceWithAiResumeProfile: boolean;
   extensionGlobalSwitch: boolean;
   extensionAutoApply: boolean;
+  extensionApplyPipelineStepAnalytics: boolean;
   systemAiEnabled: boolean;
 };
 
@@ -64,6 +76,8 @@ export const FEATURE_FLAGS_DEFAULTS: FeatureFlagsSnapshot = {
   enhanceWithAiResumeProfile: FEATURE_FLAG_REGISTRY.enhanceWithAiResumeProfile.defaultEnabled,
   extensionGlobalSwitch: FEATURE_FLAG_REGISTRY.extensionGlobalSwitch.defaultEnabled,
   extensionAutoApply: FEATURE_FLAG_REGISTRY.extensionAutoApply.defaultEnabled,
+  extensionApplyPipelineStepAnalytics:
+    FEATURE_FLAG_REGISTRY.extensionApplyPipelineStepAnalytics.defaultEnabled,
   systemAiEnabled: FEATURE_FLAG_REGISTRY.systemAiEnabled.defaultEnabled,
 };
 
@@ -140,6 +154,11 @@ export async function getFeatureFlags(): Promise<FeatureFlagsSnapshot> {
     extensionAutoApply: resolveEnabled(
       FEATURE_FLAG_REGISTRY.extensionAutoApply.key,
       FEATURE_FLAG_REGISTRY.extensionAutoApply.defaultEnabled,
+      byKey,
+    ),
+    extensionApplyPipelineStepAnalytics: resolveEnabled(
+      FEATURE_FLAG_REGISTRY.extensionApplyPipelineStepAnalytics.key,
+      FEATURE_FLAG_REGISTRY.extensionApplyPipelineStepAnalytics.defaultEnabled,
       byKey,
     ),
     systemAiEnabled: resolveEnabled(

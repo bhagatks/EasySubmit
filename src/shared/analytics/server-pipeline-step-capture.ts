@@ -7,9 +7,16 @@ export type ApplyPipelineStepPostHogInput = ApplyPipelineStepAnalyticsInput & {
   userId: string;
 };
 
-/** Fire-and-forget — one PostHog row per Apply pipeline step status change. */
+function posthogCaptureProperties(
+  properties: Record<string, unknown>,
+): Record<string, unknown> {
+  return isDevAnalyticsEnvironment()
+    ? { dev_journey: true, ...properties }
+    : properties;
+}
+
+/** Fire-and-forget — one PostHog row per Apply pipeline step status change. Caller gates dev vs prod flag. */
 export function captureApplyPipelineStep(input: ApplyPipelineStepPostHogInput): void {
-  if (!isDevAnalyticsEnvironment()) return;
   const config = getAnalyticsConfig();
   if (!config.enabled || !config.key) return;
 
@@ -23,10 +30,10 @@ export function captureApplyPipelineStep(input: ApplyPipelineStepPostHogInput): 
       api_key: config.key,
       event: AnalyticsEvents.EXTENSION_APPLY_PIPELINE_STEP,
       distinct_id: distinctId,
-      properties: {
+      properties: posthogCaptureProperties({
         environment: config.environment,
         ...properties,
-      },
+      }),
     }),
   }).catch(() => {
     /* analytics must not block pipeline */
@@ -38,7 +45,6 @@ export function captureApplyPipelineStarted(input: {
   entryId: string;
   traceId: string;
 }): void {
-  if (!isDevAnalyticsEnvironment()) return;
   const config = getAnalyticsConfig();
   if (!config.enabled || !config.key) return;
 
@@ -51,12 +57,12 @@ export function captureApplyPipelineStarted(input: {
       api_key: config.key,
       event: AnalyticsEvents.EXTENSION_APPLY_PIPELINE_STARTED,
       distinct_id: distinctId,
-      properties: {
+      properties: posthogCaptureProperties({
         environment: config.environment,
         surface: "extension",
         entry_id: input.entryId,
         trace_id: input.traceId,
-      },
+      }),
     }),
   }).catch(() => {
     /* analytics must not block pipeline */
