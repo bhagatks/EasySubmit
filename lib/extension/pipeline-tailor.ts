@@ -1,11 +1,15 @@
 import { enhanceResumeForUserId } from "@/lib/ai/enhance-resume-for-user";
-import type { SaveJobTrackerInput } from "@/lib/extension/job-service";
-import { updateJobTrackerStatus } from "@/lib/extension/job-service";
 import {
   pipelineDebugAdvance,
   pipelineDebugContext,
   pipelineDebugStep,
 } from "@/lib/extension/pipeline-debug-hooks";
+import type { SaveJobTrackerInput } from "@/lib/extension/job-service";
+import { updateJobTrackerStatus } from "@/lib/extension/job-service";
+import {
+  formDeltaArtifacts,
+  profileLoadArtifacts,
+} from "@/lib/extension/pipeline-debug-artifact-builders";
 import { resolveJobIdentity } from "@/src/shared/extension/job-identity";
 import {
   mergeJobEntryMetadata,
@@ -152,6 +156,7 @@ export async function runPipelineTailor(
       experienceCount: baseForm.experience.filter((e) => !e.hidden).length,
       skillsCount: (baseForm.skillsText ?? "").split(",").filter(Boolean).length,
     },
+    artifacts: profileLoadArtifacts(baseForm, source),
   });
 
   logEnhance("pipeline", "tailor.source_profile", {
@@ -280,6 +285,7 @@ export async function runPipelineTailor(
     status: "done",
     detail: `Changed: ${changedSections.join(", ") || "none"}`,
     meta: { changedSections },
+    artifacts: formDeltaArtifacts("Tailored form delta", baseForm, enhanced.form),
   });
 
   logEnhance("pipeline", "post.pipeline_state.done", {

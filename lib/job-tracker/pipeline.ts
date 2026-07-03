@@ -1,6 +1,6 @@
 import type { JobTrackerStatus } from "@/lib/generated/prisma/client";
 import type { JobTrackerSummary } from "@/lib/job-tracker/types";
-import { BRAND } from "@/src/shared/brand";
+import { APPLY_PIPELINE_STAGE_LABELS } from "@/src/shared/extension/apply-pipeline-stage-labels";
 
 /** Kanban column definition for Job Tracker board (v1.1 UI). */
 export type JobTrackerKanbanColumn = {
@@ -22,25 +22,25 @@ export const JOB_TRACKER_KANBAN_COLUMNS: JobTrackerKanbanColumn[] = [
   {
     id: "captured",
     status: "CAPTURED",
-    title: "Job captured",
+    title: APPLY_PIPELINE_STAGE_LABELS.job_info,
     description: "Saved from the extension or dashboard",
   },
   {
     id: "resume-ready",
     status: "RESUME_READY",
-    title: "Resume prepared",
+    title: APPLY_PIPELINE_STAGE_LABELS.optimized_resume,
     description: "Tailored or enhanced resume ready for this role",
   },
   {
     id: "ready-to-apply",
     status: "READY_TO_APPLY",
-    title: BRAND.autoSuggestCta,
+    title: APPLY_PIPELINE_STAGE_LABELS.auto_suggest,
     description: "Resume ready — open apply assist and submit on the job site",
   },
   {
     id: "applied",
     status: "APPLIED",
-    title: "Applied",
+    title: APPLY_PIPELINE_STAGE_LABELS.applied,
     description: "Application submitted",
   },
 ];

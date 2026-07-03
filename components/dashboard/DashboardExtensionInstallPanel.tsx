@@ -11,6 +11,7 @@ import {
 } from "@/components/dashboard/DashboardWorkspacePage";
 import { Button } from "@/components/ui/button";
 import { isExtensionConnectedForDashboard } from "@/lib/extension/extension-dashboard-connection";
+import { shouldShowExtensionInstallCta } from "@/lib/extension/extension-install-cta";
 import { EXTENSION_STORE_URL } from "@/lib/brand";
 import { extensionBridgeHref } from "@/lib/dashboard/dashboard-extension-links";
 import { readExtensionIdForDashboard } from "@/lib/extension/start-job-apply-from-dashboard";
@@ -26,14 +27,12 @@ export function DashboardExtensionInstallPanel({
   const router = useRouter();
   const searchParams = useSearchParams();
   const welcomeAppliedRef = useRef(false);
-  const [extensionConnected, setExtensionConnected] = useState(false);
+  const [extensionConnected, setExtensionConnected] = useState<boolean | null>(null);
 
   const isWelcome = searchParams.get("welcome") === "1";
 
   useEffect(() => {
-    void (async () => {
-      setExtensionConnected(await isExtensionConnectedForDashboard());
-    })();
+    void isExtensionConnectedForDashboard().then(setExtensionConnected);
   }, []);
 
   useEffect(() => {
@@ -81,13 +80,15 @@ export function DashboardExtensionInstallPanel({
                   <p className="text-sm text-muted-foreground">
                     Works on Chrome, Edge, Brave, and Arc. Your account stays signed in after install.
                   </p>
-                  <Button variant="hero" size="sm" className="rounded-xl" asChild>
-                    <a href={storeUrl} target="_blank" rel="noopener noreferrer">
-                      <Download className="h-4 w-4" aria-hidden="true" />
-                      Add to Chrome
-                      <ExternalLink className="h-3.5 w-3.5 opacity-70" aria-hidden="true" />
-                    </a>
-                  </Button>
+                  {shouldShowExtensionInstallCta(extensionConnected) ? (
+                    <Button variant="hero" size="sm" className="rounded-xl" asChild>
+                      <a href={storeUrl} target="_blank" rel="noopener noreferrer">
+                        <Download className="h-4 w-4" aria-hidden="true" />
+                        Add to Chrome
+                        <ExternalLink className="h-3.5 w-3.5 opacity-70" aria-hidden="true" />
+                      </a>
+                    </Button>
+                  ) : null}
                 </div>
               </li>
 
@@ -101,7 +102,7 @@ export function DashboardExtensionInstallPanel({
                     Click the EasySubmit icon in your toolbar, save the role, and sync it back to Job
                     Tracker.
                   </p>
-                  {extensionConnected ? (
+                  {extensionConnected === true ? (
                     <p className="inline-flex items-center gap-1.5 text-xs font-medium text-mint">
                       <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
                       Extension connected on this browser

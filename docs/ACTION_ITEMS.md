@@ -86,6 +86,17 @@ See also [`PROD_CUTOVER.md`](./PROD_CUTOVER.md) §7.
 
 ## Follow-up (not blocking deploy)
 
+### O*NET Web Services — Vocabulary step (pending approval)
+
+Submitted **2026-07-03** — waiting for O*NET staff to approve EasySubmit organization. Approval email → **My Account** → project → **Add a new API key**.
+
+| Item | Status | Notes |
+|------|--------|-------|
+| O*NET developer signup | **Done** | Submitted; awaiting staff review email |
+| Add `ONET_API_KEY` to `.env.local` (+ Vercel prod when ready) | **Todo** | After approval — key from My Account, not username/password |
+| Migrate `lib/job-tracker/ats/onet-service.ts` to **v2 API** | **Todo** | Today uses v1.9 Basic auth (`guest`/`guest` → 401). Follow [web-services-v2-samples](https://github.com/onetcenter/web-services-v2-samples) (`X-API-Key`, `api-v2.onetcenter.org`, `online/search` + summary skills/tools) |
+| Verify Vocabulary step on a live Apply run | **Todo** | Pipeline debug `pre_onet` should show skills/tools, not `source: fallback` |
+
 ### Pricing & plan marketing copy (v1.0) — **complete**
 
 Single source: `lib/pricing/plan-display.ts` + `components/pricing/PricingPlansSection.tsx`.
@@ -254,7 +265,8 @@ Full specs: **[`docs/JOB_TRACKER.md`](./JOB_TRACKER.md)** · Workday E2E (cancel
 | **Auto-apply user switch** (`users.autoApplyUserSwitch`) | Legacy — **do not extend**; remove from Settings/popup (`decisions.md`) |
 | **Pipeline API** (`POST /api/extension/jobs/pipeline`) | Legacy — not v1 user-facing one-click |
 | **Autofill complete API** (`POST /api/extension/jobs/[id]/autofill-complete`) | Done — metadata only; real Workday fill **cancelled** |
-| **Job Tracker Realtime sync** | Done (QA) — publication + RLS applied; `SUPABASE_JWT_SECRET` in `.env.local`; restart dev server to pick up |
+| **Job Tracker Realtime sync — Dev** | Done — publication + RLS applied; `SUPABASE_JWT_SECRET` set in `.env.local`; restart dev server to pick up |
+| **Job Tracker Realtime sync — Prod** | Done — `SUPABASE_JWT_SECRET` + `NEXT_PUBLIC_SUPABASE_URL` added to Vercel Production, redeployed |
 | Workday scraper hardening (W1–W10) | Partial — apply URL canonicalize + company fallback |
 | Enhance AI in pipeline (Phase B) | Done — B1–B7 (B6 partial: card busy label + polling) |
 | Workday autofill port (Phase C) | **Cancelled** — one-click apply out of scope |

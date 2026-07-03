@@ -6,7 +6,6 @@ import {
   jobTrackerReviewStudioUrl,
 } from "@/lib/job-tracker/review-screen-ui";
 import { canStartApply, pipelineActiveBarSegmentLabel, pipelineActiveSegmentLabel, pipelineBarStepLabel, pipelineProgressForStatus } from "@/lib/job-tracker/pipeline-progress";
-import { BRAND } from "@/src/shared/brand";
 
 describe("review-screen-ui", () => {
   it("maps status to default panel", () => {
@@ -58,18 +57,14 @@ describe("pipeline-progress", () => {
     expect(canStartApply("APPLIED")).toBe(false);
   });
 
-  it("labels the active segment for resume-ready and apply-assist states", () => {
-    expect(pipelineActiveSegmentLabel("CAPTURED")).toBe("Optimizing resume");
-    expect(pipelineActiveSegmentLabel("RESUME_READY")).toBe(BRAND.autoSuggestCta);
-    expect(pipelineActiveSegmentLabel("READY_TO_APPLY")).toBe(BRAND.autoSuggestCta);
-    expect(pipelineActiveSegmentLabel("APPLIED")).toBeNull();
-  });
-
-  it("uses compact labels for inline pipeline bars", () => {
-    expect(pipelineBarStepLabel({ id: "ready-to-apply", label: BRAND.autoSuggestCta, status: "READY_TO_APPLY" })).toBe(
+  it("uses compact fixed labels for inline pipeline bars", () => {
+    expect(pipelineBarStepLabel({ id: "captured", label: "Job info", status: "CAPTURED" })).toBe(
+      "Job info",
+    );
+    expect(pipelineBarStepLabel({ id: "ready-to-apply", label: "Auto Suggest", status: "READY_TO_APPLY" })).toBe(
       "Auto Suggest",
     );
-    expect(pipelineActiveBarSegmentLabel("READY_TO_APPLY")).toBe("Auto Suggest");
-    expect(pipelineActiveBarSegmentLabel("CAPTURED")).toBe("Optimizing resume");
+    expect(pipelineActiveBarSegmentLabel("READY_TO_APPLY")).toBeNull();
+    expect(pipelineActiveBarSegmentLabel("CAPTURED")).toBeNull();
   });
 });

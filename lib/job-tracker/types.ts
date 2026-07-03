@@ -1,6 +1,7 @@
 import type { JobTrackerStatus } from "@/lib/generated/prisma/client";
 import type { PrimeResumeData } from "@/components/onboarding/PrimeResume";
 import type { StudioEditorSectionId } from "@/lib/resume/studio-editor-sections";
+import type { PipelineStepFailure } from "@/lib/job-tracker/pipeline-tracker-view";
 
 export type { JobTrackerStatus };
 
@@ -23,6 +24,8 @@ export type JobTrackerSummary = {
   /** Precomputed on list — hover tooltip when non-null */
   issueMessage?: string | null;
   hasTailoredResume?: boolean;
+  /** First failed capture/resume pipeline step — blocks stage advance on tracker. */
+  pipelineStepFailure?: PipelineStepFailure | null;
 };
 
 /** Full job row for the review overlay — job-centric model (tailor/export fields live here). */

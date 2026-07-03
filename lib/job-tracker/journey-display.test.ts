@@ -16,20 +16,20 @@ describe("resolveJourneyDisplay", () => {
     });
   });
 
-  it("returns preparing copy for CAPTURED", () => {
+  it("returns empty status for CAPTURED — copy comes from user message resolver", () => {
     const display = resolveJourneyDisplay("CAPTURED", false);
     expect(display.stage).toBe(1);
     expect(display.label).toBe("");
-    expect(display.statusLabel).toBe("Optimizing resume…");
+    expect(display.statusLabel).toBe("");
     expect(display.applyButtonState).toBe("hidden");
     expect(display.showReviewRow).toBe(false);
   });
 
-  it("returns resume ready for RESUME_READY", () => {
+  it("returns auto suggest CTA for RESUME_READY", () => {
     const display = resolveJourneyDisplay("RESUME_READY", false);
     expect(display.stage).toBe(2);
     expect(display.label).toBe(BRAND.autoSuggestCta);
-    expect(display.statusLabel).toBe("Resume ready");
+    expect(display.statusLabel).toBe("");
     expect(display.showReviewRow).toBe(true);
     expect(display.showAssistCard).toBe(false);
   });
@@ -56,12 +56,12 @@ describe("resolveJourneyDisplay", () => {
     expect(display.applyButtonState).toBe("completed");
   });
 
-  it("surfaces pipeline errors", () => {
+  it("surfaces pipeline errors without legacy copy", () => {
     const display = resolveJourneyDisplay("CAPTURED", true);
     expect(display).toEqual({
       stage: "error",
-      label: "Something went wrong",
-      statusLabel: "Something went wrong",
+      label: "",
+      statusLabel: "",
       applyButtonState: "disabled",
       showResumeCard: false,
       showAssistCard: false,

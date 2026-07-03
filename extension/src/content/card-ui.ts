@@ -49,9 +49,9 @@ import {
 } from "@shared/extension/document-preview-alert";
 import {
   enhanceProgressOverlayStyles,
-  renderEnhanceProgressOverlay,
   wrapContentWithBrandProgressOverlay,
 } from "@shared/extension/enhance-progress-overlay";
+import { applyPipelineLoaderStyles } from "@shared/extension/apply-pipeline-loader";
 
 export { CARD_NAV_LABELS, CARD_STUDIO_LABEL };
 
@@ -1106,6 +1106,8 @@ export function singleCardLayoutStyles(): string {
     ${documentPreviewStackStyles()}
     ${cardNavButtonStyles()}
     ${enhanceProgressOverlayStyles()}
+    ${applyPipelineLoaderStyles()}
+    .es-apply-loader-slot:empty { display: none; }
     .glossy-shell.is-expanded .white-card { overflow: visible; }
     .body-expanded { overflow: visible; }
     .row-left {
@@ -1119,6 +1121,29 @@ export function singleCardLayoutStyles(): string {
     }
     .journey-status {
       color: ${t.primaryMuted};
+      font-size: 12px;
+      margin: 0 0 8px;
+    }
+    .journey-status.is-error {
+      color: #B91C1C;
+    }
+    .journey-status.is-warning {
+      color: #B45309;
+    }
+    .card-actions-apply {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .card-actions-dual {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .brand-env {
+      color: ${t.primaryMuted};
+      font-size: 0.92em;
+      font-weight: 600;
     }
     .expand-header {
       display: flex;
@@ -1288,17 +1313,19 @@ export type SummaryCardInput = {
   showMetaRow: boolean;
   showReviewRow: boolean;
   statusLabel: string | null;
+  statusKind?: "idle" | "progress" | "success" | "warning" | "error";
   showPrimaryCta: boolean;
+  showEasySubmitCta?: boolean;
+  showAutoSuggestCta?: boolean;
   showAppliedActions: boolean;
   ctaClass: string;
   ctaLabel: string;
   ctaDisabled: boolean;
+  autoSuggestDisabled?: boolean;
   ctaIcon: string;
   applyHint: string | null;
   saveError: string | null;
   keywordGap?: { topMissing: string[]; coveragePercent: number | null } | null;
-  pipelineProgressActive?: boolean;
-  pipelineProgressLabel?: string | null;
   escapeHtml: (value: string) => string;
 };
 
@@ -1313,12 +1340,16 @@ export function renderSummaryCardBody(input: SummaryCardInput): string {
     showCover: input.showReviewRow,
   });
 
-  const statusMarkup =
-    !input.pipelineProgressActive &&
-    input.statusLabel &&
-    input.statusLabel !== input.ctaLabel
-      ? `<p class="journey-status">${input.escapeHtml(input.statusLabel)}</p>`
-      : "";
+  const statusClass =
+    input.statusKind === "error"
+      ? "journey-status is-error"
+      : input.statusKind === "warning"
+        ? "journey-status is-warning"
+        : "journey-status";
+
+  const statusMarkup = input.statusLabel
+    ? `<p class="${statusClass}">${input.escapeHtml(input.statusLabel)}</p>`
+    : "";
 
   const statusInHero =
     statusMarkup && !input.showPrimaryCta && !input.showAppliedActions ? statusMarkup : "";
@@ -1351,26 +1382,29 @@ export function renderSummaryCardBody(input: SummaryCardInput): string {
       ${!input.showPrimaryCta && !input.showAppliedActions ? errors : ""}
     </div>`;
 
+  const easySubmitMarkup =
+    input.showPrimaryCta && input.showEasySubmitCta && !input.showAutoSuggestCta
+      ? `<button type="button" class="cta cta-primary" data-apply-easysubmit="1"${input.ctaDisabled ? " disabled" : ""}>${input.ctaIcon}<span>${input.escapeHtml(input.ctaLabel)}</span></button>`
+      : "";
+
+  const autoSuggestMarkup =
+    input.showPrimaryCta && input.showAutoSuggestCta
+      ? `<button type="button" class="cta ${input.autoSuggestDisabled ? "cta-secondary" : "cta-primary"}" data-auto-suggest="1"${input.autoSuggestDisabled ? " disabled" : ""}><span>${input.escapeHtml("Apply with Auto Suggest")}</span></button>`
+      : "";
+
   const actionsBlock =
     input.showPrimaryCta || input.showAppliedActions
-      ? `<div class="card-actions">
+      ? `<div class="card-actions card-actions-apply">
+          <div class="es-apply-loader-slot" data-apply-loader-slot="1"></div>
           ${statusInActions}
-          <button type="button" class="${input.ctaClass}" data-save="1"${input.ctaDisabled ? " disabled" : ""}>${input.ctaIcon}<span>${input.escapeHtml(input.ctaLabel)}</span></button>
+          ${easySubmitMarkup}
+          ${autoSuggestMarkup}
           ${input.showPrimaryCta && input.applyHint ? `<p class="save-error">${input.escapeHtml(input.applyHint)}</p>` : ""}
           ${input.showPrimaryCta && input.saveError ? saveErrorMarkup(input.saveError) : ""}
         </div>`
       : "";
 
-  const body = `${heroBlock}${actionsBlock}`;
-
-  if (!input.pipelineProgressActive) {
-    return body;
-  }
-
-  return wrapContentWithBrandProgressOverlay(body, {
-    caption: input.pipelineProgressLabel ?? "Optimizing resume…",
-    showCancel: false,
-  });
+  return `${heroBlock}${actionsBlock}`;
 }
 
 export type JobDetailBodyInput = {

@@ -14,7 +14,9 @@ import {
   ScanLine,
   Settings,
   ShieldCheck,
+  Workflow,
 } from "lucide-react";
+import { isPipelineDebugEnabled } from "@/src/shared/extension/pipeline-debug-gate";
 import {
   Sidebar,
   SidebarContent,
@@ -54,6 +56,7 @@ import {
   getDashboardHeaderLabel,
   isDashboardDetailScreen,
   isJobReviewStudioScreen,
+  isPipelineDebugScreen,
   shouldShowDashboardByokKeyButton,
   shouldShowDashboardExtensionBadge,
   shouldShowDashboardOpenJobTracker,
@@ -89,6 +92,30 @@ const extensionNavItem = {
   icon: Puzzle,
 } as const;
 
+const pipelineNavItem = {
+  title: "Pipeline",
+  href: "/dashboard/pipeline",
+  icon: Workflow,
+} as const;
+
+function buildWorkspaceNavItems(extensionConnected: boolean | null): readonly typeof workspaceNavItems[number][] {
+  let items: Array<(typeof workspaceNavItems)[number] | typeof pipelineNavItem> = [
+    ...workspaceNavItems,
+  ];
+  if (isPipelineDebugEnabled()) {
+    items = [...items.slice(0, 3), pipelineNavItem, ...items.slice(3)];
+  }
+  if (extensionConnected === true) {
+    return items;
+  }
+  const extensionInsertAt = items.findIndex((item) => item.href === "/dashboard/ats-scores") + 1;
+  return [
+    ...items.slice(0, extensionInsertAt),
+    extensionNavItem,
+    ...items.slice(extensionInsertAt),
+  ];
+}
+
 type DashboardShellProps = {
   children: React.ReactNode;
   vaultKeyId?: string | null;
@@ -112,12 +139,10 @@ function DashboardSidebar({ vaultKeyId }: { vaultKeyId?: string | null }) {
     };
   }, []);
 
-  const navItems = useMemo(() => {
-    if (extensionConnected === true) {
-      return workspaceNavItems;
-    }
-    return [...workspaceNavItems.slice(0, 5), extensionNavItem, ...workspaceNavItems.slice(5)];
-  }, [extensionConnected]);
+  const navItems = useMemo(
+    () => buildWorkspaceNavItems(extensionConnected),
+    [extensionConnected],
+  );
 
   return (
     <Sidebar collapsible="icon">
@@ -187,6 +212,8 @@ function DashboardShellFrame({ children, vaultKeyId, minVersion, fromParam }: Da
   const isReviewStudio = isJobReviewStudioScreen(pathname, fromParam);
   const reviewStudioJobId = isReviewStudio ? parseJobReviewStudioJobId(pathname) : null;
   const isStudioEdit = isDashboardDetailScreen(pathname, fromParam);
+  const isPipelineScreen = isPipelineDebugScreen(pathname);
+  const lockViewport = isStudioEdit || isPipelineScreen;
   const showProfileMenu = shouldShowDashboardProfileMenu(pathname, fromParam);
   const showSignOut = shouldShowDashboardSignOut(pathname);
   const showByokKeyButton = shouldShowDashboardByokKeyButton(pathname, vaultKeyId);
@@ -208,11 +235,11 @@ function DashboardShellFrame({ children, vaultKeyId, minVersion, fromParam }: Da
     <div
       className={cn(
         "flex w-full bg-background text-foreground",
-        isStudioEdit ? "h-svh max-h-svh overflow-hidden" : "min-h-screen",
+        lockViewport ? "h-svh max-h-svh overflow-hidden" : "min-h-screen",
       )}
     >
       <DashboardSidebar vaultKeyId={vaultKeyId} />
-      <div className={cn("flex min-h-0 flex-1 flex-col", isStudioEdit && "overflow-hidden")}>
+      <div className={cn("flex min-h-0 flex-1 flex-col", lockViewport && "overflow-hidden")}>
         <AiHealthAlertProvider>
           <header className={cn("relative z-30 shrink-0", DASHBOARD_TOPBAR_BORDER_CLASS)}>
             <div className="grid h-14 grid-cols-[1fr_auto_1fr] items-center px-4">
@@ -255,7 +282,7 @@ function DashboardShellFrame({ children, vaultKeyId, minVersion, fromParam }: Da
         <main
           className={cn(
             "flex min-h-0 flex-1 flex-col",
-            isStudioEdit ? "overflow-hidden p-4 md:p-5" : "p-6",
+            lockViewport ? "overflow-hidden p-4 md:p-5" : "p-6",
           )}
         >
           {children}

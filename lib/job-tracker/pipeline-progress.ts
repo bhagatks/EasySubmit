@@ -1,6 +1,6 @@
 import type { JobTrackerStatus } from "@/lib/generated/prisma/client";
-import { BRAND } from "@/src/shared/brand";
 import { JOB_TRACKER_KANBAN_COLUMNS } from "@/lib/job-tracker/pipeline";
+import { APPLY_PIPELINE_STAGE_LABELS } from "@/src/shared/extension/apply-pipeline-stage-labels";
 
 export type PipelineStep = {
   id: string;
@@ -14,12 +14,12 @@ export const PIPELINE_STEPS: PipelineStep[] = JOB_TRACKER_KANBAN_COLUMNS.map((co
   status: column.status,
 }));
 
-/** Compact labels for inline pipeline bars (overview cards, list tiles). */
+/** Compact labels for inline pipeline bars — fixed; never swap per status. */
 export const PIPELINE_BAR_STEP_LABELS: Record<string, string> = {
-  captured: "Job captured",
-  "resume-ready": "Resume prepared",
-  "ready-to-apply": "Auto Suggest",
-  applied: "Applied",
+  captured: APPLY_PIPELINE_STAGE_LABELS.job_info,
+  "resume-ready": APPLY_PIPELINE_STAGE_LABELS.optimized_resume,
+  "ready-to-apply": APPLY_PIPELINE_STAGE_LABELS.auto_suggest,
+  applied: APPLY_PIPELINE_STAGE_LABELS.applied,
 };
 
 export function pipelineBarStepLabel(step: PipelineStep): string {
@@ -68,29 +68,13 @@ export function isAppliedStatus(status: JobTrackerStatus): boolean {
   );
 }
 
-/** Live label for the active pipeline segment (non-active segments use column titles). */
-export function pipelineActiveSegmentLabel(status: JobTrackerStatus): string | null {
-  switch (status) {
-    case "CAPTURED":
-      return "Optimizing resume";
-    case "RESUME_READY":
-    case "READY_TO_APPLY":
-      return BRAND.autoSuggestCta;
-    default:
-      return null;
-  }
+/** @deprecated Bar segment titles are fixed — use pipelineBarStepLabel only. */
+export function pipelineActiveSegmentLabel(_status: JobTrackerStatus): string | null {
+  return null;
 }
 
-/** Compact active-segment label for inline pipeline bars. */
-export function pipelineActiveBarSegmentLabel(status: JobTrackerStatus): string | null {
-  switch (status) {
-    case "CAPTURED":
-      return "Optimizing resume";
-    case "RESUME_READY":
-    case "READY_TO_APPLY":
-      return "Auto Suggest";
-    default:
-      return null;
-  }
+/** @deprecated Bar segment titles are fixed — use pipelineBarStepLabel only. */
+export function pipelineActiveBarSegmentLabel(_status: JobTrackerStatus): string | null {
+  return null;
 }
 

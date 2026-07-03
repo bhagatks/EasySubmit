@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import { Building2 } from "lucide-react";
+import { ExtensionInstallCta } from "@/components/dashboard/ExtensionInstallCta";
 import { PurposeButton } from "@/components/ui/purpose-button";
 import type { OverviewActionQueueItem } from "@/lib/dashboard/overview-stats";
 import {
@@ -45,9 +48,7 @@ export function OverviewActionQueue({ items, waitingCount }: OverviewActionQueue
             Browse a job board with the extension — we&apos;ll capture the role and prep a tailored
             resume automatically.
           </p>
-          <PurposeButton purpose="secondary" size="sm" className="mt-4 rounded-xl" asChild>
-            <Link href="/dashboard/extension">Get the extension</Link>
-          </PurposeButton>
+          <ExtensionInstallCta variant="overview-link" className="mt-4" />
         </div>
       ) : (
         <ul className="space-y-2">

@@ -1,21 +1,18 @@
 /**
  * O*NET Web Services — free US Dept of Labor API for occupational vocabulary.
  *
- * Provides industry-standard skills, tasks, and technologies for a given role
- * even when they don't appear in the job description. This is what pushes ATS
- * scores from 70 → 85+ by covering implicit role expectations.
- *
  * API docs: https://services.onetcenter.org/
- * Auth: basic auth with username/password (free registration).
- * Rate limit: 25 req/sec, no daily cap.
- *
- * We use the keyword search endpoint to find the best occupation match,
- * then fetch skills and technology tools for that occupation.
  */
+
+import type {
+  ExternalApiDebugExchange,
+  FetchRoleVocabularyOptions,
+} from "@/lib/extension/external-api-debug";
 
 const ONET_BASE = "https://services.onetcenter.org/ws";
 
-// Credentials from env — fall back to the public "guest" account (rate-limited).
+export type { FetchRoleVocabularyOptions };
+
 function onetAuth(): string {
   const user = process.env.ONET_USERNAME ?? "guest";
   const pass = process.env.ONET_PASSWORD ?? "guest";
@@ -23,79 +20,104 @@ function onetAuth(): string {
 }
 
 export type OnetRoleVocabulary = {
-  /** Occupation title matched from O*NET (e.g. "Software Developers") */
   matchedTitle: string;
-  /** Occupation code (SOC code) */
   onetCode: string;
-  /** Core skills relevant to this occupation */
   skills: string[];
-  /** Technology tools and platforms */
   tools: string[];
-  /** Whether this came from cache or live API */
   source: "api" | "cache" | "fallback";
 };
 
-// ─── In-memory cache (per server process, ~1hr TTL) ──────────────────────────
-
 const cache = new Map<string, { data: OnetRoleVocabulary; expiresAt: number }>();
-const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+const CACHE_TTL_MS = 60 * 60 * 1000;
 
-// ─── Occupation search ────────────────────────────────────────────────────────
+const ONET_REQUEST_HEADERS = {
+  Accept: "application/json",
+  Authorization: "[redacted]",
+} as const;
+
+async function onetJsonFetch(
+  url: string,
+  label: string,
+  apiDebug?: ExternalApiDebugExchange[],
+): Promise<{ ok: boolean; status: number; data: unknown } | null> {
+  try {
+    const res = await fetch(url, {
+      headers: { Authorization: onetAuth(), Accept: "application/json" },
+      signal: AbortSignal.timeout(4000),
+    });
+
+    let data: unknown = null;
+    try {
+      data = await res.json();
+    } catch {
+      data = { parseError: true };
+    }
+
+    apiDebug?.push({
+      label,
+      request: { method: "GET", url, headers: { ...ONET_REQUEST_HEADERS } },
+      response: { status: res.status, ok: res.ok, body: data },
+    });
+
+    if (!res.ok) return null;
+    return { ok: res.ok, status: res.status, data };
+  } catch (error) {
+    apiDebug?.push({
+      label,
+      request: { method: "GET", url, headers: { ...ONET_REQUEST_HEADERS } },
+      response: {
+        status: null,
+        ok: false,
+        error: error instanceof Error ? error.message : "Network error",
+      },
+    });
+    return null;
+  }
+}
 
 async function findOccupation(
   jobTitle: string,
+  apiDebug?: ExternalApiDebugExchange[],
 ): Promise<{ code: string; title: string } | null> {
   const url = `${ONET_BASE}/search?keyword=${encodeURIComponent(jobTitle)}&end=1`;
-  const res = await fetch(url, {
-    headers: { Authorization: onetAuth(), Accept: "application/json" },
-    signal: AbortSignal.timeout(4000),
-  });
+  const fetched = await onetJsonFetch(url, "Occupation search", apiDebug);
+  if (!fetched) return null;
 
-  if (!res.ok) return null;
-
-  const data = (await res.json()) as {
+  const data = fetched.data as {
     occupation?: Array<{ code: string; title: string }>;
   };
-
   const occupation = data.occupation?.[0];
   if (!occupation) return null;
-
   return { code: occupation.code, title: occupation.title };
 }
 
-// ─── Skills fetch ─────────────────────────────────────────────────────────────
-
-async function fetchOccupationSkills(onetCode: string): Promise<string[]> {
+async function fetchOccupationSkills(
+  onetCode: string,
+  apiDebug?: ExternalApiDebugExchange[],
+): Promise<string[]> {
   const url = `${ONET_BASE}/occupations/${onetCode}/summary/skills`;
-  const res = await fetch(url, {
-    headers: { Authorization: onetAuth(), Accept: "application/json" },
-    signal: AbortSignal.timeout(4000),
-  });
+  const fetched = await onetJsonFetch(url, "Occupation skills", apiDebug);
+  if (!fetched) return [];
 
-  if (!res.ok) return [];
-
-  const data = (await res.json()) as {
+  const data = fetched.data as {
     element?: Array<{ name: string; score?: { value: number } }>;
   };
 
   return (data.element ?? [])
-    .filter((s) => (s.score?.value ?? 0) >= 3.5) // only "important" skills
+    .filter((s) => (s.score?.value ?? 0) >= 3.5)
     .map((s) => s.name)
     .slice(0, 20);
 }
 
-// ─── Technology tools fetch ───────────────────────────────────────────────────
-
-async function fetchOccupationTools(onetCode: string): Promise<string[]> {
+async function fetchOccupationTools(
+  onetCode: string,
+  apiDebug?: ExternalApiDebugExchange[],
+): Promise<string[]> {
   const url = `${ONET_BASE}/occupations/${onetCode}/summary/technology_skills`;
-  const res = await fetch(url, {
-    headers: { Authorization: onetAuth(), Accept: "application/json" },
-    signal: AbortSignal.timeout(4000),
-  });
+  const fetched = await onetJsonFetch(url, "Occupation tools", apiDebug);
+  if (!fetched) return [];
 
-  if (!res.ok) return [];
-
-  const data = (await res.json()) as {
+  const data = fetched.data as {
     category?: Array<{ title: { name: string }; example?: Array<{ name: string }> }>;
   };
 
@@ -108,14 +130,10 @@ async function fetchOccupationTools(onetCode: string): Promise<string[]> {
   return tools.slice(0, 30);
 }
 
-// ─── Public API ───────────────────────────────────────────────────────────────
-
-/**
- * Fetch industry-standard vocabulary for a job title from O*NET.
- * Returns empty fallback on any network or parse error — never throws.
- */
+/** Fetch industry-standard vocabulary for a job title from O*NET. Never throws. */
 export async function fetchRoleVocabulary(
   jobTitle: string,
+  options?: FetchRoleVocabularyOptions,
 ): Promise<OnetRoleVocabulary> {
   const cacheKey = jobTitle.toLowerCase().trim();
   const cached = cache.get(cacheKey);
@@ -123,15 +141,17 @@ export async function fetchRoleVocabulary(
     return { ...cached.data, source: "cache" };
   }
 
+  const apiDebug = options?.apiDebug;
+
   try {
-    const occupation = await findOccupation(jobTitle);
+    const occupation = await findOccupation(jobTitle, apiDebug);
     if (!occupation) {
       return emptyVocabulary(jobTitle);
     }
 
     const [skills, tools] = await Promise.all([
-      fetchOccupationSkills(occupation.code),
-      fetchOccupationTools(occupation.code),
+      fetchOccupationSkills(occupation.code, apiDebug),
+      fetchOccupationTools(occupation.code, apiDebug),
     ]);
 
     const result: OnetRoleVocabulary = {
@@ -156,5 +176,51 @@ function emptyVocabulary(jobTitle: string): OnetRoleVocabulary {
     skills: [],
     tools: [],
     source: "fallback",
+  };
+}
+
+export type OnetVocabularyPipelineOutcome = {
+  status: "done" | "warning";
+  detail: string;
+};
+
+/** Pipeline debug status — optional step: warning when O*NET data is missing, not error. */
+export function resolveOnetVocabularyPipelineOutcome(
+  vocab: OnetRoleVocabulary,
+  apiDebug?: ExternalApiDebugExchange[],
+): OnetVocabularyPipelineOutcome {
+  if (vocab.source === "api" || vocab.source === "cache") {
+    return {
+      status: "done",
+      detail: vocab.matchedTitle,
+    };
+  }
+
+  const failedExchange = apiDebug?.find(
+    (exchange) => exchange.response.status !== null && !exchange.response.ok,
+  );
+  const httpStatus = failedExchange?.response.status;
+  if (httpStatus === 401) {
+    return {
+      status: "warning",
+      detail: "O*NET auth failed (401) — credentials required",
+    };
+  }
+  if (httpStatus != null) {
+    return {
+      status: "warning",
+      detail: `O*NET request failed (${httpStatus})`,
+    };
+  }
+  if (!vocab.onetCode) {
+    return {
+      status: "warning",
+      detail: `No O*NET occupation match for "${vocab.matchedTitle}"`,
+    };
+  }
+
+  return {
+    status: "warning",
+    detail: "O*NET vocabulary unavailable",
   };
 }

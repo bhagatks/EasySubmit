@@ -63,7 +63,7 @@ Every step in the extension Apply pipeline (same catalog as the dev QA debug ove
 
 | Surface | Dev | Production |
 |---|---|---|
-| QA debug overlay + DB progress | On (`NEXT_PUBLIC_ANALYTICS_ENV !== "prod"`) | Off |
+| QA debug overlay + DB progress | On (`NEXT_PUBLIC_ANALYTICS_ENV !== "prod"`) — **web dashboard** at `/dashboard/pipeline-debug` (extension opens this tab; no in-page extension overlay) | Off |
 | PostHog `extension_apply_pipeline_step` | Same flag: `feature_flags.extension_apply_pipeline_step_analytics` | Same flag |
 
 Registry fallback is **off** (`defaultEnabled: false`). Seed creates the row **on** (`seedEnabled: true`); re-seed does not overwrite `enabled` so ops toggles stick.

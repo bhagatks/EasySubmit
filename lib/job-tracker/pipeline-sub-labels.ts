@@ -1,52 +1,34 @@
 import type { JobTrackerStatus } from "@/lib/generated/prisma/client";
+import {
+  APPLY_PIPELINE_USER_LINES,
+  resolveApplyPipelineUserMessage,
+} from "@/src/shared/extension/apply-pipeline-user-messages";
 
-/** Canonical sub-label copy for job tracker pipeline rows — do not diverge in UI. */
+export { APPLY_PIPELINE_USER_LINES, resolveApplyPipelineUserMessage };
+
+/** @deprecated Prefer APPLY_PIPELINE_USER_LINES — kept for legacy imports. */
 export const PIPELINE_SUB_LABELS = {
-  optimizingResume: "Optimizing resume…",
-  resumeReadyReview: "Resume ready",
-  applyAssistActive: "Apply assist active",
-  readyToApply: "Ready to apply",
-  applied: "Applied",
-  appliedViaAssist: "Applied via Apply Assist",
+  optimizingResume: APPLY_PIPELINE_USER_LINES.optimizingResume,
+  resumeReadyReview: APPLY_PIPELINE_USER_LINES.readyToApply,
+  applyAssistActive: APPLY_PIPELINE_USER_LINES.applyAssistActive,
+  readyToApply: APPLY_PIPELINE_USER_LINES.readyToApply,
+  applied: APPLY_PIPELINE_USER_LINES.applied,
+  appliedViaAssist: APPLY_PIPELINE_USER_LINES.applied,
 } as const;
 
 export type PipelineSubLabelInput = {
   status: JobTrackerStatus;
   hasError?: boolean;
-  /** Chrome extension detected on dashboard (enables apply assist). */
   extensionInstalled?: boolean;
   appliedSource?: string | null;
 };
 
-function isAppliedViaAssist(appliedSource: string | null | undefined): boolean {
-  return appliedSource === "extension_auto" || appliedSource === "extension_manual";
-}
-
 /** Sub-label row under the pipeline bar on tracker cards. */
-export function resolvePipelineSubLabel(input: PipelineSubLabelInput): string {
-  if (input.hasError) {
-    return "Something went wrong";
-  }
-
-  switch (input.status) {
-    case "CAPTURED":
-      return PIPELINE_SUB_LABELS.optimizingResume;
-    case "RESUME_READY":
-      return PIPELINE_SUB_LABELS.resumeReadyReview;
-    case "READY_TO_APPLY":
-      return input.extensionInstalled
-        ? PIPELINE_SUB_LABELS.applyAssistActive
-        : PIPELINE_SUB_LABELS.readyToApply;
-    case "APPLIED":
-    case "INTERVIEW":
-    case "OFFER":
-    case "REJECTED":
-      return isAppliedViaAssist(input.appliedSource)
-        ? PIPELINE_SUB_LABELS.appliedViaAssist
-        : PIPELINE_SUB_LABELS.applied;
-    case "ARCHIVED":
-      return PIPELINE_SUB_LABELS.applied;
-    default:
-      return PIPELINE_SUB_LABELS.optimizingResume;
-  }
+export function resolvePipelineSubLabel(input: PipelineSubLabelInput): string | null {
+  const resolved = resolveApplyPipelineUserMessage({
+    status: input.status,
+    progress: null,
+    extensionInstalled: input.extensionInstalled,
+  });
+  return resolved.line;
 }

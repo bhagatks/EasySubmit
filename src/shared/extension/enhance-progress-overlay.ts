@@ -43,6 +43,18 @@ export function wrapContentWithBrandProgressOverlay(
   </div>`;
 }
 
+/** Compact loader for extension apply actions — status line renders separately below. */
+export function renderInlineApplyPipelineLoader(): string {
+  return `<div class="es-inline-pipeline-loader" role="status" aria-live="polite" aria-label="Processing">
+    <div class="easysubmit-animation-box">
+      <div class="es-enhance-wordmark" aria-hidden="true">
+        <span class="es-enhance-wordmark-name">${BRAND.name}</span><span class="es-enhance-wordmark-suffix">${BRAND.suffix}</span>
+      </div>
+      <canvas id="brand-canvas" aria-hidden="true"></canvas>
+    </div>
+  </div>`;
+}
+
 export function enhanceProgressOverlayStyles(): string {
   return `
     .expand-scroll-enhancing {
@@ -170,6 +182,15 @@ export function enhanceProgressOverlayStyles(): string {
     }
     .es-brand-progress-host .es-enhance-progress {
       border-radius: 12px;
+    }
+    .es-inline-pipeline-loader {
+      margin-bottom: 8px;
+    }
+    .es-inline-pipeline-loader .easysubmit-animation-box {
+      width: 100%;
+    }
+    .es-inline-pipeline-loader #brand-canvas {
+      height: 48px;
     }
   `;
 }

@@ -2,10 +2,9 @@
 
 import {
   PIPELINE_STEPS,
-  pipelineActiveBarSegmentLabel,
-  pipelineActiveSegmentLabel,
   pipelineBarStepLabel,
   pipelineProgressForStatus,
+  type PipelineProgress,
 } from "@/lib/job-tracker/pipeline-progress";
 import type { JobTrackerStatus } from "@/lib/generated/prisma/client";
 import { cn } from "@/lib/utils";
@@ -13,12 +12,19 @@ import { cn } from "@/lib/utils";
 type PipelineBarProps = {
   status: JobTrackerStatus;
   className?: string;
+  /** When set, overrides status-only segment fill (e.g. stage failure). */
+  progress?: PipelineProgress;
+  /** Highlight the active segment as failed. */
+  stageFailed?: boolean;
 };
 
-export function PipelineBar({ status, className }: PipelineBarProps) {
-  const progress = pipelineProgressForStatus(status);
-  const activeLabel = pipelineActiveSegmentLabel(status);
-
+export function PipelineBar({
+  status,
+  className,
+  progress: progressOverride,
+  stageFailed = false,
+}: PipelineBarProps) {
+  const progress = progressOverride ?? pipelineProgressForStatus(status);
   const lastStepIndex = PIPELINE_STEPS.length - 1;
 
   return (
@@ -37,8 +43,7 @@ export function PipelineBar({ status, className }: PipelineBarProps) {
             progress.isComplete || stepNumber <= progress.filledThrough;
           const isCurrent =
             !progress.isComplete && progress.currentIndex === stepNumber;
-          const fullLabel =
-            isCurrent && activeLabel ? activeLabel : step.label;
+          const label = pipelineBarStepLabel(step);
 
           return (
             <div
@@ -48,10 +53,12 @@ export function PipelineBar({ status, className }: PipelineBarProps) {
                 isComplete
                   ? "border-mint/40 bg-mint/25"
                   : isCurrent
-                    ? "border-primary/50 bg-primary/30 animate-pipe-glow"
+                    ? stageFailed
+                      ? "border-destructive/60 bg-destructive/35 animate-pipe-glow"
+                      : "border-primary/50 bg-primary/30 animate-pipe-glow"
                     : "border-primary/35 bg-primary/5",
               )}
-              title={fullLabel}
+              title={label}
             />
           );
         })}
@@ -64,11 +71,7 @@ export function PipelineBar({ status, className }: PipelineBarProps) {
           const isCurrent =
             !progress.isComplete && progress.currentIndex === stepNumber;
           const isPending = !isComplete && !isCurrent;
-          const fullLabel =
-            isCurrent && activeLabel ? activeLabel : step.label;
-          const activeBarLabel = pipelineActiveBarSegmentLabel(status);
-          const displayLabel =
-            isCurrent && activeBarLabel ? activeBarLabel : pipelineBarStepLabel(step);
+          const displayLabel = pipelineBarStepLabel(step);
 
           return (
             <span
@@ -78,10 +81,11 @@ export function PipelineBar({ status, className }: PipelineBarProps) {
                 index === 0 && "text-left",
                 index === lastStepIndex && "text-right",
                 index > 0 && index < lastStepIndex && "text-center",
-                isCurrent && "font-medium text-primary",
+                isCurrent && stageFailed && "font-medium text-destructive",
+                isCurrent && !stageFailed && "font-medium text-primary",
                 isPending && "text-primary/45",
               )}
-              title={fullLabel}
+              title={displayLabel}
             >
               {displayLabel}
             </span>

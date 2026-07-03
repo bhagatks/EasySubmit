@@ -17,6 +17,8 @@ export type JdSkillsVocabulary = {
   providersUsed: Array<"deterministic" | "esco" | "escox">;
 };
 
+import type { ExternalApiDebugExchange } from "@/lib/extension/external-api-debug";
+
 export type FetchJdSkillsInput = {
   jobDescription: string;
   jobTitle?: string;
@@ -24,6 +26,8 @@ export type FetchJdSkillsInput = {
   cachedVocabulary?: JdSkillsVocabulary | null;
   cachedHash?: string | null;
   useExternalExtract?: boolean;
+  /** When set, records live ESCO HTTP exchanges (skipped on cache hit). */
+  apiDebug?: ExternalApiDebugExchange[];
 };
 
 export function emptyJdSkillsVocabulary(descriptionHash: string): JdSkillsVocabulary {

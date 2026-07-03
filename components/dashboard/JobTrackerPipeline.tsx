@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { useEffect, useState, type KeyboardEvent, type MouseEvent } from "react";
 import {
-  AlertCircle,
+  AlertTriangle,
   Archive,
   ArchiveRestore,
   ChevronRight,
@@ -19,22 +19,24 @@ import {
   unarchiveJobTrackerEntry,
 } from "@/app/actions/job-tracker";
 import { PipelineBar } from "@/components/dashboard/PipelineBar";
+import { ExtensionInstallCta } from "@/components/dashboard/ExtensionInstallCta";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { BRAND_FULL, EXTENSION_STORE_URL } from "@/lib/brand";
+import { BRAND_FULL } from "@/lib/brand";
 import type { JobTrackerSummary } from "@/lib/job-tracker/types";
 import {
   JOB_RESUME_STUDIO_LABEL,
   JOB_RESUME_STUDIO_LINK_TITLE,
 } from "@/lib/job-tracker/review-screen-ui";
 import { resolveDashboardTrackerRowChrome } from "@/lib/job-tracker/tracker-row-chrome";
-import { resolvePipelineSubLabel } from "@/lib/job-tracker/pipeline-sub-labels";
+import { resolveTrackerPipelineView } from "@/lib/job-tracker/pipeline-tracker-view";
 import { resolveJourneyDisplay, type JourneyDisplay } from "@/src/shared/journey-display";
 import {
   notifyExtensionJobArchived,
   startJobApplyFromDashboard,
 } from "@/lib/extension/start-job-apply-from-dashboard";
-import { isExtensionConnectedForDashboard } from "@/lib/extension/extension-dashboard-connection";
+import { useDashboardExtensionConnected } from "@/lib/hooks/useDashboardExtensionConnected";
+import { shouldShowExtensionInstallCta } from "@/lib/extension/extension-install-cta";
 import { cn } from "@/lib/utils";
 
 type JobTrackerPipelineProps = {
@@ -54,53 +56,29 @@ function trackerRowLine(entry: JobTrackerSummary): string {
   return `${role} · ${company}`;
 }
 
-function EntryIssueButton({ message }: { message: string | null | undefined }) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const hasIssue = Boolean(message?.trim());
-  const displayMessage = hasIssue ? message!.trim() : "No issues detected for this job.";
+function TrackerIssueIcon({
+  message,
+  severity,
+}: {
+  message: string | null | undefined;
+  severity: "error" | "warning" | null;
+}) {
+  if (!message?.trim() || !severity) return null;
 
-  useEffect(() => {
-    if (!open) return;
-    function handlePointerDown(event: PointerEvent) {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [open]);
+  const className =
+    severity === "error"
+      ? "text-destructive hover:bg-destructive/10"
+      : "text-amber-600 hover:bg-amber-500/10 dark:text-amber-400";
 
   return (
-    <div className="relative" ref={rootRef}>
-      <button
-        type="button"
-        onClick={(event) => {
-          stopRowAction(event);
-          setOpen((value) => !value);
-        }}
-        className={cn(
-          "rounded-lg p-1 transition-colors",
-          hasIssue
-            ? "text-amber-600 hover:bg-amber-500/10 dark:text-amber-400"
-            : "text-muted-foreground/45 hover:bg-muted/50 hover:text-muted-foreground",
-        )}
-        aria-label={hasIssue ? "View job issue" : "No issues"}
-        aria-expanded={open}
-      >
-        <AlertCircle className="h-4 w-4" aria-hidden="true" />
-      </button>
-      {open ? (
-        <div
-          className="absolute right-0 top-full z-20 mt-1 w-56 rounded-xl border border-border bg-surface p-3 text-xs shadow-lg"
-          role="dialog"
-          aria-label="Job issue details"
-        >
-          <p className="font-semibold text-foreground">{hasIssue ? "Capture gap" : "Status"}</p>
-          <p className="mt-1 leading-relaxed text-muted-foreground">{displayMessage}</p>
-        </div>
-      ) : null}
-    </div>
+    <span
+      className={cn("rounded-lg p-1 transition-colors", className)}
+      title={message.trim()}
+      aria-label={message.trim()}
+      role="img"
+    >
+      <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+    </span>
   );
 }
 
@@ -118,13 +96,15 @@ export function JobTrackerPipeline({
   const [archiveTarget, setArchiveTarget] = useState<JobTrackerSummary | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [extensionHint, setExtensionHint] = useState<string | null>(null);
-  const [extensionInstalled, setExtensionInstalled] = useState(false);
+  const extensionConnected = useDashboardExtensionConnected();
+  const extensionInstalled = extensionConnected === true;
 
   useEffect(() => {
-    void (async () => {
-      setExtensionInstalled(await isExtensionConnectedForDashboard());
-    })();
-  }, []);
+    if (extensionConnected !== true) return;
+    setExtensionHint((current) =>
+      current?.includes("Install the") ? null : current,
+    );
+  }, [extensionConnected]);
 
   async function handleArchive() {
     if (!archiveTarget) return false;
@@ -174,7 +154,11 @@ export function JobTrackerPipeline({
       return;
     }
     if (!result.usedExtension && journey.applyButtonState === "navigate") {
-      setExtensionHint(`Install the ${BRAND_FULL} extension to continue on the job page.`);
+      if (shouldShowExtensionInstallCta(extensionConnected)) {
+        setExtensionHint(`Install the ${BRAND_FULL} extension to continue on the job page.`);
+      } else {
+        setExtensionHint("Open the job posting in your browser to continue with Apply assist.");
+      }
     }
   }
 
@@ -207,19 +191,29 @@ export function JobTrackerPipeline({
       {extensionHint ? (
         <p className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
           {extensionHint}{" "}
-          <a href={EXTENSION_STORE_URL} target="_blank" rel="noopener noreferrer" className="font-semibold underline">
-            Get extension
-          </a>
+          <ExtensionInstallCta variant="inline-link" />
         </p>
       ) : null}
       <ul className="space-y-2">
         {entries.map((entry) => {
-          const journey = resolveJourneyDisplay(
-            entry.status,
-            Boolean(entry.issueMessage),
-          );
+          const pipelineFailure = entry.pipelineStepFailure ?? null;
+          const trackerPipeline = resolveTrackerPipelineView({
+            status: entry.status,
+            stepFailure: pipelineFailure,
+            issueMessage: entry.issueMessage,
+            extensionInstalled,
+            appliedSource: entry.appliedSource,
+          });
+          const subtitle = trackerPipeline.subLabel;
+          const issueSeverity = trackerPipeline.hasPipelineFailure
+            ? "error"
+            : trackerPipeline.hasWarning
+              ? "warning"
+              : null;
+          const issueTooltip =
+            issueSeverity === "error" || issueSeverity === "warning" ? subtitle : null;
+          const journey = resolveJourneyDisplay(entry.status, trackerPipeline.hasPipelineFailure);
           const rowBusy = busyId === entry.id;
-          const stageError = journey.stage === "error";
           const chrome = resolveDashboardTrackerRowChrome({
             status: entry.status,
             hasTailoredResume: entry.hasTailoredResume,
@@ -227,12 +221,8 @@ export function JobTrackerPipeline({
             issueMessage: entry.issueMessage,
             journey,
             rowBusy,
-          });
-          const subtitle = resolvePipelineSubLabel({
-            status: entry.status,
-            hasError: stageError,
-            extensionInstalled,
-            appliedSource: entry.appliedSource,
+            pipelineStepFailure: trackerPipeline.hasPipelineFailure,
+            hasBlockingIssue: trackerPipeline.hasPipelineFailure,
           });
 
           return (
@@ -340,19 +330,30 @@ export function JobTrackerPipeline({
                       >
                         <Trash2 className="h-4 w-4" aria-hidden="true" />
                       </button>
-                      <EntryIssueButton message={entry.issueMessage} />
+                      <TrackerIssueIcon message={issueTooltip} severity={issueSeverity} />
                     </div>
                   </div>
 
                   <div className="flex items-end gap-4">
                     <div className="min-w-0 flex-1">
-                      <PipelineBar status={entry.status} className="w-full" />
-                      <div className="mt-1.5 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-                        {chrome.showSpinner ? (
+                      <PipelineBar
+                        status={entry.status}
+                        className="w-full"
+                        progress={trackerPipeline.progress}
+                        stageFailed={trackerPipeline.hasPipelineFailure}
+                      />
+                      {subtitle ? (
+                        <div className="mt-1.5 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+                          {chrome.showSpinner ? (
+                            <Loader2 className="h-3 w-3 shrink-0 animate-spin text-primary" aria-hidden="true" />
+                          ) : null}
+                          <p className="truncate">{subtitle}</p>
+                        </div>
+                      ) : chrome.showSpinner ? (
+                        <div className="mt-1.5 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
                           <Loader2 className="h-3 w-3 shrink-0 animate-spin text-primary" aria-hidden="true" />
-                        ) : null}
-                        <p className="truncate">{subtitle}</p>
-                      </div>
+                        </div>
+                      ) : null}
                     </div>
 
                     <div
@@ -362,11 +363,6 @@ export function JobTrackerPipeline({
                     >
                       {!archivedView ? (
                         <>
-                          {chrome.showErrorBanner ? (
-                            <span className="inline-flex min-h-8 items-center rounded-xl bg-amber-500/10 px-3 text-xs font-semibold text-amber-700 dark:text-amber-300">
-                              {chrome.errorLabel}
-                            </span>
-                          ) : null}
                           {chrome.showRetryOptimize ? (
                             <Button
                               type="button"
@@ -380,18 +376,6 @@ export function JobTrackerPipeline({
                                 <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
                               ) : null}
                               Retry optimize
-                            </Button>
-                          ) : null}
-                          {chrome.showReviewRetry ? (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="rounded-xl"
-                              disabled={rowBusy}
-                              onClick={() => onReview(entry.id)}
-                            >
-                              Retry
                             </Button>
                           ) : null}
                           {chrome.showMarkApplied ? (

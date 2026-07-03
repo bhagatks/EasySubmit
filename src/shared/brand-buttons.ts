@@ -176,24 +176,37 @@ export function extensionButtonStyles(): string {
     }
     .es-btn svg,
     .cta svg { width: 15px; height: 15px; flex-shrink: 0; pointer-events: none; }
-    .es-btn:disabled { opacity: 0.65; cursor: wait; transform: none; box-shadow: none; }
+    .es-btn:disabled,
+    .cta:disabled { opacity: 0.65; cursor: not-allowed; transform: none; box-shadow: none; }
 
     .es-btn-primary,
-    .cta-primary {
+    .cta.cta-primary {
       width: 100%;
       padding: ${BRAND_BUTTONS.size.md.padding};
       font-size: ${BRAND_BUTTONS.size.md.fontSize};
       background: ${t.gradient};
       color: #fff;
+      border: none;
       box-shadow: 0 4px 14px ${t.a32};
     }
     .es-btn-primary:hover:not(:disabled),
-    .cta-primary:hover:not(:disabled) {
+    .cta.cta-primary:hover:not(:disabled) {
       box-shadow: 0 6px 18px ${t.a42};
       transform: translateY(-1px);
     }
     .es-btn-primary:active:not(:disabled),
-    .cta-primary:active:not(:disabled) { transform: translateY(0); }
+    .cta.cta-primary:active:not(:disabled) { transform: translateY(0); }
+
+    .cta.cta-secondary {
+      width: 100%;
+      padding: ${BRAND_BUTTONS.size.md.padding};
+      font-size: ${BRAND_BUTTONS.size.md.fontSize};
+      background: #fff;
+      color: ${t.primaryMuted};
+      border: 1px solid ${t.a28};
+      box-shadow: none;
+    }
+    .cta.cta-secondary:hover:not(:disabled) { background: ${t.a08}; }
 
     .es-btn-secondary {
       padding: ${BRAND_BUTTONS.size.sm.padding};
@@ -266,14 +279,14 @@ export function extensionButtonStyles(): string {
       gap: 8px;
       width: 100%;
       box-sizing: border-box;
-      border: none;
       border-radius: ${r};
       padding: ${BRAND_BUTTONS.size.md.padding};
       font-size: ${BRAND_BUTTONS.size.md.fontSize};
       font-weight: ${BRAND_BUTTONS.weight};
       line-height: 1.2;
       cursor: pointer;
-      transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease, color 0.15s ease;
+      font-family: inherit;
+      transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease, color 0.15s ease, border-color 0.15s ease;
     }
   `.trim();
 }

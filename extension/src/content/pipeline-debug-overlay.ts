@@ -33,6 +33,8 @@ function statusIcon(status: PipelineDebugStepStatus): string {
       return "✕";
     case "skipped":
       return "–";
+    case "warning":
+      return "!";
     default:
       return "○";
   }
@@ -93,6 +95,7 @@ function overlayStyles(): string {
       gap: 8px;
       padding: 12px 14px;
       border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      flex: 0 0 auto;
     }
     .title {
       margin: 0;
@@ -121,7 +124,11 @@ function overlayStyles(): string {
     }
     .close:hover { background: rgba(255, 255, 255, 0.16); }
     .body {
-      overflow: auto;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+      overscroll-behavior: contain;
       padding: 8px 0 12px;
     }
     .group {
@@ -138,6 +145,7 @@ function overlayStyles(): string {
     }
     .step.active { border-left-color: #6382ff; background: rgba(99, 130, 255, 0.08); }
     .step.done { border-left-color: #34d399; }
+    .step.warning { border-left-color: #fbbf24; background: rgba(251, 191, 36, 0.08); }
     .step.error { border-left-color: #f87171; background: rgba(248, 113, 113, 0.08); }
     .step.skipped { opacity: 0.65; }
     .step-head {
@@ -152,6 +160,7 @@ function overlayStyles(): string {
     }
     .step-status.step-active { color: #6382ff; animation: pulse 1.2s ease-in-out infinite; }
     .step-status.step-done { color: #34d399; }
+    .step-status.step-warning { color: #fbbf24; }
     .step-status.step-error { color: #f87171; }
     .step-status.step-skipped { color: rgba(255,255,255,0.35); }
     .step-status.step-pending { color: rgba(255,255,255,0.25); }
@@ -208,12 +217,9 @@ function renderStep(step: PipelineDebugStep): string {
   `;
 }
 
-function renderProgress(progress: PipelineDebugProgress | null, localSteps?: PipelineDebugStep[]): string {
-  const steps = progress?.steps ?? localSteps ?? [];
-  const traceId = progress?.traceId ?? "pending…";
-
+function renderStepListHtml(steps: PipelineDebugStep[]): string {
   let currentGroup = "";
-  const stepHtml = steps
+  return steps
     .map((step) => {
       const groupHeader =
         step.group !== currentGroup
@@ -222,20 +228,54 @@ function renderProgress(progress: PipelineDebugProgress | null, localSteps?: Pip
       return `${groupHeader}${renderStep(step)}`;
     })
     .join("");
+}
 
+function resolveSteps(
+  progress: PipelineDebugProgress | null,
+  localSteps?: PipelineDebugStep[],
+): PipelineDebugStep[] {
+  return progress?.steps ?? localSteps ?? [];
+}
+
+function renderShell(traceId: string, stepHtml: string): string {
   return `
     <style>${overlayStyles()}</style>
     <div class="panel" role="dialog" aria-label="Apply pipeline debug">
       <div class="header">
         <div>
           <p class="title">Apply pipeline (QA)</p>
-          <p class="trace">trace: ${escapeHtml(traceId)}</p>
+          <p class="trace" data-debug-trace>trace: ${escapeHtml(traceId)}</p>
         </div>
         <button type="button" class="close" data-debug-close="1" aria-label="Close">×</button>
       </div>
-      <div class="body">${stepHtml || "<div class='group'>Waiting…</div>"}</div>
+      <div class="body" data-debug-body>${stepHtml || "<div class='group'>Waiting…</div>"}</div>
     </div>
   `;
+}
+
+import { scheduleRestoreBodyScroll } from "@/lib/extension/pipeline-debug-overlay-scroll";
+  shadow: ShadowRoot,
+  progress: PipelineDebugProgress | null,
+  localSteps?: PipelineDebugStep[],
+): void {
+  const steps = resolveSteps(progress, localSteps);
+  const traceId = progress?.traceId ?? "pending…";
+  const stepHtml = renderStepListHtml(steps);
+
+  const existingBody = shadow.querySelector<HTMLElement>("[data-debug-body]");
+  if (!existingBody) {
+    shadow.innerHTML = renderShell(traceId, stepHtml);
+    return;
+  }
+
+  const scrollTop = existingBody.scrollTop;
+  existingBody.innerHTML = stepHtml || "<div class='group'>Waiting…</div>";
+  scheduleRestoreBodyScroll(existingBody, scrollTop);
+
+  const traceEl = shadow.querySelector("[data-debug-trace]");
+  if (traceEl) {
+    traceEl.textContent = `trace: ${traceId}`;
+  }
 }
 
 function ensureHost(): PipelineDebugOverlayHost {
@@ -268,7 +308,7 @@ export function showPipelineDebugOverlay(
   initialSteps?: PipelineDebugStep[],
 ): PipelineDebugOverlayHost {
   const h = ensureHost();
-  h.shadow.innerHTML = renderProgress(null, initialSteps);
+  paintOverlayDom(h.shadow, null, initialSteps);
   h.root.style.display = "block";
   return h;
 }
@@ -278,7 +318,7 @@ export function updatePipelineDebugOverlay(
   localSteps?: PipelineDebugStep[],
 ): void {
   if (!host) return;
-  host.shadow.innerHTML = renderProgress(progress, localSteps);
+  paintOverlayDom(host.shadow, progress, localSteps);
 }
 
 export function hidePipelineDebugOverlay(): void {

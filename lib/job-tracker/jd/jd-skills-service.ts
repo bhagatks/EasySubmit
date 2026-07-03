@@ -75,6 +75,7 @@ export async function fetchJdSkillsVocabulary(
       const escoExtra = await enrichJdSkillsWithEsco(
         dedupePhrasesForEsco(trimmed),
         skills,
+        { apiDebug: input.apiDebug },
       );
       if (escoExtra.length > 0) {
         providersUsed.push("esco");

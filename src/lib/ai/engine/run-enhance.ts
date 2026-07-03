@@ -46,9 +46,9 @@ import {
 } from "@/src/lib/ai/engine/gemini-resilience";
 import { logApiCall, type ApiCallStatus } from "@/src/shared/observability";
 import {
-  pipelineDebugAdvance,
-  pipelineDebugStep,
-} from "@/lib/extension/pipeline-debug-hooks";
+  aiRequestArtifact,
+  aiResponseArtifact,
+} from "@/lib/extension/pipeline-debug-sanitize";
 
 export type RunEnhanceInput = {
   form: HubRefineryForm;
@@ -832,6 +832,8 @@ async function runPass(
   modelId: string;
   estimatedCost: number;
   slot?: number;
+  promptSystem: string;
+  promptUser: string;
 }> {
   logEnhance("engine", "pass.start", {
     traceId,
@@ -878,6 +880,8 @@ async function runPass(
     modelId: result.modelId,
     estimatedCost: usagePayload.estimatedCost,
     slot: result.poolCall?.slot,
+    promptSystem: system,
+    promptUser: prompt,
   };
 }
 
@@ -1003,6 +1007,19 @@ export async function runResumeEnhance(
       pipelineDebugAdvance(debug, "ai_pass2", "ai_pass1", {
         detail: "Pass 1 OK — starting pass 2 optimize",
         meta: { modelId: pass1.modelId, tokensUsed: pass1.tokensUsed },
+        artifacts: [
+          aiRequestArtifact("Pass 1 request", {
+            pass: "generate",
+            modelId: pass1.modelId,
+            system: pass1.promptSystem,
+            user: pass1.promptUser,
+          }),
+          aiResponseArtifact("Pass 1 response", {
+            text: pass1.text,
+            modelId: pass1.modelId,
+            tokensUsed: pass1.tokensUsed,
+          }),
+        ],
       });
 
       try {
@@ -1026,6 +1043,23 @@ export async function runResumeEnhance(
         const pass2Body = parseEnhancedResumeBody(pass2.text);
         if (pass2Body) {
           finalBody = normalizeEnhancedBody(pass2Body, input.form, traceId, input.userId ?? "unknown");
+          pipelineDebugStep(debug, "ai_pass2", {
+            status: "done",
+            detail: "Pass 2 optimize complete",
+            artifacts: [
+              aiRequestArtifact("Pass 2 request", {
+                pass: "optimize",
+                modelId: pass2.modelId,
+                system: pass2.promptSystem,
+                user: pass2.promptUser,
+              }),
+              aiResponseArtifact("Pass 2 response", {
+                text: pass2.text,
+                modelId: pass2.modelId,
+                tokensUsed: pass2.tokensUsed,
+              }),
+            ],
+          });
           logEnhance("engine", "run.parse_ok", {
             traceId,
             step: ENHANCE_PIPELINE.ENGINE_MERGE,

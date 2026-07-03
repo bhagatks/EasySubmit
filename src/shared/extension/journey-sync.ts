@@ -1,5 +1,5 @@
 import type { JobTrackerStatus } from "@/lib/generated/prisma/client";
-import { PIPELINE_SUB_LABELS } from "@/lib/job-tracker/pipeline-sub-labels";
+import { resolveExtensionUserMessage } from "@/src/shared/extension/apply-pipeline-user-messages";
 import { resolveJourneyDisplay, type JourneyDisplay } from "@/src/shared/journey-display";
 
 export type JourneySnapshot = {
@@ -57,8 +57,25 @@ export function shouldResetExtensionAfterSync(transition: JourneySyncTransition)
 export function extensionShowsJourneyError(
   saveError: string | null | undefined,
   saved: boolean,
+  status?: string | null,
 ): boolean {
-  return Boolean(saved && saveError?.trim());
+  if (!saved || !saveError?.trim()) return false;
+  if (isCaptureGapMessage(saveError)) return false;
+  if (isNonBlockingCaptureGap(saveError, status)) return false;
+  return true;
+}
+
+function isCaptureGapMessage(message: string): boolean {
+  return message.trim().startsWith("Capture gap:");
+}
+
+function isNonBlockingCaptureGap(message: string, status?: string | null): boolean {
+  if (!isCaptureGapMessage(message)) return false;
+  return (
+    status === "READY_TO_APPLY" ||
+    status === "RESUME_READY" ||
+    status === "APPLIED"
+  );
 }
 
 /**
@@ -70,6 +87,7 @@ export function resolveExtensionSaveError(input: {
   serverIssueMessage: string | null | undefined;
   saved: boolean;
   syncSucceeded: boolean;
+  status?: string | null;
 }): string | null {
   if (!input.syncSucceeded) {
     return input.clientSaveError?.trim() || null;
@@ -80,7 +98,13 @@ export function resolveExtensionSaveError(input: {
   }
 
   const serverIssue = input.serverIssueMessage?.trim() ?? null;
-  if (serverIssue) return serverIssue;
+  if (serverIssue) {
+    if (isNonBlockingCaptureGap(serverIssue, input.status)) return null;
+    return serverIssue;
+  }
+
+  const clientIssue = input.clientSaveError?.trim() ?? null;
+  if (clientIssue && isNonBlockingCaptureGap(clientIssue, input.status)) return null;
 
   return null;
 }
@@ -92,6 +116,7 @@ export function resolveExtensionJourneyDisplay(input: {
   pipelineBusy: boolean;
   pipelineBusyLabel?: string | null;
   saveError?: string | null;
+  issueMessage?: string | null;
 }): JourneyDisplay {
   if (input.canReapply) {
     return {
@@ -105,27 +130,32 @@ export function resolveExtensionJourneyDisplay(input: {
     };
   }
 
-  if (input.pipelineBusy) {
-    const busyLabel = input.pipelineBusyLabel ?? PIPELINE_SUB_LABELS.optimizingResume;
+  const userMessage = resolveExtensionUserMessage(input);
+  const status = input.saved ? ((input.status as JobTrackerStatus | undefined) ?? null) : null;
+  const hasError = userMessage.kind === "error";
+
+  if (hasError) {
     return {
-      stage: 1,
-      label: "Apply",
-      statusLabel: busyLabel,
+      stage: "error",
+      label: "",
+      statusLabel: userMessage.line ?? "",
       applyButtonState: "disabled",
       showResumeCard: false,
       showAssistCard: false,
-      showReviewRow: false,
+      showReviewRow: input.saved,
     };
   }
 
-  const status = input.saved ? ((input.status as JobTrackerStatus | undefined) ?? null) : null;
-  return resolveJourneyDisplay(status, extensionShowsJourneyError(input.saveError, input.saved));
+  const base = resolveJourneyDisplay(status, false);
+  return {
+    ...base,
+    statusLabel: userMessage.line ?? "",
+  };
 }
 
 export function shouldRunExtensionJourneySyncPoll(saved: JourneySnapshot): boolean {
   if (!saved.saved) return false;
   const status = saved.status as string | undefined;
-  // Terminal states — realtime or user action drives any remaining transitions
   if (status === "READY_TO_APPLY" || status === "APPLIED") return false;
   return true;
 }

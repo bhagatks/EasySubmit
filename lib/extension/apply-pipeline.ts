@@ -10,6 +10,8 @@ import {
 } from "@/lib/extension/pipeline-tailor";
 import { mergeJobEntryMetadata, recordPipelineTailorError } from "@/lib/extension/pipeline-metadata";
 import { setPipelineDebugStep } from "@/lib/extension/pipeline-debug-progress";
+import { findPipelineStepFailure } from "@/lib/job-tracker/pipeline-tracker-view";
+import { parsePipelineDebugProgress, PIPELINE_DEBUG_METADATA_KEY } from "@/src/shared/extension/pipeline-debug-types";
 import type { ApplyPipelinePhase } from "@/lib/extension/pipeline-types";
 import { isOneClickPlatform } from "@/lib/extension/pipeline-types";
 import { getExtensionUserPrefs } from "@/lib/extension/user-prefs";
@@ -70,11 +72,35 @@ async function findExistingTailoredState(
   return { status: row.status, hasTailoredResume: true };
 }
 
-/** Server-side Stage 1b → 2: resume ready jobs enter apply assist without extension stub. */
+/** Server-side Stage 2 → 3: resume ready jobs enter apply assist without extension stub. */
 export async function advancePipelineAfterAutofill(
   userId: string,
   entryId: string,
 ): Promise<void> {
+  const row = await prisma.jobTrackerEntry.findFirst({
+    where: { id: entryId, userId },
+    select: { metadata: true },
+  });
+  const metadata =
+    row?.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+      ? (row.metadata as Record<string, unknown>)
+      : null;
+  const debugProgress = metadata
+    ? parsePipelineDebugProgress(metadata[PIPELINE_DEBUG_METADATA_KEY])
+    : null;
+  const failure = findPipelineStepFailure(debugProgress);
+  if (failure) {
+    logEnhance("pipeline", "apply.advance_blocked", {
+      step: TAILOR_PIPELINE.APPLY_TAILOR_RESULT,
+      userId,
+      entryId,
+      failedStepId: failure.stepId,
+      failedStage: failure.stage,
+      detail: failure.detail,
+    });
+    return;
+  }
+
   const { updateJobTrackerStatus } = await import("@/lib/extension/job-service");
   await updateJobTrackerStatus(userId, entryId, "READY_TO_APPLY");
   await setPipelineDebugStep(userId, entryId, "status_ready", {

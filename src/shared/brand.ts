@@ -3,6 +3,8 @@
  * Display: capital E + S only; suffix always lowercase `.ai`.
  */
 
+import { isDevAnalyticsEnvironment } from "@/src/shared/analytics/config";
+
 export const EXTENSION_STORE_URL =
   "https://chromewebstore.google.com/detail/ask-gemini/daeaddalijienfjkhigbifmbdckbohjg";
 
@@ -58,6 +60,23 @@ export function renderBrandMarkup(
     ? `<img class="brand-icon" src="${iconUrl}" alt="" width="20" height="20" decoding="async" />`
     : "";
   return `${icon}<span class="${wrap}"><span class="${nameClass}">${BRAND.name}</span><span class="${suffixClass}">${BRAND.suffix}</span></span>`;
+}
+
+/** In-page extension card header — prod: EasySubmit.ai; dev: EasySubmit.ai dev */
+export function renderExtensionCardBrandMarkup(
+  classNames: BrandClassNames = {},
+  iconUrl?: string,
+): string {
+  const devTag = isDevAnalyticsEnvironment()
+    ? `<span class="brand-env"> dev</span>`
+    : "";
+  const wrap = classNames.wrap ?? "brand";
+  const nameClass = classNames.name ?? "brand-name";
+  const suffixClass = classNames.suffix ?? "brand-suffix";
+  const icon = iconUrl
+    ? `<img class="brand-icon" src="${iconUrl}" alt="" width="20" height="20" decoding="async" />`
+    : "";
+  return `${icon}<span class="${wrap}"><span class="${nameClass}">${BRAND.name}</span><span class="${suffixClass}">${BRAND.suffix}</span>${devTag}</span>`;
 }
 
 export function brandCopyright(year: number): string {

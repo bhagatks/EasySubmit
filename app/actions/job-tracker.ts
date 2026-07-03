@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import type { JobTrackerStatus } from "@/lib/generated/prisma/client";
+import { resolvePipelineStepFailureFromMetadata } from "@/lib/job-tracker/pipeline-tracker-view";
 import { entryIssueMessage } from "@/lib/job-tracker/entry-issue";
 import { resolveJobIdentity } from "@/src/shared/extension/job-identity";
 import { attachReviewDocumentsToDetail } from "@/lib/job-tracker/review-documents-map";
@@ -75,6 +76,16 @@ function toSummary(entry: {
     description: entry.description ?? null,
   });
   const company = entry.company?.trim() || identity.company;
+  const issueMessage = entryIssueMessage({
+    url: entry.canonicalUrl,
+    title: entry.title,
+    company,
+    location: entry.location,
+    salaryText: entry.salaryText,
+    description: entry.description ?? null,
+    platform: entry.platform,
+    metadata,
+  });
 
   return {
     id: entry.id,
@@ -90,16 +101,8 @@ function toSummary(entry: {
     appliedSource:
       typeof metadata?.appliedSource === "string" ? metadata.appliedSource : null,
     hasTailoredResume: Boolean(entry.resumeTailor?.id),
-    issueMessage: entryIssueMessage({
-      url: entry.canonicalUrl,
-      title: entry.title,
-      company,
-      location: entry.location,
-      salaryText: entry.salaryText,
-      description: entry.description ?? null,
-      platform: entry.platform,
-      metadata,
-    }),
+    issueMessage,
+    pipelineStepFailure: resolvePipelineStepFailureFromMetadata(metadata, entry.status),
   };
 }
 

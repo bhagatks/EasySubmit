@@ -30,13 +30,17 @@ export function isJobReviewStudioScreen(
 
 export { isJobReviewStudioRoute };
 
-export function isDashboardSettingsScreen(pathname: string): boolean {
-  return pathname.startsWith("/dashboard/settings");
+export function isPipelineDebugScreen(pathname: string): boolean {
+  return pathname.startsWith("/dashboard/pipeline");
 }
 
 /** Legacy route — redirects to Settings. */
 export function isDashboardKeysScreen(pathname: string): boolean {
   return pathname.startsWith("/dashboard/keys");
+}
+
+export function isDashboardSettingsScreen(pathname: string): boolean {
+  return pathname.startsWith("/dashboard/settings") || isDashboardKeysScreen(pathname);
 }
 
 /** BYOK management is on-screen in Settings (or active badge when vaulted). */
@@ -111,6 +115,9 @@ export function getDashboardHeaderLabel(pathname: string, isStudioEdit: boolean)
   }
   if (pathname.startsWith("/dashboard/job-tracker")) {
     return "Job Tracker";
+  }
+  if (pathname.startsWith("/dashboard/pipeline")) {
+    return "Pipeline";
   }
   if (pathname.startsWith("/dashboard/ats-scores")) {
     return "ATS Scores";

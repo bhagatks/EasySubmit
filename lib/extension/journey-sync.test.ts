@@ -67,6 +67,40 @@ describe("extension journey display after delete", () => {
     expect(display.applyButtonState).toBe("hidden");
   });
 
+  it("does not show error stage for capture gaps while pipeline is still running", () => {
+    expect(
+      extensionShowsJourneyError("Capture gap: Company", true, "CAPTURED"),
+    ).toBe(false);
+    const display = resolveExtensionJourneyDisplay({
+      saved: true,
+      status: "CAPTURED",
+      saveError: "Capture gap: Company",
+      pipelineBusy: false,
+    });
+    expect(display.stage).toBe(1);
+    expect(display.statusLabel).toBe("Add details in Review.");
+  });
+
+  it("shows READY_TO_APPLY stage when capture gap is the only server issue", () => {
+    expect(
+      resolveExtensionSaveError({
+        clientSaveError: null,
+        serverIssueMessage: "Capture gap: Company",
+        saved: true,
+        syncSucceeded: true,
+        status: "READY_TO_APPLY",
+      }),
+    ).toBeNull();
+    const display = resolveExtensionJourneyDisplay({
+      saved: true,
+      status: "READY_TO_APPLY",
+      saveError: null,
+      pipelineBusy: false,
+    });
+    expect(display.stage).toBe(3);
+    expect(display.label).toBe(BRAND.autoSuggestCta);
+  });
+
   it("shows error stage while saved with pipeline failure", () => {
     const display = resolveExtensionJourneyDisplay({
       saved: true,
@@ -75,7 +109,8 @@ describe("extension journey display after delete", () => {
       pipelineBusy: false,
     });
     expect(display.stage).toBe("error");
-    expect(display.label).toBe("Something went wrong");
+    expect(display.statusLabel).toBe("Resume optimization failed.");
+    expect(display.applyButtonState).toBe("disabled");
   });
 
   it("matches READY_TO_APPLY stage from shared mapper", () => {
@@ -85,7 +120,7 @@ describe("extension journey display after delete", () => {
       pipelineBusy: false,
     });
     expect(display.stage).toBe(3);
-    expect(display.statusLabel).toBe("");
+    expect(display.statusLabel).toBe("Ready to apply");
     expect(display.showReviewRow).toBe(true);
     expect(display.showAssistCard).toBe(false);
   });

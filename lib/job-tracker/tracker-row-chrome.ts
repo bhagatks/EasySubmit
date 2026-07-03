@@ -13,23 +13,24 @@ export type DashboardTrackerRowChrome = {
   applyInteractive: boolean;
   applyCompleted: boolean;
   showRetryOptimize: boolean;
-  showErrorBanner: boolean;
-  errorLabel: string;
-  showReviewRetry: boolean;
 };
 
 type ResolveDashboardTrackerRowChromeInput = TailorStallInput & {
   journey: JourneyDisplay;
   rowBusy: boolean;
+  pipelineStepFailure?: boolean;
+  /** Tailor/pipeline issue — disables Apply + may show Retry optimize; not a row button. */
+  hasBlockingIssue?: boolean;
 };
 
 export function resolveDashboardTrackerRowChrome(
   input: ResolveDashboardTrackerRowChromeInput,
 ): DashboardTrackerRowChrome {
   const stalled = isTailorStalled(input);
-  const stageError = input.journey.stage === "error";
+  const pipelineBlocked = Boolean(input.pipelineStepFailure);
+  const blocked = Boolean(input.hasBlockingIssue) || pipelineBlocked;
   const optimizing =
-    input.status === "CAPTURED" && !input.hasTailoredResume && !stalled && !stageError;
+    input.status === "CAPTURED" && !input.hasTailoredResume && !stalled && !blocked;
   const applyNavigate = input.journey.applyButtonState === "navigate";
   const applyCompleted = input.journey.applyButtonState === "completed";
 
@@ -54,13 +55,11 @@ export function resolveDashboardTrackerRowChrome(
       input.journey.applyButtonState === "disabled" ||
       optimizing ||
       stalled ||
-      stageError ||
+      blocked ||
       input.rowBusy,
-    applyInteractive: applyNavigate && !applyCompleted,
+    applyInteractive: applyNavigate && !applyCompleted && !pipelineBlocked && !blocked,
     applyCompleted,
-    showRetryOptimize: stalled || (stageError && input.status === "CAPTURED"),
-    showErrorBanner: stageError,
-    errorLabel: input.journey.label,
-    showReviewRetry: stageError && input.status !== "CAPTURED",
+    showRetryOptimize:
+      stalled || pipelineBlocked || (Boolean(input.hasBlockingIssue) && input.status === "CAPTURED"),
   };
 }

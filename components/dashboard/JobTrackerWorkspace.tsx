@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowUpRight, Briefcase } from "lucide-react";
+import { Briefcase } from "lucide-react";
 import { listArchivedJobTrackerEntries } from "@/app/actions/job-tracker";
 import type { JobTrackerSummary } from "@/lib/job-tracker/types";
 import type { DashboardManualJobProfileOption } from "@/lib/job-tracker/dashboard-manual-capture";
@@ -17,13 +17,14 @@ import {
   type ReviewScreenPanel,
 } from "@/lib/job-tracker/review-screen-ui";
 import { JobTrackerPipeline } from "@/components/dashboard/JobTrackerPipeline";
+import { ExtensionInstallCta } from "@/components/dashboard/ExtensionInstallCta";
 import { JobTrackerManualAddModal } from "@/components/dashboard/JobTrackerManualAddModal";
 import { ReviewScreen } from "@/components/dashboard/ReviewScreen";
 import { serverActionClientErrorMessage } from "@/lib/server-action-client";
 import { ToastBanner } from "@/components/ui/toast-banner";
-import { Button } from "@/components/ui/button";
 import { PurposeButton } from "@/components/ui/purpose-button";
-import { BRAND_FULL, EXTENSION_STORE_URL } from "@/lib/brand";
+import { BRAND_FULL } from "@/lib/brand";
+import { useDashboardExtensionConnected } from "@/lib/hooks/useDashboardExtensionConnected";
 import { AnalyticsEvents, captureAnalyticsEvent, trackScreenOverlay } from "@/src/shared/analytics";
 
 const APPLIED_ARCHIVE_TOAST_KEY = "easysubmit_applied_archive_toast_v1";
@@ -61,6 +62,7 @@ export function JobTrackerWorkspace({
   const [showArchiveToast, setShowArchiveToast] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const lastOpenedJobIdRef = useRef<string | null>(null);
+  const extensionConnected = useDashboardExtensionConnected();
 
   const buildReviewUrl = useCallback(
     (jobId: string, panel: ReviewScreenPanel) => {
@@ -248,23 +250,15 @@ export function JobTrackerWorkspace({
             </div>
             <h2 className="mt-4 font-display text-lg font-semibold">No jobs tracked yet</h2>
             <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-              Add a job here to tailor a resume for that role, or save roles from career sites with
-              the {BRAND_FULL} extension.
+              {extensionConnected
+                ? "Add a job here to tailor a resume for that role, or save roles from career sites with the extension on this browser."
+                : `Add a job here to tailor a resume for that role, or save roles from career sites with the ${BRAND_FULL} extension.`}
             </p>
             <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <PurposeButton type="button" purpose="primary" onClick={openManualAdd}>
                 Add to Job Tracker
               </PurposeButton>
-              <Button variant="mintOutline" asChild>
-                <a
-                  href={EXTENSION_STORE_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1"
-                >
-                  Add extension <ArrowUpRight className="h-4 w-4" />
-                </a>
-              </Button>
+              <ExtensionInstallCta variant="tracker-button" />
             </div>
           </div>
         )

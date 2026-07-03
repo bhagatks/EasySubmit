@@ -7,6 +7,17 @@ import {
 } from "@/src/shared/analytics/server-pipeline-step-capture";
 import { isPipelineDebugEnabled } from "@/src/shared/extension/pipeline-debug-gate";
 import {
+  mergePipelineDebugArtifacts,
+  type PipelineDebugArtifact,
+} from "@/src/shared/extension/pipeline-debug-artifacts";
+import { sanitizePipelineDebugArtifacts } from "@/lib/extension/pipeline-debug-sanitize";
+import {
+  finalizePipelineDebugProgress,
+  reconcilePipelineDebugProgress,
+  runSerializedPipelineDebugWrite,
+} from "@/lib/extension/pipeline-debug-progress-sync";
+import { resolvePipelineDebugProgressForDisplay } from "@/lib/extension/pipeline-debug-display";
+import {
   emptyPipelineDebugProgress,
   parsePipelineDebugProgress,
   PIPELINE_DEBUG_METADATA_KEY,
@@ -18,6 +29,7 @@ export type PipelineDebugStepUpdate = {
   status?: PipelineDebugStepStatus;
   detail?: string;
   meta?: Record<string, unknown>;
+  artifacts?: PipelineDebugArtifact[];
 };
 
 function readMetadataObject(metadata: unknown): Record<string, unknown> {
@@ -42,6 +54,7 @@ function touchStep(
     const finishedAt =
       nextStatus === "done" ||
       nextStatus === "skipped" ||
+      nextStatus === "warning" ||
       nextStatus === "error"
         ? now
         : step.finishedAt;
@@ -56,10 +69,14 @@ function touchStep(
         update.meta !== undefined
           ? { ...(step.meta ?? {}), ...update.meta }
           : step.meta,
+      artifacts: mergePipelineDebugArtifacts(
+        step.artifacts,
+        sanitizePipelineDebugArtifacts(update.artifacts),
+      ),
     };
   });
 
-  return { ...progress, updatedAt: now, steps };
+  return reconcilePipelineDebugProgress({ ...progress, updatedAt: now, steps });
 }
 
 function emitApplyPipelineStepAnalytics(
@@ -159,33 +176,38 @@ export async function setPipelineDebugStep(
   stepId: string,
   update: PipelineDebugStepUpdate,
 ): Promise<void> {
-  const overlayOn = isPipelineDebugEnabled();
-  const analyticsOn = await isApplyPipelineStepAnalyticsEnabled();
-  if (!overlayOn && !analyticsOn) return;
+  return runSerializedPipelineDebugWrite(entryId, async () => {
+    const overlayOn = isPipelineDebugEnabled();
+    const analyticsOn = await isApplyPipelineStepAnalyticsEnabled();
+    if (!overlayOn && !analyticsOn) return;
 
-  const row = await prisma.jobTrackerEntry.findFirst({
-    where: { id: entryId, userId },
-    select: { metadata: true },
-  });
-  if (!row) return;
+    const row = await prisma.jobTrackerEntry.findFirst({
+      where: { id: entryId, userId },
+      select: { metadata: true },
+    });
+    if (!row) return;
 
-  const metadata = readMetadataObject(row.metadata);
-  const existingProgress = parsePipelineDebugProgress(metadata[PIPELINE_DEBUG_METADATA_KEY]);
-  const traceId = existingProgress?.traceId ?? entryId;
+    const metadata = readMetadataObject(row.metadata);
+    const existingProgress = parsePipelineDebugProgress(metadata[PIPELINE_DEBUG_METADATA_KEY]);
+    const traceId = existingProgress?.traceId ?? entryId;
 
-  if (overlayOn) {
-    let progress = existingProgress ?? emptyPipelineDebugProgress(traceId);
-    progress = touchStep(progress, stepId, update);
-    await writePipelineDebugProgress(userId, entryId, progress);
-    if (analyticsOn) {
-      emitApplyPipelineStepAnalytics(userId, entryId, progress, stepId);
+    if (overlayOn) {
+      let progress = existingProgress ?? emptyPipelineDebugProgress(traceId);
+      progress = touchStep(progress, stepId, update);
+      if (stepId === "status_ready" && update.status === "done") {
+        progress = finalizePipelineDebugProgress(progress);
+      }
+      await writePipelineDebugProgress(userId, entryId, progress);
+      if (analyticsOn) {
+        emitApplyPipelineStepAnalytics(userId, entryId, progress, stepId);
+      }
+      return;
     }
-    return;
-  }
 
-  if (analyticsOn) {
-    emitApplyPipelineStepFromUpdate(userId, entryId, traceId, stepId, update);
-  }
+    if (analyticsOn) {
+      emitApplyPipelineStepFromUpdate(userId, entryId, traceId, stepId, update);
+    }
+  });
 }
 
 export async function getPipelineDebugProgress(
@@ -195,12 +217,14 @@ export async function getPipelineDebugProgress(
   if (!isPipelineDebugEnabled()) return null;
   const row = await prisma.jobTrackerEntry.findFirst({
     where: { id: entryId, userId },
-    select: { metadata: true },
+    select: { metadata: true, status: true },
   });
   if (!row) return null;
 
   const metadata = readMetadataObject(row.metadata);
-  return parsePipelineDebugProgress(metadata[PIPELINE_DEBUG_METADATA_KEY]);
+  const progress = parsePipelineDebugProgress(metadata[PIPELINE_DEBUG_METADATA_KEY]);
+  if (!progress) return null;
+  return resolvePipelineDebugProgressForDisplay(progress, metadata, row.status);
 }
 
 /** Mark step active and optionally complete a prior step in one write. */
@@ -211,50 +235,52 @@ export async function advancePipelineDebugStep(
   completeStepId?: string,
   completeUpdate?: PipelineDebugStepUpdate,
 ): Promise<void> {
-  const overlayOn = isPipelineDebugEnabled();
-  const analyticsOn = await isApplyPipelineStepAnalyticsEnabled();
-  if (!overlayOn && !analyticsOn) return;
+  return runSerializedPipelineDebugWrite(entryId, async () => {
+    const overlayOn = isPipelineDebugEnabled();
+    const analyticsOn = await isApplyPipelineStepAnalyticsEnabled();
+    if (!overlayOn && !analyticsOn) return;
 
-  const row = await prisma.jobTrackerEntry.findFirst({
-    where: { id: entryId, userId },
-    select: { metadata: true },
-  });
-  if (!row) return;
-
-  const metadata = readMetadataObject(row.metadata);
-  const existingProgress = parsePipelineDebugProgress(metadata[PIPELINE_DEBUG_METADATA_KEY]);
-  const traceId = existingProgress?.traceId ?? entryId;
-
-  if (overlayOn) {
-    let progress = existingProgress ?? emptyPipelineDebugProgress(traceId);
-
-    if (completeStepId) {
-      progress = touchStep(progress, completeStepId, {
-        status: "done",
-        ...completeUpdate,
-      });
-      if (analyticsOn) {
-        emitApplyPipelineStepAnalytics(userId, entryId, progress, completeStepId);
-      }
-    }
-
-    progress = touchStep(progress, activeStepId, { status: "active" });
-    await writePipelineDebugProgress(userId, entryId, progress);
-    if (analyticsOn) {
-      emitApplyPipelineStepAnalytics(userId, entryId, progress, activeStepId);
-    }
-    return;
-  }
-
-  if (analyticsOn) {
-    if (completeStepId) {
-      emitApplyPipelineStepFromUpdate(userId, entryId, traceId, completeStepId, {
-        status: "done",
-        ...completeUpdate,
-      });
-    }
-    emitApplyPipelineStepFromUpdate(userId, entryId, traceId, activeStepId, {
-      status: "active",
+    const row = await prisma.jobTrackerEntry.findFirst({
+      where: { id: entryId, userId },
+      select: { metadata: true },
     });
-  }
+    if (!row) return;
+
+    const metadata = readMetadataObject(row.metadata);
+    const existingProgress = parsePipelineDebugProgress(metadata[PIPELINE_DEBUG_METADATA_KEY]);
+    const traceId = existingProgress?.traceId ?? entryId;
+
+    if (overlayOn) {
+      let progress = existingProgress ?? emptyPipelineDebugProgress(traceId);
+
+      if (completeStepId) {
+        progress = touchStep(progress, completeStepId, {
+          status: "done",
+          ...completeUpdate,
+        });
+        if (analyticsOn) {
+          emitApplyPipelineStepAnalytics(userId, entryId, progress, completeStepId);
+        }
+      }
+
+      progress = touchStep(progress, activeStepId, { status: "active" });
+      await writePipelineDebugProgress(userId, entryId, progress);
+      if (analyticsOn) {
+        emitApplyPipelineStepAnalytics(userId, entryId, progress, activeStepId);
+      }
+      return;
+    }
+
+    if (analyticsOn) {
+      if (completeStepId) {
+        emitApplyPipelineStepFromUpdate(userId, entryId, traceId, completeStepId, {
+          status: "done",
+          ...completeUpdate,
+        });
+      }
+      emitApplyPipelineStepFromUpdate(userId, entryId, traceId, activeStepId, {
+        status: "active",
+      });
+    }
+  });
 }
