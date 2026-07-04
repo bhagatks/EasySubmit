@@ -78,6 +78,7 @@ import { isAiGloballyEnabled } from "@/lib/ai/ai-global-enabled";
 const USER_ID = "user-123";
 
 const baseUserRow: SystemQuotaUserRow = {
+  id: USER_ID,
   aiSourcePreference: "auto",
   vaultKeyId: null,
   activeProvider: null,
@@ -127,6 +128,7 @@ describe("resolveFeature", () => {
     vi.mocked(resolveAiRoute).mockResolvedValue({
       mode: "customer",
       modelId: "gpt-4o",
+      modelCandidates: ["gpt-4o"],
       provider: "openai",
       vaultKeyId: "vault-1",
     });
@@ -150,6 +152,7 @@ describe("resolveFeature", () => {
     vi.mocked(resolveAiRoute).mockResolvedValue({
       mode: "customer",
       modelId: "gpt-4o",
+      modelCandidates: ["gpt-4o"],
       provider: "openai",
       vaultKeyId: "vault-1",
     });

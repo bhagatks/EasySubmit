@@ -3,6 +3,7 @@ import {
   AI_ENGINE_DEFAULTS,
   parseAiEngineConfig,
   resolveCustomerEnhancementLimit,
+  resolveJdExtractionSystemModel,
 } from "@/src/lib/services/ai-engine-config";
 
 describe("parseAiEngineConfig", () => {
@@ -73,5 +74,13 @@ describe("resolveCustomerEnhancementLimit", () => {
     })!;
 
     expect(resolveCustomerEnhancementLimit(limited)).toBe(50);
+  });
+});
+
+describe("resolveJdExtractionSystemModel", () => {
+  it("returns the same model as system resume enhance", () => {
+    expect(resolveJdExtractionSystemModel(AI_ENGINE_DEFAULTS)).toBe(
+      AI_ENGINE_DEFAULTS.system.modelId,
+    );
   });
 });

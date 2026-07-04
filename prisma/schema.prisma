@@ -149,6 +149,8 @@ model UserApiKey {
   userId        String
   provider      String
   vaultSecretId String   @unique @db.Uuid
+  /// Ranked BYOK model health probes — refreshed on vault save and stale refresh.
+  modelHealth   Json?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -14,6 +14,7 @@ import { getAppConfig, isSubscribed } from "@/src/lib/services/config-service";
 
 /** Prisma select shared anywhere system quota is evaluated. */
 export const SYSTEM_QUOTA_USER_SELECT = {
+  id: true,
   vaultKeyId: true,
   activeProvider: true,
   aiSourcePreference: true,
@@ -50,6 +51,7 @@ export async function getSystemQuotaGateForUserRow(
 ): Promise<SystemQuotaGateResult> {
   const preference = (user.aiSourcePreference ?? "auto") as AiSourcePreference;
   const route = await resolveAiRoute({
+    userId: user.id,
     aiSourcePreference: preference,
     vaultKeyId: user.vaultKeyId,
     activeProvider: user.activeProvider,

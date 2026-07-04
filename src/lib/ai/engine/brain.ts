@@ -60,6 +60,32 @@ export function buildEnhanceUserPrompt(
   const bodyJson = JSON.stringify(ctx.resumeBody, null, 2);
   const jdRole = spec.directive?.effectiveTargetRole ?? spec.targetRole;
 
+  if (spec.lightPath) {
+    return [
+      "Create a maximum-ATS-score resume for this application.",
+      "Skills section has been pre-merged toward JD requirements — you may rewrite/reorder skillsText for optimal keyword coverage.",
+      "Experience bullets fields contain compressed SOURCE FACTS (metrics, tools, short phrases) — not final bullets. Expand each role into full achievement bullets grounded only in those facts.",
+      "Do NOT copy an old professional summary — write a new one from years of experience, identity, and the JD directive.",
+      "Write in a natural professional voice — not robotic or AI-sounding.",
+      specBlock,
+      rawSnippet,
+      "",
+      "Resume skeleton JSON (no contact fields — preserve entry ids, companies, titles, schools, dates exactly):",
+      bodyJson,
+      "",
+      "Tasks:",
+      `1. Write a NEW professional summary (${SUMMARY_SENTENCE_COUNT} sentences, ${SUMMARY_WORD_MIN}–${SUMMARY_WORD_MAX} words) for ${jdRole}. Open with the candidate identity from the spec when provided. Use ~${spec.yearsExperienceEstimate ?? ctx.yearsExperienceEstimate} years of experience. Do not invent employers or metrics.`,
+      `2. Finalize skillsText with ${SKILLS_HARD_MIN_SYSTEM}–${SKILLS_HARD_MAX} JD-aligned skills — include must-add skills from the directive.`,
+      "3. For EACH experience entry: rewrite bullets from the source facts only — one past-tense action verb per bullet; ~70% with metrics that appear in the facts. Preserve entry ids, company, title, and dates.",
+      "4. Regenerate certifications, projects, languages, and custom section content for JD alignment when present.",
+      "5. Keep all experience/education entry ids, company names, job titles, school names, degree fields, and date fields exactly unchanged.",
+      "6. Do not invent employers, job titles, employment dates, schools, degrees, or metrics not supported by source facts.",
+      "7. Fix spacing: no concatenated words; correct hyphenation in compound adjectives.",
+      "",
+      "Output JSON with the same structure as the input resume body (full bullets in experience[].bullets).",
+    ].join("\n");
+  }
+
   return [
     "Create a maximum-ATS-score resume for this application.",
     "Skills section has been pre-merged toward JD requirements — you may rewrite/reorder skillsText for optimal keyword coverage.",

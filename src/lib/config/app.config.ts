@@ -57,9 +57,10 @@ export const PROVIDER_REGISTRY: Record<AiProvider, ProviderRegistryEntry> = {
     handshakeEndpoint: "/v1/models",
     chatPath: "/v1/messages",
     defaultModels: [
-      "claude-3-5-sonnet-latest",
+      "claude-sonnet-4-20250514",
       "claude-3-5-sonnet-20241022",
-      "claude-3-5-haiku-latest",
+      "claude-3-5-haiku-20241022",
+      "claude-3-5-sonnet-latest",
       "claude-3-opus-latest",
     ],
     storageKey: "anthropic_key",

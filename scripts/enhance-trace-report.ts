@@ -9,6 +9,12 @@
  */
 import dotenv from "dotenv";
 import { resolveEnhanceTraceOutcome } from "../lib/ai/enhance-trace-outcome";
+import {
+  formatDurationMinSec,
+  formatStepDurationLabel,
+  pipelineStepLabelForApiOperation,
+} from "../src/shared/extension/pipeline-debug-duration";
+import { parsePipelineDebugProgress } from "../src/shared/extension/pipeline-debug-types";
 
 dotenv.config({ path: ".env" });
 dotenv.config({ path: ".env.local" });
@@ -238,6 +244,7 @@ async function printTrace(
   console.table(
     rows.map((r) => ({
       at: r.createdAt.toISOString(),
+      step: pipelineStepLabelForApiOperation(r.operation),
       op: r.operation,
       status: r.status,
       model: r.modelId ?? "—",
@@ -245,7 +252,7 @@ async function printTrace(
       slot: r.keySlot,
       source: r.keySource,
       err: r.errorCode ?? "—",
-      ms: r.durationMs,
+      duration: r.durationMs != null ? formatDurationMinSec(r.durationMs) : "—",
       tokens: r.tokensUsed,
     })),
   );
@@ -280,6 +287,7 @@ async function printJob(
       title: true,
       company: true,
       status: true,
+      metadata: true,
       resumeTailor: {
         select: { enhanceTraceId: true, enhanceMeta: true, changedSections: true },
       },
@@ -301,6 +309,25 @@ async function printJob(
     changedSections: job.resumeTailor?.changedSections,
     enhanceMeta: job.resumeTailor?.enhanceMeta,
   });
+
+  const pipelineDebug = parsePipelineDebugProgress(
+    job.metadata &&
+      typeof job.metadata === "object" &&
+      !Array.isArray(job.metadata)
+      ? (job.metadata as Record<string, unknown>).pipelineDebug
+      : null,
+  );
+  if (pipelineDebug) {
+    console.log(`\n=== PIPELINE STEPS (trace ${pipelineDebug.traceId}) ===`);
+    console.table(
+      pipelineDebug.steps.map((step) => ({
+        step: step.id,
+        label: step.label,
+        status: step.status,
+        duration: formatStepDurationLabel(step) ?? "—",
+      })),
+    );
+  }
 
   if (job.resumeTailor?.enhanceTraceId) {
     await printTrace(prisma, userId, job.resumeTailor.enhanceTraceId);

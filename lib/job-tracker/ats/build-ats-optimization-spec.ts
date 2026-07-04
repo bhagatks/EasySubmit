@@ -27,6 +27,11 @@ export type AtsOptimizationSpec = {
   jobIntelligence?: JobIntelligence;
   jdSegments?: JDSegments;
   jobDescription?: string;
+  /** Happy path — omit readiness/gap/intelligence bloat from the prompt. */
+  lightPath?: boolean;
+  /** Years of experience for summary instructions (light path). */
+  yearsExperienceEstimate?: number;
+  summaryIdentity?: string;
 };
 
 export function buildAtsOptimizationSpec(input: {
@@ -40,6 +45,9 @@ export function buildAtsOptimizationSpec(input: {
   jobIntelligence?: JobIntelligence;
   jdSegments?: JDSegments;
   jobDescription?: string;
+  lightPath?: boolean;
+  yearsExperienceEstimate?: number;
+  summaryIdentity?: string;
 }): AtsOptimizationSpec {
   return { ...input };
 }
@@ -127,6 +135,10 @@ function formatIntelligenceForMaxAts(intelligence: JobIntelligence): string {
 }
 
 export function formatAtsOptimizationSpecBlock(spec: AtsOptimizationSpec): string {
+  if (spec.lightPath) {
+    return formatLightAtsOptimizationSpecBlock(spec);
+  }
+
   const lines: string[] = [
     "ATS OPTIMIZATION SPEC (fix every item — goal: maximum readiness score):",
     `Platform: ${spec.platform.label} (${spec.platform.strategy})`,
@@ -166,6 +178,41 @@ export function formatAtsOptimizationSpecBlock(spec: AtsOptimizationSpec): strin
     }
   }
 
+  appendJobContext(lines, spec);
+  return lines.join("\n");
+}
+
+/** Happy-path prompt: platform + skills/keywords/theme + JD segments only. */
+function formatLightAtsOptimizationSpecBlock(spec: AtsOptimizationSpec): string {
+  const lines: string[] = [
+    "ATS OPTIMIZATION SPEC (maximize ATS fit for this application):",
+    `Platform: ${spec.platform.label} (${spec.platform.strategy})`,
+    "",
+    spec.platform.strategyInstructions,
+    "",
+    `Platform tip: ${spec.platform.tip}`,
+  ];
+
+  if (spec.yearsExperienceEstimate != null) {
+    lines.push(
+      "",
+      `CANDIDATE: ~${spec.yearsExperienceEstimate} years experience` +
+        (spec.summaryIdentity ? ` · identity: ${spec.summaryIdentity}` : ""),
+    );
+  }
+
+  if (spec.directive) {
+    const block = formatDirectiveForMaxAts(spec.directive);
+    if (block) {
+      lines.push("", "JD DIRECTIVE:", block);
+    }
+  }
+
+  appendJobContext(lines, spec);
+  return lines.join("\n");
+}
+
+function appendJobContext(lines: string[], spec: AtsOptimizationSpec): void {
   if (spec.mode === "role_company" && spec.companyName) {
     lines.push(
       "",
@@ -188,8 +235,6 @@ export function formatAtsOptimizationSpecBlock(spec: AtsOptimizationSpec): strin
       `"""`,
     );
   }
-
-  return lines.join("\n");
 }
 
 export function buildAtsOptimizationSpecFromBrief(
@@ -210,10 +255,13 @@ export function buildAtsOptimizationSpecFromBrief(
     companyName: input.companyName?.trim() || undefined,
     platform: brief.platform,
     readiness: brief.readiness,
-    keywordGap: brief.jd?.keywordGap,
+    keywordGap: brief.lightPath ? undefined : brief.jd?.keywordGap,
     directive: brief.jd?.directive,
-    jobIntelligence: brief.jd?.jobIntelligence,
+    jobIntelligence: brief.lightPath ? undefined : brief.jd?.jobIntelligence,
     jdSegments: brief.jd?.segments,
     jobDescription: input.jobDescription,
+    lightPath: brief.lightPath,
+    yearsExperienceEstimate: brief.lightPath ? brief.yearsExperienceEstimate : undefined,
+    summaryIdentity: brief.lightPath ? brief.summaryIdentity.identity : undefined,
   });
 }

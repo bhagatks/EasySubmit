@@ -21,8 +21,8 @@ export type AiEngineConfig = {
     /** Gemini model id for EasySubmit system AI (resume enhance passes). */
     modelId: string;
     /**
-     * Cheaper/faster model for structured JD extraction (system pool + Gemini BYOK).
-     * System pool uses this model id with vault keys; BYOK Gemini routes override here too.
+     * @deprecated JD extract uses `system.modelId` — same model as resume enhance.
+     * Kept for existing app_config rows only.
      */
     jdExtractionModelId: string;
     /** Max vaulted system key slots (0 … maxKeySlots-1). */
@@ -163,5 +163,5 @@ export function resolveCustomerEnhancementLimit(config: AiEngineConfig): number 
 
 /** System-pool model for JD structured extraction (`generateObject`). */
 export function resolveJdExtractionSystemModel(config: AiEngineConfig): string {
-  return config.system.jdExtractionModelId.trim() || JD_EXTRACTION_SYSTEM_MODEL_DEFAULT;
+  return config.system.modelId.trim() || AI_ENGINE_DEFAULTS.system.modelId;
 }

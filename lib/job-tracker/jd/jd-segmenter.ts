@@ -26,6 +26,7 @@ const RESPONSIBILITIES_HEADERS = [
   /^what\s+you(?:'ll|\s+will)\s+do/i,
   /^the\s+role/i,
   /^your\s+role/i,
+  /^job\s+description:?/i,
   /^job\s+(?:duties|responsibilities?|functions?)/i,
   /^duties\s+(?:and\s+responsibilities?)?/i,
   /^day[- ]to[- ]day/i,

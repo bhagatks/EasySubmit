@@ -18,6 +18,7 @@ import {
 } from "@/src/lib/config/career-grade-models";
 
 import { vaultUserApiKey } from "@/lib/vault/user-key-vault";
+import { refreshProviderModelHealth } from "@/lib/ai/model-health/refresh-provider-model-health";
 import {
   isVaultSchemaMissingError,
   VAULT_SETUP_MESSAGE,
@@ -117,6 +118,20 @@ export async function igniteEngineVault(
     await vaultUserApiKey(userId, provider, keyMaterial, {
       setAsActive: input.setAsActive ?? true,
     });
+
+    try {
+      await refreshProviderModelHealth({
+        userId,
+        provider,
+        apiKey: keyMaterial,
+        traceId: `ignite-${provider}`,
+      });
+    } catch (healthError) {
+      console.warn("[Ignition] model health refresh failed", {
+        provider,
+        message: healthError instanceof Error ? healthError.message : String(healthError),
+      });
+    }
 
     return {
       success: true,

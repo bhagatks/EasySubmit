@@ -8,6 +8,7 @@ import {
 import type { AiEngineConfig } from "@/src/lib/services/ai-engine-config";
 
 export type SystemQuotaUserRow = {
+  id: string;
   vaultKeyId: string | null;
   activeProvider: string | null;
   aiSourcePreference: string | null;

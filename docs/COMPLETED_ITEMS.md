@@ -1,5 +1,6 @@
 | Date | Item |
 |------|------|
+| 2026-07-04 | Fork/join enhance — capture starts job track ∥ resume track (`pipeline-track-coordinator`); light skills merge; slim experience fact ledger; light brief for resume AI; full brief/baseline only on AI fail; `/dashboard/pipeline` QA groups by architecture track |
 | 2026-07-03 | Max-ATS enhance default — `buildAtsOptimizationSpec()`, single AI pass, skills-only baseline when AI runs, full deterministic fallback + warning UX, cross-domain 6-skill cap removed, title+company path (extension tailor + Review), Review ATS delta cap removed; `partialEnhance` dropped |
 | 2026-07-01 | Extension CI CRX pipeline — `pack-extension-crx.mjs`, `upload-extension-cws.mjs`, `deploy.yml` artifacts + Verified CRX publish |
 | 2026-07-01 | Extension build docs — `docs/EXTENSION_BUILD.md`; fixed outputs `dist/extension-dev/` (localhost) vs `dist/extension/` (prod / CWS) |

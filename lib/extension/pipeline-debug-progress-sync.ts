@@ -47,6 +47,7 @@ export function reconcilePipelineDebugProgress(
       ...step,
       status: "done" as const,
       detail: step.detail ?? "Completed",
+      startedAt: step.startedAt ?? step.finishedAt ?? now,
       finishedAt: step.finishedAt ?? now,
     };
   });
@@ -67,6 +68,7 @@ export function finalizePipelineDebugProgress(
       ...step,
       status: "done" as const,
       detail: step.detail ?? "Completed",
+      startedAt: step.startedAt ?? step.finishedAt ?? now,
       finishedAt: step.finishedAt ?? now,
     };
   });

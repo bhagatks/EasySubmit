@@ -173,6 +173,7 @@ export async function resolveEnhanceFeature(
   }
 
   const route = await resolveAiRoute({
+    userId: user.id,
     aiSourcePreference: preference,
     vaultKeyId: user.vaultKeyId,
     activeProvider: user.activeProvider,

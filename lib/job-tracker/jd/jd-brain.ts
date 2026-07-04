@@ -17,6 +17,10 @@ import { makeEmptyIntelligence } from "@/lib/job-tracker/jd/jd-intelligence";
 import { logEnhance } from "@/src/lib/ai/engine/enhance-logger";
 import { ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
 import type { JdExtractionOptions } from "@/lib/job-tracker/jd/jd-ai-extractor";
+import {
+  pipelineDebugAdvance,
+  pipelineDebugStep,
+} from "@/lib/extension/pipeline-debug-hooks";
 
 export type JDAnalysisInput = {
   rawDescription: string;
@@ -40,6 +44,8 @@ export type JDAnalysisResult = {
   descriptionHash: string;
   /** True when an AI `generateObject` JD extract call ran (not cache / deterministic-only). */
   aiCallMade: boolean;
+  /** True when JD AI extract was attempted (route present, not cache hit). */
+  aiAttempted: boolean;
 };
 
 export function hashJobDescription(description: string): string {
@@ -75,6 +81,7 @@ export function analyzeJobDescriptionSync(
         cacheHit: false,
         descriptionHash,
         aiCallMade: false,
+        aiAttempted: false,
       };
     }
 
@@ -82,7 +89,7 @@ export function analyzeJobDescriptionSync(
     const segments = segmentJobDescription(cleaned, jsonLdFields);
     const intelligence = extractJDIntelligenceSync(segments, targetRole);
 
-    return { segments, intelligence, cacheHit: false, descriptionHash, aiCallMade: false };
+    return { segments, intelligence, cacheHit: false, descriptionHash, aiCallMade: false, aiAttempted: false };
   } catch {
       return {
         segments: buildSegmentsForEmpty(),
@@ -90,13 +97,40 @@ export function analyzeJobDescriptionSync(
         cacheHit: false,
         descriptionHash: hashJobDescription(rawDescription),
         aiCallMade: false,
+        aiAttempted: false,
       };
   }
+}
+
+function finishPreJdBrainStep(
+  pipelineDebug: JdExtractionOptions["pipelineDebug"],
+  detail: string,
+  meta?: Record<string, unknown>,
+): void {
+  if (!pipelineDebug) return;
+  pipelineDebugStep(pipelineDebug, "pre_jd_brain", {
+    status: "done",
+    detail,
+    meta,
+  });
+}
+
+function skipAiJdExtractStep(
+  pipelineDebug: JdExtractionOptions["pipelineDebug"],
+  detail: string,
+): void {
+  if (!pipelineDebug) return;
+  pipelineDebugStep(pipelineDebug, "ai_jd_extract", {
+    status: "skipped",
+    detail,
+  });
 }
 
 export async function analyzeJobDescription(
   input: JDAnalysisInput,
 ): Promise<JDAnalysisResult> {
+  const pipelineDebug = input.jdExtraction?.pipelineDebug ?? null;
+
   try {
     const {
       rawDescription,
@@ -109,38 +143,53 @@ export async function analyzeJobDescription(
 
     const descriptionHash = hashJobDescription(rawDescription);
 
-    // Cache hit: hash matches and we have stored intelligence
     if (cachedHash === descriptionHash && cachedIntelligence) {
       const { cleaned } = cleanJobDescription(rawDescription);
       const segments = segmentJobDescription(cleaned, jsonLdFields);
+      finishPreJdBrainStep(pipelineDebug, "Cache hit", {
+        cacheHit: true,
+        domain: cachedIntelligence.domain,
+      });
+      skipAiJdExtractStep(pipelineDebug, "JD intelligence cached");
       return {
         segments,
         intelligence: cachedIntelligence,
         cacheHit: true,
         descriptionHash,
         aiCallMade: false,
+        aiAttempted: false,
       };
     }
 
     if (!rawDescription.trim()) {
+      finishPreJdBrainStep(pipelineDebug, "Empty JD");
+      skipAiJdExtractStep(pipelineDebug, "No job description");
       return {
         segments: buildSegmentsForEmpty(),
         intelligence: makeEmptyIntelligence(),
         cacheHit: false,
         descriptionHash,
         aiCallMade: false,
+        aiAttempted: false,
       };
     }
 
-    // Run deterministic extraction (always)
     const { cleaned } = cleanJobDescription(rawDescription);
     const segments = segmentJobDescription(cleaned, jsonLdFields);
     let intelligence = extractJDIntelligenceSync(segments, targetRole);
     let aiCallMade = false;
+    let aiAttempted = false;
 
-    // Run AI enrichment if enabled and system AI is available.
-    // Dynamic import keeps the prisma/system-key-pool chain out of the sync module graph.
+    finishPreJdBrainStep(pipelineDebug, "Deterministic extract complete", {
+      cacheHit: false,
+      domain: intelligence.domain,
+      tier1Count: intelligence.tier1Keywords.length,
+    });
+
     if (useAi && input.aiRoute) {
+      aiAttempted = true;
+      pipelineDebugAdvance(pipelineDebug, "ai_jd_extract", "pre_jd_brain");
+
       const { extractJDIntelligenceWithAI, mergeAIIntoIntelligence } = await import(
         "@/lib/job-tracker/jd/jd-ai-extractor"
       );
@@ -168,17 +217,34 @@ export async function analyzeJobDescription(
           mustHaveSkills: intelligence.mustHaveSkills.slice(0, 12),
           summaryTheme: intelligence.summaryTheme || null,
         });
+      } else if (aiResult.reason === "quota") {
+        skipAiJdExtractStep(pipelineDebug, "Quota blocked");
       }
+    } else {
+      skipAiJdExtractStep(
+        pipelineDebug,
+        useAi ? "No AI route" : "AI disabled for this run",
+      );
     }
 
-    return { segments, intelligence, cacheHit: false, descriptionHash, aiCallMade };
+    return {
+      segments,
+      intelligence,
+      cacheHit: false,
+      descriptionHash,
+      aiCallMade,
+      aiAttempted,
+    };
   } catch {
+    finishPreJdBrainStep(pipelineDebug, "Deterministic extract failed");
+    skipAiJdExtractStep(pipelineDebug, "JD brain error");
     return {
       segments: buildSegmentsForEmpty(),
       intelligence: makeEmptyIntelligence(),
       cacheHit: false,
       descriptionHash: hashJobDescription(input.rawDescription),
       aiCallMade: false,
+      aiAttempted: false,
     };
   }
 }

@@ -71,6 +71,7 @@ async function loadByokGateSignals(
 ): Promise<Parameters<typeof evaluateByokKeyGate>[0]> {
   const preference = (user.aiSourcePreference ?? "auto") as AiSourcePreference;
   const route = await resolveAiRoute({
+    userId,
     aiSourcePreference: preference,
     vaultKeyId: user.vaultKeyId,
     activeProvider: user.activeProvider,

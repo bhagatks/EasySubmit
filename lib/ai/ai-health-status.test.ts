@@ -5,6 +5,7 @@ vi.mock("next-auth", () => ({ getServerSession: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     user: { findUnique: vi.fn() },
+    userApiKey: { findUnique: vi.fn().mockResolvedValue(null) },
     apiCallLog: { count: vi.fn() },
   },
 }));
@@ -227,7 +228,9 @@ describe("getAiHealthStatusForUser", () => {
     const customerErrorCalls = vi
       .mocked(prisma.apiCallLog.count)
       .mock.calls.filter((call) => {
-        const where = (call[0] as { where?: { aiMode?: string; createdAt?: { gte?: Date } } })?.where;
+        const where = (call[0] as {
+          where?: { aiMode?: string; status?: string; createdAt?: { gte?: Date } };
+        })?.where;
         return where?.aiMode === "customer" && where?.status === "error";
       });
     expect(customerErrorCalls.length).toBeGreaterThan(0);

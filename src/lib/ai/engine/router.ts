@@ -6,12 +6,14 @@ import { AI_ENGINE_DEFAULTS } from "@/src/lib/services/ai-engine-config";
 import type { AiRouteMode, AiSourcePreference } from "@/src/lib/ai/engine/constants";
 import { isAiGloballyEnabled } from "@/lib/ai/ai-global-enabled";
 import { hasHealthySystemPoolSlot, hasSystemGeminiKeys } from "@/src/lib/ai/engine/system-key-pool";
+import { resolveCustomerModelCandidates } from "@/lib/ai/model-health/resolve-model-candidates";
 
 export type ResolvedAiRoute =
   | {
       mode: "customer";
       provider: HandshakeProvider;
       modelId: string;
+      modelCandidates: string[];
       vaultKeyId: string;
     }
   | {
@@ -75,22 +77,44 @@ export function resolveCustomerModelId(
   return getTargetAiModel(provider);
 }
 
-function resolveCustomerRouteFromVault(input: {
+async function resolveCustomerRouteFromVault(input: {
+  userId?: string | null;
   vaultKeyId: string | null;
   activeProvider: string | null;
   activeModel?: string | null;
-}): ResolvedAiRoute | null {
+}): Promise<ResolvedAiRoute | null> {
   if (!input.vaultKeyId) return null;
   if (!input.activeProvider || !isHandshakeProvider(input.activeProvider)) return null;
+
+  const provider = input.activeProvider;
+  const preferredModelId = resolveCustomerModelId(provider, input.activeModel);
+
+  if (input.userId) {
+    const candidates = await resolveCustomerModelCandidates({
+      userId: input.userId,
+      provider,
+      preferredModelId: input.activeModel,
+    });
+    return {
+      mode: "customer",
+      provider,
+      modelId: candidates.primaryModelId,
+      modelCandidates: candidates.rankedModels,
+      vaultKeyId: input.vaultKeyId,
+    };
+  }
+
   return {
     mode: "customer",
-    provider: input.activeProvider,
-    modelId: resolveCustomerModelId(input.activeProvider, input.activeModel),
+    provider,
+    modelId: preferredModelId,
+    modelCandidates: [preferredModelId],
     vaultKeyId: input.vaultKeyId,
   };
 }
 
 export async function resolveAiRoute(input: {
+  userId?: string | null;
   aiSourcePreference: AiSourcePreference;
   vaultKeyId: string | null;
   activeProvider: string | null;
@@ -123,7 +147,7 @@ export async function resolveAiRoute(input: {
   );
 
   if (mode === "system") {
-    const customerFallback = resolveCustomerRouteFromVault(input);
+    const customerFallback = await resolveCustomerRouteFromVault(input);
 
     if (!(await hasSystemGeminiKeys(engine))) {
       if (customerFallback) return customerFallback;
@@ -152,12 +176,12 @@ export async function resolveAiRoute(input: {
     return { error: "no_customer_key" };
   }
 
-  return {
-    mode: "customer",
-    provider: input.activeProvider,
-    modelId: resolveCustomerModelId(input.activeProvider, input.activeModel),
-    vaultKeyId: input.vaultKeyId,
-  };
+  const customerRoute = await resolveCustomerRouteFromVault(input);
+  if (!customerRoute) {
+    return { error: "no_customer_key" };
+  }
+
+  return customerRoute;
 }
 
 /** @deprecated Sync resolver removed — use resolveAiRoute(). */

@@ -49,15 +49,18 @@ function touchStep(
     if (step.id !== stepId) return step;
 
     const nextStatus = update.status ?? step.status;
-    const startedAt =
-      nextStatus === "active" && !step.startedAt ? now : step.startedAt;
-    const finishedAt =
+    const isTerminal =
       nextStatus === "done" ||
       nextStatus === "skipped" ||
       nextStatus === "warning" ||
-      nextStatus === "error"
-        ? now
-        : step.finishedAt;
+      nextStatus === "error";
+
+    let startedAt = step.startedAt;
+    if (!startedAt && (nextStatus === "active" || isTerminal)) {
+      startedAt = now;
+    }
+
+    const finishedAt = isTerminal ? now : step.finishedAt;
 
     return {
       ...step,

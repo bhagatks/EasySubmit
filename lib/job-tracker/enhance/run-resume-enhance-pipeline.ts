@@ -2,7 +2,13 @@ import { recordUsageLogForUser } from "@/app/actions/ai/usage-log";
 import { prisma } from "@/lib/prisma";
 import { applyBaselineEnhance } from "@/lib/job-tracker/enhance/apply-baseline-enhance";
 import { buildEnhanceBrief } from "@/lib/job-tracker/enhance/build-enhance-brief";
-import type { EnhanceSessionMeta } from "@/lib/job-tracker/enhance/enhance-brief";
+import { buildLightEnhanceBrief } from "@/lib/job-tracker/enhance/build-light-enhance-brief";
+import { lightSkillsMerge } from "@/lib/job-tracker/enhance/light-skills-merge";
+import {
+  awaitPipelineTracks,
+  clearPipelineTracks,
+} from "@/lib/job-tracker/enhance/pipeline-track-coordinator";
+import type { EnhanceSessionMeta, ResumeEnhanceBrief } from "@/lib/job-tracker/enhance/enhance-brief";
 import type { EnhanceOffReason } from "@/lib/features/types";
 import type { EnhanceRunResult, ResumeEnhancePipelineInput } from "@/lib/job-tracker/enhance/enhance-result";
 import { resolveAiUpgrade } from "@/lib/job-tracker/enhance/resolve-ai-upgrade";
@@ -191,25 +197,108 @@ async function runResumeEnhancePipelineInner(
     });
   }
 
-  let brief;
+  const useLightPath = Boolean(input.jobEntryId);
+  let brief: ResumeEnhanceBrief;
+  /** Skills-merged form for light path (base profile unchanged until merge). */
+  let workingForm = input.form;
+
   try {
-    pipelineDebugAdvance(debug, "pre_validate", "pre_intelligence");
-    brief = await buildEnhanceBrief({
-      form: input.form,
-      targetRole: input.targetRole,
-      profileTargetTitle: input.profileTargetTitle,
-      jobDescription: input.jobDescription,
-      jobEntryId: input.jobEntryId,
-      surface: input.surface,
-      variant: input.variant,
-      traceId,
-      userId,
-      quotaUser: user,
-      aiRoute: aiUpgrade?.route ?? null,
-      pipelineDebug: debug ?? undefined,
-    });
+    if (useLightPath && input.jobEntryId) {
+      pipelineDebugStep(debug, "pre_validate", {
+        status: "done",
+        detail: hasFullJd(input.jobDescription)
+          ? `JD ${(input.jobDescription ?? "").trim().length} chars`
+          : "Role + company context",
+      });
+
+      const tracks = await awaitPipelineTracks({
+        job: {
+          userId,
+          jobEntryId: input.jobEntryId,
+          jobDescription: input.jobDescription,
+          targetRole: input.targetRole,
+          companyName: input.companyName,
+          aiRoute: aiUpgrade?.route ?? null,
+          quotaUser: user,
+          traceId,
+          pipelineDebug: debug,
+        },
+        resume: {
+          userId,
+          jobEntryId: input.jobEntryId,
+          sourceProfileId: undefined,
+          targetRole: input.targetRole,
+          form: input.form,
+          profileTargetTitle: input.profileTargetTitle,
+          traceId,
+          pipelineDebug: debug,
+        },
+      });
+
+      const merge = lightSkillsMerge(tracks.job, tracks.resume, input.targetRole);
+      workingForm = merge.form;
+      pipelineDebugStep(debug, "pre_skills_merge", {
+        status: "done",
+        detail: `${merge.skillsAdded.length} skills added`,
+        meta: {
+          skillsAdded: merge.skillsAdded.slice(0, 12),
+          skillsToRemove: merge.skillsToRemove.slice(0, 8),
+        },
+        artifacts: [
+          dataArtifact(
+            "Skills merge",
+            {
+              skillsAdded: merge.skillsAdded.slice(0, 20),
+              mustAddSkills: merge.directive.mustAddSkills.slice(0, 20),
+              mustRemoveSkills: merge.directive.mustRemoveSkills.slice(0, 12),
+            },
+            "output",
+          ),
+        ],
+      });
+      brief = buildLightEnhanceBrief({
+        job: tracks.job,
+        resume: tracks.resume,
+        merge,
+        targetRole: input.targetRole,
+        traceId,
+        surface: input.surface,
+        variant: input.variant,
+        jobEntryId: input.jobEntryId,
+      });
+
+      // Skip legacy heavy pre-process steps on happy path
+      for (const stepId of [
+        "pre_intelligence",
+        "pre_keyword_gap",
+        "pre_directive",
+        "pre_plan",
+      ] as const) {
+        pipelineDebugStep(debug, stepId, {
+          status: "skipped",
+          detail: "Light path — deferred to AI-fail fallback",
+        });
+      }
+    } else {
+      pipelineDebugAdvance(debug, "pre_validate", "pre_intelligence");
+      brief = await buildEnhanceBrief({
+        form: input.form,
+        targetRole: input.targetRole,
+        profileTargetTitle: input.profileTargetTitle,
+        jobDescription: input.jobDescription,
+        jobEntryId: input.jobEntryId,
+        surface: input.surface,
+        variant: input.variant,
+        traceId,
+        userId,
+        quotaUser: user,
+        aiRoute: aiUpgrade?.route ?? null,
+        pipelineDebug: debug ?? undefined,
+      });
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    if (input.jobEntryId) clearPipelineTracks(input.jobEntryId);
     logEnhance("server", "pipeline.brief.error", {
       traceId,
       userId,
@@ -236,8 +325,8 @@ async function runResumeEnhancePipelineInner(
     };
   }
 
-  pipelineDebugAdvance(debug, "ai_gates", "pre_plan", {
-    detail: "Pre-process brief ready",
+  pipelineDebugAdvance(debug, "ai_gates", brief.lightPath ? "pre_skills_merge" : "pre_plan", {
+    detail: brief.lightPath ? "Light path ready" : "Pre-process brief ready",
   });
 
   logEnhanceDiag({
@@ -308,10 +397,10 @@ async function runResumeEnhancePipelineInner(
     pipelineDebugStep(debug, "ai_pass2", { status: "skipped", detail: "Surface skips AI" });
   }
 
-  if (brief.jdAiCallCount === 0) {
+  if (!brief.jdAiAttempted) {
     pipelineDebugStep(debug, "ai_jd_extract", {
       status: "skipped",
-      detail: "Cache hit or deterministic-only JD",
+      detail: brief.jdAiCallCount > 0 ? "Already completed in brief build" : "Cache hit or no AI route",
     });
   }
 
@@ -323,10 +412,48 @@ async function runResumeEnhancePipelineInner(
   let baseline;
   try {
     pipelineDebugAdvance(debug, "baseline", "ai_gates");
-    baseline = applyBaselineEnhance(input.form, brief, traceId, userId, {
-      mode: willAttemptAi ? "skills_only" : "full",
-    });
+    if (brief.lightPath && willAttemptAi) {
+      // Skills already applied in light merge — skip deterministic bullet/summary work.
+      baseline = {
+        form: workingForm,
+        changes: {
+          skillsAdded: brief.plan.skillsToAdd,
+          bulletsRewritten: 0,
+          bulletsWoven: 0,
+          bulletsTrimmed: 0,
+          summaryRewritten: false,
+        },
+        enhanceSummary: `Light path: ${brief.plan.skillsToAdd.length} skills pre-merged for AI`,
+        coherenceWarnings: [] as string[],
+      };
+      pipelineDebugStep(debug, "baseline", {
+        status: "done",
+        detail: baseline.enhanceSummary,
+        meta: { baselineMode: "skills_only", lightPath: true },
+        artifacts: formDeltaArtifacts("Skills-merged form", input.form, workingForm),
+      });
+    } else {
+      baseline = applyBaselineEnhance(workingForm, brief, traceId, userId, {
+        mode: willAttemptAi ? "skills_only" : "full",
+      });
+      pipelineDebugStep(debug, "baseline", {
+        status: "done",
+        detail: baseline.enhanceSummary,
+        meta: {
+          baselineMode: willAttemptAi ? "skills_only" : "full",
+          skillsAdded: baseline.changes.skillsAdded.length,
+          bulletsRewritten: baseline.changes.bulletsRewritten,
+          bulletsWoven: baseline.changes.bulletsWoven,
+          summaryRewritten: baseline.changes.summaryRewritten,
+        },
+        artifacts: [
+          ...formDeltaArtifacts("Baseline form delta", input.form, baseline.form),
+          dataArtifact("Baseline changes", baseline.changes, "output"),
+        ],
+      });
+    }
   } catch (err) {
+    if (input.jobEntryId) clearPipelineTracks(input.jobEntryId);
     logEnhance("server", "pipeline.baseline.error", {
       traceId,
       userId,
@@ -339,22 +466,6 @@ async function runResumeEnhancePipelineInner(
       code: "provider_error",
     };
   }
-
-  pipelineDebugStep(debug, "baseline", {
-    status: "done",
-    detail: baseline.enhanceSummary,
-    meta: {
-      baselineMode: willAttemptAi ? "skills_only" : "full",
-      skillsAdded: baseline.changes.skillsAdded.length,
-      bulletsRewritten: baseline.changes.bulletsRewritten,
-      bulletsWoven: baseline.changes.bulletsWoven,
-      summaryRewritten: baseline.changes.summaryRewritten,
-    },
-    artifacts: [
-      ...formDeltaArtifacts("Baseline form delta", input.form, baseline.form),
-      dataArtifact("Baseline changes", baseline.changes, "output"),
-    ],
-  });
 
   logJourneyStep("server", "pipeline.baseline.done", {
     traceId,
@@ -452,8 +563,10 @@ async function runResumeEnhancePipelineInner(
           finalForm.professionalSummary ?? "",
           {
             identity: brief.summaryIdentity,
-            experienceBlob: experienceBlobFromForm(finalForm.experience ?? []),
-            employerNames: (finalForm.experience ?? [])
+            experienceBlob:
+              brief.experienceSourceBlob ??
+              experienceBlobFromForm(input.form.experience ?? []),
+            employerNames: (input.form.experience ?? [])
               .map((e) => e.company?.trim())
               .filter(Boolean) as string[],
           },
@@ -470,7 +583,30 @@ async function runResumeEnhancePipelineInner(
         });
       } else {
         aiBlockCode = (result.code ?? "provider_error") as typeof aiBlockCode;
-        const fallback = applyBaselineEnhance(input.form, brief, traceId, userId, {
+        // Lazy full brief only when AI fails — deterministic fallback needs gap/plan/weak bullets.
+        let fallbackBrief = brief;
+        if (brief.lightPath) {
+          try {
+            fallbackBrief = await buildEnhanceBrief({
+              form: input.form,
+              targetRole: input.targetRole,
+              profileTargetTitle: input.profileTargetTitle,
+              jobDescription: input.jobDescription,
+              jobEntryId: input.jobEntryId,
+              surface: input.surface,
+              variant: input.variant,
+              traceId,
+              userId,
+              quotaUser: user,
+              aiRoute: null,
+              pipelineDebug: debug ?? undefined,
+            });
+            brief = fallbackBrief;
+          } catch {
+            /* keep light brief — baseline still runs with skills plan */
+          }
+        }
+        const fallback = applyBaselineEnhance(input.form, fallbackBrief, traceId, userId, {
           mode: "full",
         });
         finalForm = fallback.form;
@@ -484,7 +620,7 @@ async function runResumeEnhancePipelineInner(
         });
         pipelineDebugStep(debug, "ai_pass2", {
           status: "skipped",
-          detail: "AI failed before optimize",
+          detail: "Retired — single-pass max-ATS",
         });
         logEnhance("server", "pipeline.ai.fail", {
           traceId,
@@ -628,6 +764,8 @@ async function runResumeEnhancePipelineInner(
     const note = uniqueCoherenceWarnings.join(" ");
     warning = warning ? `${warning} ${note}` : note;
   }
+
+  if (input.jobEntryId) clearPipelineTracks(input.jobEntryId);
 
   const sessionMeta: EnhanceSessionMeta = {
     traceId,

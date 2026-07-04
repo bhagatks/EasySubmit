@@ -9,6 +9,7 @@ vi.mock("@/lib/features/resolve-enhance", () => ({
 import { resolveEnhanceFeature } from "@/lib/features/resolve-enhance";
 
 const baseUser: SystemQuotaUserRow = {
+  id: "user-test",
   aiSourcePreference: "auto",
   vaultKeyId: null,
   activeProvider: null,

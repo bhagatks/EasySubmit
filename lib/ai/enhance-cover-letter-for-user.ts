@@ -161,6 +161,7 @@ export async function enhanceCoverLetterForUserId(
   });
 
   const route = await resolveAiRoute({
+    userId,
     aiSourcePreference: preference,
     vaultKeyId: user.vaultKeyId,
     activeProvider: user.activeProvider,

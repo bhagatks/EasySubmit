@@ -10,8 +10,11 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 vi.mock("@/lib/extension/job-service", () => ({
-  saveJobTrackerEntry: vi.fn(),
   updateJobTrackerStatus: vi.fn(),
+}));
+
+vi.mock("@/lib/extension/capture-job", () => ({
+  captureJob: vi.fn(),
 }));
 
 vi.mock("@/lib/extension/pipeline-tailor", () => ({
@@ -40,7 +43,8 @@ vi.mock("@/src/lib/services/feature-flags-service", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
-import { saveJobTrackerEntry, updateJobTrackerStatus } from "@/lib/extension/job-service";
+import { captureJob } from "@/lib/extension/capture-job";
+import { updateJobTrackerStatus } from "@/lib/extension/job-service";
 import { runPipelineTailor } from "@/lib/extension/pipeline-tailor";
 import { mergeJobEntryMetadata } from "@/lib/extension/pipeline-metadata";
 import { hasJobResumeTailor } from "@/lib/profile/job-resume-tailor";
@@ -66,7 +70,7 @@ describe("runApplyPipeline", () => {
   });
 
   it("runs tailor for Workday and auto-advances to READY_TO_APPLY", async () => {
-    vi.mocked(saveJobTrackerEntry).mockResolvedValue({
+    vi.mocked(captureJob).mockResolvedValue({
       id: "entry-1",
       status: "CAPTURED",
       title: "Engineer",
@@ -101,7 +105,7 @@ describe("runApplyPipeline", () => {
   });
 
   it("runs tailor for non-one-click platforms and returns READY_TO_APPLY without autofill phase", async () => {
-    vi.mocked(saveJobTrackerEntry).mockResolvedValue({
+    vi.mocked(captureJob).mockResolvedValue({
       id: "entry-linkedin",
       status: "CAPTURED",
       title: "Engineer",
@@ -131,7 +135,7 @@ describe("runApplyPipeline", () => {
   });
 
   it("returns saved CAPTURED when tailor fails after save", async () => {
-    vi.mocked(saveJobTrackerEntry).mockResolvedValue({
+    vi.mocked(captureJob).mockResolvedValue({
       id: "entry-2",
       status: "CAPTURED",
       title: "Engineer",
@@ -162,7 +166,7 @@ describe("runApplyPipeline", () => {
   });
 
   it("skips tailor when entry is already tailored and ensures READY_TO_APPLY", async () => {
-    vi.mocked(saveJobTrackerEntry).mockResolvedValue({
+    vi.mocked(captureJob).mockResolvedValue({
       id: "entry-3",
       status: "CAPTURED",
       title: "Engineer",
@@ -198,7 +202,7 @@ describe("runApplyPipeline", () => {
       aiSourcePreference: "auto",
       applicationProfile: null,
     });
-    vi.mocked(saveJobTrackerEntry).mockResolvedValue({
+    vi.mocked(captureJob).mockResolvedValue({
       id: "entry-no-customize",
       status: "CAPTURED",
       title: "Engineer",
@@ -235,7 +239,7 @@ describe("runApplyPipeline", () => {
       aiSourcePreference: "auto",
       applicationProfile: null,
     });
-    vi.mocked(saveJobTrackerEntry).mockResolvedValue({
+    vi.mocked(captureJob).mockResolvedValue({
       id: "entry-4",
       status: "CAPTURED",
       title: "Engineer",

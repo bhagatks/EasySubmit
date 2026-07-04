@@ -10,6 +10,15 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
+vi.mock("@/lib/ai/model-health/resolve-model-candidates", () => ({
+  resolveCustomerModelCandidates: vi.fn(async () => ({
+    primaryModelId: "gemini-2.5-flash",
+    rankedModels: ["gemini-2.5-flash", "gemini-2.5-flash-lite"],
+    source: "defaults",
+    healthCheckedAt: null,
+  })),
+}));
+
 vi.mock("@/src/lib/ai/engine/system-key-pool", () => ({
   hasSystemGeminiKeys: vi.fn().mockResolvedValue(true),
   hasHealthySystemPoolSlot: vi.fn().mockResolvedValue(true),
@@ -114,6 +123,7 @@ describe("resolveAiRoute", () => {
       provider: "gemini",
       vaultKeyId: "vault-1",
       modelId: expect.any(String),
+      modelCandidates: expect.any(Array),
     });
   });
 
@@ -132,6 +142,7 @@ describe("resolveAiRoute", () => {
       provider: "gemini",
       vaultKeyId: "vault-1",
       modelId: expect.any(String),
+      modelCandidates: expect.any(Array),
     });
   });
 });

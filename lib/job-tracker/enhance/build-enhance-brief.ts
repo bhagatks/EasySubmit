@@ -38,7 +38,6 @@ import { ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
 import { logEnhanceDiag } from "@/src/lib/ai/engine/enhance-diagnostics";
 import { resolveQuotaRowWithReset, type SystemQuotaUserRow } from "@/src/lib/ai/engine/system-quota-gate";
 import { getAppConfig } from "@/src/lib/services/config-service";
-import { resolveJdExtractionSystemModel } from "@/src/lib/services/ai-engine-config";
 import { resolveSummaryIdentity } from "@/lib/job-tracker/enhance/resolve-summary-identity";
 import {
   pipelineDebugAdvance,
@@ -267,6 +266,7 @@ export async function buildEnhanceBrief(
 
   let jdSlice: ResumeEnhanceBrief["jd"];
   let jdAiCallCount = 0;
+  let jdAiAttempted = false;
 
   if (hasJd) {
     pipelineDebugAdvance(debug, "pre_jd_skills", "pre_intelligence");
@@ -362,33 +362,15 @@ export async function buildEnhanceBrief(
       cachedHash: caches.jdHash,
       aiRoute: input.aiRoute ?? null,
       jdExtraction: quotaContext
-        ? {
-            quotaContext,
-            systemJdModelId: resolveJdExtractionSystemModel(aiEngine!),
-          }
-        : input.aiRoute && aiEngine
-          ? { systemJdModelId: resolveJdExtractionSystemModel(aiEngine) }
+        ? { quotaContext, pipelineDebug: debug }
+        : debug
+          ? { pipelineDebug: debug }
           : undefined,
       traceId: input.traceId,
       userId: input.userId,
     });
     jdAiCallCount = jdResult.aiCallMade ? 1 : 0;
-
-    pipelineDebugStep(debug, "pre_jd_brain", {
-      status: "done",
-      detail: jdResult.cacheHit ? "Cache hit" : "Deterministic extract complete",
-      meta: {
-        cacheHit: jdResult.cacheHit,
-        domain: jdResult.intelligence.domain,
-        tier1Count: jdResult.intelligence.tier1Keywords.length,
-      },
-    });
-    if (jdResult.aiCallMade) {
-      pipelineDebugStep(debug, "ai_jd_extract", {
-        status: "done",
-        detail: "JD AI extract (generateObject)",
-      });
-    }
+    jdAiAttempted = jdResult.aiAttempted;
 
     logEnhanceDiag({
       traceId: input.traceId,
@@ -600,6 +582,7 @@ export async function buildEnhanceBrief(
     hasJd,
     jobEntryId: input.jobEntryId,
     jdAiCallCount,
+    jdAiAttempted,
     structural: {
       warnings: jobIntelligence.structuralWarnings,
       mashedRolesFound: countMashedRoles(input.form),
@@ -672,6 +655,7 @@ export async function buildEnhanceBrief(
       coverageBefore: jdSlice?.coverageBefore.coveragePercent ?? null,
       gapsCount: jdSlice?.coverageBefore.gaps.length ?? 0,
       jdAiCallCount,
+      jdAiAttempted,
       isCrossDomain: summaryIdentity.isCrossDomain,
       summaryIdentity: summaryIdentity.identity,
       skillsToAdd: plan.skillsToAdd.length,

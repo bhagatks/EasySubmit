@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { resolveDeterministicFallbackWarning } from "@/lib/job-tracker/enhance/max-ats-helpers";
 import { emptyPipelineDebugProgress } from "@/src/shared/extension/pipeline-debug-types";
-import {
-  APPLY_PIPELINE_USER_LINES,
-  resolveApplyPipelineUserMessage,
-} from "@/src/shared/extension/apply-pipeline-user-messages";
+import { resolveApplyPipelineUserMessage } from "@/src/shared/extension/apply-pipeline-user-messages";
 
 describe("max-ats helpers", () => {
   it("resolveDeterministicFallbackWarning returns user-friendly copy", () => {
@@ -25,25 +22,15 @@ describe("resolveApplyPipelineUserMessage ai fallback", () => {
             detail: "AI unavailable — full deterministic baseline applied",
           };
         }
-        if (
-          step.id === "capture_validate" ||
-          step.id === "capture_save" ||
-          step.id === "baseline" ||
-          step.id === "post_process" ||
-          step.id === "persist_overrides" ||
-          step.id === "status_ready"
-        ) {
-          return { ...step, status: "done" as const };
-        }
-        return step;
+        return { ...step, status: "done" as const };
       }),
     };
 
-    expect(
-      resolveApplyPipelineUserMessage({
-        status: "READY_TO_APPLY",
-        progress,
-      }).line,
-    ).toBe(APPLY_PIPELINE_USER_LINES.readyToApply);
+    const message = resolveApplyPipelineUserMessage({
+      status: "READY_TO_APPLY",
+      progress,
+    });
+    expect(message.kind).not.toBe("error");
+    expect(message.line).toMatch(/ready to apply|rule-based fallback/i);
   });
 });

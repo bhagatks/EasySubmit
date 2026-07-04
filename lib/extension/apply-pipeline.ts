@@ -1,10 +1,6 @@
 import type { JobTrackerStatus } from "@/lib/generated/prisma/client";
 import { captureJob, type CaptureJobInput } from "@/lib/extension/capture-job";
 import {
-  saveJobTrackerEntry,
-  type SaveJobTrackerInput,
-} from "@/lib/extension/job-service";
-import {
   buildTailorInputFromSave,
   runPipelineTailor,
 } from "@/lib/extension/pipeline-tailor";
@@ -162,13 +158,15 @@ export async function tailorJobPipeline(
       for (const stepId of [
         "profile_load",
         "pre_validate",
-        "pre_intelligence",
         "pre_jd_skills",
         "pre_jd_brain",
         "ai_jd_extract",
+        "pre_rules",
+        "pre_resume_context",
+        "pre_skills_merge",
+        "pre_intelligence",
         "pre_keyword_gap",
         "pre_directive",
-        "pre_rules",
         "pre_plan",
         "ai_gates",
         "baseline",
@@ -270,7 +268,10 @@ export async function runApplyPipeline(
     platform,
   );
 
-  const saved = await saveJobTrackerEntry(userId, input);
+  const saved = await captureJob(userId, {
+    ...input,
+    startTracks: prefs.customizeResume,
+  });
   const phases: ApplyPipelinePhase[] = ["capture"];
 
   logEnhance("pipeline", "apply.start", {

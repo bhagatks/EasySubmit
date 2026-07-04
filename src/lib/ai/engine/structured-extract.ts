@@ -5,6 +5,7 @@ import {
   GEMINI_SDK_MAX_RETRIES,
   GEMINI_STRUCTURED_PROVIDER_OPTIONS,
 } from "@/src/lib/ai/engine/gemini-resilience";
+import { JD_EXTRACTION_TIMEOUT_MS } from "@/lib/job-tracker/jd/resolve-jd-extraction-model";
 
 /** JD Brain structured extract — procurement JDs need headroom for full JSON. */
 export const JD_STRUCTURED_MAX_OUTPUT_TOKENS = 2048;
@@ -36,6 +37,7 @@ export async function generateStructuredWithFallback<T extends z.ZodTypeAny>(inp
   schema: T;
   maxOutputTokens?: number;
   temperature?: number;
+  timeoutMs?: number;
 }): Promise<{
   object: z.infer<T>;
   tokensUsed: number;
@@ -43,6 +45,10 @@ export async function generateStructuredWithFallback<T extends z.ZodTypeAny>(inp
 }> {
   const maxOutputTokens = input.maxOutputTokens ?? JD_STRUCTURED_MAX_OUTPUT_TOKENS;
   const temperature = input.temperature ?? 0;
+  const abortSignal =
+    input.timeoutMs != null && input.timeoutMs > 0
+      ? AbortSignal.timeout(input.timeoutMs)
+      : undefined;
 
   try {
     const result = await generateObject({
@@ -54,6 +60,7 @@ export async function generateStructuredWithFallback<T extends z.ZodTypeAny>(inp
       maxOutputTokens,
       maxRetries: GEMINI_SDK_MAX_RETRIES,
       providerOptions: GEMINI_STRUCTURED_PROVIDER_OPTIONS,
+      abortSignal,
     });
     return {
       object: result.object as z.infer<T>,
@@ -70,6 +77,7 @@ export async function generateStructuredWithFallback<T extends z.ZodTypeAny>(inp
       temperature,
       maxOutputTokens,
       maxRetries: GEMINI_SDK_MAX_RETRIES,
+      abortSignal,
     });
 
     const raw = parseJsonObjectFromModelText(textResult.text);

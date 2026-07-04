@@ -46,6 +46,19 @@ export type ResumeEnhanceBrief = {
   jobEntryId?: string;
   /** AI JD extract calls made during brief build (0 or 1). Counted toward daily quota. */
   jdAiCallCount: number;
+  /** True when JD AI extract was attempted during brief build. */
+  jdAiAttempted: boolean;
+  /**
+   * Happy-path fork/join brief — skills merge only; skip readiness/gap/weak-bullet prompt bloat.
+   * Full brief is built lazily on AI failure for deterministic fallback.
+   */
+  lightPath?: boolean;
+  /** Slim experience for resume AI prompt (fact ledger). Full form.experience stays for grounding. */
+  promptExperience?: import("@/lib/onboarding/hubResume").HubRefineryForm["experience"];
+  /** Full experience text for post-AI summary grounding. */
+  experienceSourceBlob?: string;
+  /** Years estimate for light-path summary instructions. */
+  yearsExperienceEstimate?: number;
 
   structural: {
     warnings: string[];

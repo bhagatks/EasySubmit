@@ -6,6 +6,8 @@ import {
   type PipelineDebugStepStatus,
 } from "@shared/extension/pipeline-debug-types";
 import { isPipelineDebugEnabled } from "@shared/extension/pipeline-debug-gate";
+import { formatStepDurationLabel } from "@shared/extension/pipeline-debug-duration";
+import { scheduleRestoreBodyScroll } from "@/lib/extension/pipeline-debug-overlay-scroll";
 
 /** Dev-only — always on in dev, never in production. */
 export function isPipelineDebugOverlayEnabled(): boolean {
@@ -169,6 +171,19 @@ function overlayStyles(): string {
       font-weight: 600;
       color: #f3f4ff;
     }
+    .step-label-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .step-duration {
+      flex-shrink: 0;
+      font-size: 10px;
+      font-weight: 600;
+      color: rgba(199, 210, 254, 0.75);
+      font-variant-numeric: tabular-nums;
+    }
     .step-desc {
       margin: 2px 0 0;
       font-size: 10px;
@@ -202,12 +217,16 @@ function overlayStyles(): string {
 
 function renderStep(step: PipelineDebugStep): string {
   const meta = formatMeta(step.meta);
+  const duration = formatStepDurationLabel(step);
   return `
     <div class="step ${step.status}">
       <div class="step-head">
         <span class="${statusClass(step.status)}">${statusIcon(step.status)}</span>
         <div>
-          <div class="step-label">${escapeHtml(step.label)}</div>
+          <div class="step-label-row">
+            <div class="step-label">${escapeHtml(step.label)}</div>
+            ${duration ? `<div class="step-duration">${escapeHtml(duration)}</div>` : ""}
+          </div>
           <div class="step-desc">${escapeHtml(step.description)}</div>
         </div>
       </div>
@@ -253,7 +272,7 @@ function renderShell(traceId: string, stepHtml: string): string {
   `;
 }
 
-import { scheduleRestoreBodyScroll } from "@/lib/extension/pipeline-debug-overlay-scroll";
+function paintOverlayDom(
   shadow: ShadowRoot,
   progress: PipelineDebugProgress | null,
   localSteps?: PipelineDebugStep[],

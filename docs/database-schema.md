@@ -188,6 +188,7 @@ Server-side BYOK metadata. Raw API keys are stored in **Supabase Vault** (`vault
 | `userId` | `string` | FK → `users.id` |
 | `provider` | `string` | BYOK provider id (`openai`, `anthropic`, `gemini`, …) |
 | `vaultSecretId` | `uuid` unique | FK reference to `vault.secrets.id` |
+| `modelHealth` | `jsonb` nullable | Ranked BYOK model probe results (`primaryModelId`, `rankedModels`, per-model cooldown) — refreshed on Ignition vault save |
 | `createdAt` / `updatedAt` | `datetime` | |
 
 Unique: `(userId, provider)` — one vaulted key per provider per user.

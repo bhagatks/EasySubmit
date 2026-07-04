@@ -58,6 +58,7 @@ describe("routeContextForApiLog", () => {
         mode: "customer",
         provider: "anthropic",
         modelId: "claude-3-5-haiku-latest",
+        modelCandidates: ["claude-3-5-haiku-latest"],
         vaultKeyId: "uuid",
       }),
     ).toEqual({

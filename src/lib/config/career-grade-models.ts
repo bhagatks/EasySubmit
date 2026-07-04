@@ -50,6 +50,7 @@ const CAREER_GRADE_PATTERNS: Record<HandshakeProvider, RegExp[]> = {
     /^o3-mini$/,
   ],
   anthropic: [
+    /claude-3-5-haiku/,
     /claude-3-5-sonnet/,
     /claude-3-opus/,
     /claude-opus-4/,
@@ -94,11 +95,12 @@ const CAREER_GRADE_PRIORITY: Record<HandshakeProvider, string[]> = {
     "gpt-4",
   ],
   anthropic: [
-    "claude-3-5-sonnet-latest",
+    "claude-sonnet-4-20250514",
     "claude-3-5-sonnet-20241022",
     "claude-3-5-sonnet-20240620",
+    "claude-3-5-haiku-20241022",
+    "claude-3-5-sonnet-latest",
     "claude-3-opus-latest",
-    "claude-sonnet-4-20250514",
     "claude-opus-4-20250514",
   ],
   gemini: [

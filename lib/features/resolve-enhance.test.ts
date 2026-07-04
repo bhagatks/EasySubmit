@@ -60,6 +60,7 @@ import { isSubscribed } from "@/src/lib/services/config-service";
 import { isCustomerQuotaUnlimited } from "@/src/lib/services/ai-engine-config";
 
 const baseUser: SystemQuotaUserRow = {
+  id: "user-test",
   aiSourcePreference: "auto",
   vaultKeyId: null,
   activeProvider: null,
@@ -152,6 +153,7 @@ describe("resolveEnhanceFeature", () => {
     vi.mocked(resolveAiRoute).mockResolvedValue({
       mode: "customer",
       modelId: "gpt-4o",
+      modelCandidates: ["gpt-4o"],
       provider: "openai",
       vaultKeyId: "vault-1",
     });
@@ -170,6 +172,7 @@ describe("resolveEnhanceFeature", () => {
     vi.mocked(resolveAiRoute).mockResolvedValue({
       mode: "customer",
       modelId: "gpt-4o",
+      modelCandidates: ["gpt-4o"],
       provider: "openai",
       vaultKeyId: "vault-1",
     });
@@ -198,6 +201,7 @@ describe("resolveEnhanceFeature", () => {
     vi.mocked(resolveAiRoute).mockResolvedValue({
       mode: "customer",
       modelId: "gpt-4o",
+      modelCandidates: ["gpt-4o"],
       provider: "openai",
       vaultKeyId: "vault-1",
     });
@@ -207,6 +211,7 @@ describe("resolveEnhanceFeature", () => {
     expect(result.route).toEqual({
       mode: "customer",
       modelId: "gpt-4o",
+      modelCandidates: ["gpt-4o"],
       provider: "openai",
       vaultKeyId: "vault-1",
     });
@@ -251,6 +256,7 @@ describe("resolveEnhanceFeature", () => {
     vi.mocked(resolveAiRoute).mockResolvedValue({
       mode: "customer",
       modelId: "gpt-4o",
+      modelCandidates: ["gpt-4o"],
       provider: "openai",
       vaultKeyId: "vault-1",
     });

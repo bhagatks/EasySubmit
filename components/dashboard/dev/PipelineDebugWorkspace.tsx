@@ -11,14 +11,40 @@ import type {
   PipelineDebugStepStatus,
 } from "@/src/shared/extension/pipeline-debug-types";
 import {
-  applyPipelineStageLabelFromTrackerStage,
   formatApplyPipelineDevDetail,
   resolveApplyPipelineUserMessage,
   type ApplyPipelineUserMessageKind,
 } from "@/src/shared/extension/apply-pipeline-user-messages";
+
+/** Fork/join architecture group order for the QA pipeline page. */
+const PIPELINE_GROUP_ORDER = [
+  "Capture",
+  "Job track",
+  "Resume track",
+  "Gate",
+  "Light merge",
+  "Fallback",
+  "AI gates",
+  "Engine",
+  "AI calls",
+  "Persist",
+  "Complete",
+] as const;
+
+const PARALLEL_GROUPS = new Set(["Job track", "Resume track"]);
+const FALLBACK_GROUPS = new Set(["Fallback"]);
+
+const ARCHITECTURE_LEGEND = [
+  { label: "Capture", detail: "Scrape + save job → CAPTURED" },
+  { label: "Job ∥ Resume", detail: "Start in parallel at capture" },
+  { label: "Light merge", detail: "Skills only (mustHaveSkills)" },
+  { label: "Resume AI", detail: "Summary + bullets from slim facts" },
+  { label: "Fallback", detail: "Full brief only if resume AI fails" },
+] as const;
 import type { JobTrackerStatus } from "@/lib/generated/prisma/client";
 import type { PipelineStepFailure } from "@/lib/job-tracker/pipeline-tracker-view";
 import { pipelineDebugProgressSignature, isPipelineDebugPollingIdle } from "@/lib/extension/pipeline-debug-display";
+import { formatStepDurationLabel } from "@/src/shared/extension/pipeline-debug-duration";
 import { scheduleRestoreBodyScroll } from "@/lib/extension/pipeline-debug-overlay-scroll";
 
 const ACTIVE_POLL_MS = 800;
@@ -302,6 +328,7 @@ const StepRow = memo(
   }) {
   const [open, setOpen] = useState(step.status === "active" || step.status === "error");
   const hasArtifacts = Boolean(step.artifacts?.length);
+  const durationLabel = formatStepDurationLabel(step);
   const status = statusStyles(step.status);
   const palette =
     step.status === "pending" || step.status === "skipped"
@@ -333,6 +360,11 @@ const StepRow = memo(
             >
               {status.badgeLabel}
             </span>
+            {durationLabel ? (
+              <span className="rounded-full bg-slate-900/10 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-slate-600">
+                {durationLabel}
+              </span>
+            ) : null}
           </span>
           <span className={`block text-[11px] ${descClass}`}>{step.description}</span>
           {step.detail ? (
@@ -361,6 +393,8 @@ const StepRow = memo(
     prev.step.status === next.step.status &&
     prev.step.detail === next.step.detail &&
     prev.step.label === next.step.label &&
+    prev.step.startedAt === next.step.startedAt &&
+    prev.step.finishedAt === next.step.finishedAt &&
     (prev.step.artifacts?.length ?? 0) === (next.step.artifacts?.length ?? 0),
 );
 
@@ -400,19 +434,40 @@ export function PipelineDebugWorkspace({ initialEntryId = "" }: PipelineDebugWor
 
   const groupedSteps = useMemo(() => {
     if (!progress?.steps) return [];
-    const stageOrder = ["capture", "resume_prep", "ready"] as const;
     const groups = new Map<string, PipelineDebugStep[]>();
-    for (const stage of stageOrder) {
-      groups.set(applyPipelineStageLabelFromTrackerStage(stage), []);
+    for (const name of PIPELINE_GROUP_ORDER) {
+      groups.set(name, []);
     }
     for (const step of progress.steps) {
-      const stageTitle = applyPipelineStageLabelFromTrackerStage(step.trackerStage);
-      const list = groups.get(stageTitle) ?? [];
+      const groupName = step.group || "Other";
+      const list = groups.get(groupName) ?? [];
       list.push(step);
-      groups.set(stageTitle, list);
+      groups.set(groupName, list);
     }
-    return Array.from(groups.entries()).filter(([, steps]) => steps.length > 0);
+    const knownGroups = new Set<string>(PIPELINE_GROUP_ORDER);
+    const ordered: Array<[string, PipelineDebugStep[]]> = [];
+    for (const name of PIPELINE_GROUP_ORDER) {
+      const steps = groups.get(name);
+      if (steps && steps.length > 0) ordered.push([name, steps]);
+    }
+    for (const [name, steps] of groups) {
+      if (!knownGroups.has(name) && steps.length > 0) {
+        ordered.push([name, steps]);
+      }
+    }
+    return ordered;
   }, [progress]);
+
+  const groupSummary = useMemo(() => {
+    return groupedSteps.map(([group, steps]) => {
+      const done = steps.filter((s) => s.status === "done").length;
+      const active = steps.some((s) => s.status === "active");
+      const error = steps.some((s) => s.status === "error");
+      const warning = steps.some((s) => s.status === "warning");
+      const skipped = steps.filter((s) => s.status === "skipped").length;
+      return { group, done, total: steps.length, active, error, warning, skipped };
+    });
+  }, [groupedSteps]);
 
   const userMessage = useMemo(() => {
     if (!jobSummary) return null;
@@ -606,9 +661,26 @@ export function PipelineDebugWorkspace({ initialEntryId = "" }: PipelineDebugWor
               <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
                 Apply pipeline (QA)
               </p>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Fork/join: capture starts job track and resume track in parallel → light skills merge →
+                resume AI. Fallback steps run only when resume AI fails.
+              </p>
               <p className="mt-1 break-all text-[11px] text-muted-foreground">
                 trace: {progress?.traceId ?? (selectedEntryId || "—")}
               </p>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {ARCHITECTURE_LEGEND.map((item) => (
+                  <span
+                    key={item.label}
+                    className="rounded-lg border border-border/80 bg-background/80 px-2 py-1 text-[10px] leading-snug text-muted-foreground"
+                    title={item.detail}
+                  >
+                    <span className="font-semibold text-foreground">{item.label}</span>
+                    <span className="mx-1 text-border">·</span>
+                    {item.detail}
+                  </span>
+                ))}
+              </div>
               {jobSummary ? (
                 <div className="mt-2 space-y-2 text-xs">
                   <div className="flex flex-wrap items-center gap-2">
@@ -627,6 +699,33 @@ export function PipelineDebugWorkspace({ initialEntryId = "" }: PipelineDebugWor
                       </span>
                     )}
                   </div>
+                  {groupSummary.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {groupSummary.map((row) => (
+                        <span
+                          key={row.group}
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold tabular-nums ${
+                            row.error
+                              ? "bg-red-500/15 text-red-800 dark:text-red-200"
+                              : row.active
+                                ? "bg-blue-500/15 text-blue-800 dark:text-blue-200"
+                                : row.warning
+                                  ? "bg-amber-500/15 text-amber-900 dark:text-amber-200"
+                                  : row.skipped === row.total
+                                    ? "bg-slate-500/10 text-slate-600"
+                                    : row.done === row.total
+                                      ? "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200"
+                                      : "bg-muted text-muted-foreground"
+                          }`}
+                        >
+                          {row.group}
+                          {PARALLEL_GROUPS.has(row.group) ? " ∥" : ""}{" "}
+                          {row.done}/{row.total}
+                          {row.skipped > 0 ? ` · ${row.skipped} skip` : ""}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                   {devDetail ? (
                     <p className="break-words font-mono text-[10px] leading-relaxed text-muted-foreground">
                       Dev: {devDetail}
@@ -643,18 +742,44 @@ export function PipelineDebugWorkspace({ initialEntryId = "" }: PipelineDebugWor
                 <p className="text-sm text-muted-foreground">Waiting for pipeline progress…</p>
               ) : (
                 <div className="space-y-4">
-                  {groupedSteps.map(([group, steps]) => (
-                    <section key={group}>
-                      <h3 className="mb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
-                        {group}
-                      </h3>
-                      <div className="space-y-2">
-                        {steps.map((step, index) => (
-                          <StepRow key={step.id} step={step} index={index} />
-                        ))}
-                      </div>
-                    </section>
-                  ))}
+                  {groupedSteps.map(([group, steps]) => {
+                    const isParallel = PARALLEL_GROUPS.has(group);
+                    const isFallback = FALLBACK_GROUPS.has(group);
+                    const allSkipped = steps.every((s) => s.status === "skipped");
+                    return (
+                      <section
+                        key={group}
+                        className={
+                          isFallback && allSkipped
+                            ? "opacity-70"
+                            : isParallel
+                              ? "rounded-xl border border-primary/20 bg-primary/5 p-3"
+                              : undefined
+                        }
+                      >
+                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                          <h3 className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                            {group}
+                          </h3>
+                          {isParallel ? (
+                            <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                              Parallel at capture
+                            </span>
+                          ) : null}
+                          {isFallback ? (
+                            <span className="rounded-full bg-slate-500/10 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                              Happy path: skipped
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="space-y-2">
+                          {steps.map((step, index) => (
+                            <StepRow key={step.id} step={step} index={index} />
+                          ))}
+                        </div>
+                      </section>
+                    );
+                  })}
                 </div>
               )}
             </div>

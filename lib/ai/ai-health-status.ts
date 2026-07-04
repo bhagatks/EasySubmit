@@ -8,6 +8,8 @@ import type { AiRouteMode, AiSourcePreference } from "@/src/lib/ai/engine/consta
 import { resolveEffectiveAiSource } from "@/src/lib/ai/engine/router";
 import { getFeatureFlags, isSystemAiEnabled } from "@/src/lib/services/feature-flags-service";
 import { getActiveVaultKeyUpdatedAt } from "@/lib/vault/user-key-vault";
+import { loadProviderModelHealth } from "@/lib/ai/model-health/resolve-model-candidates";
+import { isHandshakeProvider } from "@/src/lib/config/career-grade-models";
 
 export type AiHealthErrorCode =
   | "quota_exhausted"
@@ -36,6 +38,8 @@ export type AiHealthDebugSnapshot = {
   recentKeyErrors30m: number;
   recentErrors30m: number;
   recentSuccesses30m: number;
+  modelHealthPrimary: string | null;
+  healthyModelCount: number;
 };
 
 export type AiHealthCheckResult = {
@@ -89,6 +93,8 @@ async function _checkForUser(userId: string): Promise<AiHealthCheckResult> {
     recentKeyErrors30m: 0,
     recentErrors30m: 0,
     recentSuccesses30m: 0,
+    modelHealthPrimary: null,
+    healthyModelCount: 0,
   });
 
   logAiHealth("check.start", { userId: redactUserId(userId) });
@@ -139,6 +145,16 @@ async function _checkForUser(userId: string): Promise<AiHealthCheckResult> {
     systemAiEnabled,
   );
   debug.routeMode = routeMode;
+
+  if (
+    routeMode === "customer" &&
+    user.activeProvider &&
+    isHandshakeProvider(user.activeProvider)
+  ) {
+    const health = await loadProviderModelHealth(userId, user.activeProvider);
+    debug.modelHealthPrimary = health?.primaryModelId ?? null;
+    debug.healthyModelCount = health?.rankedModels.length ?? 0;
+  }
 
   if (!systemAiEnabled && !user.vaultKeyId) {
     debug.reason = "shared_ai_kill_switch";

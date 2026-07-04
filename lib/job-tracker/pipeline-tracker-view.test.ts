@@ -29,8 +29,8 @@ describe("findPipelineStepFailure", () => {
     const progress = {
       ...base,
       steps: base.steps.map((step) => {
-        if (step.id === "pre_onet") {
-          return { ...step, status: "error" as const, detail: "O*NET failed" };
+        if (step.id === "pre_jd_skills") {
+          return { ...step, status: "error" as const, detail: "JD skills failed" };
         }
         if (step.id === "ai_pass1") {
           return { ...step, status: "error" as const, detail: "AI failed" };
@@ -40,9 +40,9 @@ describe("findPipelineStepFailure", () => {
     };
 
     expect(findPipelineStepFailure(progress)).toMatchObject({
-      stepId: "pre_onet",
+      stepId: "pre_jd_skills",
       stage: "resume_prep",
-      detail: "O*NET failed",
+      detail: "JD skills failed",
     });
   });
 
@@ -51,11 +51,11 @@ describe("findPipelineStepFailure", () => {
     const progress = {
       ...base,
       steps: base.steps.map((step) => {
-        if (step.id === "pre_onet") {
+        if (step.id === "pre_jd_skills") {
           return {
             ...step,
             status: "warning" as const,
-            detail: "O*NET auth failed (401) — credentials required",
+            detail: "ESCO unavailable — deterministic skills only",
           };
         }
         if (step.id === "status_ready") {
@@ -100,8 +100,8 @@ describe("resolveTrackerPipelineView", () => {
     const view = resolveTrackerPipelineView({
       status: "READY_TO_APPLY",
       stepFailure: {
-        stepId: "pre_onet",
-        label: "Vocabulary",
+        stepId: "pre_jd_skills",
+        label: "JD skills vocabulary",
         detail: "Provider timeout",
         stage: "resume_prep",
         stageTitle: "Resume prepared",

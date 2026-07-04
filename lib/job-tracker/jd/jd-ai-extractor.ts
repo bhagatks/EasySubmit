@@ -5,7 +5,6 @@ import type { JDIntelligence, JDImpactDimension, JDSegments } from "@/lib/job-tr
 import { jdAiExtractSchema, type JdAiExtractPayload } from "@/lib/job-tracker/jd/jd-ai-extract-schema";
 import { truncateSegmentsForExtraction } from "@/lib/job-tracker/jd/jd-prompt-segments";
 import { canonicalizeMasterSkills } from "@/lib/job-tracker/jd/skill-canonicalize";
-import type { AiProvider } from "@/src/lib/config/app.config";
 import type { ResolvedAiRoute } from "@/src/lib/ai/engine/router";
 import { callEnhanceObjectModel } from "@/src/lib/ai/engine/run-enhance";
 import { logEnhance } from "@/src/lib/ai/engine/enhance-logger";
@@ -13,8 +12,9 @@ import { ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
 import { checkAiQuota, shouldTrackQuota, type UserQuotaRow } from "@/src/lib/ai/engine/quota";
 import type { AiEngineConfig } from "@/src/lib/services/ai-engine-config";
 import { JD_EXTRACTION_SYSTEM_MODEL_DEFAULT } from "@/src/lib/services/ai-engine-config";
+import type { PipelineDebugHookContext } from "@/lib/extension/pipeline-debug-hooks";
 
-/** @deprecated Use `resolveJdExtractionSystemModel(aiEngine)` — kept for imports/tests. */
+/** @deprecated Alias of enhance system model — JD extract uses the same route as resume AI. */
 export const JD_EXTRACTION_SYSTEM_MODEL = JD_EXTRACTION_SYSTEM_MODEL_DEFAULT;
 
 export type JdExtractionQuotaContext = {
@@ -24,8 +24,9 @@ export type JdExtractionQuotaContext = {
 
 export type JdExtractionOptions = {
   quotaContext?: JdExtractionQuotaContext;
-  /** System-pool model override; defaults to `aiEngine.system.jdExtractionModelId`. */
+  /** @deprecated Ignored — JD extract uses the same `ResolvedAiRoute` as resume enhance. */
   systemJdModelId?: string;
+  pipelineDebug?: PipelineDebugHookContext | null;
 };
 
 const VALID_IMPACT_DIMS = new Set<JDImpactDimension>([
@@ -49,18 +50,26 @@ export function buildJDExtractionPrompt(
   targetRole: string,
 ): string {
   const truncated = truncateSegmentsForExtraction(segments);
+  let requirements = truncated.requirements.trim();
+  let responsibilities = truncated.responsibilities.trim();
+
+  // Workday / single-blob JDs often land entirely in responsibilities with no requirements header.
+  if (!requirements && responsibilities) {
+    requirements = responsibilities;
+    responsibilities = "";
+  }
 
   const parts = [
     `Target role: ${targetRole}`,
     "",
     "REQUIREMENTS:",
     '"""',
-    truncated.requirements || "(not found)",
+    requirements || "(not found)",
     '"""',
     "",
     "RESPONSIBILITIES:",
     '"""',
-    truncated.responsibilities || "(not found)",
+    responsibilities || "(not found)",
     '"""',
   ];
 
@@ -164,33 +173,15 @@ export function mergeAIIntoIntelligence(
   return merged;
 }
 
-/** Gemini BYOK enhance models (e.g. 2.5-flash) are unreliable for `generateObject`; use JD utility model. */
-export function resolveJdExtractionCustomerModel(
-  provider: AiProvider,
-  customerEnhanceModelId: string,
-  systemJdModelId: string,
-): string {
-  if (provider === "gemini") {
-    return systemJdModelId;
-  }
-  return customerEnhanceModelId;
-}
+/** @deprecated Use `resolveJdExtractionCustomerModel` from `resolve-jd-extraction-model.ts`. */
+export { resolveJdExtractionCustomerModel } from "@/lib/job-tracker/jd/resolve-jd-extraction-model";
 
-export function jdExtractionRoute(
-  route: ResolvedAiRoute,
-  systemJdModelId: string = JD_EXTRACTION_SYSTEM_MODEL_DEFAULT,
-): ResolvedAiRoute {
-  if (route.mode === "system") {
-    return { mode: "system", modelId: systemJdModelId };
-  }
-  return {
-    ...route,
-    modelId: resolveJdExtractionCustomerModel(
-      route.provider,
-      route.modelId,
-      systemJdModelId,
-    ),
-  };
+/**
+ * JD extract uses the same health-ranked model route as resume enhance — one stable model
+ * per provider/key (from discovery handshake + runtime probes), not a separate Haiku/flash-lite swap.
+ */
+export function jdExtractionRoute(route: ResolvedAiRoute): ResolvedAiRoute {
+  return route;
 }
 
 const JD_EXTRACTION_SYSTEM =
@@ -207,11 +198,7 @@ export async function extractJDIntelligenceWithAI(
   options: JdExtractionOptions = {},
 ): Promise<JDAiExtractResult> {
   try {
-    const systemJdModelId =
-      options.systemJdModelId ??
-      options.quotaContext?.aiEngine.system.jdExtractionModelId ??
-      JD_EXTRACTION_SYSTEM_MODEL_DEFAULT;
-    const executionRoute = jdExtractionRoute(route, systemJdModelId);
+    const executionRoute = jdExtractionRoute(route);
 
     if (options.quotaContext && shouldTrackQuota(options.quotaContext.aiEngine, executionRoute.mode)) {
       const quotaCheck = checkAiQuota(
@@ -242,6 +229,8 @@ export async function extractJDIntelligenceWithAI(
       traceId,
       "generate",
       userId,
+      undefined,
+      options.pipelineDebug,
     );
 
     const intelligence = payloadToPartialIntelligence(result.object);

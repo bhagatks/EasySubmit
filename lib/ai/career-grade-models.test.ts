@@ -35,7 +35,7 @@ describe("career-grade-models", () => {
   it("falls back to bundled defaults when API list has no matches", () => {
     const filtered = filterCareerGradeModels("anthropic", ["claude-instant-1.2"]);
     expect(filtered.length).toBeGreaterThan(0);
-    expect(filtered[0]).toContain("claude-3-5-sonnet");
+    expect(filtered[0]).toMatch(/claude-(sonnet-4|3-5-sonnet)/);
   });
 
   it("suggests the top-ranked primary fuel model", () => {

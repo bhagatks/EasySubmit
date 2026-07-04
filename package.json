@@ -49,6 +49,7 @@
     "pool:status": "npx --yes tsx scripts/pool-status.ts",
     "pool:reset": "npx --yes tsx scripts/pool-reset-dev.ts",
     "ai:usage": "npx --yes tsx scripts/ai-usage-stats.ts",
+    "model-health:refresh": "npx --yes tsx scripts/refresh-model-health.ts",
     "analytics:setup": "node scripts/posthog-setup-dashboards.mjs",
     "analytics:configure": "node scripts/posthog-configure-projects.mjs",
     "analytics:closeout": "node scripts/analytics-closeout.mjs",

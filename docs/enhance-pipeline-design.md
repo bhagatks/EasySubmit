@@ -42,6 +42,38 @@ Default brain mission for job apply / extension when AI is enabled:
 4. **AI failure fallback** — full deterministic baseline (`applyBaselineEnhance` mode `full`); pipeline debug marks `ai_pass1` as `warning` (not error) so UI shows success.
 5. **No full JD** — requires job title + company (extension tailor, dashboard Review enhance); uses `role_company` optimization mode.
 
+### Fork/join light path (2026-07-04)
+Extension / job-entry enhance uses **parallel tracks** after capture, then a **light skills merge**, then resume AI. Heavy analysis runs only on AI failure.
+
+```
+CAPTURED
+  ├─ JOB TRACK (pre_jd_skills → pre_jd_brain → ai_jd_extract)
+  └─ RESUME TRACK (profile_load → pre_rules → pre_resume_context)
+         │
+         ▼
+  LIGHT MERGE (pre_skills_merge) — skills only
+         ▼
+  AI #2 (ai_pass1) — slim experience facts + no old summary
+         │
+    fail ▼
+  Full buildEnhanceBrief + applyBaselineEnhance(full)
+```
+
+| Module | Role |
+|--------|------|
+| `pipeline-track-coordinator.ts` | In-flight promises; capture starts both; tailor awaits |
+| `run-job-analysis-track.ts` | Job-only JD skills + JD brain + JD AI |
+| `run-resume-prep-track.ts` | Profile + rules + slim experience fact ledger |
+| `build-experience-prompt-context.ts` | Recency tiers + deterministic fact lines |
+| `light-skills-merge.ts` | mustHaveSkills vs resume skills |
+| `build-light-enhance-brief.ts` | Minimal brief (`lightPath: true`) for resume AI |
+
+Happy-path resume AI prompt omits readiness/gap/weak-bullet lists; experience bullets are **source facts**, not full prose. Post-AI grounding still uses full experience text from the base profile.
+
+**Pipeline debug steps** (`PIPELINE_DEBUG_STEP_DEFS` in `src/shared/extension/pipeline-debug-types.ts`) use architecture **groups**: Capture → Job track ∥ Resume track → Gate → Light merge → Fallback (happy-path skipped) → AI gates → Engine → AI calls → Persist → Complete.
+
+**QA UI** — `/dashboard/pipeline` (`PipelineDebugWorkspace`) groups live steps by those tracks, shows a fork/join legend, and per-group progress badges. Extension overlay uses the same `step.group` labels.
+
 
 ## Complete pipeline steps
 
@@ -79,7 +111,7 @@ Multi-word phrase extraction from JD, keeps noun/proper-noun only. Implemented i
 ### Step 8 — JD Brain / JD Intelligence *(job apply + extension only)*
 `analyzeJobDescription()` in `lib/job-tracker/jd/jd-brain.ts`. Deep analysis of raw JD — extracted job title, seniority, must-have skills, tier1/tier2 keywords, target verbs, impact dimensions, culture signals, domain. Has a **cache** — checks `jdIntelligence` + `jdDescriptionHash` on the job entry; skips re-analysis on hash match, writes back on miss. Skipped on onboarding.
 
-AI enrichment (`extractJDIntelligenceWithAI`) pre-checks daily quota (1 call), logs to `api_call_logs` as `ai.enhance.generate_object`, and counts toward `aiCallsToday`. System pool uses `app_config.aiEngine.system.jdExtractionModelId` (default `gemini-2.5-flash-lite`); Gemini BYOK JD routes use the same utility model id with the user's vaulted key. Resume `generateText` passes use `gemini-2.5-flash` with 503 jittered backoff (5 retries, 2s–45s) then fallback to `gemini-2.5-flash-lite` with prompt clipping (`src/lib/ai/engine/gemini-resilience.ts`).
+AI enrichment (`extractJDIntelligenceWithAI`) pre-checks daily quota (1 call), logs to `api_call_logs` as `ai.enhance.generate_object`, and counts toward `aiCallsToday`. **JD extract and resume enhance share the same `ResolvedAiRoute`** — health-ranked `modelCandidates` from provider discovery (`performEngineHandshake` → `filterCareerGradeModels` → `refreshProviderModelHealth` probes) plus `withCustomerModelFallback` on failure. No separate Haiku/flash-lite swap for JD. System pool uses `app_config.aiEngine.system.modelId` (default `gemini-2.5-flash`). `app_config.aiEngine.system.jdExtractionModelId` remains in config for backward compatibility but is not used for routing. Resume `generateText` passes use `gemini-2.5-flash` with 503 jittered backoff (5 retries, 2s–45s) then fallback to `gemini-2.5-flash-lite` with prompt clipping (`src/lib/ai/engine/gemini-resilience.ts`). Workday JDs: segmenter recognizes `Job Description:` headers; prompt promotes responsibilities into requirements when the requirements section is empty.
 
 ### Step 9 — Summary + Skills Rules Validate *(pre-processing Step 4 from diagrams)*
 Enforces 4-sentence summary, 70–80 words, banned words, skills hard max. `post-process.ts` strips banned summary words and banned/prose skills, logs every rule trigger with `logEnhance`. Runs on all surfaces.

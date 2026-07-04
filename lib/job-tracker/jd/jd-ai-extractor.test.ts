@@ -19,38 +19,21 @@ vi.mock("@/src/lib/ai/engine/run-enhance", () => ({
 
 const { callEnhanceObjectModel } = await import("@/src/lib/ai/engine/run-enhance");
 
-import {
-  GEMINI_JD_EXTRACT_MODEL,
-} from "@/src/lib/ai/engine/gemini-resilience";
-
 describe("jdExtractionRoute", () => {
-  it("uses system JD model for system routes", () => {
-    expect(
-      jdExtractionRoute({ mode: "system", modelId: "gemini-2.5-flash-lite" }, GEMINI_JD_EXTRACT_MODEL),
-    ).toEqual({ mode: "system", modelId: GEMINI_JD_EXTRACT_MODEL });
+  it("returns the enhance route unchanged for system mode", () => {
+    const route = { mode: "system" as const, modelId: "gemini-2.5-flash" };
+    expect(jdExtractionRoute(route)).toBe(route);
   });
 
-  it("preserves BYOK provider and model for non-Gemini customer routes", () => {
+  it("returns the enhance route unchanged for BYOK (same model as resume AI)", () => {
     const customerRoute = {
       mode: "customer" as const,
       vaultKeyId: "vk_1",
-      provider: "openai" as const,
-      modelId: "gpt-4o",
+      provider: "anthropic" as const,
+      modelId: "claude-opus-4-5-20251101",
+      modelCandidates: ["claude-opus-4-5-20251101", "claude-sonnet-4-5-20250929"],
     };
-    expect(jdExtractionRoute(customerRoute, GEMINI_JD_EXTRACT_MODEL)).toEqual(customerRoute);
-  });
-
-  it("uses JD utility model for Gemini BYOK (not the resume enhance model)", () => {
-    const customerRoute = {
-      mode: "customer" as const,
-      vaultKeyId: "vk_1",
-      provider: "gemini" as const,
-      modelId: "gemini-2.5-flash",
-    };
-    expect(jdExtractionRoute(customerRoute, GEMINI_JD_EXTRACT_MODEL)).toEqual({
-      ...customerRoute,
-      modelId: GEMINI_JD_EXTRACT_MODEL,
-    });
+    expect(jdExtractionRoute(customerRoute)).toBe(customerRoute);
   });
 });
 
@@ -157,6 +140,22 @@ describe("buildJDExtractionPrompt", () => {
     expect(prompt).toContain("CONTEXT:");
     expect(prompt).toContain("Fintech startup");
     expect(prompt).not.toContain("Return ONLY valid JSON");
+  });
+
+  it("promotes responsibilities into requirements when requirements section is empty", () => {
+    const prompt = buildJDExtractionPrompt(
+      {
+        requirements: "",
+        responsibilities: "Lead data architecture and generative AI platform work.",
+        preferred: "",
+        context: "",
+        source: "header",
+        wordCount: { requirements: 0, responsibilities: 8, preferred: 0 },
+      },
+      "Director, AI/ML",
+    );
+    expect(prompt).toContain("Lead data architecture");
+    expect(prompt).not.toContain('REQUIREMENTS:\n"""\n(not found)');
   });
 });
 

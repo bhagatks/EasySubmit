@@ -65,6 +65,7 @@ describe("resolveQuotaRowWithReset", () => {
   it("resets counters after UTC day rollover", () => {
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const { quotaRow, resetPatch } = resolveQuotaRowWithReset({
+      id: "user-1",
       vaultKeyId: null,
       activeProvider: null,
       aiSourcePreference: "system",

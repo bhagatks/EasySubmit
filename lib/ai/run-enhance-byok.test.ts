@@ -20,6 +20,8 @@ vi.mock("ai", () => ({
 }));
 
 vi.mock("@/lib/vault/decrypt-vault-secret", () => ({
+  VAULT_DECRYPT_USER_MESSAGE:
+    "Could not decrypt your API key. Update it in AI Keys.",
   withVaultDecryptedSecret: (...args: unknown[]) => withVaultDecryptedSecretMock(...args),
 }));
 
@@ -31,12 +33,17 @@ vi.mock("@/src/lib/ai/ai-sdk-provider", () => ({
   createAiSdkLanguageModel: vi.fn(() => "mock-model"),
 }));
 
+vi.mock("@/lib/ai/model-health/resolve-model-candidates", () => ({
+  recordModelRuntimeOutcome: vi.fn(async () => undefined),
+}));
+
 import { callEnhanceModel, callEnhanceObjectModel } from "@/src/lib/ai/engine/run-enhance";
 
 const customerRoute = {
   mode: "customer" as const,
   provider: "gemini" as const,
   modelId: "gemini-2.5-flash",
+  modelCandidates: ["gemini-2.5-flash"],
   vaultKeyId: "vault-secret-1",
 };
 

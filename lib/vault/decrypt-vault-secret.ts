@@ -5,6 +5,9 @@ import {
   scrubEphemeralSecret,
 } from "@/lib/vault/scrub-secret";
 
+export const VAULT_DECRYPT_USER_MESSAGE =
+  "Could not decrypt your API key. Update it in AI Keys.";
+
 type DecryptedSecretRow = { decrypted_secret: string | null };
 
 /**

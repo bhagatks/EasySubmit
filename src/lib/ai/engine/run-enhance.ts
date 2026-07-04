@@ -1,6 +1,7 @@
 import type { z } from "zod";
-import { withVaultDecryptedSecret } from "@/lib/vault/decrypt-vault-secret";
+import { withVaultDecryptedSecret, VAULT_DECRYPT_USER_MESSAGE } from "@/lib/vault/decrypt-vault-secret";
 import { createAiSdkLanguageModel } from "@/src/lib/ai/ai-sdk-provider";
+import { withCustomerModelFallback } from "@/lib/ai/model-health/with-customer-model-fallback";
 import { buildUsageLogFromGeneration } from "@/src/lib/ai/estimate-usage-cost";
 import type { AiPricingMap } from "@/src/lib/services/ai-pricing-map";
 import {
@@ -35,6 +36,7 @@ import {
   JD_STRUCTURED_MAX_OUTPUT_TOKENS,
 } from "@/src/lib/ai/engine/structured-extract";
 import { mapEnhanceProviderError } from "@/src/lib/ai/engine/map-enhance-provider-error";
+import { JD_EXTRACTION_TIMEOUT_MS } from "@/lib/job-tracker/jd/resolve-jd-extraction-model";
 import {
   executeWithPoolRetry,
   SystemKeyPoolError,
@@ -51,6 +53,7 @@ import {
   aiRequestArtifact,
   aiResponseArtifact,
 } from "@/lib/extension/pipeline-debug-sanitize";
+import { pipelineDebugStep, type PipelineDebugHookContext } from "@/lib/extension/pipeline-debug-hooks";
 
 export type RunEnhanceInput = {
   form: HubRefineryForm;
@@ -115,6 +118,7 @@ export type RunEnhanceResult =
 function recordEnhanceModelCall(input: {
   route: ResolvedAiRoute;
   poolCall?: PoolCallMeta;
+  executionModelId?: string;
   traceId: string;
   userId?: string | null;
   pass: "generate" | "optimize";
@@ -133,7 +137,7 @@ function recordEnhanceModelCall(input: {
   const aiMode = input.route.mode;
   const provider =
     input.route.mode === "customer" ? input.route.provider : "gemini";
-  const modelId = input.poolCall?.modelId ?? input.route.modelId;
+  const modelId = input.executionModelId ?? input.poolCall?.modelId ?? input.route.modelId;
   const operation = input.operation ?? "ai.enhance.generate_text";
   const feature = input.feature ?? "enhance";
 
@@ -167,10 +171,47 @@ function recordEnhanceModelCall(input: {
   });
 }
 
-const VAULT_DECRYPT_USER_MESSAGE = "Could not decrypt your API key. Update it in AI Keys.";
-
 function isVaultDecryptUserError(err: unknown): boolean {
   return err instanceof Error && err.message === VAULT_DECRYPT_USER_MESSAGE;
+}
+
+function logVaultDecryptFailure(input: {
+  route: ResolvedAiRoute & { mode: "customer" };
+  traceId: string;
+  userId?: string | null;
+  pass: "generate" | "optimize";
+  passStartedAt: number;
+  requestPreview: string;
+  operation?: "ai.enhance.generate_text" | "ai.enhance.generate_object";
+  feature?: "enhance" | "jd_extract";
+  logEvent: "model.call.error" | "model.object.error";
+}): void {
+  logEnhance("engine", input.logEvent, {
+    traceId: input.traceId,
+    pass: input.pass,
+    journey: input.feature === "jd_extract" ? undefined : RESUME_JOURNEY.AI_UPGRADE,
+    aiUsed: true,
+    aiCallStatus: "failure",
+    durationMs: Date.now() - input.passStartedAt,
+    status: null,
+    message: VAULT_DECRYPT_USER_MESSAGE,
+    errorCode: "vault_decrypt_failed",
+    responsePreview: VAULT_DECRYPT_USER_MESSAGE,
+  });
+  recordEnhanceModelCall({
+    route: input.route,
+    traceId: input.traceId,
+    userId: input.userId,
+    pass: input.pass,
+    durationMs: Date.now() - input.passStartedAt,
+    status: "error",
+    errorCode: "vault_decrypt_failed",
+    errorMessage: VAULT_DECRYPT_USER_MESSAGE,
+    requestPreview: input.requestPreview,
+    responsePreview: VAULT_DECRYPT_USER_MESSAGE,
+    operation: input.operation,
+    feature: input.feature,
+  });
 }
 
 function logCustomerModelCallFailure(input: {
@@ -303,62 +344,25 @@ export async function callEnhanceModel(
 
   if (route.mode === "customer") {
     try {
-      const vaultRun = await withVaultDecryptedSecret(route.vaultKeyId, async (apiKey) => {
-        return generateGeminiTextWith503Resilience({
-          provider: route.provider,
-          apiKey,
-          primaryModelId: route.modelId,
-          system,
-          prompt,
-          maxOutputTokens: 8192,
-          temperature,
-        });
+      const fallbackRun = await withCustomerModelFallback({
+        route,
+        userId,
+        execute: async (modelId, apiKey) =>
+          generateGeminiTextWith503Resilience({
+            provider: route.provider,
+            apiKey,
+            primaryModelId: modelId,
+            system,
+            prompt,
+            maxOutputTokens: 8192,
+            temperature,
+          }),
       });
 
-      if (!vaultRun.ok) {
-        logEnhance("engine", "model.call.error", {
-          traceId,
-          pass,
-          reason: "vault_decrypt_failed",
-          durationMs: Date.now() - passStartedAt,
-        });
-        logEnhanceDiag({
-          traceId,
-          designStep: "13",
-          track: "engine",
-          pipelineStep: ENHANCE_PIPELINE.ENGINE_ERROR,
-          phase: "fail",
-          level: "high",
-          event: "engine.vault_decrypt_failed",
-          scope: "engine",
-          userId,
-          errorCode: "vault_decrypt_failed",
-          errorMessage: "Could not decrypt BYOK API key",
-          flags: {
-            routeMode: route.mode,
-            provider: route.provider,
-            pass,
-          },
-        });
-        recordEnhanceModelCall({
-          route,
-          traceId,
-          userId,
-          pass,
-          durationMs: Date.now() - passStartedAt,
-          status: "error",
-          errorCode: "vault_decrypt_failed",
-          errorMessage: "Could not decrypt BYOK API key",
-          requestPreview,
-          responsePreview: "Could not decrypt BYOK API key",
-        });
-        throw new Error(VAULT_DECRYPT_USER_MESSAGE);
-      }
-
       const customerResult = {
-        text: vaultRun.result.text,
-        tokensUsed: vaultRun.result.tokensUsed,
-        modelId: vaultRun.result.modelId,
+        text: fallbackRun.result.text,
+        tokensUsed: fallbackRun.result.tokensUsed,
+        modelId: fallbackRun.modelId,
         estimatedCost: 0,
       };
       logEnhance("engine", "model.call.success", {
@@ -371,9 +375,9 @@ export async function callEnhanceModel(
         tokensUsed: customerResult.tokensUsed,
         responseChars: customerResult.text.length,
         modelId: customerResult.modelId,
-        usedFallbackModel: vaultRun.result.usedFallbackModel,
-        clippedForFallback: vaultRun.result.clippedForFallback,
-        retryCount: vaultRun.result.retryCount,
+        usedFallbackModel: fallbackRun.attemptCount > 1 || fallbackRun.result.usedFallbackModel,
+        clippedForFallback: fallbackRun.result.clippedForFallback,
+        retryCount: fallbackRun.result.retryCount,
         responsePreview: customerResult.text,
       });
       recordEnhanceModelCall({
@@ -387,6 +391,7 @@ export async function callEnhanceModel(
         estimatedCost: customerResult.estimatedCost,
         requestPreview,
         responsePreview: customerResult.text,
+        executionModelId: customerResult.modelId,
       });
       logEnhanceDiag({
         traceId,
@@ -406,14 +411,24 @@ export async function callEnhanceModel(
           tokensUsed: customerResult.tokensUsed,
           responseChars: customerResult.text.length,
           durationMs: Date.now() - passStartedAt,
-          usedFallbackModel: vaultRun.result.usedFallbackModel,
-          clippedForFallback: vaultRun.result.clippedForFallback,
-          retryCount: vaultRun.result.retryCount,
+          usedFallbackModel: fallbackRun.attemptCount > 1 || fallbackRun.result.usedFallbackModel,
+          clippedForFallback: fallbackRun.result.clippedForFallback,
+          retryCount: fallbackRun.result.retryCount,
+          modelAttemptCount: fallbackRun.attemptCount,
         },
       });
       return customerResult;
     } catch (err) {
       if (isVaultDecryptUserError(err)) {
+        logVaultDecryptFailure({
+          route,
+          traceId,
+          userId,
+          pass,
+          passStartedAt,
+          requestPreview,
+          logEvent: "model.call.error",
+        });
         throw err;
       }
       logCustomerModelCallFailure({
@@ -581,6 +596,28 @@ export async function callEnhanceModel(
   }
 }
 
+function jdExtractPipelineArtifacts(input: {
+  system: string;
+  prompt: string;
+  modelId: string;
+  responseText: string;
+  tokensUsed?: number;
+}) {
+  return [
+    aiRequestArtifact("JD extract request", {
+      pass: "generate",
+      modelId: input.modelId,
+      system: input.system,
+      user: input.prompt,
+    }),
+    aiResponseArtifact("JD extract response", {
+      text: input.responseText,
+      modelId: input.modelId,
+      tokensUsed: input.tokensUsed,
+    }),
+  ];
+}
+
 export async function callEnhanceObjectModel<T extends z.ZodTypeAny>(
   route: ResolvedAiRoute,
   system: string,
@@ -590,6 +627,7 @@ export async function callEnhanceObjectModel<T extends z.ZodTypeAny>(
   pass: "generate" | "optimize",
   userId?: string | null,
   preferredSlot?: number,
+  pipelineDebug?: PipelineDebugHookContext | null,
 ): Promise<{
   object: z.infer<T>;
   tokensUsed: number;
@@ -610,43 +648,42 @@ export async function callEnhanceObjectModel<T extends z.ZodTypeAny>(
     requestPreview,
   });
 
+  pipelineDebugStep(pipelineDebug, "ai_jd_extract", {
+    status: "active",
+    detail: "generateObject JD enrichment",
+    meta: {
+      routeMode: route.mode,
+      modelId: route.modelId,
+      provider: route.mode === "customer" ? route.provider : "system",
+      candidateCount:
+        route.mode === "customer" ? route.modelCandidates.length || 1 : 1,
+    },
+  });
+
   if (route.mode === "customer") {
     try {
-      const vaultRun = await withVaultDecryptedSecret(route.vaultKeyId, async (apiKey) => {
-        const model = createAiSdkLanguageModel(route.provider, apiKey, route.modelId);
-        return generateStructuredWithFallback({
-          model,
-          system,
-          prompt,
-          schema,
-          maxOutputTokens: JD_STRUCTURED_MAX_OUTPUT_TOKENS,
-        });
+      const fallbackRun = await withCustomerModelFallback({
+        route,
+        userId,
+        execute: async (modelId, apiKey) => {
+          const model = createAiSdkLanguageModel(route.provider, apiKey, modelId);
+          return generateStructuredWithFallback({
+            model,
+            system,
+            prompt,
+            schema,
+            maxOutputTokens: JD_STRUCTURED_MAX_OUTPUT_TOKENS,
+            timeoutMs: JD_EXTRACTION_TIMEOUT_MS,
+          });
+        },
       });
 
-      if (!vaultRun.ok) {
-        recordEnhanceModelCall({
-          route,
-          traceId,
-          userId,
-          pass,
-          durationMs: Date.now() - passStartedAt,
-          status: "error",
-          errorCode: "vault_decrypt_failed",
-          errorMessage: "Could not decrypt BYOK API key",
-          requestPreview,
-          responsePreview: "Could not decrypt BYOK API key",
-          operation: "ai.enhance.generate_object",
-          feature: "jd_extract",
-        });
-        throw new Error(VAULT_DECRYPT_USER_MESSAGE);
-      }
-
       const customerResult = {
-        object: vaultRun.result.object as z.infer<T>,
-        tokensUsed: vaultRun.result.tokensUsed,
-        modelId: route.modelId,
+        object: fallbackRun.result.object as z.infer<T>,
+        tokensUsed: fallbackRun.result.tokensUsed,
+        modelId: fallbackRun.modelId,
         estimatedCost: 0,
-        extractMode: vaultRun.result.mode,
+        extractMode: fallbackRun.result.mode,
       };
       const responsePreview = truncateForJourneyLog(JSON.stringify(customerResult.object));
 
@@ -685,14 +722,43 @@ export async function callEnhanceObjectModel<T extends z.ZodTypeAny>(
         responsePreview,
         operation: "ai.enhance.generate_object",
         feature: "jd_extract",
+        executionModelId: customerResult.modelId,
+      });
+
+      pipelineDebugStep(pipelineDebug, "ai_jd_extract", {
+        status: "done",
+        detail: `JD extract complete — ${customerResult.modelId}`,
+        meta: {
+          tokensUsed: customerResult.tokensUsed,
+          extractMode: customerResult.extractMode,
+          attemptCount: fallbackRun.attemptCount,
+        },
+        artifacts: jdExtractPipelineArtifacts({
+          system,
+          prompt,
+          modelId: customerResult.modelId,
+          responseText: responsePreview,
+          tokensUsed: customerResult.tokensUsed,
+        }),
       });
 
       return customerResult;
     } catch (err) {
       if (isVaultDecryptUserError(err)) {
+        logVaultDecryptFailure({
+          route,
+          traceId,
+          userId,
+          pass,
+          passStartedAt,
+          requestPreview,
+          operation: "ai.enhance.generate_object",
+          feature: "jd_extract",
+          logEvent: "model.object.error",
+        });
         throw err;
       }
-      logCustomerModelCallFailure({
+      const failureMessage = logCustomerModelCallFailure({
         route,
         traceId,
         userId,
@@ -703,6 +769,21 @@ export async function callEnhanceObjectModel<T extends z.ZodTypeAny>(
         operation: "ai.enhance.generate_object",
         feature: "jd_extract",
         logEvent: "model.object.error",
+      });
+      // warning, not error — JD extract failure is non-fatal (deterministic JD fallback)
+      pipelineDebugStep(pipelineDebug, "ai_jd_extract", {
+        status: "warning",
+        detail: `JD AI failed — deterministic fallback. ${failureMessage.slice(0, 200)}`,
+        meta: {
+          modelId: route.modelId,
+          provider: route.provider,
+        },
+        artifacts: jdExtractPipelineArtifacts({
+          system,
+          prompt,
+          modelId: route.modelId,
+          responseText: failureMessage,
+        }),
       });
       throw err;
     }
@@ -720,6 +801,7 @@ export async function callEnhanceObjectModel<T extends z.ZodTypeAny>(
           prompt,
           schema,
           maxOutputTokens: JD_STRUCTURED_MAX_OUTPUT_TOKENS,
+          timeoutMs: JD_EXTRACTION_TIMEOUT_MS,
         });
       },
       { preferredSlot },
@@ -779,6 +861,23 @@ export async function callEnhanceObjectModel<T extends z.ZodTypeAny>(
       feature: "jd_extract",
     });
 
+    pipelineDebugStep(pipelineDebug, "ai_jd_extract", {
+      status: "done",
+      detail: `JD extract complete — ${systemResult.modelId}`,
+      meta: {
+        tokensUsed: systemResult.tokensUsed,
+        keySlot: poolResult.slot,
+        extractMode: poolResult.result.mode,
+      },
+      artifacts: jdExtractPipelineArtifacts({
+        system,
+        prompt,
+        modelId: systemResult.modelId,
+        responseText: responsePreview,
+        tokensUsed: systemResult.tokensUsed,
+      }),
+    });
+
     return systemResult;
   } catch (err) {
     const status = (err as { status?: number })?.status;
@@ -814,6 +913,18 @@ export async function callEnhanceObjectModel<T extends z.ZodTypeAny>(
       responsePreview: message,
       operation: "ai.enhance.generate_object",
       feature: "jd_extract",
+    });
+    // warning, not error — JD extract failure is non-fatal (deterministic JD fallback)
+    pipelineDebugStep(pipelineDebug, "ai_jd_extract", {
+      status: "warning",
+      detail: `JD AI failed — deterministic fallback. ${message.slice(0, 200)}`,
+      meta: { modelId: executionModelId, errorCode },
+      artifacts: jdExtractPipelineArtifacts({
+        system,
+        prompt,
+        modelId: executionModelId,
+        responseText: message,
+      }),
     });
     throw err;
   }
@@ -927,8 +1038,18 @@ export async function runResumeEnhance(
     jobDescription: input.jobDescription,
   });
 
+  const promptForm =
+    input.brief.lightPath && input.brief.promptExperience
+      ? {
+          ...input.form,
+          experience: input.brief.promptExperience,
+          // Old summary is not needed — AI writes a new one from years + identity + JD.
+          professionalSummary: "",
+        }
+      : input.form;
+
   const ctx = buildCandidateContext({
-    form: input.form,
+    form: promptForm,
     targetRole: input.targetRole,
     jobDescription: input.jobDescription,
     rawResumeText: input.rawResumeText,

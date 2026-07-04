@@ -24,7 +24,8 @@ describe("enhanceFeatureRoute", () => {
     const route = {
       mode: "customer" as const,
       modelId: "gpt-4o",
-      provider: "openai",
+      modelCandidates: ["gpt-4o"],
+      provider: "openai" as const,
       vaultKeyId: "vault-1",
     };
     expect(

@@ -86,6 +86,7 @@ function buildBrief(form: HubRefineryForm): ResumeEnhanceBrief {
     targetRole,
     hasJd: true,
     jdAiCallCount: 0,
+    jdAiAttempted: false,
     structural: {
       warnings: [],
       mashedRolesFound: 0,
