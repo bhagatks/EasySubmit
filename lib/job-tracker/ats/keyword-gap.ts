@@ -309,9 +309,11 @@ export function analyzeKeywordGap(
   const matched: KeywordMatch[] = [];
   const missing: string[] = [];
 
+  const keywordPresent = (keyword: string) =>
+    resumeContainsKeyword(keyword, data, targetTitle, resumeText, resumeTokenSet);
+
   for (const keyword of candidateKeywords) {
-    const inResume = resumeTokenSet.has(keyword);
-    if (inResume) {
+    if (keywordPresent(keyword)) {
       matched.push({
         keyword,
         foundIn: locateKeyword(keyword, data, targetTitle),
@@ -323,6 +325,14 @@ export function analyzeKeywordGap(
 
   const total = matched.length + missing.length;
   const coveragePercent = total === 0 ? 0 : Math.round((matched.length / total) * 100);
+
+  const exactMatchedCount = matched.filter(
+    (m) =>
+      resumeText.toLowerCase().includes(normalizeKeyword(m.keyword)) ||
+      resumeTokenSet.has(normalizeKeyword(m.keyword)),
+  ).length;
+  const exactCoveragePercent =
+    total === 0 ? 0 : Math.round((exactMatchedCount / total) * 100);
 
   const injectable: string[] = [];
   const nonInjectable: string[] = [];
@@ -338,7 +348,7 @@ export function analyzeKeywordGap(
     matched,
     missing,
     coveragePercent,
-    exactCoveragePercent: coveragePercent,
+    exactCoveragePercent,
     topMissing: missing.slice(0, 10),
     injectable,
     nonInjectable,

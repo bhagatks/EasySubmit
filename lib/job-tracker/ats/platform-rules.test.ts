@@ -73,6 +73,12 @@ describe("platform-rules", () => {
     expect(detectPlatform("https://company.myworkdayjobs.com/en-US/job/123", null)).toBe(
       "workday",
     );
+    expect(
+      detectPlatform(
+        "https://wd1.myworkdaysite.com/en-US/recruiting/fmr/FidelityCareers/job/Merrimack-NH/Director--AI-ML_2127738",
+        null,
+      ),
+    ).toBe("workday");
     expect(detectPlatform("https://boards.greenhouse.io/acme/jobs/1", null)).toBe("greenhouse");
     expect(detectPlatform("https://apply.workable.com/acme/j/abc", null)).toBe("workable");
     expect(detectPlatform("https://example.com/jobs/1", null)).toBe("unknown");

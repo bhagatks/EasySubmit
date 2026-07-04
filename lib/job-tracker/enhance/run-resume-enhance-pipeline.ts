@@ -49,8 +49,28 @@ import {
   SYSTEM_QUOTA_PIPELINE_ESTIMATED_CALLS,
 } from "@/src/lib/ai/engine/system-quota-gate";
 import { getAppConfig } from "@/src/lib/services/config-service";
+import { computeResumeReadiness } from "@/lib/job-tracker/ats/resume-readiness-score";
+import { refineryFormToPrimeResume } from "@/lib/onboarding/hubResume";
 
-const MIN_JD_CHARS = 120;
+import {
+  hasFullJd,
+  MIN_JD_CHARS,
+  resolveDeterministicFallbackWarning,
+  resolveEnhanceContextRequirement,
+} from "@/lib/job-tracker/enhance/max-ats-helpers";
+
+async function resolveJobCompanyName(
+  jobEntryId: string | undefined,
+  provided?: string | null,
+): Promise<string | null> {
+  if (provided?.trim()) return provided.trim();
+  if (!jobEntryId) return null;
+  const entry = await prisma.jobTrackerEntry.findUnique({
+    where: { id: jobEntryId },
+    select: { company: true },
+  });
+  return entry?.company?.trim() || null;
+}
 
 function needsJd(input: ResumeEnhancePipelineInput): boolean {
   return input.surface === "extension" || input.surface === "job_apply";
@@ -97,25 +117,33 @@ async function runResumeEnhancePipelineInner(
     },
   });
 
-  if (needsJd(input) && (input.jobDescription?.trim().length ?? 0) < MIN_JD_CHARS) {
-    logEnhanceDiag({
-      traceId,
-      designStep: "2",
-      track: "resume",
-      pipelineStep: ENHANCE_PIPELINE.SERVER_FAIL,
-      phase: "fail",
-      level: "high",
-      event: "pipeline.jd_too_short",
-      scope: "server",
-      userId,
-      errorCode: "provider_error",
-      params: { minChars: MIN_JD_CHARS },
+  if (needsJd(input)) {
+    const companyName = await resolveJobCompanyName(input.jobEntryId, input.companyName);
+    const context = resolveEnhanceContextRequirement({
+      jobDescription: input.jobDescription,
+      targetRole: input.targetRole,
+      companyName,
     });
-    return {
-      success: false,
-      error: "Job description is too short to tailor your resume.",
-      code: "provider_error",
-    };
+    if (!context.ok) {
+      logEnhanceDiag({
+        traceId,
+        designStep: "2",
+        track: "resume",
+        pipelineStep: ENHANCE_PIPELINE.SERVER_FAIL,
+        phase: "fail",
+        level: "high",
+        event: "pipeline.context_insufficient",
+        scope: "server",
+        userId,
+        errorCode: "provider_error",
+        params: { minJdChars: MIN_JD_CHARS, hasCompany: Boolean(companyName?.trim()) },
+      });
+      return {
+        success: false,
+        error: context.error,
+        code: "provider_error",
+      };
+    }
   }
 
   logJourneyStep("server", "pipeline.start", {
@@ -288,11 +316,16 @@ async function runResumeEnhancePipelineInner(
   }
 
   const readinessBefore = brief.readiness.total;
+  const companyName = await resolveJobCompanyName(input.jobEntryId, input.companyName);
+  const fullJd = hasFullJd(input.jobDescription);
+  const willAttemptAi = allowAi && Boolean(aiUpgrade?.aiAllowed && aiUpgrade?.route);
 
   let baseline;
   try {
     pipelineDebugAdvance(debug, "baseline", "ai_gates");
-    baseline = applyBaselineEnhance(input.form, brief, traceId, userId);
+    baseline = applyBaselineEnhance(input.form, brief, traceId, userId, {
+      mode: willAttemptAi ? "skills_only" : "full",
+    });
   } catch (err) {
     logEnhance("server", "pipeline.baseline.error", {
       traceId,
@@ -311,6 +344,7 @@ async function runResumeEnhancePipelineInner(
     status: "done",
     detail: baseline.enhanceSummary,
     meta: {
+      baselineMode: willAttemptAi ? "skills_only" : "full",
       skillsAdded: baseline.changes.skillsAdded.length,
       bulletsRewritten: baseline.changes.bulletsRewritten,
       bulletsWoven: baseline.changes.bulletsWoven,
@@ -336,13 +370,13 @@ async function runResumeEnhancePipelineInner(
   });
 
   let finalForm = baseline.form;
+  let baselineForMeta = baseline;
   let aiAttempted = false;
   let aiSucceeded = false;
   let warning: string | undefined;
   const coherenceWarnings = [...baseline.coherenceWarnings];
   let aiBlockCode: EnhanceOffReason | "parse_fail" | "timeout" | "provider_error" | undefined;
   let engineMode: "ai" | "deterministic" = "deterministic";
-  let partialEnhance: boolean | undefined;
   let aiMode: AiQuotaMode = "system";
   let tokensUsed = 0;
   let enhanceApiCallCount = 0;
@@ -350,14 +384,12 @@ async function runResumeEnhancePipelineInner(
   let modelId = "deterministic";
   let estimatedCost = 0;
 
-  if (allowAi && aiUpgrade) {
+  if (willAttemptAi && aiUpgrade?.route) {
     if (aiUpgrade.aiAllowed && aiUpgrade.route) {
       aiAttempted = true;
       aiMode = aiUpgrade.route.mode;
       const pricingMap = await getAppConfig("ai_pricing_map");
-      const estimatedCalls = input.jobDescription?.trim()
-        ? SYSTEM_QUOTA_PIPELINE_ESTIMATED_CALLS
-        : SYSTEM_QUOTA_DEFAULT_ESTIMATED_CALLS;
+      const estimatedCalls = SYSTEM_QUOTA_PIPELINE_ESTIMATED_CALLS;
 
       logEnhance("server", "pipeline.ai.start", {
         traceId,
@@ -367,7 +399,7 @@ async function runResumeEnhancePipelineInner(
       });
 
       pipelineDebugAdvance(debug, "ai_pass1", "baseline", {
-        detail: "Starting AI pass 1 — generate",
+        detail: "Starting max-ATS AI generation",
         meta: {
           routeMode: aiUpgrade.route.mode,
           modelId: aiUpgrade.route.modelId,
@@ -386,6 +418,8 @@ async function runResumeEnhancePipelineInner(
           jobIntelligence: brief.jd?.jobIntelligence,
           enhanceDirective: brief.jd?.directive,
           brief,
+          companyName,
+          hasFullJd: fullJd,
           pipelineDebug: debug ?? undefined,
         },
         pricingMap,
@@ -400,33 +434,15 @@ async function runResumeEnhancePipelineInner(
         enhanceApiCallCount = result.apiCallCount;
         apiCallCount = result.apiCallCount + brief.jdAiCallCount;
         modelId = result.modelId;
-        partialEnhance = result.partialEnhance;
         pipelineDebugStep(debug, "ai_pass1", {
           status: "done",
-          detail: `Pass 1 complete — ${result.modelId}`,
+          detail: `Max-ATS complete — ${result.modelId}`,
           meta: { tokensUsed: result.tokensUsed, apiCallCount: result.apiCallCount },
         });
-        if (partialEnhance) {
-          pipelineDebugStep(debug, "ai_pass2", {
-            status: "error",
-            detail: result.partialEnhanceMessage ?? "Pass 2 failed — kept pass 1",
-          });
-        } else if (input.jobDescription?.trim()) {
-          pipelineDebugStep(debug, "ai_pass2", {
-            status: "done",
-            detail: "Pass 2 optimize complete",
-          });
-        } else {
-          pipelineDebugStep(debug, "ai_pass2", {
-            status: "skipped",
-            detail: "No JD — pass 2 not run",
-          });
-        }
-        if (result.partialEnhance) {
-          warning =
-            result.partialEnhanceMessage ??
-            "Job-specific optimization was incomplete. Baseline enhancements were kept.";
-        }
+        pipelineDebugStep(debug, "ai_pass2", {
+          status: "skipped",
+          detail: "Single-pass max-ATS mode",
+        });
 
         finalForm = {
           ...finalForm,
@@ -453,19 +469,29 @@ async function runResumeEnhancePipelineInner(
           apiCallCount,
         });
       } else {
-        warning = result.error;
         aiBlockCode = (result.code ?? "provider_error") as typeof aiBlockCode;
+        const fallback = applyBaselineEnhance(input.form, brief, traceId, userId, {
+          mode: "full",
+        });
+        finalForm = fallback.form;
+        baselineForMeta = fallback;
+        warning = resolveDeterministicFallbackWarning();
+        coherenceWarnings.push(...fallback.coherenceWarnings);
         pipelineDebugStep(debug, "ai_pass1", {
-          status: "error",
-          detail: result.error,
+          status: "warning",
+          detail: "AI unavailable — full deterministic baseline applied",
           meta: { code: result.code ?? null },
         });
-        pipelineDebugStep(debug, "ai_pass2", { status: "skipped", detail: "Pass 1 failed" });
+        pipelineDebugStep(debug, "ai_pass2", {
+          status: "skipped",
+          detail: "AI failed before optimize",
+        });
         logEnhance("server", "pipeline.ai.fail", {
           traceId,
           userId,
           step: ENHANCE_PIPELINE.AI_UPGRADE_FAIL,
           code: result.code,
+          fallback: "full_baseline",
         });
         logEnhanceDiag({
           traceId,
@@ -482,6 +508,7 @@ async function runResumeEnhancePipelineInner(
           flags: {
             routeMode: aiUpgrade.route.mode,
             provider: aiUpgrade.route.mode === "customer" ? aiUpgrade.route.provider : "system",
+            deterministicFallback: true,
           },
         });
       }
@@ -505,7 +532,14 @@ async function runResumeEnhancePipelineInner(
   }
 
   const changedSections = diffChangedSections(input.form, finalForm, false);
-  const readinessAfter = brief.readiness.total;
+  const trimmedJd = input.jobDescription?.trim() ?? "";
+  const readinessAfter = computeResumeReadiness(
+    refineryFormToPrimeResume(finalForm),
+    input.targetRole,
+    trimmedJd,
+    brief.jd?.intelligence,
+    brief.platform.id,
+  ).total;
   const readinessDelta = {
     before: readinessBefore,
     after: readinessAfter,
@@ -523,18 +557,18 @@ async function runResumeEnhancePipelineInner(
 
   logEnhanceDiag({
     traceId,
-    designStep: "14b",
+    designStep: "15",
     track: "resume",
-    pipelineStep: ENHANCE_PIPELINE.POST_PROCESS,
+    pipelineStep: ENHANCE_PIPELINE.POST_PIPELINE_STATE,
     phase: "done",
-    level: "medium",
+    level: "low",
     event: "enhance.strategy.impact",
     scope: "server",
     userId,
     params: {
       atsPlatform: brief.platform.id,
       atsStrategy: brief.platform.strategy,
-      readinessDeltaPercent: ((readinessAfter - readinessBefore) / 100).toFixed(1),
+      readinessDelta: readinessAfter - readinessBefore,
       readinessBefore,
       readinessAfter,
       changedSections,
@@ -587,7 +621,7 @@ async function runResumeEnhancePipelineInner(
     aiMode,
   );
 
-  const enhanceSummary = baseline.enhanceSummary;
+  const enhanceSummary = baselineForMeta.enhanceSummary;
 
   const uniqueCoherenceWarnings = [...new Set(coherenceWarnings)];
   if (uniqueCoherenceWarnings.length > 0) {
@@ -604,8 +638,8 @@ async function runResumeEnhancePipelineInner(
     aiBlockCode,
     enhanceSummary,
     coverageBefore: brief.jd?.coverageBefore,
-    coverageAfter: baseline.coverageAfter,
-    skillsGaps: baseline.coverageAfter?.gaps.map((g) => g.atom.label),
+    coverageAfter: baselineForMeta.coverageAfter,
+    skillsGaps: baselineForMeta.coverageAfter?.gaps.map((g) => g.atom.label),
     readinessDelta,
     coherenceWarnings: uniqueCoherenceWarnings.length > 0 ? uniqueCoherenceWarnings : undefined,
   };
@@ -667,7 +701,7 @@ async function runResumeEnhancePipelineInner(
     aiSucceeded,
     warning,
     aiBlockCode,
-    coverageAfter: baseline.coverageAfter,
+    coverageAfter: baselineForMeta.coverageAfter,
     readinessDelta,
     quota: {
       enhancementsUsed: quotaSnapshot.enhancementsUsed,
@@ -677,10 +711,9 @@ async function runResumeEnhancePipelineInner(
     },
     aiMode,
     enhanceSummary,
-    partialEnhance,
     traceId,
     sessionMeta,
-    skillsAdded: baseline.changes.skillsAdded,
+    skillsAdded: baselineForMeta.changes.skillsAdded,
     ...(uniqueCoherenceWarnings.length > 0
       ? { coherenceWarnings: uniqueCoherenceWarnings }
       : {}),

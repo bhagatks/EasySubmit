@@ -153,7 +153,7 @@ describe("runPipelineTailor", () => {
     expect(updateJobTrackerStatus).toHaveBeenCalledWith("user-1", "entry-1", "RESUME_READY");
   });
 
-  it("blocks when job description is too short", async () => {
+  it("blocks when job title and company are both missing for short JD", async () => {
     const result = await runPipelineTailor("user-1", {
       entryId: "entry-1",
       jobTitle: "Engineer",
@@ -166,6 +166,26 @@ describe("runPipelineTailor", () => {
     });
     expect(resolveSourceProfileForJob).not.toHaveBeenCalled();
     expect(recordPipelineTailorError).toHaveBeenCalled();
+  });
+
+  it("allows role + company when JD is short", async () => {
+    const result = await runPipelineTailor("user-1", {
+      entryId: "entry-1",
+      jobTitle: "Senior Engineer",
+      company: "Acme Corp",
+      jobDescription: "Too short",
+      sourceProfileId: "source-1",
+    });
+
+    expect(result.success).toBe(true);
+    expect(enhanceResumeForUserId).toHaveBeenCalledWith(
+      "user-1",
+      expect.objectContaining({
+        targetRole: "Senior Engineer",
+        companyName: "Acme Corp",
+        jobDescription: "Too short",
+      }),
+    );
   });
 
   it("records error when enhance fails", async () => {

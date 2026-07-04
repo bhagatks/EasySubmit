@@ -12,7 +12,7 @@
 
 import type { PrimeResumeData } from "@/components/onboarding/PrimeResume";
 import { simulateAtsParse, simulateAtsParsePlatform } from "@/lib/job-tracker/ats/ats-parse-simulator";
-import { analyzeKeywordGap, analyzeKeywordGapFromIntelligence } from "@/lib/job-tracker/ats/keyword-gap";
+import { resolveKeywordGap } from "@/lib/job-tracker/ats/resolve-keyword-gap";
 import { analyzeBulletQuality } from "@/lib/job-tracker/ats/bullet-quality";
 import { computeSemanticSimilarity } from "@/lib/job-tracker/ats/semantic-similarity";
 import type { JDIntelligence } from "@/lib/job-tracker/jd/jd-intelligence";
@@ -172,9 +172,7 @@ function scoreKeywords(
     };
   }
 
-  const gap = jdIntelligence
-    ? analyzeKeywordGapFromIntelligence(data, jdIntelligence, targetTitle)
-    : analyzeKeywordGap(data, targetTitle, jobDescription);
+  const gap = resolveKeywordGap(data, targetTitle, jobDescription, jdIntelligence);
 
   // Blend keyword coverage (65%) with semantic similarity (35%) for a more
   // complete picture than binary keyword match alone.

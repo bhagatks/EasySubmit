@@ -146,7 +146,7 @@ function isHostedAtsBoardUrl(host: string): boolean {
     /greenhouse\.io$/i.test(host) ||
     /lever\.co$/i.test(host) ||
     /ashbyhq\.com$/i.test(host) ||
-    /myworkdayjobs\.com$/i.test(host) ||
+    /myworkday(?:jobs|site)\.com$/i.test(host) ||
     /smartrecruiters\.com$/i.test(host)
   );
 }

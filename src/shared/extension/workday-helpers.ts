@@ -13,16 +13,18 @@ function text(el: Element | null | undefined): string {
   return el?.textContent?.trim() ?? "";
 }
 
+const WORKDAY_HOST = /myworkday(?:jobs|site)\.com/i;
+
 /** Workday posting URLs include locale/site segments before `/job/` or `/details/`. */
 export const WORKDAY_JOB_URL =
-  /myworkdayjobs\.com\/(?:[^/]+\/)+(?:job|details)\//i;
+  /myworkday(?:jobs|site)\.com\/(?:[^/]+\/)+(?:job|details)\//i;
 
 export function isWorkdayJobUrl(url: string): boolean {
   return WORKDAY_JOB_URL.test(url);
 }
 
 export function isWorkdayApplyStepUrl(url: string): boolean {
-  return /myworkdayjobs\.com\/.*\/job\/(?:[^/]+\/)+apply\/?$/i.test(url);
+  return /myworkday(?:jobs|site)\.com\/.*\/job\/(?:[^/]+\/)+apply\/?$/i.test(url);
 }
 
 const WORKDAY_LOCALE_SEGMENT = /^(en-us|en-gb|en-ca|fr-fr|de-de)$/i;
@@ -47,10 +49,18 @@ function formatWorkdaySiteSegment(site: string): string | null {
 
 /** Best-effort company/site label from the career site segment before `/job/` or `/details/`. */
 export function parseWorkdayCompanyFromUrl(url: string): string | null {
-  if (!/myworkdayjobs\.com/i.test(url)) return null;
+  if (!WORKDAY_HOST.test(url)) return null;
 
   try {
     const pathname = new URL(url).pathname;
+
+    if (/myworkdaysite\.com/i.test(url)) {
+      const recruitingMatch = pathname.match(/\/recruiting\/(?:[^/]+\/)*([^/]+)\/job\//i);
+      if (recruitingMatch?.[1]) {
+        return formatWorkdaySiteSegment(recruitingMatch[1]);
+      }
+    }
+
     const siteMatch = pathname.match(/\/([^/]+)\/(?:job|details)\//i);
     if (!siteMatch?.[1]) return null;
 
@@ -76,7 +86,7 @@ export function parseWorkdayCompanyFromUrl(url: string): string | null {
 
 /** Decode a title from the last `/job/.../` path segment when the SPA has not hydrated yet. */
 export function parseWorkdayTitleFromUrl(url: string): string | null {
-  if (!/myworkdayjobs\.com/i.test(url)) return null;
+  if (!WORKDAY_HOST.test(url)) return null;
 
   try {
     const pathname = new URL(url).pathname;
@@ -116,6 +126,7 @@ export function humanizeWorkdaySiteName(siteName: string): string {
   if (/^walmart/i.test(normalized)) return "Walmart";
   if (/cvs/i.test(normalized)) return "CVS Health";
   if (/^irhythm/i.test(normalized)) return "iRhythm";
+  if (/fidelity/i.test(normalized)) return "Fidelity";
   return normalized.replace(/\s+External$/i, "").trim() || normalized;
 }
 
@@ -226,7 +237,7 @@ export function scrapeWorkdayTitle(doc: Document, url: string): string {
 
 export function detectWorkdayConfidence(doc: Document, url: string): number {
   if (!isWorkdayJobUrl(url)) {
-    return /myworkdayjobs\.com\/.*\/(?:job|details)\//i.test(url) ? 40 : 0;
+    return /myworkday(?:jobs|site)\.com\/.*\/(?:job|details)\//i.test(url) ? 40 : 0;
   }
 
   let score = 78;

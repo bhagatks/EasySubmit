@@ -162,4 +162,18 @@ describe("applyBaselineEnhance", () => {
     expect(result.enhanceSummary.length).toBeGreaterThan(0);
     expect(result.coverageAfter?.coveragePercent).toBeGreaterThanOrEqual(0);
   });
+
+  it("skills_only mode merges skills without rewriting summary or bullets", () => {
+    const brief = buildBrief(BASE_FORM);
+    const result = applyBaselineEnhance(BASE_FORM, brief, "trace-test", "user-1", {
+      mode: "skills_only",
+    });
+
+    expect(result.form.skillsText).not.toBe(BASE_FORM.skillsText);
+    expect(result.form.professionalSummary).toBe(BASE_FORM.professionalSummary);
+    expect(result.form.experience[0]?.bullets).toBe(BASE_FORM.experience[0]?.bullets);
+    expect(result.changes.bulletsRewritten).toBe(0);
+    expect(result.changes.bulletsWoven).toBe(0);
+    expect(result.changes.summaryRewritten).toBe(false);
+  });
 });

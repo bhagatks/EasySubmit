@@ -41,12 +41,21 @@ export type BaselineEnhanceResult = {
   coherenceWarnings: string[];
 };
 
+export type BaselineEnhanceMode = "full" | "skills_only";
+
+export type BaselineEnhanceOptions = {
+  mode?: BaselineEnhanceMode;
+};
+
 export function applyBaselineEnhance(
   form: HubRefineryForm,
   brief: ResumeEnhanceBrief,
   traceId: string,
   userId: string,
+  options: BaselineEnhanceOptions = {},
 ): BaselineEnhanceResult {
+  const mode = options.mode ?? "full";
+  const skillsOnly = mode === "skills_only";
   logEnhanceDiag({
     traceId,
     designStep: "11",
@@ -58,6 +67,7 @@ export function applyBaselineEnhance(
     scope: "server",
     userId,
     params: {
+      mode,
       isCrossDomain: brief.summaryIdentity.isCrossDomain,
       skillsToAdd: brief.plan.skillsToAdd.length,
       weakBullets: brief.experience.weakBullets.length,
@@ -97,75 +107,88 @@ export function applyBaselineEnhance(
 
   updatedForm = { ...updatedForm, skillsText: groupedResult.skillsText };
 
-  const bulletResult = rewriteWeakBullets(updatedForm, plan.weakBullets, brief.jd?.intelligence.domain);
-  updatedForm = cleanExperienceBullets(bulletResult.form);
-
-  const weaveResult = applyJdCoverageWeave(updatedForm, brief);
-  updatedForm = weaveResult.form;
-
-  updatedForm = {
-    ...updatedForm,
-    experience: normalizeExperienceDateFields(updatedForm.experience ?? []),
-  };
-
-  const pages = inferResumePagesFromForm(updatedForm, brief.targetRole);
-  const tapered = taperExperienceEntries(updatedForm.experience ?? [], pages);
-  updatedForm = { ...updatedForm, experience: tapered.entries };
-
+  let bulletResult = { form: updatedForm, bulletsRewritten: 0 };
+  let weaveResult = { form: updatedForm, bulletsWoven: 0 };
+  let tapered = { entries: updatedForm.experience ?? [], bulletsTrimmed: 0 };
   let summaryRewritten = false;
-  const mergedSkills = parseSkillsText(updatedForm.skillsText ?? "");
-  const needsSummaryRewrite =
-    brief.summaryIdentity.isCrossDomain
-      ? shouldRebuildCrossDomainSummary(
-          updatedForm.professionalSummary ?? "",
-          resumeNativeSkills,
-          groupedResult.grouped.jdSkills,
-          (form.experience ?? []).map((e) => e.company?.trim()).filter(Boolean) as string[],
-        )
-      : plan.summaryWarnings.length > 0;
 
-  if (needsSummaryRewrite) {
-    const skillsForSummary = brief.summaryIdentity.isCrossDomain
-      ? resumeNativeSkills
-      : mergedSkills;
-    const rewritten = buildDeterministicSummary({
-      currentSummary: updatedForm.professionalSummary ?? "",
-      skills: skillsForSummary,
-      experience: updatedForm.experience ?? [],
-      summaryIdentity: brief.summaryIdentity.identity,
-      summaryTheme: brief.summaryIdentity.isCrossDomain ? undefined : plan.summaryTheme,
-      roleLevel: plan.roleLevel,
-      isTechnicalCandidate: brief.summaryIdentity.isTechnicalCandidate,
-      isCrossDomain: brief.summaryIdentity.isCrossDomain,
-    });
-    if (rewritten !== (updatedForm.professionalSummary ?? "").trim()) {
-      updatedForm = { ...updatedForm, professionalSummary: rewritten };
-      summaryRewritten = true;
+  if (!skillsOnly) {
+    bulletResult = rewriteWeakBullets(updatedForm, plan.weakBullets, brief.jd?.intelligence.domain);
+    updatedForm = cleanExperienceBullets(bulletResult.form);
+
+    weaveResult = applyJdCoverageWeave(updatedForm, brief);
+    updatedForm = weaveResult.form;
+
+    updatedForm = {
+      ...updatedForm,
+      experience: normalizeExperienceDateFields(updatedForm.experience ?? []),
+    };
+
+    const pages = inferResumePagesFromForm(updatedForm, brief.targetRole);
+    tapered = taperExperienceEntries(updatedForm.experience ?? [], pages);
+    updatedForm = { ...updatedForm, experience: tapered.entries };
+
+    const mergedSkills = parseSkillsText(updatedForm.skillsText ?? "");
+    const needsSummaryRewrite =
+      brief.summaryIdentity.isCrossDomain
+        ? shouldRebuildCrossDomainSummary(
+            updatedForm.professionalSummary ?? "",
+            resumeNativeSkills,
+            groupedResult.grouped.jdSkills,
+            (form.experience ?? []).map((e) => e.company?.trim()).filter(Boolean) as string[],
+          )
+        : plan.summaryWarnings.length > 0;
+
+    if (needsSummaryRewrite) {
+      const skillsForSummary = brief.summaryIdentity.isCrossDomain
+        ? resumeNativeSkills
+        : mergedSkills;
+      const rewritten = buildDeterministicSummary({
+        currentSummary: updatedForm.professionalSummary ?? "",
+        skills: skillsForSummary,
+        experience: updatedForm.experience ?? [],
+        summaryIdentity: brief.summaryIdentity.identity,
+        summaryTheme: brief.summaryIdentity.isCrossDomain ? undefined : plan.summaryTheme,
+        roleLevel: plan.roleLevel,
+        isTechnicalCandidate: brief.summaryIdentity.isTechnicalCandidate,
+        isCrossDomain: brief.summaryIdentity.isCrossDomain,
+      });
+      if (rewritten !== (updatedForm.professionalSummary ?? "").trim()) {
+        updatedForm = { ...updatedForm, professionalSummary: rewritten };
+        summaryRewritten = true;
+      }
     }
+  } else {
+    updatedForm = {
+      ...updatedForm,
+      skillsText: postProcessSkillsText(updatedForm.skillsText ?? "", traceId, userId),
+    };
   }
 
-  const experienceBlob = experienceBlobFromForm(updatedForm.experience ?? []);
-  const employerNames = (updatedForm.experience ?? [])
-    .map((e) => e.company?.trim())
-    .filter(Boolean) as string[];
-  const summaryProcessed = postProcessSummaryOutput(
-    postProcessProfessionalSummary(
-      updatedForm.professionalSummary ?? "",
-      traceId,
-      userId,
-    ),
-    {
-      identity: brief.summaryIdentity,
-      experienceBlob,
-      employerNames,
-    },
-  );
-  updatedForm = {
-    ...updatedForm,
-    professionalSummary: summaryProcessed.summary,
-    skillsText: postProcessSkillsText(updatedForm.skillsText ?? "", traceId, userId),
-  };
-  coherenceWarnings.push(...summaryProcessed.warnings);
+  if (!skillsOnly) {
+    const experienceBlob = experienceBlobFromForm(updatedForm.experience ?? []);
+    const employerNames = (updatedForm.experience ?? [])
+      .map((e) => e.company?.trim())
+      .filter(Boolean) as string[];
+    const summaryProcessed = postProcessSummaryOutput(
+      postProcessProfessionalSummary(
+        updatedForm.professionalSummary ?? "",
+        traceId,
+        userId,
+      ),
+      {
+        identity: brief.summaryIdentity,
+        experienceBlob,
+        employerNames,
+      },
+    );
+    updatedForm = {
+      ...updatedForm,
+      professionalSummary: summaryProcessed.summary,
+      skillsText: postProcessSkillsText(updatedForm.skillsText ?? "", traceId, userId),
+    };
+    coherenceWarnings.push(...summaryProcessed.warnings);
+  }
 
   let coverageAfter: ReturnType<typeof buildJdCoverageReport> | undefined;
   if (brief.jd) {

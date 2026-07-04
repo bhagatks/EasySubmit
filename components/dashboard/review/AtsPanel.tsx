@@ -5,6 +5,7 @@ import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Eye, ShieldChec
 import { simulateAtsParse } from "@/lib/job-tracker/ats/ats-parse-simulator";
 import { analyzeBulletQuality } from "@/lib/job-tracker/ats/bullet-quality";
 import { analyzeKeywordGap } from "@/lib/job-tracker/ats/keyword-gap";
+import { resolveKeywordGap } from "@/lib/job-tracker/ats/resolve-keyword-gap";
 import { computeSemanticSimilarity } from "@/lib/job-tracker/ats/semantic-similarity";
 import { computeResumeReadiness } from "@/lib/job-tracker/ats/resume-readiness-score";
 import { detectPlatform, getPlatformRules } from "@/lib/job-tracker/ats/platform-rules";
@@ -48,6 +49,7 @@ function PlatformStrategyBanner({ platform }: { platform: ReturnType<typeof getP
           {STRATEGY_LABELS[platform.strategy] ?? platform.strategy}
         </span>
         <button
+          type="button"
           onClick={() => setShowExplanation(!showExplanation)}
           className="ml-auto text-xs text-muted-foreground hover:text-foreground transition-colors"
         >
@@ -604,10 +606,18 @@ type AtsPanelBodyProps = {
   variant?: "modal" | "inline";
 };
 
+function buildExperienceBlob(data: import("@/components/onboarding/PrimeResume").PrimeResumeData): string {
+  return (data.experience ?? [])
+    .map((e) => `${e.title ?? ""} ${e.company ?? ""} ${(e.bullets ?? []).join(" ")}`)
+    .join("\n");
+}
+
 function AtsPanelBody({ entry, preview, activeSection, onSectionChange, variant = "modal" }: AtsPanelBodyProps) {
   const data = preview.preview;
   const targetTitle = preview.targetTitle;
   const jobDescription = entry.description ?? "";
+  const jdIntelligence = entry.jdIntelligence ?? null;
+  const experienceBlob = useMemo(() => buildExperienceBlob(data), [data]);
 
   const atsPlatform = useMemo(
     () => detectPlatform(entry.canonicalUrl, entry.platform),
@@ -617,15 +627,15 @@ function AtsPanelBody({ entry, preview, activeSection, onSectionChange, variant 
   const platformRules = useMemo(() => getPlatformRules(atsPlatform), [atsPlatform]);
 
   const readiness = useMemo(
-    () => computeResumeReadiness(data, targetTitle, jobDescription, undefined, atsPlatform),
-    [data, targetTitle, jobDescription, atsPlatform],
+    () => computeResumeReadiness(data, targetTitle, jobDescription, jdIntelligence, atsPlatform),
+    [data, targetTitle, jobDescription, jdIntelligence, atsPlatform],
   );
 
   const bulletQuality = useMemo(() => analyzeBulletQuality(data), [data]);
 
   const gap = useMemo(
-    () => analyzeKeywordGap(data, targetTitle, jobDescription),
-    [data, targetTitle, jobDescription],
+    () => resolveKeywordGap(data, targetTitle, jobDescription, jdIntelligence, { experienceBlob }),
+    [data, targetTitle, jobDescription, jdIntelligence, experienceBlob],
   );
 
   const platformScores = useMemo(() => {

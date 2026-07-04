@@ -14,7 +14,7 @@ export function canonicalizeJobUrl(rawUrl: string): string {
 
   const normalized = url.toString().replace(/\/$/, "");
 
-  if (/myworkdayjobs\.com/i.test(url.hostname)) {
+  if (/myworkday(?:jobs|site)\.com/i.test(url.hostname)) {
     return normalized.replace(/\/apply\/?$/i, "") || normalized;
   }
 

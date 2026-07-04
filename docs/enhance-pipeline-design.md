@@ -33,7 +33,15 @@ Captured from design session 2026-06-26. Updated 2026-06-28 with diagnostic logg
 ### Key difference
 Onboarding enhance is generic (role-only context). Job apply enhance is job-specific (JD keyword gaps, mustAddSkills, weak bullet rewrites). Same user action, completely different quality of output.
 
----
+### Max-ATS mode (2026-07-03)
+Default brain mission for job apply / extension when AI is enabled:
+
+1. **`buildAtsOptimizationSpec()`** (`lib/job-tracker/ats/build-ats-optimization-spec.ts`) — packages the same readiness pillars, keyword gap, platform strategy, and JD directive shown on the ATS panel.
+2. **Single AI pass** — `runResumeEnhance` sends the spec + resume skeleton; regenerates summary, all experience bullets, and all optional sections for maximum score.
+3. **Skills-only baseline** when AI runs — deterministic merge fills skills to 20 (no cross-domain 6-cap); summary/bullets stay raw until AI.
+4. **AI failure fallback** — full deterministic baseline (`applyBaselineEnhance` mode `full`); pipeline debug marks `ai_pass1` as `warning` (not error) so UI shows success.
+5. **No full JD** — requires job title + company (extension tailor, dashboard Review enhance); uses `role_company` optimization mode.
+
 
 ## Complete pipeline steps
 
@@ -51,7 +59,7 @@ Get the user's resume data into a `HubRefineryForm`.
 ### Step 2 — Validate Input
 Fail fast before any expensive work.
 - Onboarding → target role must exist
-- Dashboard + Extension → JD must be ≥ 120 chars, job title must exist and sanitize via `sanitizeString()`
+- Dashboard + Extension → job title required; JD ≥ 120 chars **or** job title + company name (short-JD / `role_company` path); sanitize via `sanitizeString()`
 
 ### Step 3 — O*NET Role Vocabulary
 `fetchRoleVocabulary()` in `lib/job-tracker/ats/onet-service.ts`. Fetches standard skills and tools for the target role from O*NET. Surfaces implicit skills not in the resume and not in the JD. Role-scoped, not JD-scoped. **All surfaces run this.**
@@ -386,10 +394,16 @@ Site adapter expansion (Phase 2 field scraping) is a **separate follow-up** — 
 | `lib/job-tracker/ats/platform-rules.ts` | Per-platform rules + `strategy` + ATS panel tips |
 | `lib/job-tracker/ats/platform-strategy-instructions.ts` | Strategy instruction blocks for AI prompts |
 | `lib/job-tracker/enhance/build-enhance-brief.ts` | Resolves platform → attaches `brief.platform` |
-| `src/lib/ai/engine/brain.ts` | Injects `strategyInstructions` into generate/optimize prompts |
+| `lib/job-tracker/ats/build-ats-optimization-spec.ts` | Packages readiness pillars, keyword gap, platform strategy, JD directive (same as ATS panel) |
+| `lib/job-tracker/enhance/max-ats-helpers.ts` | `hasFullJd`, `hasRoleCompanyContext`, AI-fail UX helpers |
+| `src/lib/ai/engine/brain.ts` | Single-pass max-ATS prompts via `buildAtsOptimizationSpec()` + platform strategy |
+| `src/lib/ai/engine/run-enhance.ts` | Single AI pass; no pass-2 / `partialEnhance` |
+| `lib/job-tracker/enhance/apply-baseline-enhance.ts` | `mode: "full" \| "skills_only"` — skills-only when AI runs |
 | `components/dashboard/review/AtsPanel.tsx` | Shows detected platform label + strategy tip |
 
-Diagnostics: `[EnhanceDiag]` events `brief.platform` and `pipeline.platform_strategy` log `atsPlatform` + `atsStrategy`.
+Diagnostics: `[EnhanceDiag]` events `brief.platform` and `enhance.strategy.impact` log `atsPlatform` + `atsStrategy` (+ post-pipeline readiness delta on step 15).
+
+**Runbooks:** [PLATFORM_ADDITION_RUNBOOK.md](PLATFORM_ADDITION_RUNBOOK.md) (add a platform) · [TALEO_TO_ORC_MIGRATION.md](TALEO_TO_ORC_MIGRATION.md) (Taleo → ORC user guide)
 
 ---
 
@@ -413,3 +427,8 @@ Diagnostics: `[EnhanceDiag]` events `brief.platform` and `pipeline.platform_stra
 | Keyword extract (needs fast-rake upgrade) | `lib/job-tracker/jd/keyword-extract.ts` |
 | O\*NET + mustAddSkills | `lib/job-tracker/ats/job-intelligence.ts` |
 | Deterministic enhancer | `lib/job-tracker/ats/deterministic-enhancer.ts` |
+| ATS optimization spec | `lib/job-tracker/ats/build-ats-optimization-spec.ts` |
+| Max-ATS helpers | `lib/job-tracker/enhance/max-ats-helpers.ts` |
+| Pipeline orchestrator | `lib/job-tracker/enhance/run-resume-enhance-pipeline.ts` |
+| Extension tailor | `lib/extension/pipeline-tailor.ts` |
+| Review enhance | `lib/job-tracker/enhance-review-documents.ts` |

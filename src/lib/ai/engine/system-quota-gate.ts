@@ -37,7 +37,7 @@ export type SystemQuotaGateResult = {
   snapshot: QuotaSnapshot | null;
 };
 
-export const SYSTEM_QUOTA_PIPELINE_ESTIMATED_CALLS = 3;
+export const SYSTEM_QUOTA_PIPELINE_ESTIMATED_CALLS = 1;
 export const SYSTEM_QUOTA_DEFAULT_ESTIMATED_CALLS = 1;
 
 export function resolveQuotaRowWithReset(row: SystemQuotaUserRow): {

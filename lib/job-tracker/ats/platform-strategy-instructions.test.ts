@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import { buildEnhanceUserPrompt } from "@/src/lib/ai/engine/brain";
 import type { CandidateContext } from "@/src/lib/ai/engine/candidate-context";
 import {
+  buildAtsOptimizationSpec,
+} from "@/lib/job-tracker/ats/build-ats-optimization-spec";
+import {
   buildPlatformStrategyInstructionBlock,
   PLATFORM_STRATEGY_MARKERS,
 } from "@/lib/job-tracker/ats/platform-strategy-instructions";
@@ -13,6 +16,18 @@ const STRATEGIES: PlatformStrategy[] = [
   "parse_first",
   "human_review",
 ];
+
+const readinessStub = {
+  total: 85,
+  grade: "B" as const,
+  pillars: {
+    completeness: { label: "Completeness", score: 22, maxScore: 25 as const, details: [] },
+    keywords: { label: "Keyword Match", score: 20, maxScore: 25 as const, details: [] },
+    bulletQuality: { label: "Bullet Quality", score: 21, maxScore: 25 as const, details: [] },
+    atsCompliance: { label: "ATS Compliance", score: 22, maxScore: 25 as const, details: [] },
+  },
+  topActions: [],
+};
 
 describe("platform-strategy-instructions", () => {
   it.each(STRATEGIES)("buildPlatformStrategyInstructionBlock(%s) includes strategy marker", (strategy) => {
@@ -39,7 +54,7 @@ describe("buildEnhanceUserPrompt platform strategy injection", () => {
   const ctx: CandidateContext = {
     targetRole: "Senior Software Engineer",
     jobDescription: "Python AWS Docker ".repeat(20),
-    resumeBody: { professionalSummary: "Engineer.", skillsText: "Python", experience: [] },
+    resumeBody: { professionalSummary: "Engineer.", skillsText: "Python", experience: [], education: [], certifications: [], projects: [], languages: [], customSections: [], pageLengthPreference: "auto" },
     rawResumeSnippet: undefined,
     senioritySignal: "senior",
     yearsExperienceEstimate: 8,
@@ -51,9 +66,11 @@ describe("buildEnhanceUserPrompt platform strategy injection", () => {
     },
   };
 
-  it.each(STRATEGIES)("includes %s block in optimize pass prompt", (strategy) => {
+  it.each(STRATEGIES)("includes %s block in max-ATS prompt", (strategy) => {
     const instructions = buildPlatformStrategyInstructionBlock(strategy);
-    const prompt = buildEnhanceUserPrompt(ctx, "optimize", undefined, undefined, {
+    const spec = buildAtsOptimizationSpec({
+      mode: "jd_full",
+      targetRole: ctx.targetRole,
       platform: {
         id: "greenhouse",
         label: "Greenhouse",
@@ -61,9 +78,12 @@ describe("buildEnhanceUserPrompt platform strategy injection", () => {
         strategyInstructions: instructions,
         tip: "tip",
       },
-      readiness: { topActions: [] },
-    } as never);
+      readiness: readinessStub,
+      jobDescription: ctx.jobDescription,
+    });
+    const prompt = buildEnhanceUserPrompt(ctx, spec);
 
     expect(prompt).toContain(PLATFORM_STRATEGY_MARKERS[strategy]);
+    expect(prompt).toContain("ATS OPTIMIZATION SPEC");
   });
 });

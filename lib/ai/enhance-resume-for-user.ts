@@ -20,6 +20,7 @@ export type EnhanceResumeProfileInput = {
   form: HubRefineryForm;
   targetRole: string;
   jobDescription?: string;
+  companyName?: string | null;
   rawResumeText?: string | null;
   forceSystem?: boolean;
   useCustomerKey?: boolean;
@@ -40,7 +41,6 @@ export type EnhanceResumeProfileSuccess = {
     callsLimit: number;
   };
   aiMode: "customer" | "system";
-  partialEnhance?: boolean;
   warning?: string;
   engineMode: "ai" | "deterministic";
   fallbackSummary?: string;
@@ -146,6 +146,7 @@ export async function enhanceResumeForUserId(
     profileTargetTitle: input.profileTargetTitle,
     jobDescription: input.jobDescription,
     jobEntryId: input.jobEntryId,
+    companyName: input.companyName,
     rawResumeText: input.rawResumeText,
     surface,
     variant: input.variant ?? "dashboard",
@@ -177,7 +178,6 @@ export async function enhanceResumeForUserId(
     readinessDelta: result.readinessDelta,
     ...(result.warning ? { warning: result.warning } : {}),
     ...(result.aiBlockCode ? { aiBlockCode: result.aiBlockCode } : {}),
-    ...(result.partialEnhance ? { partialEnhance: true } : {}),
     ...(result.aiDisabled ? { aiDisabled: true } : {}),
     ...(result.coherenceWarnings?.length ? { coherenceWarnings: result.coherenceWarnings } : {}),
   };

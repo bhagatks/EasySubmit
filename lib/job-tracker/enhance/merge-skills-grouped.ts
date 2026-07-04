@@ -73,7 +73,7 @@ export function buildGroupedSkills(input: {
   onet: OnetRoleVocabulary;
   summaryTheme?: string;
   experienceBlob?: string;
-  /** When true, cap JD skill injection so resume-native skills are preserved. */
+  /** @deprecated Cross-domain cap removed — JD skills fill to SKILLS_HARD_MAX. */
   isCrossDomain?: boolean;
 }): { grouped: GroupedSkills; skillsText: string; skillsAdded: string[]; overflow?: string[] } {
   const existing = parseSkillsText(input.existingSkillsText);
@@ -101,8 +101,8 @@ export function buildGroupedSkills(input: {
   const jdAnchored = input.experienceBlob
     ? filterSkillsRequiringExperienceAnchor(jdFiltered, input.experienceBlob)
     : jdFiltered;
-  const jdSkillCap = input.isCrossDomain ? 6 : SKILLS_HARD_MAX;
-  const minResumeSkills = input.isCrossDomain ? 5 : 0;
+  const jdSkillCap = SKILLS_HARD_MAX;
+  const minResumeSkills = 0;
   const jdSkills = jdAnchored.slice(0, jdSkillCap);
   const overflow =
     jdAnchored.length > jdSkillCap ? jdAnchored.slice(jdSkillCap) : undefined;

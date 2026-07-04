@@ -17,6 +17,8 @@ import {
 } from "@/lib/profile/studio-form-db";
 import { findProfileForUser } from "@/lib/profile/resume-profile-core";
 import { prisma } from "@/lib/prisma";
+import type { JDIntelligence } from "@/lib/job-tracker/jd/jd-intelligence";
+import { resolveEnhanceContextRequirement } from "@/lib/job-tracker/enhance/max-ats-helpers";
 import { createEnhanceTraceId, logEnhance } from "@/src/lib/ai/engine/enhance-logger";
 import { ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
 
@@ -57,9 +59,15 @@ async function loadJobRow(userId: string, jobId: string) {
       description: true,
       canonicalUrl: true,
       platform: true,
+      jdIntelligence: true,
       resumeTailor: { select: { id: true, coverLetter: true } },
     },
   });
+}
+
+function readJdIntelligence(raw: unknown): JDIntelligence | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  return raw as JDIntelligence;
 }
 
 export async function enhanceJobResumeForUser(
@@ -74,24 +82,32 @@ export async function enhanceJobResumeForUser(
   if (!merged.success) return { success: false, error: merged.error, code: "not_ready" };
 
   const description = job.description?.trim() ?? "";
-  if (description.length < 120) {
+  const targetRole = job.title?.trim() || merged.targetTitle;
+  const context = resolveEnhanceContextRequirement({
+    jobDescription: description,
+    targetRole,
+    companyName: job.company,
+  });
+  if (!context.ok) {
     return {
       success: false,
-      error: "Job description is too short to enhance your resume. Re-capture the posting first.",
+      error: context.error,
       code: "missing_description",
     };
   }
+  const enhanceJobDescription = context.jobDescription;
 
   const traceId = createEnhanceTraceId();
   const atsPlatform = detectPlatform(job.canonicalUrl, job.platform);
   const atsStrategy = resolvePlatformStrategy(atsPlatform);
+  const jdIntelligence = readJdIntelligence(job.jdIntelligence);
 
   const beforePrime = refineryFormToPrimeResume(merged.form);
   const beforeScore = computeResumeReadiness(
     beforePrime,
     merged.targetTitle,
-    description,
-    undefined,
+    enhanceJobDescription,
+    jdIntelligence,
     atsPlatform,
   ).total;
 
@@ -114,9 +130,10 @@ export async function enhanceJobResumeForUser(
     profileId: merged.sourceProfileId,
     jobEntryId: jobId,
     form: merged.form,
-    targetRole: job.title?.trim() || merged.targetTitle,
+    targetRole,
     profileTargetTitle: baseTargetTitle,
-    jobDescription: description,
+    jobDescription: enhanceJobDescription,
+    companyName: job.company,
     rawResumeText: merged.rawResumeText,
     traceId,
     variant: "dashboard",
@@ -144,7 +161,7 @@ export async function enhanceJobResumeForUser(
     sourceProfileId: merged.sourceProfileId,
     jobTitle: job.title,
     company: job.company,
-    jobDescription: description,
+    jobDescription: enhanceJobDescription,
     enhanceTraceId: traceId,
     traceId,
     enhanceMeta: enhanced.sessionMeta,
@@ -159,20 +176,13 @@ export async function enhanceJobResumeForUser(
   await updateJobReviewDocuments(userId, jobId, { resumeLatex });
 
   const afterPrime = refineryFormToPrimeResume(enhanced.form);
-  let afterScore = computeResumeReadiness(
+  const afterScore = computeResumeReadiness(
     afterPrime,
     enhanced.targetRole,
-    description,
-    undefined,
+    enhanceJobDescription,
+    jdIntelligence,
     atsPlatform,
   ).total;
-
-  const isCrossDomain = enhanced.coherenceWarnings?.some((w) =>
-    w.includes("may not match your experience"),
-  );
-  if (isCrossDomain) {
-    afterScore = Math.min(afterScore, beforeScore + 5);
-  }
 
   logEnhance("server", "post.ats_after", {
     traceId,

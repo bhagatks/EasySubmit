@@ -53,7 +53,7 @@ When you apply to an ORC role:
 
 1. **Detection:** URL fingerprint recognizes `*.oraclecloud.com` URLs → `oraclecloud` platform
 2. **Strategy:** Platform resolves to `ai_match` strategy
-3. **Scoring:** Readiness score weights skills-taxonomy breadth + requirement alignment (not keyword density)
+3. **Scoring:** Readiness uses platform-specific ATS compliance warnings (e.g. Greenhouse summary length); strategy drives enhance instructions, not pillar weights
 4. **AI enhance:** Resume rewrite emphasizes:
    - Mirroring JD language (years, skill names, certifications)
    - Expanding skills breadth (not repeating the same terms)

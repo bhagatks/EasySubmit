@@ -1,7 +1,8 @@
 # North Star — Resume Enhance Pipeline
 
-**Status:** Implemented (2026-06-27)  
-**Last updated:** 2026-06-27 (full pipeline + JDSkillsFramework shipped)  
+**Status:** Implemented (2026-06-27); **max-ATS default** (2026-07-03)  
+**Last updated:** 2026-07-03 (single-pass max-ATS brain, skills-only baseline, title+company path)  
+**Supersedes for AI phase:** [`enhance-pipeline-design.md`](./enhance-pipeline-design.md) § Max-ATS mode — brain mission is JD-max score, not "refine baseline honestly."
 **Scope:** Resume enhance only. Cover letter excluded (offline deterministic path stays separate).
 
 This document captures the target architecture agreed in design sessions. Use it as the single source of truth so we do not re-litigate context in every session.
@@ -12,7 +13,7 @@ This document captures the target architecture agreed in design sessions. Use it
 
 ## 1. North star (one sentence)
 
-**Always analyze the resume into a structured brief, always apply a deterministic baseline transform, then optionally let AI refine that baseline — AI on/off only gates phase 3; failures return baseline + warning, not error.**
+**Always analyze the resume into a structured brief, always apply a deterministic baseline transform (skills-only when AI runs), then optionally let AI maximize ATS score in a single pass — AI on/off only gates phase 3; failures return full deterministic baseline + warning, not error.**
 
 ---
 
@@ -241,7 +242,7 @@ Same server path as F3.
 |-------|-------|--------------|
 | 1 ANALYZE | ✅ | No JD sections in brief when JD empty |
 | 2 BASELINE | ✅ | No JD weave |
-| 3 AI | ✅ if gates + JD optional | Single AI pass when no JD (no optimize pass 2) |
+| 3 AI | ✅ if gates + JD optional | Single max-ATS pass (no pass 2) |
 | 4 POST | Client-only | Save → `saveResumeProfileStudio()` |
 
 **Surface:** `FeatureSurface = "resume"` in preflight.
@@ -374,7 +375,6 @@ export type EnhanceRunResult =
       };
       aiMode: "customer" | "system";
       enhanceSummary: string;
-      partialEnhance?: boolean;
       traceId: string;
     }
   | EnhanceResumeProfileFailure;  // hard failures only
@@ -768,20 +768,20 @@ brief?: ResumeEnhanceBrief;
 
 **Remove:** catch-block `deterministicEnhance()` fallback (lines ~541–570) — baseline already applied.
 
-**Keep:** pass2 partial enhance (pass1 ok, pass2 fail) — returns pass1 as AI success with `partialEnhance: true`.
+**Removed (2026-07-03):** pass-2 optimize and `partialEnhance` — single max-ATS pass only.
 
-**`buildCandidateContext`:** use `input.form` (baseline) not raw.
+**`buildCandidateContext`:** use `input.form` (skills-only baseline when AI runs) not raw.
 
-### 8.5 Changes to `src/lib/ai/engine/brain.ts`
+### 8.5 Changes to `src/lib/ai/engine/brain.ts` *(max-ATS, 2026-07-03)*
 
-**`buildEnhanceUserPrompt` changes:**
+**`buildEnhanceUserPrompt`:**
 
-- Opening line: `"Refine this pre-enhanced resume for the target role. Do not discard baseline improvements."`
-- Include `brief.readiness.topActions` as priority fixes
-- Include `brief.jd.coverageAfter.gaps` as "do not fabricate; improve surrounding content only"
-- Reduce emphasis on `mustWeaveKeywords` (baseline already woven)
+- Mission: maximize ATS readiness score using `buildAtsOptimizationSpec()` (same pillars/gaps/platform strategy as ATS panel)
+- Regenerate summary, all experience bullets, and optional sections; only employers/titles/dates/schools/degrees are immutable
+- JD group skills already merged to 20 in baseline — AI may rewrite/reorder `skillsText`
+- `role_company` mode when JD is short but title + company present
 
-**`buildEnhanceSystemPrompt`:** no change expected.
+**`buildEnhanceSystemPrompt`:** max-ATS career-navigator tone; no "refine baseline" / "do not fabricate gaps" guardrails.
 
 ### 8.6 Deprecate `lib/ai/run-deterministic-resume-enhance.ts`
 
@@ -1224,10 +1224,10 @@ Extend `trackEnhanceCompleted`:
 
 - Phase 1: role-only brief (O*NET, bullet quality, summary/skills fine print) — no JD atoms.
 - Phase 2: baseline without JD weave.
-- Phase 3: AI **single pass** (generate only — skip optimize pass 2).
+- Phase 3: AI **single max-ATS pass** (no pass 2).
 - Goal: customize resume to **target role** and flesh out weak sections from role vocabulary.
 
-**Code:** `runResumeEnhance` already skips pass 2 when `!ctx.jobDescription` — no change needed beyond baseline-first input.
+**Code:** `runResumeEnhance` is single-pass only; baseline is skills-only when AI runs.
 
 ### 18.5 Skills injection — locked in §19; JD vocabulary from §23 JDSkillsFramework
 
@@ -1315,7 +1315,7 @@ Tableau, Business Objects, CAPA, Data Analytics | Python, AWS, Kubernetes, Swift
 | Section | Policy |
 |---------|--------|
 | **Skills** | Max-fill JD group + best resume skills to 20 — user may delete in Refinery |
-| **Experience** | No fabrication — weave + gap hints only |
+| **Experience** | Max-ATS AI may regenerate bullets/metrics aggressively; employers/titles/dates immutable |
 
 #### AI phase
 

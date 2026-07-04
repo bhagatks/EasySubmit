@@ -56,8 +56,7 @@ In `ATS_PLATFORM_NAME_ALIASES`:
 export const ATS_PLATFORM_NAME_ALIASES: Record<string, KnownAtsPlatform> = {
   // ... existing ...
   your_platform: "your_platform",
-  yourplatform: "your_platform",       // no spaces
-  "your platform": "your_platform",    // with spaces
+  yourplatform: "your_platform",       // normalized: lowercased, spaces stripped
   yp: "your_platform",                 // abbreviation if common
 };
 ```

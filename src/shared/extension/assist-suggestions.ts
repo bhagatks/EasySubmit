@@ -57,7 +57,7 @@ export function buildAssistFieldSuggestions(
         : item.hint,
     }));
 
-  if (/myworkdayjobs\.com/i.test(url)) {
+  if (/myworkday(?:jobs|site)\.com/i.test(url)) {
     return withWarnings(
       discoverStepFields(doc, url)
         .slice(0, 8)

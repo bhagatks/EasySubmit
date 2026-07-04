@@ -42,6 +42,7 @@ export const APPLY_PIPELINE_FAILURE_LINES = {
   resumeNotReady: "Resume not ready yet.",
   installExtension: "Install extension.",
   applyAssistFailed: "Apply assist failed.",
+  resumeOptimizedWithFallback: "Resume optimized (rule-based fallback).",
   openJobRetry: "Open job and retry.",
 } as const;
 
@@ -285,6 +286,18 @@ function inferStageFromStatus(
 }
 
 function resolveWarningMessage(input: ResolveApplyPipelineUserMessageInput): ApplyPipelineUserMessage | null {
+  const aiPass1 = stepRow(input.progress ?? null, "ai_pass1");
+  if (
+    aiPass1?.status === "warning" &&
+    resumePrepComplete(input.progress ?? null)
+  ) {
+    return {
+      line: APPLY_PIPELINE_FAILURE_LINES.resumeOptimizedWithFallback,
+      kind: "warning",
+      stageId: "optimized_resume",
+    };
+  }
+
   const issue = input.issueMessage?.trim();
   if (!issue || !isCaptureGapMessage(issue)) return null;
   return {

@@ -148,7 +148,7 @@ export const greenhouseAdapter = baseAdapter(
 
 export const workdayAdapter: SiteAdapter = {
   platform: "workday",
-  urlPatterns: [/myworkdayjobs\.com\/(?:[^/]+\/)+(?:job|details)\//i],
+  urlPatterns: [/myworkday(?:jobs|site)\.com\/(?:[^/]+\/)+(?:job|details)\//i],
   mountSelectors: ["[data-automation-id='jobPostingPage']", "main", "body"],
   detectConfidence: detectWorkdayConfidence,
   scrape: (doc) => {

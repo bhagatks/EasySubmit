@@ -12,6 +12,8 @@ import {
   buildEnhanceSystemPrompt,
   buildEnhanceUserPrompt,
 } from "@/src/lib/ai/engine/brain";
+import { buildAtsOptimizationSpecFromBrief } from "@/lib/job-tracker/ats/build-ats-optimization-spec";
+import type { AtsOptimizationSpec } from "@/lib/job-tracker/ats/build-ats-optimization-spec";
 import {
   diffChangedSections,
   normalizeEnhancedBody,
@@ -62,8 +64,12 @@ export type RunEnhanceInput = {
   jobIntelligence?: JobIntelligence;
   /** Pre-computed JD directive — structured instructions replacing raw intelligence block when present. */
   enhanceDirective?: import("@/lib/job-tracker/jd/jd-intelligence").ResumeEnhanceDirective;
-  /** Phase 1 brief — baseline already applied; AI refines only. */
+  /** Phase 1 brief — drives ATS Optimization Spec. */
   brief?: import("@/lib/job-tracker/enhance/enhance-brief").ResumeEnhanceBrief;
+  /** Job company for role-only optimization when JD is short. */
+  companyName?: string | null;
+  /** Whether JD meets minimum length for full keyword spec. */
+  hasFullJd?: boolean;
   /** Temporary QA overlay — live AI pass updates. */
   pipelineDebug?: import("@/lib/extension/pipeline-debug-hooks").PipelineDebugHookContext;
 };
@@ -77,8 +83,6 @@ export type RunEnhanceSuccess = {
   estimatedCost: number;
   apiCallCount: number;
   matchScore?: number;
-  partialEnhance?: boolean;
-  partialEnhanceMessage?: string;
   /** Legacy — baseline-first pipeline no longer uses engine fallback. */
   fallbackUsed?: boolean;
   fallbackSummary?: string;
@@ -818,14 +822,11 @@ export async function callEnhanceObjectModel<T extends z.ZodTypeAny>(
 async function runPass(
   route: ResolvedAiRoute,
   ctx: CandidateContext,
-  pass: "generate" | "optimize",
+  spec: AtsOptimizationSpec,
   traceId: string,
   userId: string | null | undefined,
   pricingMap?: AiPricingMap | null,
   preferredSlot?: number,
-  jobIntelligence?: JobIntelligence,
-  enhanceDirective?: import("@/lib/job-tracker/jd/jd-intelligence").ResumeEnhanceDirective,
-  brief?: import("@/lib/job-tracker/enhance/enhance-brief").ResumeEnhanceBrief,
 ): Promise<{
   text: string;
   tokensUsed: number;
@@ -837,11 +838,8 @@ async function runPass(
 }> {
   logEnhance("engine", "pass.start", {
     traceId,
-    step:
-      pass === "generate"
-        ? ENHANCE_PIPELINE.ENGINE_PASS_GENERATE
-        : ENHANCE_PIPELINE.ENGINE_PASS_OPTIMIZE,
-    pass,
+    step: ENHANCE_PIPELINE.ENGINE_PASS_GENERATE,
+    pass: "max_ats",
     targetRole: ctx.targetRole,
     yearsExperienceEstimate: ctx.yearsExperienceEstimate,
     senioritySignal: ctx.senioritySignal,
@@ -850,22 +848,18 @@ async function runPass(
     jobDescriptionChars: ctx.jobDescription?.length ?? 0,
     rawResumeSnippetChars: ctx.rawResumeSnippet?.length ?? 0,
     preferredSlot: preferredSlot ?? null,
+    optimizationMode: spec.mode,
+    readinessScore: spec.readiness.total,
   });
 
   const system = buildEnhanceSystemPrompt(ctx);
-  const prompt = buildEnhanceUserPrompt(
-    ctx,
-    pass,
-    pass === "optimize" ? jobIntelligence : brief?.jd?.jobIntelligence ?? jobIntelligence,
-    pass === "optimize" ? enhanceDirective : brief?.jd?.directive ?? enhanceDirective,
-    brief,
-  );
+  const prompt = buildEnhanceUserPrompt(ctx, spec);
   const result = await callEnhanceModel(
     route,
     system,
     prompt,
     traceId,
-    pass,
+    "generate",
     userId,
     preferredSlot,
   );
@@ -898,7 +892,7 @@ export async function runResumeEnhance(
     step: ENHANCE_PIPELINE.ENGINE_RUN_START,
     targetRole: originalTarget,
     route: sanitizeRouteForLog(input.route),
-    twoPass: Boolean(input.jobDescription?.trim()),
+    twoPass: false,
   });
   logEnhanceDiag({
     traceId,
@@ -913,9 +907,24 @@ export async function runResumeEnhance(
     flags: {
       routeMode: input.route.mode,
       provider: input.route.mode === "customer" ? input.route.provider : "system",
-      twoPass: Boolean(input.jobDescription?.trim()),
+      twoPass: false,
     },
     params: { targetRole: originalTarget },
+  });
+
+  if (!input.brief) {
+    return {
+      ok: false,
+      error: "Enhance brief required for max-ATS optimization.",
+      code: "provider_error",
+    };
+  }
+
+  const hasFullJd = input.hasFullJd ?? (input.jobDescription?.trim().length ?? 0) >= 120;
+  const spec = buildAtsOptimizationSpecFromBrief(input.brief, {
+    hasFullJd,
+    companyName: input.companyName,
+    jobDescription: input.jobDescription,
   });
 
   const ctx = buildCandidateContext({
@@ -929,45 +938,40 @@ export async function runResumeEnhance(
   let totalCost = 0;
   let lastModelId = input.route.modelId;
   let apiCallCount = 0;
-  let partialEnhance = false;
-  let partialEnhanceMessage: string | undefined;
   const debug = input.pipelineDebug ?? null;
 
   try {
     pipelineDebugStep(debug, "ai_pass1", {
       status: "active",
-      detail: "Calling generateText pass 1",
+      detail: "Calling max-ATS resume generation",
       meta: {
         routeMode: input.route.mode,
         modelId: input.route.modelId,
         provider: input.route.mode === "customer" ? input.route.provider : "system",
+        optimizationMode: spec.mode,
       },
     });
 
-    const pass1 = await runPass(
+    const pass = await runPass(
       input.route,
       ctx,
-      "generate",
+      spec,
       traceId,
       input.userId,
       pricingMap,
-      undefined,
-      input.jobIntelligence,
-      input.enhanceDirective,
-      input.brief,
     );
-    totalTokens += pass1.tokensUsed;
-    totalCost += pass1.estimatedCost;
-    lastModelId = pass1.modelId;
+    totalTokens += pass.tokensUsed;
+    totalCost += pass.estimatedCost;
+    lastModelId = pass.modelId;
     apiCallCount += 1;
 
-    const pass1Body = parseEnhancedResumeBody(pass1.text);
-    if (!pass1Body) {
+    const passBody = parseEnhancedResumeBody(pass.text);
+    if (!passBody) {
       logEnhance("engine", "run.parse_failed", {
         traceId,
         step: ENHANCE_PIPELINE.ENGINE_MERGE,
-        pass: "generate",
-        responsePreviewChars: Math.min(pass1.text.length, 500),
+        pass: "max_ats",
+        responsePreviewChars: Math.min(pass.text.length, 500),
       });
       logEnhanceDiag({
         traceId,
@@ -980,8 +984,8 @@ export async function runResumeEnhance(
         scope: "engine",
         userId: input.userId,
         errorCode: "invalid_response",
-        flags: { pass: "generate" },
-        params: { responsePreviewChars: Math.min(pass1.text.length, 500) },
+        flags: { pass: "max_ats" },
+        params: { responsePreviewChars: Math.min(pass.text.length, 500) },
       });
       return {
         ok: false,
@@ -993,103 +997,33 @@ export async function runResumeEnhance(
     logEnhance("engine", "run.parse_ok", {
       traceId,
       step: ENHANCE_PIPELINE.ENGINE_MERGE,
-      pass: "generate",
+      pass: "max_ats",
     });
 
-    let finalBody = normalizeEnhancedBody(pass1Body, input.form, traceId, input.userId ?? "unknown");
+    const finalBody = normalizeEnhancedBody(passBody, input.form, traceId, input.userId ?? "unknown");
 
-    if (ctx.jobDescription) {
-      const optimizeCtx: CandidateContext = {
-        ...ctx,
-        resumeBody: finalBody,
-      };
-
-      pipelineDebugAdvance(debug, "ai_pass2", "ai_pass1", {
-        detail: "Pass 1 OK — starting pass 2 optimize",
-        meta: { modelId: pass1.modelId, tokensUsed: pass1.tokensUsed },
-        artifacts: [
-          aiRequestArtifact("Pass 1 request", {
-            pass: "generate",
-            modelId: pass1.modelId,
-            system: pass1.promptSystem,
-            user: pass1.promptUser,
-          }),
-          aiResponseArtifact("Pass 1 response", {
-            text: pass1.text,
-            modelId: pass1.modelId,
-            tokensUsed: pass1.tokensUsed,
-          }),
-        ],
-      });
-
-      try {
-        const pass2 = await runPass(
-          input.route,
-          optimizeCtx,
-          "optimize",
-          traceId,
-          input.userId,
-          pricingMap,
-          pass1.slot,
-          input.jobIntelligence,
-          input.enhanceDirective,
-          input.brief,
-        );
-        totalTokens += pass2.tokensUsed;
-        totalCost += pass2.estimatedCost;
-        lastModelId = pass2.modelId;
-        apiCallCount += 1;
-
-        const pass2Body = parseEnhancedResumeBody(pass2.text);
-        if (pass2Body) {
-          finalBody = normalizeEnhancedBody(pass2Body, input.form, traceId, input.userId ?? "unknown");
-          pipelineDebugStep(debug, "ai_pass2", {
-            status: "done",
-            detail: "Pass 2 optimize complete",
-            artifacts: [
-              aiRequestArtifact("Pass 2 request", {
-                pass: "optimize",
-                modelId: pass2.modelId,
-                system: pass2.promptSystem,
-                user: pass2.promptUser,
-              }),
-              aiResponseArtifact("Pass 2 response", {
-                text: pass2.text,
-                modelId: pass2.modelId,
-                tokensUsed: pass2.tokensUsed,
-              }),
-            ],
-          });
-          logEnhance("engine", "run.parse_ok", {
-            traceId,
-            step: ENHANCE_PIPELINE.ENGINE_MERGE,
-            pass: "optimize",
-          });
-        } else {
-          partialEnhance = true;
-          partialEnhanceMessage =
-            "Job-specific optimization returned an invalid format. Your base enhancement was saved.";
-          logEnhance("engine", "run.parse_failed", {
-            traceId,
-            step: ENHANCE_PIPELINE.ENGINE_MERGE,
-            pass: "optimize",
-            note: "keeping_pass1_body",
-            responsePreviewChars: Math.min(pass2.text.length, 500),
-          });
-        }
-      } catch (pass2Err) {
-        partialEnhance = true;
-        partialEnhanceMessage =
-          "Job-specific optimization failed after retries. Your base enhancement was saved.";
-        logEnhance("engine", "run.pass2_failed", {
-          traceId,
-          step: ENHANCE_PIPELINE.ENGINE_MERGE,
-          note: "keeping_pass1_body",
-          message:
-            pass2Err instanceof Error ? pass2Err.message : String(pass2Err),
-        });
-      }
-    }
+    pipelineDebugStep(debug, "ai_pass1", {
+      status: "done",
+      detail: `Max-ATS pass complete — ${pass.modelId}`,
+      meta: { tokensUsed: pass.tokensUsed, apiCallCount: 1 },
+      artifacts: [
+        aiRequestArtifact("Max-ATS request", {
+          pass: "max_ats",
+          modelId: pass.modelId,
+          system: pass.promptSystem,
+          user: pass.promptUser,
+        }),
+        aiResponseArtifact("Max-ATS response", {
+          text: pass.text,
+          modelId: pass.modelId,
+          tokensUsed: pass.tokensUsed,
+        }),
+      ],
+    });
+    pipelineDebugStep(debug, "ai_pass2", {
+      status: "skipped",
+      detail: "Single-pass max-ATS mode",
+    });
 
     const merged = mergeEnhancedBodyIntoForm(input.form, finalBody);
     const changedSections = diffChangedSections(input.form, merged, false);
@@ -1104,7 +1038,6 @@ export async function runResumeEnhance(
       totalCost,
       apiCallCount,
       modelId: lastModelId,
-      partialEnhance,
       delta: summarizeFormDelta(input.form, merged),
     });
     logEnhanceDiag({
@@ -1117,7 +1050,7 @@ export async function runResumeEnhance(
       event: "engine.run.success",
       scope: "engine",
       userId: input.userId,
-      flags: { partialEnhance },
+      flags: {},
       params: {
         changedSectionCount: changedSections.length,
         totalTokens,
@@ -1136,9 +1069,6 @@ export async function runResumeEnhance(
       modelId: lastModelId,
       estimatedCost: totalCost,
       apiCallCount,
-      ...(partialEnhance
-        ? { partialEnhance: true, partialEnhanceMessage }
-        : {}),
     };
   } catch (err) {
     const aiMode = input.route.mode;

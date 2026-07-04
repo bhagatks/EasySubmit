@@ -17,7 +17,7 @@ export const HIGH_CONFIDENCE_JOB_URL_PATTERNS: RegExp[] = [
   /jobs\.lever\.co\/[^/]+/i,
   /jobs\.ashbyhq\.com\/[^/]+/i,
   /smartrecruiters\.com\/[^/]+\/[^/]+/i,
-  /myworkdayjobs\.com\/(?:[^/]+\/)+(?:job|details)\//i,
+  /myworkday(?:jobs|site)\.com\/(?:[^/]+\/)+(?:job|details)\//i,
   /\/jobdetail\b/i,
   /jobs\.[a-z0-9.-]+\/[a-z]{2}(?:_[a-z]{2})?\/[a-z]{2}\/job\//i,
   /\/job\/[^/]+\/\d+\/?/i,

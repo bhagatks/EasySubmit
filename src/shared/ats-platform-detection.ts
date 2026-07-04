@@ -76,7 +76,7 @@ export const ATS_URL_PATTERNS: readonly AtsUrlPattern[] = [
   { pattern: /oraclecloud\.com.*\/hcmUI\/CandidateExperience/i, platform: "oraclecloud" },
   { pattern: /\.oraclecloud\.com/i, platform: "oraclecloud" },
   { pattern: /taleo\.net|oracle\.com\/taleo/i, platform: "taleo" },
-  { pattern: /myworkdayjobs\.com|\.wd\d+\.myworkdayjobs\.com/i, platform: "workday" },
+  { pattern: /myworkday(?:jobs|site)\.com|\.wd\d+\.myworkday(?:jobs|site)\.com/i, platform: "workday" },
   {
     pattern: /(?:boards|job-boards)\.greenhouse\.io|greenhouse\.io|[?&]gh_jid=\d+/i,
     platform: "greenhouse",

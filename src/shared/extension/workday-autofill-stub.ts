@@ -16,7 +16,7 @@ export async function runWorkdayAutofillStub(
   doc: Document,
   href: string,
 ): Promise<WorkdayAutofillStubResult> {
-  if (!/myworkdayjobs\.com/i.test(href)) {
+  if (!/myworkday(?:jobs|site)\.com/i.test(href)) {
     return {
       ok: false,
       error: "Autofill is only supported on Workday job pages right now.",

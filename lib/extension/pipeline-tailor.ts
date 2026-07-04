@@ -29,9 +29,11 @@ import {
   summarizeFormDelta,
   summarizeFormForLog,
 } from "@/src/lib/ai/engine/enhance-logger";
+import {
+  hasFullJd,
+  resolveEnhanceContextRequirement,
+} from "@/lib/job-tracker/enhance/max-ats-helpers";
 import { TAILOR_PIPELINE, ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
-
-const MIN_JD_CHARS = 120;
 
 export type PipelineTailorInput = {
   entryId: string;
@@ -61,10 +63,6 @@ export type PipelineTailorFailure = {
 
 export type PipelineTailorResult = PipelineTailorSuccess | PipelineTailorFailure;
 
-function isDescriptionPresent(description: string | null | undefined): boolean {
-  return (description?.trim().length ?? 0) >= MIN_JD_CHARS;
-}
-
 /** Phase B — enhance source profile with JD, persist section overrides on the job row. */
 export async function runPipelineTailor(
   userId: string,
@@ -86,34 +84,46 @@ export async function runPipelineTailor(
     sourceProfileId: input.sourceProfileId ?? null,
   });
 
-  if (!isDescriptionPresent(input.jobDescription)) {
-    const message =
-      "Job description is too short to tailor your resume. Open the posting and try again.";
+  const context = resolveEnhanceContextRequirement({
+    jobDescription: input.jobDescription,
+    targetRole: input.jobTitle,
+    companyName: input.company,
+  });
+
+  if (!context.ok) {
     logEnhance("pipeline", "tailor.jd_rejected", {
       traceId,
       step: TAILOR_PIPELINE.TAILOR_JD_CHECK,
       reason: "missing_description",
       jobDescriptionChars: input.jobDescription?.trim().length ?? 0,
-      minChars: MIN_JD_CHARS,
+      hasCompany: Boolean(input.company?.trim()),
     });
-    await recordPipelineTailorError(userId, input.entryId, message, "missing_description");
+    await recordPipelineTailorError(userId, input.entryId, context.error, "missing_description");
     pipelineDebugStep(debug, "pre_validate", {
       status: "error",
-      detail: message,
-      meta: { jobDescriptionChars: input.jobDescription?.trim().length ?? 0 },
+      detail: context.error,
+      meta: {
+        jobDescriptionChars: input.jobDescription?.trim().length ?? 0,
+        hasCompany: Boolean(input.company?.trim()),
+      },
     });
-    return { success: false, error: message, code: "missing_description" };
+    return { success: false, error: context.error, code: "missing_description" };
   }
+
+  const tailorJobDescription = context.jobDescription;
 
   pipelineDebugStep(debug, "pre_validate", {
     status: "done",
-    detail: `JD ${input.jobDescription!.trim().length} chars`,
+    detail: hasFullJd(tailorJobDescription)
+      ? `JD ${tailorJobDescription.length} chars`
+      : `Role + company (${input.jobTitle} @ ${input.company?.trim()})`,
   });
 
   logEnhance("pipeline", "tailor.jd_ok", {
     traceId,
     step: TAILOR_PIPELINE.TAILOR_JD_CHECK,
-    jobDescriptionChars: input.jobDescription!.trim().length,
+    jobDescriptionChars: tailorJobDescription.length,
+    mode: hasFullJd(tailorJobDescription) ? "jd_full" : "role_company",
   });
 
   const jobTitle = sanitizeString(input.jobTitle, 160);
@@ -180,7 +190,8 @@ export async function runPipelineTailor(
     form: baseForm,
     targetRole: jobTitle,
     profileTargetTitle: baseTargetTitle,
-    jobDescription: input.jobDescription!.trim(),
+    jobDescription: tailorJobDescription,
+    companyName: input.company ?? null,
     rawResumeText: source.resumeRawText,
     traceId,
     variant: "pipeline",
@@ -216,7 +227,6 @@ export async function runPipelineTailor(
     step: TAILOR_PIPELINE.TAILOR_ENHANCE_RESULT,
     engineMode: enhanced.engineMode ?? "ai",
     fallbackSummary: enhanced.fallbackSummary ?? null,
-    partialEnhance: enhanced.partialEnhance ?? false,
     changedSections: enhanced.changedSections,
     targetRole: enhanced.targetRole,
     aiMode: enhanced.aiMode,
@@ -251,7 +261,7 @@ export async function runPipelineTailor(
     sourceProfileId: source.id,
     jobTitle,
     company: input.company ?? null,
-    jobDescription: input.jobDescription!.trim(),
+    jobDescription: tailorJobDescription,
     enhanceTraceId: traceId,
     traceId,
     enhanceMeta: enhanced.sessionMeta,

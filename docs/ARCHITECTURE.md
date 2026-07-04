@@ -184,6 +184,7 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 
 | Date | Summary |
 |------|---------|
+| 2026-07-03 | **Max-ATS enhance** — single AI pass driven by `buildAtsOptimizationSpec()` (same scoring as ATS panel); skills-only baseline when AI runs; full deterministic fallback on AI fail (`ai_pass1` → warning); cross-domain 6-skill cap removed; extension tailor + Review accept title+company when JD short; Review ATS delta cap removed; `partialEnhance` / pass-2 dropped. |
 | 2026-07-02 | **Env domains** — `lib/env/env-resolution.mjs`; PostHog admin (`buildPostHogAdminEnv`) isolated from `DATABASE_URL`; `prisma.config.ts` never loads `.env.local`; `docs/rules/env-domains.md`. |
 | 2026-07-01 | Extension CWS host permissions — store builds use `extension/cws-host-matches.json` (scoped ATS + career paths) instead of `https://*/*`; adds `activeTab`. |
 | 2026-07-01 | Extension build outputs split — `dist/extension-dev/` (localhost) vs `dist/extension/` (prod / CWS only). |

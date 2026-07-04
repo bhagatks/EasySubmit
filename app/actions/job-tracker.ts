@@ -128,15 +128,21 @@ function toDetail(entry: {
   appliedAt: Date | null;
   description: string | null;
   notes: string | null;
+  jdIntelligence?: unknown;
   metadata: unknown;
   resumeTailor?: { id: string } | null;
   updatedAt: Date;
 }): JobTrackerDetail {
   const metadata = readMetadata(entry.metadata);
+  const jdIntelligence =
+    entry.jdIntelligence && typeof entry.jdIntelligence === "object" && !Array.isArray(entry.jdIntelligence)
+      ? (entry.jdIntelligence as import("@/lib/job-tracker/jd/jd-intelligence").JDIntelligence)
+      : null;
   return {
     ...toSummary({ ...entry, metadata }),
     description: entry.description,
     notes: entry.notes,
+    jdIntelligence,
     metadata,
     hasTailoredResume: Boolean(entry.resumeTailor?.id),
     sourceProfileId: readSourceProfileId(metadata),
@@ -209,6 +215,7 @@ export async function getJobTrackerEntryById(entryId: string): Promise<JobTracke
       ...listSelect,
       notes: true,
       updatedAt: true,
+      jdIntelligence: true,
     },
   });
 

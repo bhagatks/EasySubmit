@@ -1,74 +1,82 @@
 import { describe, expect, it } from "vitest";
 import { buildPlatformStrategyInstructionBlock } from "@/lib/job-tracker/ats/platform-strategy-instructions";
-import { getPlatformRules, resolvePlatformStrategy } from "@/lib/job-tracker/ats/platform-rules";
+import {
+  getPlatformRules,
+  resolvePlatformStrategy,
+  type AtsPlatform,
+  type PlatformStrategy,
+} from "@/lib/job-tracker/ats/platform-rules";
+import { computeResumeReadiness } from "@/lib/job-tracker/ats/resume-readiness-score";
 import { buildEnhanceUserPrompt } from "@/src/lib/ai/engine/brain";
 import type { CandidateContext } from "@/src/lib/ai/engine/candidate-context";
-import type { ResumeEnhanceBrief } from "@/lib/job-tracker/enhance/enhance-brief";
+import { buildAtsOptimizationSpec } from "@/lib/job-tracker/ats/build-ats-optimization-spec";
+import type { PrimeResumeData } from "@/components/onboarding/PrimeResume";
+
+const readinessStub = {
+  total: 85,
+  grade: "B" as const,
+  pillars: {
+    completeness: { label: "Completeness", score: 22, maxScore: 25 as const, details: [] },
+    keywords: { label: "Keyword Match", score: 20, maxScore: 25 as const, details: [] },
+    bulletQuality: { label: "Bullet Quality", score: 21, maxScore: 25 as const, details: [] },
+    atsCompliance: { label: "ATS Compliance", score: 22, maxScore: 25 as const, details: [] },
+  },
+  topActions: [],
+};
+
+function specForStrategy(strategy: PlatformStrategy, platform: AtsPlatform) {
+  return buildAtsOptimizationSpec({
+    mode: "jd_full",
+    targetRole: "Senior Software Engineer",
+    platform: {
+      id: platform,
+      label: getPlatformRules(platform).label,
+      strategy,
+      strategyInstructions: buildPlatformStrategyInstructionBlock(strategy),
+      tip: getPlatformRules(platform).tip,
+    },
+    readiness: readinessStub,
+    jobDescription: "Python AWS Docker Kubernetes",
+  });
+}
 
 describe("platform strategy integration", () => {
-  const createMockBrief = (strategy: string, platform: string): Partial<ResumeEnhanceBrief> => ({
-    platform: {
-      id: platform as any,
-      label: getPlatformRules(platform as any).label,
-      strategy: strategy as any,
-      strategyInstructions: buildPlatformStrategyInstructionBlock(strategy as any),
-      tip: getPlatformRules(platform as any).tip,
-    },
-    readiness: { topActions: [], total: 85 },
-    summaryIdentity: { identity: "Software Engineer", jdTargetRole: "Senior Engineer", isCrossDomain: false },
-    jd: undefined,
-    skills: { list: ["Python", "AWS", "TypeScript"] },
-  });
-
   const mockCandidateContext: CandidateContext = {
     targetRole: "Senior Software Engineer",
     jobDescription: "Python AWS Docker Kubernetes",
-    resumeBody: { professionalSummary: "Senior engineer with 7 years experience.", skillsText: "Python AWS" },
+    resumeBody: {
+      professionalSummary: "Senior engineer with 7 years experience.",
+      skillsText: "Python AWS",
+      experience: [],
+      education: [],
+      certifications: [],
+      projects: [],
+      languages: [],
+      customSections: [],
+      pageLengthPreference: "auto",
+    },
     senioritySignal: "senior",
     yearsExperienceEstimate: 7,
     pageBudget: { pages: 1, maxRolesDetailed: 3, maxSkills: 20, summarySentencesMax: 4 },
   };
 
-  it("strategy instructions are injected into both generate and optimize AI prompts", () => {
-    const brief = createMockBrief("human_review", "greenhouse");
-    const generatePrompt = buildEnhanceUserPrompt(
-      mockCandidateContext,
-      "generate",
-      undefined,
-      undefined,
-      brief as ResumeEnhanceBrief,
-    );
-    const optimizePrompt = buildEnhanceUserPrompt(
-      mockCandidateContext,
-      "optimize",
-      undefined,
-      undefined,
-      brief as ResumeEnhanceBrief,
-    );
+  it("strategy instructions are injected into max-ATS prompt", () => {
+    const spec = specForStrategy("human_review", "greenhouse");
+    const prompt = buildEnhanceUserPrompt(mockCandidateContext, spec);
 
-    expect(generatePrompt).toContain("PLATFORM STRATEGY: HUMAN REVIEW");
-    expect(optimizePrompt).toContain("PLATFORM STRATEGY: HUMAN REVIEW");
-    expect(generatePrompt).toContain("readability and quantified impact");
-    expect(optimizePrompt).toContain("readability and quantified impact");
+    expect(prompt).toContain("PLATFORM STRATEGY: HUMAN REVIEW");
+    expect(prompt).toContain("readability and quantified impact");
+    expect(prompt).toContain("ATS OPTIMIZATION SPEC");
   });
 
   it("keyword_search strategy differs from human_review in prompt content", () => {
-    const keywordBrief = createMockBrief("keyword_search", "taleo");
-    const humanBrief = createMockBrief("human_review", "greenhouse");
-
     const keywordPrompt = buildEnhanceUserPrompt(
       mockCandidateContext,
-      "optimize",
-      undefined,
-      undefined,
-      keywordBrief as ResumeEnhanceBrief,
+      specForStrategy("keyword_search", "taleo"),
     );
     const humanPrompt = buildEnhanceUserPrompt(
       mockCandidateContext,
-      "optimize",
-      undefined,
-      undefined,
-      humanBrief as ResumeEnhanceBrief,
+      specForStrategy("human_review", "greenhouse"),
     );
 
     expect(keywordPrompt).toContain("PLATFORM STRATEGY: KEYWORD SEARCH");
@@ -81,13 +89,9 @@ describe("platform strategy integration", () => {
   });
 
   it("ai_match strategy emphasizes skills taxonomy breadth", () => {
-    const brief = createMockBrief("ai_match", "ashby");
     const prompt = buildEnhanceUserPrompt(
       mockCandidateContext,
-      "optimize",
-      undefined,
-      undefined,
-      brief as ResumeEnhanceBrief,
+      specForStrategy("ai_match", "ashby"),
     );
 
     expect(prompt).toContain("PLATFORM STRATEGY: AI MATCH");
@@ -96,13 +100,9 @@ describe("platform strategy integration", () => {
   });
 
   it("parse_first strategy emphasizes structural parsing and standard titles", () => {
-    const brief = createMockBrief("parse_first", "workday");
     const prompt = buildEnhanceUserPrompt(
       mockCandidateContext,
-      "optimize",
-      undefined,
-      undefined,
-      brief as ResumeEnhanceBrief,
+      specForStrategy("parse_first", "workday"),
     );
 
     expect(prompt).toContain("PLATFORM STRATEGY: PARSE FIRST");
@@ -112,14 +112,19 @@ describe("platform strategy integration", () => {
   });
 
   it("all strategy blocks include resume spec immutability reminder", () => {
-    for (const strategy of ["keyword_search", "ai_match", "parse_first", "human_review"] as const) {
+    for (const strategy of [
+      "keyword_search",
+      "ai_match",
+      "parse_first",
+      "human_review",
+    ] as const) {
       const block = buildPlatformStrategyInstructionBlock(strategy);
       expect(block).toContain("Do not violate resume spec");
     }
   });
 
   it("platform rules align with strategy assignments", () => {
-    const platforms: Array<[string, any]> = [
+    const platforms: Array<[AtsPlatform, PlatformStrategy]> = [
       ["taleo", "keyword_search"],
       ["jobvite", "keyword_search"],
       ["ashby", "ai_match"],
@@ -130,7 +135,7 @@ describe("platform strategy integration", () => {
     ];
 
     for (const [platform, expectedStrategy] of platforms) {
-      const rules = getPlatformRules(platform as any);
+      const rules = getPlatformRules(platform);
       expect(rules.strategy).toBe(expectedStrategy);
     }
   });
@@ -139,5 +144,43 @@ describe("platform strategy integration", () => {
     expect(resolvePlatformStrategy("unknown")).toBe("keyword_search");
     const unknownRules = getPlatformRules("unknown");
     expect(unknownRules.strategy).toBe("keyword_search");
+  });
+
+  it("readiness scoring applies platform-specific ATS compliance warnings", () => {
+    const data: PrimeResumeData = {
+      fullName: "Jane Smith",
+      email: "jane@example.com",
+      phone: "555-0100",
+      summary: "Short.",
+      skills: ["Python"],
+      experience: [
+        {
+          title: "Engineer",
+          company: "Acme",
+          bullets: ["Built systems"],
+        },
+      ],
+      education: [{ school: "State U", degree: "BS", field: "CS" }],
+    };
+    const jobDescription = "x".repeat(150);
+
+    const greenhouse = computeResumeReadiness(
+      data,
+      "Software Engineer",
+      jobDescription,
+      undefined,
+      "greenhouse",
+    );
+    const unknown = computeResumeReadiness(
+      data,
+      "Software Engineer",
+      jobDescription,
+      undefined,
+      "unknown",
+    );
+
+    expect(greenhouse.pillars.atsCompliance.details).not.toEqual(
+      unknown.pillars.atsCompliance.details,
+    );
   });
 });

@@ -47,4 +47,12 @@ describe("workday helpers", () => {
     ).toBe("iRhythm");
     expect(humanizeWorkdaySiteName("iRhythm")).toBe("iRhythm");
   });
+
+  it("parses myworkdaysite.com recruiting URLs (Fidelity-style tenant)", () => {
+    const fidelityUrl =
+      "https://wd1.myworkdaysite.com/en-US/recruiting/fmr/FidelityCareers/job/Merrimack-NH/Director--AI-ML-and-Data-Architecture_2127738";
+    expect(parseWorkdayCompanyFromUrl(fidelityUrl)).toBe("Fidelity Careers");
+    expect(parseWorkdayTitleFromUrl(fidelityUrl)).toContain("Director");
+    expect(humanizeWorkdaySiteName("FidelityCareers")).toBe("Fidelity");
+  });
 });

@@ -73,7 +73,7 @@ describe("resolveApplyPipelineUserMessage", () => {
         metadata: { pipelineError: "AI enhancement failed" },
         stepFailure: {
           stepId: "ai_pass1",
-          label: "AI pass 1 — generate",
+          label: "Max-ATS AI pass",
           detail: "Provider timeout",
           stage: "resume_prep",
           stageTitle: "Resume prepared",
@@ -127,12 +127,43 @@ describe("formatApplyPipelineDevDetail", () => {
       formatApplyPipelineDevDetail({
         stepFailure: {
           stepId: "ai_pass1",
-          label: "AI pass 1 — generate",
+          label: "Max-ATS AI pass",
           detail: "Provider timeout",
           stage: "resume_prep",
           stageTitle: "Resume prepared",
         },
       }),
-    ).toBe("AI pass 1 — generate — Provider timeout");
+    ).toBe("Max-ATS AI pass — Provider timeout");
+  });
+
+  it("shows fallback warning when ai_pass1 warns but resume prep completed", () => {
+    const base = emptyPipelineDebugProgress("trace-1");
+    const progress = {
+      ...base,
+      steps: base.steps.map((step) => {
+        if (step.id === "ai_pass1") {
+          return {
+            ...step,
+            status: "warning" as const,
+            detail: "AI unavailable — full deterministic baseline applied",
+          };
+        }
+        if (step.id === "persist_overrides") {
+          return { ...step, status: "done" as const };
+        }
+        return step;
+      }),
+    };
+
+    expect(
+      resolveApplyPipelineUserMessage({
+        status: "RESUME_READY",
+        progress,
+      }),
+    ).toMatchObject({
+      line: APPLY_PIPELINE_FAILURE_LINES.resumeOptimizedWithFallback,
+      kind: "warning",
+      stageId: "optimized_resume",
+    });
   });
 });

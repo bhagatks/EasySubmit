@@ -34,7 +34,6 @@ export type EnhanceRunSuccess = {
   };
   aiMode: "customer" | "system";
   enhanceSummary: string;
-  partialEnhance?: boolean;
   traceId: string;
   sessionMeta: EnhanceSessionMeta;
   skillsAdded: string[];
@@ -52,6 +51,7 @@ export type ResumeEnhancePipelineInput = {
   profileTargetTitle?: string;
   jobDescription?: string;
   jobEntryId?: string;
+  companyName?: string | null;
   rawResumeText?: string | null;
   surface: import("@/lib/features/types").FeatureSurface;
   variant: NonNullable<import("@/lib/ai/enhance-resume-for-user").EnhanceResumeProfileInput["variant"]>;

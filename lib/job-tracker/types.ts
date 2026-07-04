@@ -1,5 +1,6 @@
 import type { JobTrackerStatus } from "@/lib/generated/prisma/client";
 import type { PrimeResumeData } from "@/components/onboarding/PrimeResume";
+import type { JDIntelligence } from "@/lib/job-tracker/jd/jd-intelligence";
 import type { StudioEditorSectionId } from "@/lib/resume/studio-editor-sections";
 import type { PipelineStepFailure } from "@/lib/job-tracker/pipeline-tracker-view";
 
@@ -32,6 +33,8 @@ export type JobTrackerSummary = {
 export type JobTrackerDetail = JobTrackerSummary & {
   description: string | null;
   notes: string | null;
+  /** Cached JD brain output — drives keyword gap when present (post-tailor jobs). */
+  jdIntelligence?: JDIntelligence | null;
   metadata: Record<string, unknown> | null;
   hasTailoredResume: boolean;
   sourceProfileId: string | null;
