@@ -249,8 +249,17 @@ npm run db:seed
 
 This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
 
-Rules:
-- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
-- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
-- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
-- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+**Always run graphify first** for codebase questions, architecture exploration, and code searches. It returns scoped subgraphs much faster than raw grep/file reads.
+
+**Commands:**
+- `graphify query "<question>"` — scoped subgraph for your question (e.g., "how does enhance pipeline work?")
+- `graphify explain "<concept>"` — deep dive on a single concept (e.g., "ATS keyword gap")
+- `graphify path "<A>" "<B>"` — relationships between two entities (e.g., "resume-readiness-score" → "keyword-gap")
+- `graphify update .` — refresh the graph after code changes (AST-only, no API cost)
+
+**When to use which:**
+- "How does X work?" or "Where is X defined?" → `query`
+- Understanding a specific module/concept deeply → `explain`
+- Finding connections and dependencies → `path`
+- Broad architecture review → read `graphify-out/GRAPH_REPORT.md`
+- Navigation reference → check `graphify-out/wiki/index.md` if it exists
