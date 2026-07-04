@@ -132,6 +132,13 @@ export function buildResumePreviewHtml(form: HubRefineryForm, targetTitle: strin
       font-size: ${FONT_SIZE.contact}pt;
       margin-bottom: ${SPACING.afterContact}pt;
     }
+    .target-title {
+      text-align: center;
+      color: ${COLOR.nearBlack};
+      font-size: ${FONT_SIZE.targetTitle}pt;
+      font-weight: 700;
+      margin: -${Math.max(0, SPACING.afterContact - 2)}pt 0 ${SPACING.afterContact}pt;
+    }
     .section { margin-bottom: ${SPACING.betweenSections}pt; }
     h2 {
       font-size: ${FONT_SIZE.section}pt;
@@ -168,6 +175,7 @@ export function buildResumePreviewHtml(form: HubRefineryForm, targetTitle: strin
     <div class="toolbar-spacer" aria-hidden="true"></div>
     <h1>${name}</h1>
     ${contact ? `<div class="contact">${contact}</div>` : ""}
+    ${content.targetTitle ? `<div class="target-title">${escapeHtml(content.targetTitle)}</div>` : ""}
     ${renderContentSections(content)}
   </div>
 </body>

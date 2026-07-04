@@ -64,6 +64,33 @@ describe("summary-grounding", () => {
     expect(fixed.toLowerCase()).not.toMatch(/^director, procurement/);
   });
 
+  it("allows target-role opening for aligned technical leadership jobs", () => {
+    const identity = resolveSummaryIdentity({
+      profileTargetTitle: "Head of Engineering",
+      form: {
+        experience: [
+          {
+            title: "Head of Engineering",
+            company: "7-Eleven",
+            bullets:
+              "Led AWS microservices, event-driven APIs, data migration, platform architecture, and Agentic AI delivery workflows.",
+          },
+        ],
+      } as HubRefineryForm,
+      jdTargetRole: "Director, AI/ML and Data Architecture",
+      jdKeywords: ["data architecture", "AI/ML", "cloud", "microservices"],
+      jdDomain: "ml-ai",
+    });
+
+    const fixed = enforceSummaryIdentityOpening(
+      "Director, AI/ML and Data Architecture with 20 years of experience modernizing enterprise platforms.",
+      identity,
+    );
+
+    expect(identity.mayUseJdTitleInSummary).toBe(true);
+    expect(fixed).toMatch(/^Director, AI\/ML and Data Architecture/);
+  });
+
   it("fixes Present Present artifacts", () => {
     expect(normalizePresentDateArtifacts("Jan 2024 – Present Present")).toBe(
       "Jan 2024 – Present",

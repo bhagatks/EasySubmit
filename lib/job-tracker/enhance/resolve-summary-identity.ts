@@ -177,6 +177,12 @@ function candidateLooksTechnical(form: HubRefineryForm, jdDomain?: JDDomain): bo
   );
 }
 
+function looksLikeTechnicalTargetRole(role: string): boolean {
+  return /\b(ai|ml|machine learning|data|architecture|architect|engineering|engineer|software|platform|cloud|security|devops|sre|mobile|backend|frontend|fullstack)\b/i.test(
+    role,
+  );
+}
+
 export function resolveSummaryIdentity(input: SummaryIdentityInput): SummaryIdentityResolution {
   const jdTargetRole = normalizeTitle(input.jdTargetRole) || "Professional";
   const companies = experienceCompanies(input.form);
@@ -193,12 +199,17 @@ export function resolveSummaryIdentity(input: SummaryIdentityInput): SummaryIden
 
   const overlapScore = computeExperienceJdOverlap(input.form, input.jdKeywords ?? []);
   const isCrossDomain = overlapScore < OVERLAP_CROSS_DOMAIN;
-  const mayUseJdTitleInSummary =
-    !isCrossDomain &&
-    overlapScore >= OVERLAP_USE_JD_TITLE &&
-    normalizeTitle(identity).toLowerCase() !== jdTargetRole.toLowerCase();
-
   const isTechnicalCandidate = candidateLooksTechnical(input.form, input.jdDomain);
+  const mayUseTechnicalTargetRole =
+    isTechnicalCandidate &&
+    looksLikeTechnicalTargetRole(jdTargetRole) &&
+    !isCrossDomain &&
+    normalizeTitle(identity).toLowerCase() !== jdTargetRole.toLowerCase();
+  const mayUseJdTitleInSummary =
+    mayUseTechnicalTargetRole ||
+    (!isCrossDomain &&
+      overlapScore >= OVERLAP_USE_JD_TITLE &&
+      normalizeTitle(identity).toLowerCase() !== jdTargetRole.toLowerCase());
 
   return {
     identity,

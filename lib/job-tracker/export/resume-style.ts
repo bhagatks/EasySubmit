@@ -11,6 +11,7 @@ export const FONT_FAMILY_PDF = "Helvetica"; // @react-pdf built-in, ATS-safe
 
 export const FONT_SIZE = {
   name: 18,       // pt — header name
+  targetTitle: 11, // pt — apply-mode headline under contact
   contact: 10,    // pt — contact line
   section: 11,    // pt — section heading (ALL CAPS + bottom border)
   entryTitle: 11, // pt — job title / degree

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { stripContactFromForm, estimateYearsExperience } from "@/src/lib/ai/engine/candidate-context";
+import {
+  buildCandidateContext,
+  estimateYearsExperience,
+  stripContactFromForm,
+} from "@/src/lib/ai/engine/candidate-context";
 import { emptyHubRefineryForm } from "@/lib/onboarding/hubResume";
 
 describe("candidate-context", () => {
@@ -37,5 +41,17 @@ describe("candidate-context", () => {
       },
     ];
     expect(estimateYearsExperience(form)).toBeGreaterThanOrEqual(7);
+  });
+
+  it("passes a larger raw resume source window to the AI prompt", () => {
+    const rawResumeText = `${"A".repeat(2500)}CVS Pay patent and FIDO Alliance`;
+    const ctx = buildCandidateContext({
+      form: emptyHubRefineryForm(),
+      targetRole: "Director, AI/ML and Data Architecture",
+      rawResumeText,
+    });
+
+    expect(ctx.rawResumeSource).toContain("CVS Pay patent");
+    expect(ctx.rawResumeSource).toHaveLength(rawResumeText.length);
   });
 });

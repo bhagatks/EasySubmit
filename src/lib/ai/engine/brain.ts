@@ -53,8 +53,8 @@ export function buildEnhanceUserPrompt(
   spec: AtsOptimizationSpec,
 ): string {
   const specBlock = formatAtsOptimizationSpecBlock(spec);
-  const rawSnippet = ctx.rawResumeSnippet
-    ? `\nSOURCE RESUME SNIPPET (reference):\n"""\n${ctx.rawResumeSnippet}\n"""\n`
+  const rawSource = ctx.rawResumeSource
+    ? `\nSOURCE RESUME — FULL FACT BANK (primary evidence; select and compress from this before rewriting):\n"""\n${ctx.rawResumeSource}\n"""\n`
     : "";
 
   const bodyJson = JSON.stringify(ctx.resumeBody, null, 2);
@@ -68,19 +68,20 @@ export function buildEnhanceUserPrompt(
       "Do NOT copy an old professional summary — write a new one from years of experience, identity, and the JD directive.",
       "Write in a natural professional voice — not robotic or AI-sounding.",
       specBlock,
-      rawSnippet,
+      rawSource,
       "",
       "Resume skeleton JSON (no contact fields — preserve entry ids, companies, titles, schools, dates exactly):",
       bodyJson,
       "",
       "Tasks:",
-      `1. Write a NEW professional summary (${SUMMARY_SENTENCE_COUNT} sentences, ${SUMMARY_WORD_MIN}–${SUMMARY_WORD_MAX} words) for ${jdRole}. Open with the candidate identity from the spec when provided. Use ~${spec.yearsExperienceEstimate ?? ctx.yearsExperienceEstimate} years of experience. Do not invent employers or metrics.`,
+      `1. Write a NEW professional summary (${SUMMARY_SENTENCE_COUNT} sentences, ${SUMMARY_WORD_MIN}–${SUMMARY_WORD_MAX} words) for ${jdRole}. When the spec allows target-role positioning, open with the target role/theme; otherwise open with the candidate identity. Use ~${spec.yearsExperienceEstimate ?? ctx.yearsExperienceEstimate} years of experience. Do not invent employers or metrics.`,
       `2. Finalize skillsText with ${SKILLS_HARD_MIN_SYSTEM}–${SKILLS_HARD_MAX} JD-aligned skills — include must-add skills from the directive.`,
-      "3. For EACH experience entry: rewrite bullets from the source facts only — one past-tense action verb per bullet; ~70% with metrics that appear in the facts. Preserve entry ids, company, title, and dates.",
-      "4. Regenerate certifications, projects, languages, and custom section content for JD alignment when present.",
-      "5. Keep all experience/education entry ids, company names, job titles, school names, degree fields, and date fields exactly unchanged.",
-      "6. Do not invent employers, job titles, employment dates, schools, degrees, or metrics not supported by source facts.",
-      "7. Fix spacing: no concatenated words; correct hyphenation in compound adjectives.",
+      "3. For EACH experience entry: select the strongest relevant facts from SOURCE RESUME first, then compress into final bullets; do not discard named products, partners, patents, awards, platform names, or real metrics when they support the JD.",
+      "4. Rewrite bullets from source facts only — one past-tense action verb per bullet; ~70% with metrics that appear in the facts. Preserve entry ids, company, title, and dates.",
+      "5. Regenerate certifications, projects, languages, and custom section content for JD alignment when present.",
+      "6. Keep all experience/education entry ids, company names, job titles, school names, degree fields, and date fields exactly unchanged.",
+      "7. Do not invent employers, job titles, employment dates, schools, degrees, or metrics not supported by source facts.",
+      "8. Fix spacing: no concatenated words; correct hyphenation in compound adjectives.",
       "",
       "Output JSON with the same structure as the input resume body (full bullets in experience[].bullets).",
     ].join("\n");
@@ -91,7 +92,7 @@ export function buildEnhanceUserPrompt(
     "Skills section has been pre-merged toward JD requirements — you may rewrite/reorder skillsText for optimal keyword coverage.",
     "Regenerate from scratch: professional summary, ALL experience bullets, certifications, projects, languages, and custom sections.",
     specBlock,
-    rawSnippet,
+    rawSource,
     "",
     "Resume skeleton JSON (no contact fields — preserve entry ids, companies, titles, schools, dates exactly):",
     bodyJson,
@@ -99,7 +100,7 @@ export function buildEnhanceUserPrompt(
     "Tasks:",
     `1. Write a new professional summary (${SUMMARY_SENTENCE_COUNT} sentences, ${SUMMARY_WORD_MIN}–${SUMMARY_WORD_MAX} words) aligned to ${jdRole} and the ATS Optimization Spec.`,
     `2. Finalize skillsText with ${SKILLS_HARD_MIN_SYSTEM}–${SKILLS_HARD_MAX} JD-aligned skills — include every missing keyword from the spec.`,
-    "3. Rewrite EVERY experience bullet from scratch — mirror JD responsibilities/keywords; one past-tense action verb per bullet; ~70% with metrics.",
+    "3. Select the strongest relevant facts from SOURCE RESUME first, then rewrite experience bullets to mirror JD responsibilities/keywords; one past-tense action verb per bullet; ~70% with metrics that appear in the source.",
     "4. Regenerate certifications, projects, languages, and custom section content for JD alignment.",
     "5. Keep all experience/education entry ids, company names, job titles, school names, degree fields, and date fields exactly unchanged.",
     "6. Do not invent employers, job titles, employment dates, schools, or degrees.",
@@ -110,7 +111,24 @@ export function buildEnhanceUserPrompt(
 }
 
 export function buildDirectiveBlock(directive: import("@/lib/job-tracker/jd/jd-intelligence").ResumeEnhanceDirective): string {
-  const parts: string[] = [];
+  const parts: string[] = [
+    `ROLE CONTEXT: ${directive.roleLevel} · ${directive.scope}`,
+  ];
+
+  const culture: string[] = [];
+  if (directive.cultureSignals.velocity) {
+    culture.push(`pace: ${directive.cultureSignals.velocity}`);
+  }
+  if (directive.cultureSignals.ownership) {
+    culture.push(`ownership: ${directive.cultureSignals.ownership}`);
+  }
+  if (directive.cultureSignals.industry.length > 0) {
+    culture.push(`industry: ${directive.cultureSignals.industry.join(", ")}`);
+  }
+  if (culture.length > 0) {
+    parts.push(`CULTURE / TONE:\n  ${culture.join("\n  ")}`);
+  }
+
   if (directive.mustAddSkills.length > 0) {
     parts.push(`SKILLS — add ALL:\n  ${directive.mustAddSkills.join(", ")}`);
   }
@@ -119,5 +137,10 @@ export function buildDirectiveBlock(directive: import("@/lib/job-tracker/jd/jd-i
       `KEYWORDS — weave into summary + bullets:\n  ${directive.mustWeaveKeywords.slice(0, 15).join(", ")}`,
     );
   }
-  return parts.length ? `\n${parts.join("\n\n")}\n` : "";
+  if (directive.targetVerbs.length > 0) {
+    parts.push(
+      `VERB FIT: prefer these verbs where they naturally match the source facts: ${directive.targetVerbs.join(", ")}. Do NOT force every verb into every bullet.`,
+    );
+  }
+  return `\n${parts.join("\n\n")}\n`;
 }

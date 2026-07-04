@@ -72,6 +72,22 @@ function contactParagraph(contact: string): Paragraph {
   });
 }
 
+function targetTitleParagraph(targetTitle: string): Paragraph {
+  return new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { after: dxa(S.afterContact) },
+    children: [
+      new TextRun({
+        text: targetTitle,
+        bold: true,
+        size: pt(FONT_SIZE.targetTitle),
+        color: COLOR.nearBlack.replace("#", ""),
+        font: "Calibri",
+      }),
+    ],
+  });
+}
+
 function sectionHeading(title: string, first = false): Paragraph {
   return new Paragraph({
     spacing: {
@@ -174,6 +190,7 @@ function buildParagraphsFromContent(content: ResumeContentModel): Paragraph[] {
   const paras: Paragraph[] = [
     nameParagraph(content.name),
     ...(content.contact ? [contactParagraph(content.contact)] : []),
+    ...(content.targetTitle ? [targetTitleParagraph(content.targetTitle)] : []),
   ];
 
   let firstSection = true;

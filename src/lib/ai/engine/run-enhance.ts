@@ -135,8 +135,7 @@ function recordEnhanceModelCall(input: {
   feature?: "enhance" | "jd_extract";
 }): void {
   const aiMode = input.route.mode;
-  const provider =
-    input.route.mode === "customer" ? input.route.provider : "gemini";
+  const provider = input.route.provider;
   const modelId = input.executionModelId ?? input.poolCall?.modelId ?? input.route.modelId;
   const operation = input.operation ?? "ai.enhance.generate_text";
   const feature = input.feature ?? "enhance";
@@ -332,7 +331,7 @@ export async function callEnhanceModel(
     userId,
     flags: {
       routeMode: route.mode,
-      provider: route.mode === "customer" ? route.provider : "gemini",
+      provider: route.mode === "customer" ? route.provider : route.provider,
       pass,
       preferredSlot: preferredSlot ?? null,
     },
@@ -448,9 +447,9 @@ export async function callEnhanceModel(
   try {
     const executionModelId = route.modelId;
     const poolResult = await executeWithPoolRetry(
-      async ({ apiKey }) => {
+      async ({ apiKey, provider }) => {
         return generateGeminiTextWith503Resilience({
-          provider: "gemini",
+          provider,
           apiKey,
           primaryModelId: executionModelId,
           system,
@@ -654,7 +653,7 @@ export async function callEnhanceObjectModel<T extends z.ZodTypeAny>(
     meta: {
       routeMode: route.mode,
       modelId: route.modelId,
-      provider: route.mode === "customer" ? route.provider : "system",
+      provider: route.mode === "customer" ? route.provider : route.provider,
       candidateCount:
         route.mode === "customer" ? route.modelCandidates.length || 1 : 1,
     },
@@ -669,6 +668,7 @@ export async function callEnhanceObjectModel<T extends z.ZodTypeAny>(
           const model = createAiSdkLanguageModel(route.provider, apiKey, modelId);
           return generateStructuredWithFallback({
             model,
+            provider: route.provider,
             system,
             prompt,
             schema,
@@ -793,10 +793,11 @@ export async function callEnhanceObjectModel<T extends z.ZodTypeAny>(
 
   try {
     const poolResult = await executeWithPoolRetry(
-      async ({ apiKey }) => {
-        const model = createAiSdkLanguageModel("gemini", apiKey, executionModelId);
+      async ({ apiKey, provider }) => {
+        const model = createAiSdkLanguageModel(provider, apiKey, executionModelId);
         return generateStructuredWithFallback({
           model,
+          provider,
           system,
           prompt,
           schema,
@@ -957,7 +958,7 @@ async function runPass(
     pageBudget: ctx.pageBudget,
     hasJobDescription: Boolean(ctx.jobDescription),
     jobDescriptionChars: ctx.jobDescription?.length ?? 0,
-    rawResumeSnippetChars: ctx.rawResumeSnippet?.length ?? 0,
+    rawResumeSnippetChars: ctx.rawResumeSource?.length ?? 0,
     preferredSlot: preferredSlot ?? null,
     optimizationMode: spec.mode,
     readinessScore: spec.readiness.total,

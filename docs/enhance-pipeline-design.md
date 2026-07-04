@@ -68,7 +68,7 @@ CAPTURED
 | `light-skills-merge.ts` | mustHaveSkills vs resume skills |
 | `build-light-enhance-brief.ts` | Minimal brief (`lightPath: true`) for resume AI |
 
-Happy-path resume AI prompt omits readiness/gap/weak-bullet lists; experience bullets are **source facts**, not full prose. Post-AI grounding still uses full experience text from the base profile.
+Happy-path resume AI prompt omits readiness/gap/weak-bullet lists; experience bullets are **source facts**, not full prose. When a raw resume is available, the prompt includes a bounded source fact bank (up to 12k chars) so AI can select and compress named products, partners, patents, awards, platform names, and real metrics before rewriting. Post-AI grounding still uses full experience text from the base profile, and aligned technical job-apply summaries may open with the target role/theme instead of being forced back to the current job title.
 
 **Pipeline debug steps** (`PIPELINE_DEBUG_STEP_DEFS` in `src/shared/extension/pipeline-debug-types.ts`) use architecture **groups**: Capture → Job track ∥ Resume track → Gate → Light merge → Fallback (happy-path skipped) → AI gates → Engine → AI calls → Persist → Complete.
 

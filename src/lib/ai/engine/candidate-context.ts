@@ -22,7 +22,7 @@ export type CandidateContext = {
   };
   resumeBody: ResumeBodyForm;
   jobDescription?: string;
-  rawResumeSnippet?: string;
+  rawResumeSource?: string;
 };
 
 const CONTACT_KEYS = [
@@ -142,7 +142,7 @@ export function buildCandidateContext(input: {
     ),
     resumeBody: stripContactFromForm(input.form),
     jobDescription: input.jobDescription?.trim() || undefined,
-    rawResumeSnippet: input.rawResumeText?.trim().slice(0, 2000) || undefined,
+    rawResumeSource: input.rawResumeText?.trim().slice(0, 12000) || undefined,
   };
 }
 

@@ -54,6 +54,14 @@ const s = StyleSheet.create({
     textAlign: "center",
     marginBottom: S.afterContact,
   },
+  targetTitle: {
+    fontSize: FONT_SIZE.targetTitle,
+    fontFamily: "Helvetica-Bold",
+    color: COLOR.nearBlack,
+    textAlign: "center",
+    marginTop: -Math.max(0, S.afterContact - 2),
+    marginBottom: S.afterContact,
+  },
   sectionWrapper: {
     marginTop: S.betweenSections,
     marginBottom: S.afterSectionRule,
@@ -157,6 +165,7 @@ function ResumeDocument({ content }: { content: ResumeContentModel }) {
       <Page size="LETTER" style={s.page}>
         <Text style={s.name}>{content.name}</Text>
         {content.contact ? <Text style={s.contact}>{content.contact}</Text> : null}
+        {content.targetTitle ? <Text style={s.targetTitle}>{content.targetTitle}</Text> : null}
 
         {content.summary ? (
           <>

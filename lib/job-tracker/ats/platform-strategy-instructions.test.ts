@@ -55,7 +55,7 @@ describe("buildEnhanceUserPrompt platform strategy injection", () => {
     targetRole: "Senior Software Engineer",
     jobDescription: "Python AWS Docker ".repeat(20),
     resumeBody: { professionalSummary: "Engineer.", skillsText: "Python", experience: [], education: [], certifications: [], projects: [], languages: [], customSections: [], pageLengthPreference: "auto" },
-    rawResumeSnippet: undefined,
+    rawResumeSource: undefined,
     senioritySignal: "senior",
     yearsExperienceEstimate: 8,
     pageBudget: {
