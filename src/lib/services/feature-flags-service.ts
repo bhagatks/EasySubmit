@@ -67,7 +67,7 @@ export const FEATURE_FLAG_REGISTRY: Record<
     key: FEATURE_FLAG_KEYS.aiJdExtractEnabled,
     description:
       "Call AI structured JD extract (generateObject). ON = yes; OFF = deterministic JD + vocabulary only.",
-    defaultEnabled: true,
+    defaultEnabled: false,
   },
 };
 

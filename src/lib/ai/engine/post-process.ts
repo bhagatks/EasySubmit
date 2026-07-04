@@ -1,7 +1,9 @@
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
 import type { StudioEditorSectionId } from "@/lib/resume/studio-editor-sections";
 import {
+  enforceSummaryWordBudget,
   findBannedWords,
+  repairSummaryOrphans,
   stripBannedSummaryWords,
   validateSummary,
 } from "@/lib/resume/summary-rules";
@@ -205,10 +207,10 @@ export function postProcessProfessionalSummary(
   }
 
   if (findBannedWords(trimmed).length === 0) {
-    return summary;
+    return enforceSummaryWordBudget(repairSummaryOrphans(trimmed));
   }
 
-  return stripBannedSummaryWords(trimmed);
+  return enforceSummaryWordBudget(stripBannedSummaryWords(trimmed));
 }
 
 export function postProcessSkillsText(

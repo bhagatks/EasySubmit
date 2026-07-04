@@ -208,6 +208,22 @@ function formatLightAtsOptimizationSpecBlock(spec: AtsOptimizationSpec): string 
     }
   }
 
+  const checklist = collectPillarChecklist(spec.readiness);
+  if (checklist.length > 0) {
+    lines.push("", "SCORE GAPS (from ATS panel — address every line):");
+    for (const item of checklist) {
+      lines.push(`  - ${item}`);
+    }
+  }
+
+  if (spec.keywordGap && spec.keywordGap.topMissing.length > 0) {
+    lines.push(
+      "",
+      `MISSING JD KEYWORDS (${spec.keywordGap.coveragePercent}% coverage — add all):`,
+      `  ${spec.keywordGap.topMissing.slice(0, 20).join(", ")}`,
+    );
+  }
+
   appendJobContext(lines, spec);
   return lines.join("\n");
 }
@@ -255,7 +271,7 @@ export function buildAtsOptimizationSpecFromBrief(
     companyName: input.companyName?.trim() || undefined,
     platform: brief.platform,
     readiness: brief.readiness,
-    keywordGap: brief.lightPath ? undefined : brief.jd?.keywordGap,
+    keywordGap: brief.jd?.keywordGap,
     directive: brief.jd?.directive,
     jobIntelligence: brief.lightPath ? undefined : brief.jd?.jobIntelligence,
     jdSegments: brief.jd?.segments,

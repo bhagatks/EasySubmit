@@ -177,6 +177,7 @@ function runDev() {
   console.log("\n3/6 Prisma generate + migrate deploy");
   runPrisma(["generate"], env);
   runCommand(process.execPath, [resolve(root, "scripts/prisma-migrate-deploy.mjs")], env);
+  runCommand(process.execPath, [resolve(root, "scripts/copy-pdf-worker.mjs")], env);
 
   if (!fast) {
     console.log("\n4/6 Tests");

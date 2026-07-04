@@ -1,6 +1,7 @@
 import { generateObject, generateText } from "ai";
 import type { LanguageModel } from "ai";
 import type { z } from "zod";
+import type { AiProvider } from "@/src/lib/config/app.config";
 import {
   GEMINI_SDK_MAX_RETRIES,
   GEMINI_STRUCTURED_PROVIDER_OPTIONS,
@@ -9,6 +10,11 @@ import { JD_EXTRACTION_TIMEOUT_MS } from "@/lib/job-tracker/jd/resolve-jd-extrac
 
 /** JD Brain structured extract — procurement JDs need headroom for full JSON. */
 export const JD_STRUCTURED_MAX_OUTPUT_TOKENS = 2048;
+
+function structuredProviderOptions(provider?: AiProvider) {
+  if (provider === "gemini") return GEMINI_STRUCTURED_PROVIDER_OPTIONS;
+  return undefined;
+}
 
 export function isStructuredExtractParseError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
@@ -32,6 +38,7 @@ export function parseJsonObjectFromModelText(text: string): unknown {
 
 export async function generateStructuredWithFallback<T extends z.ZodTypeAny>(input: {
   model: LanguageModel;
+  provider?: AiProvider;
   system: string;
   prompt: string;
   schema: T;
@@ -59,7 +66,7 @@ export async function generateStructuredWithFallback<T extends z.ZodTypeAny>(inp
       temperature,
       maxOutputTokens,
       maxRetries: GEMINI_SDK_MAX_RETRIES,
-      providerOptions: GEMINI_STRUCTURED_PROVIDER_OPTIONS,
+      providerOptions: structuredProviderOptions(input.provider),
       abortSignal,
     });
     return {

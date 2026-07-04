@@ -1,6 +1,9 @@
 import { hashJobDescription } from "@/lib/job-tracker/jd/jd-brain";
 import { extractDeterministicJdSkills } from "@/lib/job-tracker/jd/jd-skills-deterministic";
-import { enrichJdSkillsWithEsco } from "@/lib/job-tracker/jd/jd-skills-esco";
+import {
+  enrichJdSkillsWithEsco,
+  isEscoSearchPhrase,
+} from "@/lib/job-tracker/jd/jd-skills-esco";
 import { extractJdSkillsWithEscox } from "@/lib/job-tracker/jd/jd-skills-escox";
 import type {
   FetchJdSkillsInput,
@@ -29,9 +32,13 @@ function dedupePhrasesForEsco(jd: string): string[] {
   const tokens = tokenizeJobText(jd);
   const phrases: string[] = [];
   for (let i = 0; i < tokens.length - 1; i++) {
-    phrases.push(`${tokens[i]} ${tokens[i + 1]}`);
+    const bigram = `${tokens[i]} ${tokens[i + 1]}`;
+    if (isEscoSearchPhrase(bigram)) phrases.push(bigram);
   }
-  return [...new Set([...tokens.filter((t) => t.length >= 4), ...phrases])];
+  for (const token of tokens) {
+    if (isEscoSearchPhrase(token)) phrases.push(token);
+  }
+  return [...new Set(phrases)];
 }
 
 /**
@@ -75,7 +82,7 @@ export async function fetchJdSkillsVocabulary(
       const escoExtra = await enrichJdSkillsWithEsco(
         dedupePhrasesForEsco(trimmed),
         skills,
-        { apiDebug: input.apiDebug },
+        { apiDebug: input.apiDebug, jobDescription: trimmed },
       );
       if (escoExtra.length > 0) {
         providersUsed.push("esco");

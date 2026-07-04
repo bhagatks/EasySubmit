@@ -35,18 +35,18 @@ import {
 import { getTodayPacificDateString } from "@/src/lib/ai/engine/pacific-time";
 
 describe.sequential("system-key-pool executeWithPoolRetry", () => {
-  const original = process.env.EASYSUBMIT_SYSTEM_GEMINI_API_KEYS;
+  const original = process.env.EASYSUBMIT_SYSTEM_DEEPSEEK_API_KEYS;
 
   beforeEach(() => {
     resetSystemKeyPoolForTests();
     findManyMock.mockResolvedValue([]);
     findUniqueMock.mockResolvedValue(null);
     updateMock.mockClear();
-    process.env.EASYSUBMIT_SYSTEM_GEMINI_API_KEYS = "k-alpha,k-beta,k-gamma";
+    process.env.EASYSUBMIT_SYSTEM_DEEPSEEK_API_KEYS = "k-alpha,k-beta,k-gamma";
   });
 
   afterEach(() => {
-    process.env.EASYSUBMIT_SYSTEM_GEMINI_API_KEYS = original;
+    process.env.EASYSUBMIT_SYSTEM_DEEPSEEK_API_KEYS = original;
     resetSystemKeyPoolForTests();
   });
 

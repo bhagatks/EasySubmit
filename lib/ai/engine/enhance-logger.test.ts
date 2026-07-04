@@ -62,11 +62,13 @@ describe("enhance-logger", () => {
   it("sanitizeRouteForLog never includes api keys", () => {
     const sanitized = sanitizeRouteForLog({
       mode: "system",
-      modelId: "gemini-2.5-flash-lite",
+      provider: "deepseek",
+      modelId: "deepseek-chat",
     });
     expect(sanitized).toEqual({
       mode: "system",
-      modelId: "gemini-2.5-flash-lite",
+      provider: "deepseek",
+      modelId: "deepseek-chat",
     });
   });
 

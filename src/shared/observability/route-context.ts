@@ -26,7 +26,7 @@ export function routeContextForApiLog(
   if (route.mode === "system") {
     return {
       aiMode: "system",
-      provider: "gemini",
+      provider: route.provider,
       modelId: route.modelId,
       keySlot: null,
       keySource: null,

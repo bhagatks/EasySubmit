@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { resolvePipelineStepFailureFromMetadata } from "@/lib/job-tracker/pipeline-tracker-view";
 import { entryIssueMessage } from "@/lib/job-tracker/entry-issue";
 import { getPipelineDebugProgress } from "@/lib/extension/pipeline-debug-progress";
+import { buildPipelineRunInsight } from "@/lib/extension/pipeline-run-insight";
 import { prisma } from "@/lib/prisma";
 import { isPipelineDebugEnabled } from "@/src/shared/extension/pipeline-debug-gate";
 
@@ -26,27 +27,43 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   }
 
   const userId = session.user.id;
-  const [progress, entry] = await Promise.all([
-    getPipelineDebugProgress(userId, entryId),
-    prisma.jobTrackerEntry.findFirst({
-      where: { id: entryId, userId },
-      select: {
-        status: true,
-        title: true,
-        company: true,
-        location: true,
-        salaryText: true,
-        description: true,
-        platform: true,
-        canonicalUrl: true,
-        metadata: true,
+  const entry = await prisma.jobTrackerEntry.findFirst({
+    where: { id: entryId, userId },
+    select: {
+      status: true,
+      title: true,
+      company: true,
+      location: true,
+      salaryText: true,
+      description: true,
+      platform: true,
+      canonicalUrl: true,
+      savedAt: true,
+      metadata: true,
+      jdIntelligence: true,
+      jdSkillsVocabulary: true,
+      resumeTailor: {
+        select: {
+          enhanceTraceId: true,
+          enhanceMeta: true,
+        },
       },
-    }),
-  ]);
+    },
+  });
 
   if (!entry) {
     return Response.json({ success: false, error: "Job not found" }, { status: 404 });
   }
+
+  const progress = await getPipelineDebugProgress(userId, entryId);
+  const insight = progress
+    ? await buildPipelineRunInsight({
+        userId,
+        jobId: entryId,
+        progress,
+        entry,
+      })
+    : null;
 
   const metadata =
     entry.metadata && typeof entry.metadata === "object" && !Array.isArray(entry.metadata)
@@ -56,6 +73,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   return Response.json({
     success: true,
     progress,
+    insight,
     stepFailure: resolvePipelineStepFailureFromMetadata(metadata, entry.status),
     job: {
       status: entry.status,

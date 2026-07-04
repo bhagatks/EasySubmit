@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   countSummarySentences,
   countSummaryWords,
+  enforceSummaryWordBudget,
   findBannedWords,
   stripBannedSummaryWords,
   validateSummary,
@@ -66,5 +67,21 @@ describe("stripBannedSummaryWords", () => {
     expect(stripBannedSummaryWords("A passionate engineer who will utilize APIs.")).toBe(
       "A engineer who will uses APIs.",
     );
+  });
+
+  it("drops sentences with multi-word banned phrases and repairs orphans", () => {
+    const input =
+      "Leader with 21 years of platform experience. Proven track record in leading cross-functional teams through migration.";
+    const out = stripBannedSummaryWords(input);
+    expect(out.toLowerCase()).not.toContain("proven track record");
+    expect(out).toMatch(/Leading cross-functional teams/i);
+  });
+});
+
+describe("enforceSummaryWordBudget", () => {
+  it("trims summaries over 80 words", () => {
+    const words = Array.from({ length: 84 }, (_, i) => `word${i}`).join(" ");
+    const trimmed = enforceSummaryWordBudget(`${words}.`);
+    expect(countSummaryWords(trimmed)).toBeLessThanOrEqual(80);
   });
 });

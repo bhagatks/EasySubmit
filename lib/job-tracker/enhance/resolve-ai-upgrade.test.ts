@@ -30,7 +30,7 @@ describe("resolveAiUpgrade", () => {
       baselineAvailable: true,
       aiAvailable: true,
       available: true,
-      route: { mode: "system", modelId: "gemini-1.5-flash" },
+      route: { mode: "system", provider: "gemini", modelId: "gemini-1.5-flash" },
       mode: "system",
       vaultKeyId: null,
       provider: null,

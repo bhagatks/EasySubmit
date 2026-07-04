@@ -26,8 +26,13 @@ function readMetadataPipelineError(metadata: unknown): string | null {
 
 const STEP_DEF_BY_ID = new Map(PIPELINE_DEBUG_STEP_DEFS.map((def) => [def.id, def] as const));
 
-function normalizePipelineDebugArtifactLabel(_stepId: string, label: string): string {
+function normalizeLegacyPipelineLabel(stepId: string, label: string): string {
+  if (stepId === "pre_onet" && /o\*net/i.test(label)) return "Vocabulary";
   return label;
+}
+
+function normalizePipelineDebugArtifactLabel(stepId: string, label: string): string {
+  return normalizeLegacyPipelineLabel(stepId, label);
 }
 
 /** Stored rows keep old copy — always show current canonical step + artifact labels in QA UI. */
@@ -42,7 +47,9 @@ export function refreshPipelineDebugLabelsForDisplay(
         ...artifact,
         label: normalizePipelineDebugArtifactLabel(step.id, artifact.label),
       }));
-      if (!def) return { ...step, artifacts };
+      if (!def) {
+        return { ...step, label: normalizeLegacyPipelineLabel(step.id, step.label), artifacts };
+      }
       return {
         ...step,
         label: def.label,

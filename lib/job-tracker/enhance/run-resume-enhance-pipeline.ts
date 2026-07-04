@@ -42,6 +42,7 @@ import {
   normalizeExperienceDateFields,
   postProcessSummaryOutput,
 } from "@/lib/job-tracker/enhance/summary-grounding";
+import { repairResumeFormForReadiness } from "@/lib/job-tracker/enhance/readiness-repair";
 import { diffChangedSections } from "@/src/lib/ai/engine/post-process";
 import {
   buildQuotaSnapshot,
@@ -56,7 +57,7 @@ import {
 } from "@/src/lib/ai/engine/system-quota-gate";
 import { getAppConfig } from "@/src/lib/services/config-service";
 import { computeResumeReadiness } from "@/lib/job-tracker/ats/resume-readiness-score";
-import { refineryFormToPrimeResume } from "@/lib/onboarding/hubResume";
+import { refineryFormToPrimeResume, type HubRefineryForm } from "@/lib/onboarding/hubResume";
 
 import {
   hasFullJd,
@@ -76,6 +77,21 @@ async function resolveJobCompanyName(
     select: { company: true },
   });
   return entry?.company?.trim() || null;
+}
+
+function applyReadinessRepair(
+  form: HubRefineryForm,
+  input: ResumeEnhancePipelineInput,
+  brief: ResumeEnhanceBrief,
+  options?: { skipSkillsMerge?: boolean },
+): HubRefineryForm {
+  return repairResumeFormForReadiness(form, {
+    targetRole: input.targetRole,
+    jobDescription: input.jobDescription,
+    jdIntelligence: brief.jd?.intelligence,
+    jdDomain: brief.jd?.intelligence?.domain,
+    skipSkillsMerge: options?.skipSkillsMerge,
+  }).form;
 }
 
 function needsJd(input: ResumeEnhancePipelineInput): boolean {
@@ -261,6 +277,7 @@ async function runResumeEnhancePipelineInner(
         resume: tracks.resume,
         merge,
         targetRole: input.targetRole,
+        jobDescription: input.jobDescription,
         traceId,
         surface: input.surface,
         variant: input.variant,
@@ -400,7 +417,10 @@ async function runResumeEnhancePipelineInner(
   if (!brief.jdAiAttempted) {
     pipelineDebugStep(debug, "ai_jd_extract", {
       status: "skipped",
-      detail: brief.jdAiCallCount > 0 ? "Already completed in brief build" : "Cache hit or no AI route",
+      detail:
+        brief.jdAiCallCount > 0
+          ? "Already completed in brief build"
+          : brief.jdAiSkipDetail ?? "Cache hit or no AI route",
     });
   }
 
@@ -667,8 +687,12 @@ async function runResumeEnhancePipelineInner(
     });
   }
 
-  const changedSections = diffChangedSections(input.form, finalForm, false);
+  finalForm = applyReadinessRepair(finalForm, input, brief, {
+    skipSkillsMerge: aiSucceeded,
+  });
+
   const trimmedJd = input.jobDescription?.trim() ?? "";
+  const changedSections = diffChangedSections(input.form, finalForm, false);
   const readinessAfter = computeResumeReadiness(
     refineryFormToPrimeResume(finalForm),
     input.targetRole,

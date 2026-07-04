@@ -1,8 +1,9 @@
 "use client";
 
-import { Suspense, useCallback, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import type { JobTrackerSummary } from "@/lib/job-tracker/types";
 import type { DashboardManualJobProfileOption } from "@/lib/job-tracker/dashboard-manual-capture";
+import { deleteJobTrackerEntries } from "@/app/actions/job-tracker";
 import { DashboardWorkspacePage } from "@/components/dashboard/DashboardWorkspacePage";
 import { JobTrackerHeaderActions } from "@/components/dashboard/JobTrackerHeaderActions";
 import { JobTrackerWorkspace } from "@/components/dashboard/JobTrackerWorkspace";
@@ -24,6 +25,16 @@ export function JobTrackerPageContent({
   loadError,
 }: JobTrackerPageContentProps) {
   const [manualAddOpen, setManualAddOpen] = useState(false);
+  const [archivedEntryIds, setArchivedEntryIds] = useState<string[]>([]);
+  const [selectedEntryIds, setSelectedEntryIds] = useState<string[]>([]);
+  const [archiveRefreshToken, setArchiveRefreshToken] = useState(0);
+
+  const handleToggleSelectAllArchived = useCallback(() => {
+    const allSelected =
+      archivedEntryIds.length > 0 &&
+      archivedEntryIds.every((id) => selectedEntryIds.includes(id));
+    setSelectedEntryIds(allSelected ? [] : archivedEntryIds);
+  }, [archivedEntryIds, selectedEntryIds]);
 
   const openManualAdd = useCallback(() => {
     captureAnalyticsEvent(AnalyticsEvents.JOB_TRACKER_MANUAL_ADD_OPENED, {
@@ -32,13 +43,30 @@ export function JobTrackerPageContent({
     setManualAddOpen(true);
   }, []);
 
+  useEffect(() => {
+    setSelectedEntryIds((current) => current.filter((id) => archivedEntryIds.includes(id)));
+  }, [archivedEntryIds]);
+
   return (
     <DashboardWorkspacePage
       title="Job Tracker"
       description="Track each role on a simple pipeline — Review Screen for details, Apply when your resume is ready."
       aside={
         <Suspense fallback={null}>
-          <JobTrackerHeaderActions onAddJob={openManualAdd} />
+          <JobTrackerHeaderActions
+            onAddJob={openManualAdd}
+            archivedEntryIds={archivedEntryIds}
+            selectedEntryIds={selectedEntryIds}
+            onToggleSelectAll={handleToggleSelectAllArchived}
+            onDeleteSelected={async () => {
+              const result = await deleteJobTrackerEntries(selectedEntryIds);
+              if (result.success) {
+                setSelectedEntryIds([]);
+                setArchiveRefreshToken((value) => value + 1);
+              }
+              return result.success;
+            }}
+          />
         </Suspense>
       }
     >
@@ -56,6 +84,10 @@ export function JobTrackerPageContent({
             manualAddOpen={manualAddOpen}
             onManualAddOpenChange={setManualAddOpen}
             onOpenManualAdd={openManualAdd}
+            selectedEntryIds={selectedEntryIds}
+            onSelectedEntryIdsChange={setSelectedEntryIds}
+            onArchivedEntryIdsChange={setArchivedEntryIds}
+            archiveRefreshToken={archiveRefreshToken}
           />
         </Suspense>
       )}

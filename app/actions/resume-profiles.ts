@@ -14,14 +14,15 @@ import {
   setDefaultProfileForUser,
 } from "@/lib/profile/resume-profile-core";
 import {
-  hubFormToProfileContent,
   hubRefineryFormFromProfile,
   studioSkillsFromForm,
   targetTitleFromProfile,
 } from "@/lib/profile/studio-form-db";
+import { buildResumeProfileStudioPersistPayload } from "@/lib/profile/studio-profile-persist";
 import { countJobsDependingOnProfile } from "@/lib/profile/job-resume-tailor";
 import { checkUserCanCreateResumeProfile, getResumeProfilesConfig } from "@/lib/profile/resume-profile-limit";
 import { sanitizeString } from "@/lib/profile/sanitize";
+import { canPersistProfileStudio, profileStudioPersistErrors } from "@/lib/profile/profile-studio-persist";
 import { validateResume } from "@/lib/resume/validation";
 
 export type ResumeProfileListItem = {
@@ -230,13 +231,15 @@ export async function createResumeProfileFromParsed(
 
   const form = input.form;
   const skills = studioSkillsFromForm(form);
-  const { city, country } = parseCityState(form.cityState);
   const defaultProfile = await findDefaultProfile(userId);
-
-  const email =
-    sanitizeString(form.email, 200) ||
-    defaultProfile?.email ||
-    profileEmailForUser(userId, sessionEmail);
+  const fallbackEmail =
+    defaultProfile?.email ?? profileEmailForUser(userId, sessionEmail);
+  const payload = buildResumeProfileStudioPersistPayload({
+    form,
+    targetTitle: "",
+    skills,
+    fallbackEmail,
+  });
 
   try {
     const { maxProfilesPerCustomer: maxProfiles } = await getResumeProfilesConfig();
@@ -251,17 +254,17 @@ export async function createResumeProfileFromParsed(
           data: {
             userId,
             isDefault: false,
-            email,
-            firstName: sanitizeString(form.firstName, 80) || null,
-            lastName: sanitizeString(form.lastName, 80) || null,
-            phone: sanitizeString(form.phone, 40) || null,
-            city: sanitizeString(city, 120) || null,
-            country: sanitizeString(country, 120) || null,
+            email: payload.email,
+            firstName: payload.firstName,
+            lastName: payload.lastName,
+            phone: payload.phone,
+            city: payload.city,
+            country: payload.country,
             targetTitle: null,
-            summary: sanitizeString(form.professionalSummary, 8000) || null,
-            skills,
+            summary: payload.summary,
+            skills: payload.skills,
             resumeRawText: input.rawResumeText.trim() || null,
-            content: hubFormToProfileContent(form, skills) as Prisma.InputJsonValue,
+            content: payload.content,
           },
         });
 
@@ -290,18 +293,6 @@ export type SaveResumeProfileStudioResult =
   | { success: true; profileId: string }
   | { success: false; error: string };
 
-function parseCityState(cityState: string): { city: string; country: string } {
-  const trimmed = cityState.trim();
-  if (!trimmed) return { city: "", country: "" };
-
-  const parts = trimmed.split(",").map((part) => part.trim());
-  if (parts.length >= 2) {
-    return { city: parts[0], country: parts.slice(1).join(", ") };
-  }
-
-  return { city: trimmed, country: "" };
-}
-
 export async function saveResumeProfileStudio(
   input: SaveResumeProfileStudioInput,
 ): Promise<SaveResumeProfileStudioResult> {
@@ -317,19 +308,12 @@ export async function saveResumeProfileStudio(
     return { success: false, error: "Target role is required to name this profile" };
   }
 
-  const gate = validateResume(input.form, input.targetTitle ?? "");
-  if (!gate.canFinalize) {
-    const errors = [
-      ...gate.header.issues,
-      ...gate.summary.issues,
-      ...gate.skills.issues,
-      ...gate.experience.issues,
-    ]
-      .filter((issue) => issue.severity === "error")
-      .map((issue) => issue.message);
+  const skills = studioSkillsFromForm(input.form);
+  const persistErrors = profileStudioPersistErrors(input.form, targetTitle, skills);
+  if (persistErrors.length > 0) {
     return {
       success: false,
-      error: `Resume has validation errors: ${errors.join(". ")}`,
+      error: persistErrors.join(". "),
     };
   }
 
@@ -338,26 +322,24 @@ export async function saveResumeProfileStudio(
     return { success: false, error: "Profile not found" };
   }
 
-  const form = input.form;
-  const skills = studioSkillsFromForm(form);
-  const { city, country } = parseCityState(form.cityState);
+  if (!canPersistProfileStudio(input.form, targetTitle, skills)) {
+    return { success: false, error: "Profile is not ready to save." };
+  }
+
+  // Full resume validation is advisory for export — not a persist blocker.
+  void validateResume(input.form, targetTitle, { summaryRequired: false });
+  const payload = buildResumeProfileStudioPersistPayload({
+    form: input.form,
+    targetTitle,
+    skills,
+    fallbackEmail: profile.email,
+  });
 
   try {
     await prisma.$transaction(async (tx) => {
       await tx.profile.update({
         where: { id: profile.id },
-        data: {
-          firstName: sanitizeString(form.firstName, 80) || null,
-          lastName: sanitizeString(form.lastName, 80) || null,
-          email: sanitizeString(form.email, 200) || profile.email,
-          phone: sanitizeString(form.phone, 40) || null,
-          city: sanitizeString(city, 120) || null,
-          country: sanitizeString(country, 120) || null,
-          targetTitle,
-          summary: sanitizeString(form.professionalSummary, 8000) || null,
-          skills,
-          content: hubFormToProfileContent(form, skills) as Prisma.InputJsonValue,
-        },
+        data: payload,
       });
     });
 

@@ -47,7 +47,7 @@ describe("enhanceFeatureRoute", () => {
 
 describe("isResolvedAiRoute", () => {
   it("accepts valid routes", () => {
-    expect(isResolvedAiRoute({ mode: "system", modelId: "gemini-1.5-flash" })).toBe(true);
+    expect(isResolvedAiRoute({ mode: "system", provider: "gemini", modelId: "gemini-1.5-flash" })).toBe(true);
   });
 
   it("rejects error objects", () => {

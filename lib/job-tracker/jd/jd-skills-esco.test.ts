@@ -3,6 +3,8 @@ import {
   buildEscoSkillSearchUrl,
   enrichJdSkillsWithEsco,
   escoSearchHitLabel,
+  isEscoSearchPhrase,
+  isEscoSkillRelevant,
   jdSkillFromEscoSearchHit,
 } from "@/lib/job-tracker/jd/jd-skills-esco";
 
@@ -52,6 +54,39 @@ describe("escoSearchHitLabel", () => {
   });
 });
 
+describe("isEscoSearchPhrase", () => {
+  it("rejects generic HR / company tokens", () => {
+    expect(isEscoSearchPhrase("fidelity")).toBe(false);
+    expect(isEscoSearchPhrase("provide")).toBe(false);
+    expect(isEscoSearchPhrase("immigration")).toBe(false);
+    expect(isEscoSearchPhrase("request")).toBe(false);
+  });
+
+  it("accepts taxonomy-backed single tokens", () => {
+    expect(isEscoSearchPhrase("kubernetes")).toBe(true);
+    expect(isEscoSearchPhrase("python")).toBe(true);
+  });
+
+  it("accepts skill-like bigrams", () => {
+    expect(isEscoSearchPhrase("machine learning")).toBe(true);
+    expect(isEscoSearchPhrase("data architecture")).toBe(true);
+  });
+});
+
+describe("isEscoSkillRelevant", () => {
+  it("rejects unrelated occupation skills for generic queries", () => {
+    expect(isEscoSkillRelevant("fidelity", "record music")).toBe(false);
+    expect(isEscoSkillRelevant("provide", "provide domiciliary eyecare")).toBe(false);
+    expect(isEscoSkillRelevant("immigration", "apply immigration law")).toBe(false);
+    expect(isEscoSkillRelevant("data architecture", "apply immigration law")).toBe(false);
+  });
+
+  it("accepts hits that overlap with the query phrase", () => {
+    expect(isEscoSkillRelevant("machine learning", "machine learning")).toBe(true);
+    expect(isEscoSkillRelevant("kubernetes", "Kubernetes")).toBe(true);
+  });
+});
+
 describe("enrichJdSkillsWithEsco apiDebug", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -89,6 +124,36 @@ describe("enrichJdSkillsWithEsco apiDebug", () => {
     expect(apiDebug[0]?.request.method).toBe("GET");
     expect(apiDebug[0]?.request.url).toContain("/search?");
     expect(apiDebug[0]?.response.ok).toBe(true);
+  });
+
+  it("does not search generic company tokens", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const enriched = await enrichJdSkillsWithEsco(["fidelity"], []);
+    expect(enriched).toHaveLength(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects hits with no token overlap with query phrase", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          _embedded: {
+            results: [
+              {
+                uri: "http://data.europa.eu/esco/skill/immigration",
+                preferredLabel: { en: "apply immigration law" },
+              },
+            ],
+          },
+        }),
+      ),
+    );
+
+    const enriched = await enrichJdSkillsWithEsco(["data architecture"], []);
+    expect(enriched).toHaveLength(0);
   });
 });
 

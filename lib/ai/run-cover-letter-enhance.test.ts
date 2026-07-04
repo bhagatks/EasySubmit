@@ -41,7 +41,7 @@ const baseInput = {
   jobTitle: "Senior Manager, Program Management",
   jobDescription:
     "Lead program management for enterprise initiatives. Requires Agile, stakeholder management, and delivery at scale.",
-  route: { mode: "system" as const, modelId: "gemini-2.0-flash" },
+  route: { mode: "system" as const, provider: "gemini" as const, modelId: "gemini-2.0-flash" },
   traceId: "test-trace",
 };
 

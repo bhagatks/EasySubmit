@@ -20,6 +20,7 @@ vi.mock("@/lib/ai/model-health/resolve-model-candidates", () => ({
 }));
 
 vi.mock("@/src/lib/ai/engine/system-key-pool", () => ({
+  hasSystemPoolKeys: vi.fn().mockResolvedValue(true),
   hasSystemGeminiKeys: vi.fn().mockResolvedValue(true),
   hasHealthySystemPoolSlot: vi.fn().mockResolvedValue(true),
 }));
@@ -27,7 +28,7 @@ vi.mock("@/src/lib/ai/engine/system-key-pool", () => ({
 import { resolveEffectiveAiSource, resolveAiRoute } from "@/src/lib/ai/engine/router";
 import {
   hasHealthySystemPoolSlot,
-  hasSystemGeminiKeys,
+  hasSystemPoolKeys,
 } from "@/src/lib/ai/engine/system-key-pool";
 
 describe("resolveEffectiveAiSource", () => {
@@ -62,7 +63,7 @@ describe("resolveAiRoute", () => {
   const originalGlobalAi = process.env.EASYSUBMIT_AI_GLOBALLY_ENABLED;
 
   beforeEach(() => {
-    vi.mocked(hasSystemGeminiKeys).mockResolvedValue(true);
+    vi.mocked(hasSystemPoolKeys).mockResolvedValue(true);
     vi.mocked(hasHealthySystemPoolSlot).mockResolvedValue(true);
     process.env.EASYSUBMIT_AI_GLOBALLY_ENABLED = "true";
   });

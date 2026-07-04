@@ -34,6 +34,7 @@ vi.mock("@/src/lib/services/ai-engine-config", () => ({
 vi.mock("@/src/lib/ai/engine/router", () => ({
   resolveAiRoute: vi.fn(async () => ({
     mode: "system",
+    provider: "gemini",
     modelId: "gemini-1.5-flash",
   })),
 }));
@@ -83,6 +84,7 @@ describe("resolveEnhanceFeature", () => {
     } as Awaited<ReturnType<typeof getFeatureFlags>>);
     vi.mocked(resolveAiRoute).mockResolvedValue({
       mode: "system",
+      provider: "gemini",
       modelId: "gemini-1.5-flash",
     });
     vi.mocked(checkAiQuota).mockReturnValue({ ok: true } as ReturnType<typeof checkAiQuota>);
@@ -195,7 +197,11 @@ describe("resolveEnhanceFeature", () => {
     const result = await resolveEnhanceFeature(baseUser, "job_apply");
     expect(result.aiAvailable).toBe(true);
     expect(result.mode).toBe("system");
-    expect(result.route).toEqual({ mode: "system", modelId: "gemini-1.5-flash" });
+    expect(result.route).toEqual({
+      mode: "system",
+      provider: "gemini",
+      modelId: "gemini-1.5-flash",
+    });
     expect(result.fallbackAvailable).toBe(true);
   });
 

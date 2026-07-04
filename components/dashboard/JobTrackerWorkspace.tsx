@@ -37,6 +37,10 @@ type JobTrackerWorkspaceProps = {
   manualAddOpen: boolean;
   onManualAddOpenChange: (open: boolean) => void;
   onOpenManualAdd: () => void;
+  selectedEntryIds?: string[];
+  onSelectedEntryIdsChange?: (ids: string[]) => void;
+  onArchivedEntryIdsChange?: (ids: string[]) => void;
+  archiveRefreshToken?: number;
 };
 
 export function JobTrackerWorkspace({
@@ -47,6 +51,10 @@ export function JobTrackerWorkspace({
   manualAddOpen,
   onManualAddOpenChange,
   onOpenManualAdd,
+  selectedEntryIds = [],
+  onSelectedEntryIdsChange,
+  onArchivedEntryIdsChange,
+  archiveRefreshToken = 0,
 }: JobTrackerWorkspaceProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -156,7 +164,17 @@ export function JobTrackerWorkspace({
     if (archivedView) {
       void loadArchived();
     }
-  }, [archivedView, loadArchived, refreshKey]);
+  }, [archivedView, loadArchived, refreshKey, archiveRefreshToken]);
+
+  useEffect(() => {
+    onArchivedEntryIdsChange?.(archivedEntries.map((entry) => entry.id));
+  }, [archivedEntries, onArchivedEntryIdsChange]);
+
+  useEffect(() => {
+    if (!archivedView) {
+      onSelectedEntryIdsChange?.([]);
+    }
+  }, [archivedView, onSelectedEntryIdsChange]);
 
   const clearReviewUrlParams = useCallback(() => {
     if (!jobIdFromUrl && !panelParam) return;
@@ -268,6 +286,8 @@ export function JobTrackerWorkspace({
           archivedView={archivedView}
           onReview={openReview}
           onMutated={handleMutated}
+          selectedEntryIds={archivedView ? selectedEntryIds : undefined}
+          onSelectedEntryIdsChange={archivedView ? onSelectedEntryIdsChange : undefined}
         />
       )}
 

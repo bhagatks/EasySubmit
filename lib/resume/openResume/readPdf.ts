@@ -6,12 +6,12 @@ import type { TextItem, TextItems } from "@/lib/resume/openResume/types";
 let pdfjsInitialized = false;
 
 async function getPdfJs() {
-  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.js");
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
 
   if (!pdfjsInitialized) {
     const workerPath = path.join(
       process.cwd(),
-      "node_modules/pdfjs-dist/legacy/build/pdf.worker.js",
+      "node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs",
     );
     pdfjs.GlobalWorkerOptions.workerSrc = pathToFileURL(workerPath).href;
     pdfjsInitialized = true;

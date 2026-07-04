@@ -1,5 +1,9 @@
 import type { SummaryIdentityResolution } from "@/lib/job-tracker/enhance/resolve-summary-identity";
-import { stripBannedSummaryWords } from "@/lib/resume/summary-rules";
+import {
+  enforceSummaryWordBudget,
+  repairSummaryOrphans,
+  stripBannedSummaryWords,
+} from "@/lib/resume/summary-rules";
 
 /** Quantified spend / scope patterns often copied from JD text without experience proof. */
 const UNGROUNDED_CLAIM_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
@@ -128,6 +132,9 @@ export function postProcessSummaryOutput(
   }
 
   out = enforceSummaryIdentityOpening(out, input.identity, input.employerNames);
+
+  out = repairSummaryOrphans(out);
+  out = enforceSummaryWordBudget(out);
 
   if (input.identity.isCrossDomain) {
     warnings.push(

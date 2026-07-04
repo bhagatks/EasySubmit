@@ -20,12 +20,9 @@ import { useResumeEnhanceFlow } from "@/components/resume/useResumeEnhanceFlow";
 import type { RefineryStudioToolbarPayload } from "@/components/onboarding/hub/RefineryPanel";
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
 import { refineryFormToPrimeResume } from "@/lib/onboarding/hubResume";
+import { profileStudioPersistErrors } from "@/lib/profile/profile-studio-persist";
 import { studioSkillsFromForm } from "@/lib/profile/studio-form-db";
 import { ValidationErrorsBanner } from "@/components/resume/ValidationErrorsBanner";
-import {
-  collectValidationErrorMessages,
-  validateResume,
-} from "@/lib/resume/validation";
 import { buildProfileStudioSectionExpansion } from "@/lib/resume/studio-editor-sections";
 import { estimateYearsExperience } from "@/src/lib/ai/engine/candidate-context";
 import {
@@ -114,7 +111,7 @@ export function ResumeStudioEditor({
       setSectionExpansion(result.sectionExpansion);
       setFormRevision((revision) => revision + 1);
     },
-    [],
+    [pageLengthPreference],
   );
 
   const { flowUi, headerButton } = useResumeEnhanceFlow({
@@ -154,7 +151,6 @@ export function ResumeStudioEditor({
     [isSaving, saveDisabled],
   );
 
-
   const resumePreview = useMemo((): PrimeResumeData => {
     return refineryFormToPrimeResume(mergedFormValues);
   }, [mergedFormValues]);
@@ -181,10 +177,10 @@ export function ResumeStudioEditor({
         ...values,
         skillsText: studioSkills.join(", "),
       };
-      const gate = validateResume(form, targetRole, { summaryRequired: true });
-      if (!gate.canFinalize) {
+      const saveErrors = profileStudioPersistErrors(form, targetRole, studioSkills);
+      if (saveErrors.length > 0) {
         setIsSaving(false);
-        setErrors(collectValidationErrorMessages(gate));
+        setErrors(saveErrors);
         return;
       }
 

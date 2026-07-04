@@ -59,6 +59,7 @@ describe("getFeatureFlags", () => {
       extensionAutoApply: true,
       extensionApplyPipelineStepAnalytics: false,
       systemAiEnabled: false,
+      aiJdExtractEnabled: false,
     });
   });
 });

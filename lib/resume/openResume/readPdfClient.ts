@@ -8,7 +8,7 @@ import type { TextItem, TextItems } from "@/lib/resume/openResume/types";
  */
 export async function readPdfClient(fileUrl: string): Promise<TextItems> {
   const pdfjs = await initPdfJsClient();
-  const pdfFile = await pdfjs.getDocument(fileUrl).promise;
+  const pdfFile = await pdfjs.getDocument({ url: fileUrl }).promise;
   let textItems: TextItems = [];
 
   for (let pageNum = 1; pageNum <= pdfFile.numPages; pageNum++) {

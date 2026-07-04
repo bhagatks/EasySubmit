@@ -19,6 +19,8 @@ export type JobAnalysisBundle = {
   skillsVocabulary: JdSkillsVocabulary;
   jdAiAttempted: boolean;
   jdAiCallCount: number;
+  /** Pipeline debug detail when JD AI extract was skipped. */
+  jdAiSkipDetail?: string | null;
   cacheHit: boolean;
   hasJd: boolean;
   platform: {

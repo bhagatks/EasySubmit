@@ -501,6 +501,47 @@ export async function deleteJobTrackerEntry(entryId: string): Promise<JobTracker
   }
 }
 
+export async function deleteJobTrackerEntries(
+  entryIds: string[],
+): Promise<JobTrackerMutationResult> {
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return { success: false, error: "Sign in required" };
+  }
+
+  const ids = [...new Set(entryIds.map((id) => id.trim()).filter(Boolean))];
+  if (ids.length === 0) {
+    return { success: false, error: "No jobs selected" };
+  }
+
+  try {
+    const result = await prisma.jobTrackerEntry.deleteMany({
+      where: { id: { in: ids }, userId },
+    });
+
+    if (result.count === 0) {
+      return { success: false, error: "No matching jobs found" };
+    }
+
+    journeySyncLog("server", "jobs_bulk_deleted", {
+      userId,
+      count: result.count,
+    });
+
+    revalidatePath("/dashboard/job-tracker");
+    return { success: true };
+  } catch (error) {
+    journeySyncWarn("server", "jobs_bulk_delete_fail", {
+      userId,
+      count: ids.length,
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
+    return { success: false, error: "Could not delete selected jobs. Try again." };
+  }
+}
+
 export async function updateJobTrackerEntryStatus(
   entryId: string,
   status: JobTrackerStatus,

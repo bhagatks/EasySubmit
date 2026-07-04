@@ -1,9 +1,11 @@
 import { prisma } from "@/lib/prisma";
-import {
-  DEFAULT_SLOT_MODEL_ID,
-  slotLabelForIndex,
-} from "@/src/lib/ai/engine/pool-constants";
+import { slotLabelForIndex } from "@/src/lib/ai/engine/pool-constants";
 import { getTodayPacificDateString } from "@/src/lib/ai/engine/pacific-time";
+import {
+  defaultSlotModelForProvider,
+  parseSystemPoolProvider,
+  type SystemPoolProvider,
+} from "@/src/lib/ai/engine/system-model-defaults";
 import { AI_ENGINE_DEFAULTS } from "@/src/lib/services/ai-engine-config";
 
 type VaultSystemKeyRow = { vault_system_key: string };
@@ -15,7 +17,12 @@ type VaultSystemKeyRow = { vault_system_key: string };
 export async function vaultSystemApiKey(
   slot: number,
   rawKey: string,
-  options?: { label?: string; enabled?: boolean },
+  options?: {
+    label?: string;
+    enabled?: boolean;
+    provider?: SystemPoolProvider;
+    modelId?: string;
+  },
 ): Promise<{ slot: number; vaultSecretId: string }> {
   const trimmedKey = rawKey.trim();
   if (!trimmedKey) {
@@ -35,6 +42,13 @@ export async function vaultSystemApiKey(
     throw new Error("Failed to vault system API key");
   }
 
+  const provider = parseSystemPoolProvider(
+    options?.provider,
+    AI_ENGINE_DEFAULTS.system.provider,
+  );
+  const modelId =
+    options?.modelId?.trim() || defaultSlotModelForProvider(provider);
+
   await prisma.systemApiKey.upsert({
     where: { slot },
     create: {
@@ -42,9 +56,9 @@ export async function vaultSystemApiKey(
       vaultSecretId,
       label: options?.label?.trim() || slotLabelForIndex(slot),
       enabled: options?.enabled ?? true,
-      provider: "gemini",
+      provider,
       billingMode: "free",
-      modelId: DEFAULT_SLOT_MODEL_ID,
+      modelId,
       callsToday: 0,
       quotaResetDate: getTodayPacificDateString(),
     },

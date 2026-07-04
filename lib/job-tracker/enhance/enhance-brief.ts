@@ -48,6 +48,8 @@ export type ResumeEnhanceBrief = {
   jdAiCallCount: number;
   /** True when JD AI extract was attempted during brief build. */
   jdAiAttempted: boolean;
+  /** Pipeline debug detail when JD AI extract was skipped. */
+  jdAiSkipDetail?: string | null;
   /**
    * Happy-path fork/join brief — skills merge only; skip readiness/gap/weak-bullet prompt bloat.
    * Full brief is built lazily on AI failure for deterministic fallback.

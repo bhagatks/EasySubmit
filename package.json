@@ -21,7 +21,7 @@
     "db:check": "node scripts/validate-database-url.mjs",
     "env:whoami": "node scripts/env-whoami.mjs",
     "env:repair-local": "node scripts/repair-local-env.mjs",
-    "postinstall": "prisma generate",
+    "postinstall": "prisma generate && node scripts/copy-pdf-worker.mjs",
     "validate:ats-template": "npx --yes tsx scripts/validate-ats-template.ts",
     "validate:bhagath-sample": "npx --yes tsx scripts/validate-bhagath-sample.ts",
     "test": "NODE_OPTIONS=--max-old-space-size=4096 vitest run --config config/vitest.config.ts",

@@ -1,4 +1,5 @@
 import type { ResumeBodyForm } from "@/src/lib/ai/engine/candidate-context";
+import { normalizeBrandTokens } from "@/lib/resume/brand-normalize";
 
 export const FORBIDDEN_RESUME_PHRASES = [
   /\bATS\b/i,
@@ -18,7 +19,7 @@ const DOUBLE_VERB_RE = new RegExp(
 );
 
 export function cleanBulletLine(line: string): string {
-  let out = line.trim();
+  let out = normalizeBrandTokens(line.trim());
   // Fix double-verb start: keep only the first (past-tense) verb
   out = out.replace(DOUBLE_VERB_RE, "$1");
   // Fix missing space before a capital letter mid-word (e.g. "capabilitywithin" → can't fix, but "usingAgentic" → "using Agentic")
@@ -38,7 +39,7 @@ export function cleanBulletsString(bullets: string): string {
 }
 
 export function stripForbiddenPhrases(text: string): string {
-  let out = text;
+  let out = normalizeBrandTokens(text);
   for (const pattern of FORBIDDEN_RESUME_PHRASES) {
     out = out.replace(pattern, "");
   }

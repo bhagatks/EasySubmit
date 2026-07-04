@@ -267,6 +267,7 @@ export async function buildEnhanceBrief(
   let jdSlice: ResumeEnhanceBrief["jd"];
   let jdAiCallCount = 0;
   let jdAiAttempted = false;
+  let jdAiSkipDetail: string | null = null;
 
   if (hasJd) {
     pipelineDebugAdvance(debug, "pre_jd_skills", "pre_intelligence");
@@ -371,6 +372,7 @@ export async function buildEnhanceBrief(
     });
     jdAiCallCount = jdResult.aiCallMade ? 1 : 0;
     jdAiAttempted = jdResult.aiAttempted;
+    jdAiSkipDetail = jdResult.aiSkipDetail ?? null;
 
     logEnhanceDiag({
       traceId: input.traceId,
@@ -583,6 +585,7 @@ export async function buildEnhanceBrief(
     jobEntryId: input.jobEntryId,
     jdAiCallCount,
     jdAiAttempted,
+    jdAiSkipDetail,
     structural: {
       warnings: jobIntelligence.structuralWarnings,
       mashedRolesFound: countMashedRoles(input.form),

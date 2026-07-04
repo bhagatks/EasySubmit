@@ -41,12 +41,13 @@ describe("routeContextForApiLog", () => {
     expect(
       routeContextForApiLog({
         mode: "system",
-        modelId: "gemini-2.5-flash-lite",
+        provider: "deepseek",
+        modelId: "deepseek-chat",
       }),
     ).toEqual({
       aiMode: "system",
-      provider: "gemini",
-      modelId: "gemini-2.5-flash-lite",
+      provider: "deepseek",
+      modelId: "deepseek-chat",
       keySlot: null,
       keySource: null,
     });

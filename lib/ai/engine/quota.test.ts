@@ -26,15 +26,15 @@ import {
 } from "@/src/lib/ai/engine/quota";
 
 describe.sequential("system-key-pool", () => {
-  const original = process.env.EASYSUBMIT_SYSTEM_GEMINI_API_KEYS;
+  const original = process.env.EASYSUBMIT_SYSTEM_DEEPSEEK_API_KEYS;
 
   beforeEach(() => {
     resetSystemKeyPoolForTests();
-    process.env.EASYSUBMIT_SYSTEM_GEMINI_API_KEYS = "k1,k2,k3";
+    process.env.EASYSUBMIT_SYSTEM_DEEPSEEK_API_KEYS = "k1,k2,k3";
   });
 
   afterEach(() => {
-    process.env.EASYSUBMIT_SYSTEM_GEMINI_API_KEYS = original;
+    process.env.EASYSUBMIT_SYSTEM_DEEPSEEK_API_KEYS = original;
     resetSystemKeyPoolForTests();
   });
 

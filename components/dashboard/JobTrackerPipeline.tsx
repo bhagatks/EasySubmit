@@ -45,6 +45,8 @@ type JobTrackerPipelineProps = {
   archivedView?: boolean;
   onReview: (entryId: string) => void;
   onMutated?: () => void;
+  selectedEntryIds?: string[];
+  onSelectedEntryIdsChange?: (ids: string[]) => void;
 };
 
 function stopRowAction(event: MouseEvent | KeyboardEvent) {
@@ -92,6 +94,8 @@ export function JobTrackerPipeline({
   archivedView = false,
   onReview,
   onMutated,
+  selectedEntryIds = [],
+  onSelectedEntryIdsChange,
 }: JobTrackerPipelineProps) {
   const [deleteTarget, setDeleteTarget] = useState<JobTrackerSummary | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<JobTrackerSummary | null>(null);
@@ -99,6 +103,18 @@ export function JobTrackerPipeline({
   const [extensionHint, setExtensionHint] = useState<string | null>(null);
   const extensionConnected = useDashboardExtensionConnected();
   const extensionInstalled = extensionConnected === true;
+  const selectedIdSet = new Set(selectedEntryIds);
+
+  function toggleEntrySelected(entryId: string) {
+    if (!onSelectedEntryIdsChange) return;
+    const next = new Set(selectedIdSet);
+    if (next.has(entryId)) {
+      next.delete(entryId);
+    } else {
+      next.add(entryId);
+    }
+    onSelectedEntryIdsChange([...next]);
+  }
 
   useEffect(() => {
     if (extensionConnected !== true) return;
@@ -253,7 +269,18 @@ export function JobTrackerPipeline({
               >
                 <div className="flex flex-col gap-2">
                   <div className="flex items-start justify-between gap-3">
-                    <div className="flex min-w-0 flex-1 items-center gap-1 py-0.5">
+                    <div className="flex min-w-0 flex-1 items-center gap-2 py-0.5">
+                      {archivedView && onSelectedEntryIdsChange ? (
+                        <input
+                          type="checkbox"
+                          checked={selectedIdSet.has(entry.id)}
+                          onChange={() => toggleEntrySelected(entry.id)}
+                          onClick={stopRowAction}
+                          onKeyDown={stopRowAction}
+                          className="h-4 w-4 shrink-0 rounded border-border text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                          aria-label={`Select ${entry.title}`}
+                        />
+                      ) : null}
                       <p
                         className="min-w-0 truncate text-sm font-medium leading-snug text-foreground transition-colors group-hover:text-primary"
                         title={trackerRowLine(entry)}

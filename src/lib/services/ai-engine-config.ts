@@ -13,16 +13,23 @@ export type AiEngineCustomerQuotaLimits = AiEngineQuotaLimits & {
   aiDailyUnlimited: boolean;
 };
 
+import {
+  DEFAULT_SYSTEM_POOL_PROVIDER,
+  parseSystemPoolProvider,
+  resolveSystemJdExtractModel,
+  resolveSystemResumeModel,
+  type SystemPoolProvider,
+} from "@/src/lib/ai/engine/system-model-defaults";
+
 export type AiEngineConfig = {
   /** Admin flag: when false, system AI is unavailable (forces BYOK mode). */
   enabled: boolean;
   system: {
-    /** Gemini model id for EasySubmit system AI (resume enhance passes). */
+    /** System pool provider — `deepseek`, `openrouter` (GLM), or legacy `gemini`. */
+    provider: SystemPoolProvider;
+    /** Resume enhance model id for the configured system provider. */
     modelId: string;
-    /**
-     * @deprecated JD extract uses `system.modelId` — same model as resume enhance.
-     * Kept for existing app_config rows only.
-     */
+    /** JD structured extract model id (utility tier when possible). */
     jdExtractionModelId: string;
     /** Max vaulted system key slots (0 … maxKeySlots-1). */
     maxKeySlots: number;
@@ -35,18 +42,16 @@ export type AiEngineConfig = {
   customerDailyEnhancementCap: number;
 };
 
-import {
-  GEMINI_JD_EXTRACT_MODEL,
-  GEMINI_RESUME_PRIMARY_MODEL,
-} from "@/src/lib/ai/engine/gemini-resilience";
-
-/** Default utility model for system-pool + Gemini BYOK structured JD extraction. */
-export const JD_EXTRACTION_SYSTEM_MODEL_DEFAULT = GEMINI_JD_EXTRACT_MODEL;
+/** Default JD extract model for the default system provider (DeepSeek Flash). */
+export const JD_EXTRACTION_SYSTEM_MODEL_DEFAULT = resolveSystemJdExtractModel(
+  DEFAULT_SYSTEM_POOL_PROVIDER,
+);
 
 export const AI_ENGINE_DEFAULTS: AiEngineConfig = {
   enabled: true,
   system: {
-    modelId: GEMINI_RESUME_PRIMARY_MODEL,
+    provider: DEFAULT_SYSTEM_POOL_PROVIDER,
+    modelId: resolveSystemResumeModel(DEFAULT_SYSTEM_POOL_PROVIDER),
     jdExtractionModelId: JD_EXTRACTION_SYSTEM_MODEL_DEFAULT,
     maxKeySlots: 3,
   },
@@ -119,15 +124,17 @@ export function parseAiEngineConfig(value: unknown): AiEngineConfig | null {
 
   const enabled = typeof value.enabled === "boolean" ? value.enabled : AI_ENGINE_DEFAULTS.enabled;
 
-  const modelId =
-    typeof systemRaw.modelId === "string" && systemRaw.modelId.trim()
-      ? systemRaw.modelId.trim()
-      : AI_ENGINE_DEFAULTS.system.modelId;
+  const provider = parseSystemPoolProvider(systemRaw.provider, AI_ENGINE_DEFAULTS.system.provider);
 
-  const jdExtractionModelId =
-    typeof systemRaw.jdExtractionModelId === "string" && systemRaw.jdExtractionModelId.trim()
-      ? systemRaw.jdExtractionModelId.trim()
-      : AI_ENGINE_DEFAULTS.system.jdExtractionModelId;
+  const modelId = resolveSystemResumeModel(
+    provider,
+    typeof systemRaw.modelId === "string" ? systemRaw.modelId : undefined,
+  );
+
+  const jdExtractionModelId = resolveSystemJdExtractModel(
+    provider,
+    typeof systemRaw.jdExtractionModelId === "string" ? systemRaw.jdExtractionModelId : undefined,
+  );
 
   const maxKeySlots = Math.min(
     MAX_SLOT,
@@ -136,7 +143,7 @@ export function parseAiEngineConfig(value: unknown): AiEngineConfig | null {
 
   return {
     enabled,
-    system: { modelId, jdExtractionModelId, maxKeySlots },
+    system: { provider, modelId, jdExtractionModelId, maxKeySlots },
     quotas: {
       system: parseSystemQuotaLimits(quotasRaw.system, AI_ENGINE_DEFAULTS.quotas.system),
       customer: parseCustomerQuotaLimits(quotasRaw.customer, AI_ENGINE_DEFAULTS.quotas.customer),

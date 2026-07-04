@@ -21,10 +21,11 @@ const { callEnhanceObjectModel } = await import("@/src/lib/ai/engine/run-enhance
 
 describe("jdExtractionRoute", () => {
   it("uses jdExtractionModelId for system mode", async () => {
-    const route = { mode: "system" as const, modelId: "gemini-2.5-flash" };
+    const route = { mode: "system" as const, provider: "gemini" as const, modelId: "gemini-2.5-flash" };
     const resolved = await jdExtractionRoute(route);
     expect(resolved).toEqual({
       mode: "system",
+      provider: "gemini",
       modelId: AI_ENGINE_DEFAULTS.system.jdExtractionModelId,
     });
   });
@@ -76,7 +77,7 @@ describe("extractJDIntelligenceWithAI quota", () => {
         wordCount: { requirements: 1, responsibilities: 2, preferred: 0 },
       },
       "Engineer",
-      { mode: "system", modelId: "gemini-2.5-flash-lite" },
+      { mode: "system", provider: "deepseek", modelId: "deepseek-chat" },
       "trace-1",
       "user-1",
       { quotaContext: { quotaRow, aiEngine: AI_ENGINE_DEFAULTS } },

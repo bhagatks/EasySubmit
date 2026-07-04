@@ -1,7 +1,7 @@
 export const PLATFORM_DAILY_CALL_CAP = 3_000;
 export const FREE_SLOT_DAILY_CALL_CAP = 1_000;
 export const MAX_POOL_ATTEMPTS = 3;
-export const DEFAULT_SLOT_MODEL_ID = "gemini-2.5-flash-lite";
+export const DEFAULT_SLOT_MODEL_ID = "deepseek-chat";
 export const BILLING_MODE_CACHE_MS = 30_000;
 
 export const SLOT_LABELS = ["Alpha", "Beta", "Gamma"] as const;

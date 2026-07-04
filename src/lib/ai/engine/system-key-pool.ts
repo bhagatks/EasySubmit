@@ -8,13 +8,19 @@ import {
 } from "@/src/lib/ai/engine/pool-cooldown";
 import {
   BILLING_MODE_CACHE_MS,
-  DEFAULT_SLOT_MODEL_ID,
   FREE_SLOT_DAILY_CALL_CAP,
   MAX_POOL_ATTEMPTS,
   PLATFORM_DAILY_CALL_CAP,
   slotLabelForIndex,
   type SystemBillingMode,
 } from "@/src/lib/ai/engine/pool-constants";
+import {
+  defaultSlotModelForProvider,
+  parseSystemPoolProvider,
+  systemPoolEnvKeyVar,
+  systemPoolEnvKeysVar,
+  type SystemPoolProvider,
+} from "@/src/lib/ai/engine/system-model-defaults";
 import {
   getTodayPacificDateString,
   nextPacificMidnight,
@@ -25,6 +31,7 @@ import { AI_ENGINE_DEFAULTS } from "@/src/lib/services/ai-engine-config";
 type EnvMockSlot = {
   label: string;
   billingMode: SystemBillingMode;
+  provider: SystemPoolProvider;
   modelId: string;
   callsToday: number;
   exhaustedUntil: Date | null;
@@ -36,6 +43,7 @@ export type SystemSlotRow = {
   slot: number;
   label: string;
   enabled: boolean;
+  provider: SystemPoolProvider;
   billingMode: SystemBillingMode;
   modelId: string;
   callsToday: number;
@@ -47,6 +55,7 @@ export type SystemSlotRow = {
 export type PoolCallMeta = {
   slot: number;
   label: string;
+  provider: SystemPoolProvider;
   billingMode: SystemBillingMode;
   modelId: string;
   keySource: "vault" | "env";
@@ -73,11 +82,17 @@ let roundRobinIndex = 0;
 
 let billingModeCache: { fetchedAt: number; gammaPaid: boolean } | null = null;
 
-function parseEnvSystemGeminiKeys(): string[] {
+function parseEnvSystemKeys(provider: SystemPoolProvider): string[] {
+  const keysVar = systemPoolEnvKeysVar(provider);
+  const keyVar = systemPoolEnvKeyVar(provider);
   const raw =
-    process.env.EASYSUBMIT_SYSTEM_GEMINI_API_KEYS?.trim() ||
-    process.env.EASYSUBMIT_SYSTEM_GEMINI_API_KEY?.trim() ||
-    "";
+    process.env[keysVar]?.trim() ||
+    process.env[keyVar]?.trim() ||
+    (provider === "gemini"
+      ? process.env.EASYSUBMIT_SYSTEM_GEMINI_API_KEYS?.trim() ||
+        process.env.EASYSUBMIT_SYSTEM_GEMINI_API_KEY?.trim() ||
+        ""
+      : "");
   if (!raw) return [];
   return raw
     .split(",")
@@ -85,7 +100,7 @@ function parseEnvSystemGeminiKeys(): string[] {
     .filter(Boolean);
 }
 
-function ensureEnvMockSlot(slot: number): EnvMockSlot {
+function ensureEnvMockSlot(slot: number, provider: SystemPoolProvider): EnvMockSlot {
   const existing = envMockSlots.get(slot);
   if (existing) return existing;
 
@@ -93,7 +108,8 @@ function ensureEnvMockSlot(slot: number): EnvMockSlot {
   const created: EnvMockSlot = {
     label: slotLabelForIndex(slot),
     billingMode: "free",
-    modelId: DEFAULT_SLOT_MODEL_ID,
+    provider,
+    modelId: defaultSlotModelForProvider(provider),
     callsToday: 0,
     exhaustedUntil: null,
     quotaResetDate: today,
@@ -118,10 +134,18 @@ export function resetSystemKeyPoolForTests(): void {
 export function setEnvSlotBillingModeForTests(
   slot: number,
   billingMode: SystemBillingMode,
+  provider: SystemPoolProvider = AI_ENGINE_DEFAULTS.system.provider,
 ): void {
-  const mock = ensureEnvMockSlot(slot);
+  const mock = ensureEnvMockSlot(slot, provider);
   mock.billingMode = billingMode;
   billingModeCache = null;
+}
+
+function resolvePoolProvider(config?: AiEngineConfig): SystemPoolProvider {
+  return parseSystemPoolProvider(
+    config?.system.provider,
+    AI_ENGINE_DEFAULTS.system.provider,
+  );
 }
 
 export function isRetryableProviderStatus(status: number): boolean {
@@ -177,7 +201,7 @@ async function resetSlotQuotaIfNeeded(row: SystemSlotRow): Promise<SystemSlotRow
   }
 
   if (row.source === "env") {
-    const mock = ensureEnvMockSlot(row.slot);
+    const mock = ensureEnvMockSlot(row.slot, row.provider);
     mock.callsToday = 0;
     mock.exhaustedUntil = null;
     mock.quotaResetDate = today;
@@ -208,22 +232,25 @@ async function resetSlotQuotaIfNeeded(row: SystemSlotRow): Promise<SystemSlotRow
 
 async function loadSystemSlots(config?: AiEngineConfig): Promise<SystemSlotRow[]> {
   const maxSlots = config?.system.maxKeySlots ?? AI_ENGINE_DEFAULTS.system.maxKeySlots;
+  const provider = resolvePoolProvider(config);
   const today = getTodayPacificDateString();
 
   const rows = await prisma.systemApiKey.findMany({
-    where: { enabled: true, provider: "gemini", slot: { lt: maxSlots } },
+    where: { enabled: true, provider, slot: { lt: maxSlots } },
     orderBy: { slot: "asc" },
   });
 
   if (rows.length > 0) {
     const slots: SystemSlotRow[] = [];
     for (const row of rows) {
+      const slotProvider = parseSystemPoolProvider(row.provider, provider);
       const base: SystemSlotRow = {
         slot: row.slot,
         label: row.label?.trim() || slotLabelForIndex(row.slot),
         enabled: row.enabled,
+        provider: slotProvider,
         billingMode: row.billingMode === "paid" ? "paid" : "free",
-        modelId: row.modelId?.trim() || DEFAULT_SLOT_MODEL_ID,
+        modelId: row.modelId?.trim() || defaultSlotModelForProvider(slotProvider),
         callsToday: row.callsToday,
         exhaustedUntil: row.exhaustedUntil,
         quotaResetDate: row.quotaResetDate ?? today,
@@ -234,14 +261,15 @@ async function loadSystemSlots(config?: AiEngineConfig): Promise<SystemSlotRow[]
     return slots;
   }
 
-  const envKeys = parseEnvSystemGeminiKeys().slice(0, maxSlots);
+  const envKeys = parseEnvSystemKeys(provider).slice(0, maxSlots);
   const slots: SystemSlotRow[] = [];
   for (let slot = 0; slot < envKeys.length; slot += 1) {
-    const mock = ensureEnvMockSlot(slot);
+    const mock = ensureEnvMockSlot(slot, provider);
     const base: SystemSlotRow = {
       slot,
       label: mock.label,
       enabled: mock.enabled,
+      provider: mock.provider,
       billingMode: mock.billingMode,
       modelId: mock.modelId,
       callsToday: mock.callsToday,
@@ -254,15 +282,16 @@ async function loadSystemSlots(config?: AiEngineConfig): Promise<SystemSlotRow[]
   return slots;
 }
 
-async function isGammaPaidOverflow(): Promise<boolean> {
+async function isGammaPaidOverflow(config?: AiEngineConfig): Promise<boolean> {
   const now = Date.now();
   if (billingModeCache && now - billingModeCache.fetchedAt < BILLING_MODE_CACHE_MS) {
     return billingModeCache.gammaPaid;
   }
 
-  const envKeys = parseEnvSystemGeminiKeys();
+  const provider = resolvePoolProvider(config);
+  const envKeys = parseEnvSystemKeys(provider);
   if (envKeys.length > 0) {
-    const mock = ensureEnvMockSlot(2);
+    const mock = ensureEnvMockSlot(2, provider);
     const gammaPaid = mock.billingMode === "paid";
     billingModeCache = { fetchedAt: now, gammaPaid };
     return gammaPaid;
@@ -346,7 +375,7 @@ function buildAttemptOrder(
 
 async function resolveApiKey(slot: SystemSlotRow): Promise<string | null> {
   if (slot.source === "env") {
-    const keys = parseEnvSystemGeminiKeys();
+    const keys = parseEnvSystemKeys(slot.provider);
     return keys[slot.slot]?.trim() || null;
   }
   return unvaultSystemApiKey(slot.slot);
@@ -355,7 +384,7 @@ async function resolveApiKey(slot: SystemSlotRow): Promise<string | null> {
 async function markSlotDailyExhausted(slot: SystemSlotRow): Promise<void> {
   const exhaustedUntil = nextPacificMidnight();
   if (slot.source === "env") {
-    const mock = ensureEnvMockSlot(slot.slot);
+    const mock = ensureEnvMockSlot(slot.slot, slot.provider);
     mock.exhaustedUntil = exhaustedUntil;
     mock.callsToday = FREE_SLOT_DAILY_CALL_CAP;
     return;
@@ -372,7 +401,7 @@ async function markSlotDailyExhausted(slot: SystemSlotRow): Promise<void> {
 
 async function recordSlotSuccess(slot: SystemSlotRow): Promise<void> {
   if (slot.source === "env") {
-    const mock = ensureEnvMockSlot(slot.slot);
+    const mock = ensureEnvMockSlot(slot.slot, slot.provider);
     mock.callsToday += 1;
     return;
   }
@@ -383,14 +412,18 @@ async function recordSlotSuccess(slot: SystemSlotRow): Promise<void> {
   });
 }
 
-export async function hasSystemGeminiKeys(config?: AiEngineConfig): Promise<boolean> {
+export async function hasSystemPoolKeys(config?: AiEngineConfig): Promise<boolean> {
   const maxSlots = config?.system.maxKeySlots ?? AI_ENGINE_DEFAULTS.system.maxKeySlots;
+  const provider = resolvePoolProvider(config);
   const vaulted = await prisma.systemApiKey.count({
-    where: { enabled: true, provider: "gemini", slot: { lt: maxSlots } },
+    where: { enabled: true, provider, slot: { lt: maxSlots } },
   });
   if (vaulted > 0) return true;
-  return parseEnvSystemGeminiKeys().length > 0;
+  return parseEnvSystemKeys(provider).length > 0;
 }
+
+/** @deprecated Use `hasSystemPoolKeys`. */
+export const hasSystemGeminiKeys = hasSystemPoolKeys;
 
 /** True when at least one system slot can accept a call right now. */
 export async function hasHealthySystemPoolSlot(
@@ -411,14 +444,20 @@ export type ExecuteWithPoolRetryOptions = {
  * Returns pool metadata alongside the caller's result.
  */
 export async function executeWithPoolRetry<T>(
-  fn: (input: { apiKey: string; modelId: string; slot: number }) => Promise<T>,
+  fn: (input: {
+    apiKey: string;
+    modelId: string;
+    slot: number;
+    provider: SystemPoolProvider;
+  }) => Promise<T>,
   options: ExecuteWithPoolRetryOptions = {},
 ): Promise<PoolCallResult<T>> {
+  const provider = resolvePoolProvider(options.config);
   const slots = await loadSystemSlots(options.config);
   if (!slots.length) {
     throw new SystemKeyPoolError(
       "pool_exhausted",
-      "No system Gemini keys are configured.",
+      `No system ${provider} keys are configured.`,
     );
   }
 
@@ -429,7 +468,7 @@ export async function executeWithPoolRetry<T>(
     );
   }
 
-  const gammaPaid = await isGammaPaidOverflow();
+  const gammaPaid = await isGammaPaidOverflow(options.config);
   const now = new Date();
   const attemptOrder = buildAttemptOrder(slots, now, {
     preferredSlot: options.preferredSlot,
@@ -458,6 +497,7 @@ export async function executeWithPoolRetry<T>(
         apiKey,
         modelId: slot.modelId,
         slot: slot.slot,
+        provider: slot.provider,
       });
       await recordSlotSuccess(slot);
       roundRobinIndex = (slot.slot + 1) % Math.max(slots.length, 1);
@@ -466,6 +506,7 @@ export async function executeWithPoolRetry<T>(
         result,
         slot: slot.slot,
         label: slot.label,
+        provider: slot.provider,
         billingMode: slot.billingMode,
         modelId: slot.modelId,
         keySource: slot.source,
@@ -495,6 +536,7 @@ export async function executeWithPoolRetry<T>(
               apiKey,
               modelId: slot.modelId,
               slot: slot.slot,
+              provider: slot.provider,
             });
             await recordSlotSuccess(slot);
             roundRobinIndex = (slot.slot + 1) % Math.max(slots.length, 1);
@@ -502,6 +544,7 @@ export async function executeWithPoolRetry<T>(
               result,
               slot: slot.slot,
               label: slot.label,
+              provider: slot.provider,
               billingMode: slot.billingMode,
               modelId: slot.modelId,
               keySource: slot.source,
@@ -545,13 +588,16 @@ export async function acquireSystemGeminiKey(
   }
 }
 
-export async function listSystemKeySlots(): Promise<
-  Array<{ slot: number; label: string | null; enabled: boolean; source: "vault" }>
+export async function listSystemKeySlots(
+  config?: AiEngineConfig,
+): Promise<
+  Array<{ slot: number; label: string | null; enabled: boolean; provider: string; source: "vault" }>
 > {
+  const provider = resolvePoolProvider(config);
   const rows = await prisma.systemApiKey.findMany({
-    where: { enabled: true, provider: "gemini" },
+    where: { enabled: true, provider },
     orderBy: { slot: "asc" },
-    select: { slot: true, label: true, enabled: true },
+    select: { slot: true, label: true, enabled: true, provider: true },
   });
   return rows.map((row) => ({ ...row, source: "vault" as const }));
 }

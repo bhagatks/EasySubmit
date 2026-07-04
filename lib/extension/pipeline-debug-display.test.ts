@@ -55,23 +55,25 @@ describe("refreshPipelineDebugLabelsForDisplay", () => {
     const base = emptyPipelineDebugProgress("trace-1");
     const progress = {
       ...base,
-      steps: base.steps.map((step) =>
-        step.id === "pre_onet"
-          ? {
-              ...step,
+      steps: [
+        ...base.steps,
+        {
+          id: "pre_onet",
+          group: "Job track",
+          label: "O*NET vocabulary",
+          description: "Legacy stored step",
+          trackerStage: "resume_prep" as const,
+          status: "done" as const,
+          detail: "Director, AI/ML and Data Architecture",
+          artifacts: [
+            {
+              kind: "output" as const,
               label: "O*NET vocabulary",
-              status: "done" as const,
-              detail: "Director, AI/ML and Data Architecture",
-              artifacts: [
-                {
-                  kind: "output" as const,
-                  label: "O*NET vocabulary",
-                  payload: { matchedTitle: "Director, AI/ML and Data Architecture" },
-                },
-              ],
-            }
-          : step,
-      ),
+              payload: { matchedTitle: "Director, AI/ML and Data Architecture" },
+            },
+          ],
+        },
+      ],
     };
 
     const refreshed = refreshPipelineDebugLabelsForDisplay(progress);

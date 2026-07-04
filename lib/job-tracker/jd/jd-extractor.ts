@@ -66,7 +66,8 @@ export function detectScope(title: string, responsibilities: string): JDScope {
 const DOMAIN_SIGNALS: Array<[RegExp, JDDomain]> = [
   [/\b(?:procurement|strategic\s+sourcing|category\s+management|purchase[- ]to[- ]pay|p2p\s+process|indirect\s+procurement|direct\s+procurement|supplier\s+(?:relationship|management|performance))\b/i, "procurement-supply-chain"],
   [/\b(?:medical\s+device|medtech|biotech|pharma|iso\s+13485|fda\s+regulations?|cardiac\s+health)\b/i, "medtech-regulatory"],
-  [/\b(?:machine\s+learning|ml\s+engineer|deep\s+learning|llm|ai\s+engineer|nlp|computer\s+vision)\b/i, "ml-ai"],
+  [/\b(?:machine\s+learning|ml\s+engineer|deep\s+learning|llm|ai\s+engineer|nlp|computer\s+vision|ai\/ml|ai\s+ml|generative\s+ai)\b/i, "ml-ai"],
+  [/\b(?:data\s+architecture|enterprise\s+architecture|data\s+architect)\b/i, "data-engineering"],
   [/\b(?:data\s+engineer|etl|data\s+pipeline|spark|airflow|kafka|dbt|data\s+warehouse)\b/i, "data-engineering"],
   [/\b(?:data\s+scientist|data\s+science|statistical\s+model|r\s+programming|jupyter)\b/i, "data-science"],
   [/\b(?:devops|sre|site\s+reliability|platform\s+engineer|infrastructure|kubernetes|terraform|ci\/cd|observability)\b/i, "devops-sre"],

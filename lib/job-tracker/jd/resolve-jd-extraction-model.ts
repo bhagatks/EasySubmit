@@ -211,7 +211,7 @@ export async function resolveJdExtractionExecutionRoute(
   const systemJdModelId = resolveJdExtractionSystemModel(engine);
 
   if (route.mode === "system") {
-    return { mode: "system", modelId: systemJdModelId };
+    return { mode: "system", provider: route.provider, modelId: systemJdModelId };
   }
 
   let structuredCandidates: string[] | undefined;

@@ -50,6 +50,7 @@ vi.mock("@/src/lib/services/ai-engine-config", () => ({
 vi.mock("@/src/lib/ai/engine/router", () => ({
   resolveAiRoute: vi.fn(async () => ({
     mode: "system",
+    provider: "gemini",
     modelId: "gemini-1.5-flash",
   })),
 }));
@@ -100,6 +101,7 @@ describe("resolveFeature", () => {
     vi.mocked(isAiGloballyEnabled).mockReturnValue(true);
     vi.mocked(resolveAiRoute).mockResolvedValue({
       mode: "system",
+      provider: "gemini",
       modelId: "gemini-1.5-flash",
     });
     vi.mocked(checkAiQuota).mockReturnValue({ ok: true } as ReturnType<typeof checkAiQuota>);
@@ -121,7 +123,11 @@ describe("resolveFeature", () => {
     });
     expect(result.aiAvailable).toBe(true);
     expect(result.mode).toBe("system");
-    expect(result.route).toEqual({ mode: "system", modelId: "gemini-1.5-flash" });
+    expect(result.route).toEqual({
+      mode: "system",
+      provider: "gemini",
+      modelId: "gemini-1.5-flash",
+    });
   });
 
   it("enhance: routes BYOK customer path when vault key present", async () => {
@@ -223,7 +229,11 @@ describe("resolveFeature", () => {
 
 describe("enhanceFeatureRoute re-export", () => {
   it("returns route from enhance resolution", () => {
-    const route = { mode: "system" as const, modelId: "gemini-1.5-flash" };
+    const route = {
+      mode: "system" as const,
+      provider: "gemini" as const,
+      modelId: "gemini-1.5-flash",
+    };
     expect(
       enhanceFeatureRoute({
         baselineAvailable: true,

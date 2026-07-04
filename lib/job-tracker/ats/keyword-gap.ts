@@ -134,6 +134,8 @@ function normalizeKeyword(keyword: string): string {
 export const KEYWORD_ALIAS_SATISFIERS: Readonly<Record<string, readonly string[]>> = {
   "fda regulations": ["iso 13485", "iso13485"],
   fda: ["iso 13485", "iso13485", "fda regulations"],
+  github: ["git hub"],
+  "github copilot": ["git hub copilot"],
 };
 
 function resumeSatisfiesKeywordAlias(

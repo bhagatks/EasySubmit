@@ -13,6 +13,9 @@ import type {
 import type { JobIntelligence } from "@/lib/job-tracker/ats/job-intelligence";
 import type { KeywordGapResult } from "@/lib/job-tracker/ats/keyword-gap";
 import type { ResumeReadinessResult } from "@/lib/job-tracker/ats/resume-readiness-score";
+import { computeResumeReadiness } from "@/lib/job-tracker/ats/resume-readiness-score";
+import { resolveKeywordGap } from "@/lib/job-tracker/ats/resolve-keyword-gap";
+import { refineryFormToPrimeResume } from "@/lib/onboarding/hubResume";
 
 const EMPTY_KEYWORD_GAP: KeywordGapResult = {
   matched: [],
@@ -51,12 +54,29 @@ export function buildLightEnhanceBrief(input: {
   resume: ResumePrepBundle;
   merge: LightMergeResult;
   targetRole: string;
+  jobDescription?: string;
   traceId: string;
   surface: FeatureSurface;
   variant: NonNullable<EnhanceResumeProfileInput["variant"]>;
   jobEntryId?: string;
 }): ResumeEnhanceBrief {
   const { job, resume, merge } = input;
+  const trimmedJd = input.jobDescription?.trim() ?? "";
+  const prime = refineryFormToPrimeResume(merge.form, { targetRole: input.targetRole });
+  const readiness =
+    trimmedJd.length > 0
+      ? computeResumeReadiness(
+          prime,
+          input.targetRole,
+          trimmedJd,
+          job.intelligence,
+          job.platform.id,
+        )
+      : EMPTY_READINESS;
+  const keywordGap =
+    trimmedJd.length > 0
+      ? resolveKeywordGap(prime, input.targetRole, trimmedJd, job.intelligence)
+      : EMPTY_KEYWORD_GAP;
 
   return {
     traceId: input.traceId,
@@ -67,6 +87,7 @@ export function buildLightEnhanceBrief(input: {
     jobEntryId: input.jobEntryId,
     jdAiCallCount: job.jdAiCallCount,
     jdAiAttempted: job.jdAiAttempted,
+    jdAiSkipDetail: job.jdAiSkipDetail ?? null,
     lightPath: true,
     promptExperience: resume.promptExperience,
     experienceSourceBlob: resume.experienceSourceBlob,
@@ -104,7 +125,7 @@ export function buildLightEnhanceBrief(input: {
           intelligence: job.intelligence,
           skillsVocabulary: job.skillsVocabulary,
           directive: merge.directive,
-          keywordGap: EMPTY_KEYWORD_GAP,
+          keywordGap,
           jobIntelligence: EMPTY_JOB_INTELLIGENCE,
           atoms: [],
           anchorScores: [],
@@ -117,7 +138,7 @@ export function buildLightEnhanceBrief(input: {
           },
         }
       : undefined,
-    readiness: EMPTY_READINESS,
+    readiness,
     plan: {
       skillsToAdd: merge.directive.mustAddSkills,
       skillsToRemove: merge.directive.mustRemoveSkills,

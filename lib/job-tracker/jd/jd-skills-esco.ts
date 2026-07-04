@@ -1,6 +1,9 @@
 import type { ExternalApiDebugExchange } from "@/lib/extension/external-api-debug";
 import type { JdSkillEntry } from "@/lib/job-tracker/jd/jd-skills-types";
-import { isKnownSkillToken } from "@/lib/job-tracker/jd/keyword-extract";
+import {
+  isKnownSkillToken,
+  KEYWORD_STOP_WORDS,
+} from "@/lib/job-tracker/jd/keyword-extract";
 import { MASTER_SKILLS } from "@/src/lib/constants/skills";
 
 const ESCO_BASE =
@@ -61,7 +64,71 @@ export function jdSkillFromEscoSearchHit(
 export type EnrichJdSkillsWithEscoOptions = {
   /** When set, records each live HTTP call (skipped when ESCO disabled). */
   apiDebug?: ExternalApiDebugExchange[];
+  /** Full JD text — used to reject ESCO hits unrelated to the posting. */
+  jobDescription?: string;
 };
+
+function phraseContentTokens(phrase: string): string[] {
+  return phrase
+    .toLowerCase()
+    .split(/[^a-z0-9+#/]+/)
+    .filter((token) => token.length >= 3 && !KEYWORD_STOP_WORDS.has(token));
+}
+
+/** Skip generic English / HR tokens that produce unrelated ESCO occupation skills. */
+export function isEscoSearchPhrase(phrase: string): boolean {
+  const trimmed = phrase.trim();
+  if (trimmed.length < 3 || trimmed.length > 48) return false;
+
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  if (words.length === 1) {
+    const token = words[0]!.toLowerCase();
+    return (
+      token.length >= 4 &&
+      !KEYWORD_STOP_WORDS.has(token) &&
+      (isKnownSkillToken(token) || MASTER_BY_LOWER.has(token))
+    );
+  }
+
+  const content = phraseContentTokens(trimmed);
+  return content.length >= 1 && content.some((token) => token.length >= 4);
+}
+
+/** Reject ESCO top hits that share no meaningful overlap with the query phrase. */
+export function isEscoSkillRelevant(phrase: string, label: string): boolean {
+  const labelKey = label.trim().toLowerCase();
+  if (!labelKey) return false;
+  if (isKnownSkillToken(labelKey) || MASTER_BY_LOWER.has(labelKey)) return true;
+
+  const phraseWords = phrase.trim().split(/\s+/).filter(Boolean);
+  const phraseTokens = phraseContentTokens(phrase);
+  if (phraseTokens.length === 0) return false;
+
+  if (phraseWords.length === 1) {
+    const token = phraseWords[0]!.toLowerCase();
+    return (
+      labelKey === token ||
+      (isKnownSkillToken(token) && labelTokensInclude(labelKey, token))
+    );
+  }
+
+  const labelTokens = labelKey.split(/[^a-z0-9+#/]+/).filter((t) => t.length >= 3);
+  const substantiveOverlap = phraseTokens.filter((phraseToken) => phraseToken.length >= 4);
+  if (substantiveOverlap.length === 0) return false;
+
+  return substantiveOverlap.some((phraseToken) =>
+    labelTokens.some(
+      (labelToken) =>
+        labelToken === phraseToken ||
+        (phraseToken.length >= 4 &&
+          (labelToken.includes(phraseToken) || phraseToken.includes(labelToken))),
+    ),
+  );
+}
+
+function labelTokensInclude(labelKey: string, token: string): boolean {
+  return labelKey.split(/[^a-z0-9+#/]+/).some((part) => part === token);
+}
 
 /** ESCO REST search — enriches unmatched JD phrases (free, optional). */
 export async function enrichJdSkillsWithEsco(
@@ -78,7 +145,12 @@ export async function enrichJdSkillsWithEsco(
 
   const candidates = phrases
     .map((p) => p.trim())
-    .filter((p) => p.length >= 3 && p.length <= 48 && !existingLower.has(p.toLowerCase()))
+    .filter(
+      (p) =>
+        isEscoSearchPhrase(p) &&
+        p.length <= 48 &&
+        !existingLower.has(p.toLowerCase()),
+    )
     .slice(0, 8);
 
   for (const phrase of candidates) {
@@ -115,6 +187,7 @@ export async function enrichJdSkillsWithEsco(
 
       const key = entry.label.toLowerCase();
       if (existingLower.has(key)) continue;
+      if (!isEscoSkillRelevant(phrase, entry.label)) continue;
 
       existingLower.add(key);
       enriched.push(entry);

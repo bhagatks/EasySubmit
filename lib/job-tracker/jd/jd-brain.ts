@@ -49,6 +49,8 @@ export type JDAnalysisResult = {
   aiCallMade: boolean;
   /** True when JD AI extract was attempted (route present, not cache hit). */
   aiAttempted: boolean;
+  /** Pipeline debug detail when AI JD extract was skipped (not cache hit). */
+  aiSkipDetail?: string | null;
 };
 
 export function hashJobDescription(description: string): string {
@@ -121,7 +123,9 @@ function finishPreJdBrainStep(
 function skipAiJdExtractStep(
   pipelineDebug: JdExtractionOptions["pipelineDebug"],
   detail: string,
+  setDetail?: (detail: string) => void,
 ): void {
+  setDetail?.(detail);
   if (!pipelineDebug) return;
   pipelineDebugStep(pipelineDebug, "ai_jd_extract", {
     status: "skipped",
@@ -145,6 +149,10 @@ export async function analyzeJobDescription(
     } = input;
 
     const descriptionHash = hashJobDescription(rawDescription);
+    let aiSkipDetail: string | null = null;
+    const recordSkip = (detail: string) => {
+      aiSkipDetail = detail;
+    };
 
     if (cachedHash === descriptionHash && cachedIntelligence) {
       const { cleaned } = cleanJobDescription(rawDescription);
@@ -153,7 +161,7 @@ export async function analyzeJobDescription(
         cacheHit: true,
         domain: cachedIntelligence.domain,
       });
-      skipAiJdExtractStep(pipelineDebug, "JD intelligence cached");
+      skipAiJdExtractStep(pipelineDebug, "JD intelligence cached", recordSkip);
       return {
         segments,
         intelligence: cachedIntelligence,
@@ -161,12 +169,13 @@ export async function analyzeJobDescription(
         descriptionHash,
         aiCallMade: false,
         aiAttempted: false,
+        aiSkipDetail,
       };
     }
 
     if (!rawDescription.trim()) {
       finishPreJdBrainStep(pipelineDebug, "Empty JD");
-      skipAiJdExtractStep(pipelineDebug, "No job description");
+      skipAiJdExtractStep(pipelineDebug, "No job description", recordSkip);
       return {
         segments: buildSegmentsForEmpty(),
         intelligence: makeEmptyIntelligence(),
@@ -174,6 +183,7 @@ export async function analyzeJobDescription(
         descriptionHash,
         aiCallMade: false,
         aiAttempted: false,
+        aiSkipDetail,
       };
     }
 
@@ -195,7 +205,11 @@ export async function analyzeJobDescription(
       const { shouldRunAiExtract } = resolveJdExtractFeature(flags);
 
       if (!shouldRunAiExtract) {
-        skipAiJdExtractStep(pipelineDebug, "AI JD extract disabled (ai_jd_extract_enabled)");
+        skipAiJdExtractStep(
+          pipelineDebug,
+          "AI JD extract disabled (ai_jd_extract_enabled)",
+          recordSkip,
+        );
         logEnhance("server", "jd.brain.skip_ai", {
           traceId: input.traceId ?? "no-trace",
           userId: input.userId,
@@ -238,7 +252,7 @@ export async function analyzeJobDescription(
             return { intelligence: merged, aiCallMade: true };
           }
           if (aiResult.reason === "quota") {
-            skipAiJdExtractStep(pipelineDebug, "Quota blocked");
+            skipAiJdExtractStep(pipelineDebug, "Quota blocked", recordSkip);
           }
           return { intelligence, aiCallMade: false };
         });
@@ -249,6 +263,7 @@ export async function analyzeJobDescription(
       skipAiJdExtractStep(
         pipelineDebug,
         useAi ? "No AI route" : "AI disabled for this run",
+        recordSkip,
       );
     }
 
@@ -259,10 +274,11 @@ export async function analyzeJobDescription(
       descriptionHash,
       aiCallMade,
       aiAttempted,
+      aiSkipDetail,
     };
   } catch {
     finishPreJdBrainStep(pipelineDebug, "Deterministic extract failed");
-    skipAiJdExtractStep(pipelineDebug, "JD brain error");
+    skipAiJdExtractStep(pipelineDebug, "JD brain error", () => undefined);
     return {
       segments: buildSegmentsForEmpty(),
       intelligence: makeEmptyIntelligence(),
@@ -270,6 +286,7 @@ export async function analyzeJobDescription(
       descriptionHash: hashJobDescription(input.rawDescription),
       aiCallMade: false,
       aiAttempted: false,
+      aiSkipDetail: "JD brain error",
     };
   }
 }

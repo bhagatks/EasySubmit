@@ -95,11 +95,61 @@ export function validateSummary(text: string): SummaryValidation {
   };
 }
 
+export function splitSummarySentences(text: string): string[] {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+  return trimmed.split(/(?<=[.!?])\s+/).filter(Boolean);
+}
+
+export function joinSummarySentences(sentences: string[]): string {
+  return sentences.join(" ").trim();
+}
+
+/** Fix broken fragments after banned-phrase removal (e.g. ". in leading" → ". Leading"). */
+export function repairSummaryOrphans(text: string): string {
+  return text
+    .replace(/([.!?])\s+in\s+(leading|driving|managing|building|delivering|partnering|architecting|designing|developing|directing|collaborating)\b/gi, (_, punct, verb) =>
+      `${punct} ${verb.charAt(0).toUpperCase()}${verb.slice(1).toLowerCase()}`,
+    )
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([,.!?])/g, "$1")
+    .trim();
+}
+
+/** Drop trailing sentences until word count is within budget (never below min if avoidable). */
+export function enforceSummaryWordBudget(text: string): string {
+  const sentences = splitSummarySentences(text);
+  if (sentences.length === 0) return text.trim();
+
+  let kept = [...sentences];
+  while (kept.length > 1 && countSummaryWords(joinSummarySentences(kept)) > SUMMARY_WORD_MAX) {
+    kept.pop();
+  }
+
+  let out = joinSummarySentences(kept);
+  if (countSummaryWords(out) > SUMMARY_WORD_MAX && kept.length === 1) {
+    const words = out.split(/\s+/).filter(Boolean);
+    out = words.slice(0, SUMMARY_WORD_MAX).join(" ");
+    if (!/[.!?]$/.test(out)) out += ".";
+  }
+
+  return out.trim();
+}
+
 export function stripBannedSummaryWords(text: string): string {
+  const multiWordBanned = SUMMARY_BANNED_WORDS.filter((phrase) => phrase.includes(" "));
   let out = text;
+
+  for (const phrase of multiWordBanned) {
+    const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = new RegExp(`\\b${escaped}s?\\b`, "gi");
+    out = out.replace(pattern, "");
+  }
+
   const banned = [...SUMMARY_BANNED_WORDS].sort((a, b) => b.length - a.length);
 
   for (const phrase of banned) {
+    if (phrase.includes(" ")) continue;
     const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const pattern = new RegExp(`\\b${escaped}s?\\b`, "gi");
     out = out.replace(pattern, (match) => {
@@ -111,5 +161,5 @@ export function stripBannedSummaryWords(text: string): string {
     });
   }
 
-  return out.replace(/\s{2,}/g, " ").replace(/\s+([,.!?])/g, "$1").trim();
+  return repairSummaryOrphans(out);
 }

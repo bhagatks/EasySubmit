@@ -34,6 +34,7 @@ export const RESUME_ACTION_VERBS = new Set([
   "modeling", "forecasting", "reporting", "visualizing", "querying", "processing",
   "transforming", "extracting", "loading", "cleaning", "validating", "aggregating",
   "achieved", "created", "executed", "guided", "oversaw", "provided", "strengthened",
+  "applied", "defined", "served",
 ]);
 
 /** Base/imperative forms common at bullet start — normalize to past tense instead of stacking verbs. */
@@ -95,6 +96,7 @@ const BASE_TO_PAST_TENSE: Record<string, string> = {
   play: "Played",
   serve: "Served",
   work: "Worked",
+  apply: "Applied",
 };
 
 export function firstWordOfBullet(text: string): string {

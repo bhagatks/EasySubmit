@@ -5,7 +5,7 @@ import type { AiEngineConfig } from "@/src/lib/services/ai-engine-config";
 import { AI_ENGINE_DEFAULTS } from "@/src/lib/services/ai-engine-config";
 import type { AiRouteMode, AiSourcePreference } from "@/src/lib/ai/engine/constants";
 import { isAiGloballyEnabled } from "@/lib/ai/ai-global-enabled";
-import { hasHealthySystemPoolSlot, hasSystemGeminiKeys } from "@/src/lib/ai/engine/system-key-pool";
+import { hasHealthySystemPoolSlot, hasSystemPoolKeys } from "@/src/lib/ai/engine/system-key-pool";
 import { resolveCustomerModelCandidates } from "@/lib/ai/model-health/resolve-model-candidates";
 
 export type ResolvedAiRoute =
@@ -18,6 +18,7 @@ export type ResolvedAiRoute =
     }
   | {
       mode: "system";
+      provider: AiProvider;
       modelId: string;
     };
 
@@ -149,7 +150,7 @@ export async function resolveAiRoute(input: {
   if (mode === "system") {
     const customerFallback = await resolveCustomerRouteFromVault(input);
 
-    if (!(await hasSystemGeminiKeys(engine))) {
+    if (!(await hasSystemPoolKeys(engine))) {
       if (customerFallback) return customerFallback;
       return { error: "no_system_key" };
     }
@@ -164,6 +165,7 @@ export async function resolveAiRoute(input: {
 
     return {
       mode: "system",
+      provider: engine.system.provider,
       modelId: engine.system.modelId,
     };
   }

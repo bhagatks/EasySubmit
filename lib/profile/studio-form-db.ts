@@ -1,5 +1,6 @@
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
 import { emptyHubRefineryForm } from "@/lib/onboarding/hubResume";
+import { sanitizeString } from "@/lib/profile/sanitize";
 import { parseDateRangeString } from "@/lib/resume/dates";
 import type { ResumeProfile } from "@/lib/profile/resume-profile-core";
 import {
@@ -21,11 +22,54 @@ function readString(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
+export function normalizeLinkedInForStorage(value: string): string {
+  const trimmed = sanitizeString(value, 500) ?? "";
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (/^(www\.)?linkedin\.com\//i.test(trimmed)) {
+    return `https://${trimmed.replace(/^www\./i, "")}`;
+  }
+  return trimmed;
+}
+
 function readStringList(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter(
     (item): item is string => typeof item === "string" && item.trim().length > 0,
   );
+}
+
+const ROLE_TITLE_PATTERN =
+  /\b(engineer|engineering|manager|director|developer|architect|lead|head|vp|president|analyst|consultant|specialist|coordinator|administrator|officer|principal|staff|senior|sr\.?)\b/i;
+
+function shouldSwapExperienceTitleCompany(title: string, company: string): boolean {
+  const normalizedTitle = title.trim();
+  const normalizedCompany = company.trim();
+  if (!normalizedTitle || !normalizedCompany) return false;
+
+  return !ROLE_TITLE_PATTERN.test(normalizedTitle) && ROLE_TITLE_PATTERN.test(normalizedCompany);
+}
+
+function primaryRoleTitle(title: string): string {
+  return title.split("|")[0]?.trim() || title.trim();
+}
+
+function repairSummaryEmployerOpening(
+  summary: string,
+  experience: HubRefineryForm["experience"],
+): string {
+  const trimmed = summary.trim();
+  if (!trimmed) return trimmed;
+
+  const match = trimmed.match(/^(.+?)\s+with\s+\d+/i);
+  if (!match?.[1]) return trimmed;
+
+  const opening = match[1].trim().toLowerCase();
+  const current = experience.find((entry) => !entry.hidden && entry.title.trim() && entry.company.trim());
+  if (!current || current.company.trim().toLowerCase() !== opening) return trimmed;
+
+  const replacement = primaryRoleTitle(current.title);
+  return `${replacement}${trimmed.slice(match[1].length)}`.trim();
 }
 
 function mapExperienceEntry(
@@ -35,8 +79,11 @@ function mapExperienceEntry(
   const row = asRecord(entry);
   if (!row) return null;
 
-  const title = readString(row.title);
-  const company = readString(row.company);
+  let title = readString(row.title);
+  let company = readString(row.company);
+  if (shouldSwapExperienceTitleCompany(title, company)) {
+    [title, company] = [company, title];
+  }
   if (!title && !company) return null;
 
   const dateRange = readString(row.dateRange);
@@ -147,10 +194,10 @@ export function hubRefineryFormFromProfile(profile: ResumeProfile): HubRefineryF
   form.firstName = profile.firstName ?? "";
   form.lastName = profile.lastName ?? "";
   form.cityState = cityState;
-  form.phone = profile.phone ?? "";
-  form.email = profile.email;
-  form.linkedIn = readString(root.linkedIn);
-  form.professionalSummary = profile.summary ?? "";
+  form.phone = profile.phone?.trim() || readString(root.phone);
+  form.email = profile.email?.trim() || readString(root.email);
+  form.linkedIn = normalizeLinkedInForStorage(readString(root.linkedIn));
+  form.professionalSummary = repairSummaryEmployerOpening(profile.summary ?? "", experience);
   form.skillsText = skills.join(", ");
   form.experience = experience;
   form.education = education;
@@ -183,7 +230,7 @@ export function hubFormToProfileContent(
   return {
     email: form.email.trim(),
     phone: form.phone.trim(),
-    linkedIn: form.linkedIn.trim(),
+    linkedIn: normalizeLinkedInForStorage(form.linkedIn),
     skills,
     pageLengthPreference,
     experiences: form.experience

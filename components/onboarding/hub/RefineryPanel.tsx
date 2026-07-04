@@ -59,6 +59,7 @@ import {
 } from "@/lib/resume/studio-editor-sections";
 import { TargetRoleField } from "@/components/onboarding/hub/TargetRoleField";
 import { MIN_STUDIO_SKILLS, selectCanProceedToCalibration } from "@/lib/onboarding/studio";
+import { canPersistProfileStudio } from "@/lib/profile/profile-studio-persist";
 import { useOnboardingStore } from "@/src/stores/onboarding-store";
 import { cn } from "@/lib/utils";
 
@@ -480,9 +481,16 @@ export function RefineryPanel({
   }, [watched, activeSkills]);
 
   const isProceedLocked = !canProceedToCalibration;
+  const profileCanPersist =
+    isProfileMode &&
+    canPersistProfileStudio(
+      { ...watched, skillsText: activeSkills.join(", ") },
+      targetRole,
+      activeSkills,
+    );
   const isProceedDisabled =
     isProceedLocked ||
-    (isProfileMode && (!targetRole.trim() || !validation.canFinalize));
+    (isProfileMode ? !profileCanPersist : false);
 
   const resolvedBackLabel = backLabel ?? getWorkbenchPhase(2)?.label ?? "Import";
   const resolvedFinalizeLabel =
@@ -641,7 +649,6 @@ export function RefineryPanel({
                   )}
                   placeholder="First name"
                   autoComplete="off"
-                  name="es-first-name"
                 />
                 {headerFieldIssues(validation.header.issues, "firstName").map((issue) => (
                   <p key={issue.code} className="mt-1.5 text-xs" style={{ color: ERROR }}>
@@ -658,7 +665,6 @@ export function RefineryPanel({
                   )}
                   placeholder="Last name"
                   autoComplete="off"
-                  name="es-last-name"
                 />
                 {headerFieldIssues(validation.header.issues, "lastName").map((issue) => (
                   <p key={issue.code} className="mt-1.5 text-xs" style={{ color: ERROR }}>
@@ -742,7 +748,6 @@ export function RefineryPanel({
                 )}
                 placeholder="Email"
                 autoComplete="off"
-                name="es-email"
               />
               {headerFieldIssues(validation.header.issues, "email").map((issue) => (
                 <p key={issue.code} className="mt-1.5 text-xs" style={{ color: ERROR }}>
@@ -752,12 +757,23 @@ export function RefineryPanel({
             </div>
             <input
               {...register("linkedIn")}
-              className={INPUT_CLASS}
+              className={inputClass(
+                validationHighlight &&
+                  fieldHasBlockingError(validation.header.issues, "linkedIn"),
+              )}
               placeholder="LinkedIn URL"
               autoComplete="off"
-              name="es-linkedin"
             />
-            {!linkedInValue ? (
+            {headerFieldIssues(validation.header.issues, "linkedIn").map((issue) => (
+              <p
+                key={issue.code}
+                className="mt-1.5 text-xs"
+                style={{ color: issue.severity === "error" ? ERROR : MUTED }}
+              >
+                {issue.message}
+              </p>
+            ))}
+            {!linkedInValue && validation.header.issues.every((issue) => issue.field !== "linkedIn") ? (
               <p className="mt-1.5 text-xs" style={{ color: MUTED }}>
                 Add LinkedIn — helps recruiters find you
               </p>

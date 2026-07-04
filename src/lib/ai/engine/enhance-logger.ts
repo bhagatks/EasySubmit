@@ -246,6 +246,7 @@ export function sanitizeRouteForLog(route: AiRouteResolution) {
   if (route.mode === "system") {
     return {
       mode: route.mode,
+      provider: route.provider,
       modelId: route.modelId,
     };
   }
