@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { AnalyticsRoot } from "@/components/providers/analytics-root";
 import { AuthProvider } from "@/components/providers/auth-provider";
+import { SupabaseProvider } from "@/components/providers/supabase-provider";
 
 type AppProvidersProps = {
   children: ReactNode;
@@ -10,8 +11,10 @@ type AppProvidersProps = {
 
 export function AppProviders({ children }: AppProvidersProps) {
   return (
-    <AuthProvider>
-      <AnalyticsRoot>{children}</AnalyticsRoot>
-    </AuthProvider>
+    <SupabaseProvider>
+      <AuthProvider>
+        <AnalyticsRoot>{children}</AnalyticsRoot>
+      </AuthProvider>
+    </SupabaseProvider>
   );
 }

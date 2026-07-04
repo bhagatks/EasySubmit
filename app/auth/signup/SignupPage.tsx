@@ -7,7 +7,7 @@ import {
   buildOnboardingPayload,
   isOnboardingComplete,
 } from "@/lib/onboarding/payload";
-import { createClient } from "@/lib/supabase/client";
+import { useSupabaseClient } from "@/components/providers/supabase-provider";
 import { LogoIcon } from "@/components/ui/logo";
 import { BRAND } from "@/lib/brand";
 import { useOnboardingStore } from "@/src/stores/onboarding-store";
@@ -15,6 +15,7 @@ import { useOnboardingStore } from "@/src/stores/onboarding-store";
 export default function SignupPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const supabase = useSupabaseClient();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -89,7 +90,6 @@ export default function SignupPage() {
     setMessage(null);
 
     try {
-      const supabase = createClient();
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
@@ -115,7 +115,6 @@ export default function SignupPage() {
     setLoading(true);
     setError(null);
 
-    const supabase = createClient();
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
