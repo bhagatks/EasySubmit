@@ -1,4 +1,4 @@
-/** One HTTP exchange captured for pipeline QA (O*NET, ESCO, etc.). */
+/** One HTTP exchange captured for pipeline QA. */
 export type ExternalApiDebugExchange = {
   label: string;
   request: {

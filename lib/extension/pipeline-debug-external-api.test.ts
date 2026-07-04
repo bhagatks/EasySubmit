@@ -9,21 +9,21 @@ describe("external API pipeline artifacts", () => {
   it("builds paired request and response artifacts", () => {
     const artifacts = externalApiArtifactsFromExchanges([
       {
-        label: "Occupation search",
+        label: "Skill extraction",
         request: {
           method: "GET",
-          url: "https://services.onetcenter.org/ws/search?keyword=Engineer&end=1",
+          url: "https://api.example.com/skills?keyword=engineer",
           headers: { Accept: "application/json", Authorization: "secret" },
         },
-        response: { status: 200, ok: true, body: { occupation: [{ code: "15-1252.00" }] } },
+        response: { status: 200, ok: true, body: { skills: ["Leadership", "Communication"] } },
       },
     ]);
 
     expect(artifacts).toHaveLength(2);
     expect(artifacts[0]?.kind).toBe("external_request");
     expect(artifacts[1]?.kind).toBe("external_response");
-    expect(artifacts[0]?.label).toBe("Occupation search request");
-    expect(artifacts[1]?.label).toBe("Occupation search response");
+    expect(artifacts[0]?.label).toBe("Skill extraction request");
+    expect(artifacts[1]?.label).toBe("Skill extraction response");
   });
 
   it("redacts sensitive request headers", () => {

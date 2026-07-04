@@ -193,7 +193,7 @@ async function runResumeEnhancePipelineInner(
 
   let brief;
   try {
-    pipelineDebugAdvance(debug, "pre_onet");
+    pipelineDebugAdvance(debug, "pre_validate", "pre_intelligence");
     brief = await buildEnhanceBrief({
       form: input.form,
       targetRole: input.targetRole,

@@ -1,6 +1,5 @@
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
 import { refineryFormToPrimeResume } from "@/lib/onboarding/hubResume";
-import type { OnetRoleVocabulary } from "@/lib/job-tracker/ats/onet-service";
 import type { JdSkillsVocabulary } from "@/lib/job-tracker/jd/jd-skills-types";
 import {
   isBannedSkill,
@@ -29,7 +28,6 @@ export function scoreResumeSkillRelevance(
   input: {
     form: HubRefineryForm;
     targetRole: string;
-    onet: OnetRoleVocabulary;
     jdSkillSet: Set<string>;
     summaryTheme?: string;
   },
@@ -49,12 +47,6 @@ export function scoreResumeSkillRelevance(
     score += recencyBoost;
   });
 
-  const onetLower = new Set([
-    ...input.onet.skills.map((s) => s.toLowerCase()),
-    ...input.onet.tools.map((t) => t.toLowerCase()),
-  ]);
-  if (onetLower.has(key)) score += 4;
-
   if (input.summaryTheme && input.summaryTheme.toLowerCase().includes(key)) {
     score += 1;
   }
@@ -70,7 +62,6 @@ export function buildGroupedSkills(input: {
   skillsToRemove: string[];
   form: HubRefineryForm;
   targetRole: string;
-  onet: OnetRoleVocabulary;
   summaryTheme?: string;
   experienceBlob?: string;
   /** @deprecated Cross-domain cap removed — JD skills fill to SKILLS_HARD_MAX. */
@@ -110,8 +101,6 @@ export function buildGroupedSkills(input: {
 
   const resumeCandidates = [
     ...existing.filter((s) => !removeLower.has(s.toLowerCase()) && !jdSet.has(s.toLowerCase())),
-    ...input.onet.tools,
-    ...input.onet.skills,
   ];
 
   const seenResume = new Set<string>();
@@ -123,7 +112,6 @@ export function buildGroupedSkills(input: {
     const score = scoreResumeSkillRelevance(skill, {
       form: input.form,
       targetRole: input.targetRole,
-      onet: input.onet,
       jdSkillSet: jdSet,
       summaryTheme: input.summaryTheme,
     });

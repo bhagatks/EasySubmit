@@ -66,13 +66,6 @@ describe("merge-skills-grouped", () => {
       skillsToRemove: [],
       form,
       targetRole: "Engineer",
-      onet: {
-        matchedTitle: "Engineer",
-        onetCode: "",
-        skills: ["SQL"],
-        tools: ["Docker"],
-        source: "fallback",
-      },
     });
     const total =
       result.grouped.jdSkills.length + result.grouped.resumeSkills.length;

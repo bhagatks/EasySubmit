@@ -99,7 +99,6 @@ export function applyBaselineEnhance(
     skillsToRemove: plan.skillsToRemove,
     form: updatedForm,
     targetRole: brief.targetRole,
-    onet: brief.onet,
     summaryTheme: brief.jd?.directive.summaryTheme,
     experienceBlob: experienceBlobFromForm(updatedForm.experience ?? []),
     isCrossDomain: brief.summaryIdentity.isCrossDomain,

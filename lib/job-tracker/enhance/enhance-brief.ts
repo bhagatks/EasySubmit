@@ -3,7 +3,6 @@ import type { EnhanceResumeProfileInput } from "@/lib/ai/enhance-resume-for-user
 import type { WeakBulletTarget } from "@/lib/job-tracker/ats/job-intelligence";
 import type { JobIntelligence } from "@/lib/job-tracker/ats/job-intelligence";
 import type { ResumeReadinessResult } from "@/lib/job-tracker/ats/resume-readiness-score";
-import type { OnetRoleVocabulary } from "@/lib/job-tracker/ats/onet-service";
 import type { KeywordGapResult } from "@/lib/job-tracker/ats/keyword-gap";
 import type {
   JDIntelligence,
@@ -97,7 +96,6 @@ export type ResumeEnhanceBrief = {
     coverageBefore: JdCoverageReport;
   };
 
-  onet: OnetRoleVocabulary;
   readiness: ResumeReadinessResult;
   plan: EnhancePlan;
   /** Candidate identity for summary sentence 1 (not JD job title). */

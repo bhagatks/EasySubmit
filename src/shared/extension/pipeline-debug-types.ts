@@ -69,13 +69,6 @@ export const PIPELINE_DEBUG_STEP_DEFS: PipelineDebugStepDef[] = [
     trackerStage: "resume_prep",
   },
   {
-    id: "pre_onet",
-    group: "Pre-process",
-    label: "Vocabulary",
-    description: "fetchRoleVocabulary — role skills/tools",
-    trackerStage: "resume_prep",
-  },
-  {
     id: "pre_intelligence",
     group: "Pre-process",
     label: "Job intelligence bundle",

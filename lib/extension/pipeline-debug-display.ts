@@ -26,10 +26,7 @@ function readMetadataPipelineError(metadata: unknown): string | null {
 
 const STEP_DEF_BY_ID = new Map(PIPELINE_DEBUG_STEP_DEFS.map((def) => [def.id, def] as const));
 
-function normalizePipelineDebugArtifactLabel(stepId: string, label: string): string {
-  if (stepId === "pre_onet" && /O\*NET/i.test(label)) {
-    return "Vocabulary";
-  }
+function normalizePipelineDebugArtifactLabel(_stepId: string, label: string): string {
   return label;
 }
 
@@ -43,10 +40,7 @@ export function refreshPipelineDebugLabelsForDisplay(
       const def = STEP_DEF_BY_ID.get(step.id);
       const artifacts = step.artifacts?.map((artifact) => ({
         ...artifact,
-        label: normalizePipelineDebugArtifactLabel(
-          step.id,
-          def && step.id === "pre_onet" ? def.label : artifact.label,
-        ),
+        label: normalizePipelineDebugArtifactLabel(step.id, artifact.label),
       }));
       if (!def) return { ...step, artifacts };
       return {

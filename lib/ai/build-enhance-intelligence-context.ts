@@ -1,4 +1,4 @@
-import { analyzeJobIntelligenceWithOnet } from "@/lib/job-tracker/ats/job-intelligence";
+import { analyzeJobIntelligence } from "@/lib/job-tracker/ats/job-intelligence";
 import type { JobIntelligence } from "@/lib/job-tracker/ats/job-intelligence";
 import { analyzeJobDescription, hashJobDescription } from "@/lib/job-tracker/jd/jd-brain";
 import { buildResumeEnhanceDirective } from "@/lib/job-tracker/jd/jd-directive";
@@ -24,19 +24,11 @@ export async function buildEnhanceIntelligenceContext(input: {
   userId: string;
 }): Promise<EnhanceIntelligenceContext> {
   const trimmedJd = input.jobDescription?.trim();
-  const jobIntelligence = await analyzeJobIntelligenceWithOnet(
+  const jobIntelligence = analyzeJobIntelligence(
     input.form,
     input.targetRole,
     trimmedJd ?? "",
   );
-
-  logEnhance("server", "pre.onet.done", {
-    traceId: input.traceId,
-    userId: input.userId,
-    step: ENHANCE_PIPELINE.PRE_ONET_FETCH,
-    onetMatchedTitle: jobIntelligence.onetMatchedTitle ?? null,
-    implicitSkillsCount: jobIntelligence.implicitSkillsToAdd.length,
-  });
 
   logEnhance("server", "pre.bullet_quality.done", {
     traceId: input.traceId,
@@ -75,7 +67,6 @@ export async function buildEnhanceIntelligenceContext(input: {
       keywordsForContentCount: jobIntelligence.keywordsForContent.length,
       weakBulletsCount: jobIntelligence.weakBullets.length,
       coveragePercent: jobIntelligence.coveragePercent,
-      onetMatchedTitle: jobIntelligence.onetMatchedTitle ?? null,
     });
   }
 

@@ -1,5 +1,4 @@
 import { analyzeBulletQuality } from "@/lib/job-tracker/ats/bullet-quality";
-import { fetchRoleVocabulary } from "@/lib/job-tracker/ats/onet-service";
 import type { JobIntelligence } from "@/lib/job-tracker/ats/job-intelligence";
 import type { ResumeEnhanceDirective } from "@/lib/job-tracker/jd/jd-intelligence";
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
@@ -14,7 +13,7 @@ export type OnboardingIntelligenceContext = {
 
 /**
  * Lite intelligence context for onboarding enhance — no JD, no AI.
- * Runs only O*NET vocabulary fetch + bullet quality analysis.
+ * Runs bullet quality analysis only.
  * Everything JD-dependent (keyword gap, ATS parse, JD brain) is skipped.
  */
 export async function buildOnboardingIntelligenceContext(
@@ -35,32 +34,7 @@ export async function buildOnboardingIntelligenceContext(
   const hasMinimumContent =
     (form.experience?.filter((e) => !e.hidden && e.title?.trim()).length ?? 0) >= 1;
 
-  const [vocab, quality] = await Promise.all([
-    fetchRoleVocabulary(targetRole),
-    Promise.resolve(analyzeBulletQuality(primeData)),
-  ]);
-
-  logEnhance("server", "pre.onet.done", {
-    traceId,
-    userId,
-    step: ENHANCE_PIPELINE.PRE_ONET_FETCH,
-    matchedTitle: vocab.matchedTitle,
-    skillsCount: vocab.skills.length,
-    toolsCount: vocab.tools.length,
-  });
-
-  const resumeSkillsLower = new Set(
-    (primeData.skills ?? []).map((s) => s.toLowerCase().trim()),
-  );
-
-  const onetTerms = [
-    ...vocab.skills.map((s) => s.toLowerCase()),
-    ...vocab.tools.map((t) => t.toLowerCase()),
-  ];
-
-  const implicitSkillsToAdd = onetTerms
-    .filter((s) => !resumeSkillsLower.has(s))
-    .slice(0, 8);
+  const quality = analyzeBulletQuality(primeData);
 
   const weakBullets = quality.entries.flatMap((entry, ei) =>
     entry.bullets
@@ -86,16 +60,14 @@ export async function buildOnboardingIntelligenceContext(
     missingKeywords: [],
     skillsToAdd: [],
     keywordsForContent: [],
-    implicitSkillsToAdd,
     weakBullets,
     structuralWarnings: [],
     coveragePercent: 0,
     hasMinimumContent,
-    onetMatchedTitle: vocab.matchedTitle !== targetRole ? vocab.matchedTitle : undefined,
   };
 
   const directive: ResumeEnhanceDirective = {
-    mustAddSkills: implicitSkillsToAdd,
+    mustAddSkills: [],
     mustRemoveSkills: [],
     mustWeaveKeywords: [],
     effectiveTargetRole: null,
@@ -114,8 +86,6 @@ export async function buildOnboardingIntelligenceContext(
     traceId,
     userId,
     step: ENHANCE_PIPELINE.PRE_CONTEXT_READY,
-    implicitSkillsToAdd,
-    implicitSkillsCount: implicitSkillsToAdd.length,
     weakBulletsCount: weakBullets.length,
   });
 

@@ -65,7 +65,6 @@ export const ENHANCE_DIAGNOSTIC_CATALOG: EnhanceDiagnosticStepDef[] = [
   { designStep: "0", track: "gate", name: "Preflight gate (dashboard UI)", pipelineStep: "10_server_action_start" },
   { designStep: "1", track: "resume", name: "Load resume form", pipelineStep: "46_tailor_source_profile" },
   { designStep: "2", track: "resume", name: "Validate input (role, JD length)", pipelineStep: "45_tailor_jd_check", failureCodes: ["provider_error", "invalid_title"] },
-  { designStep: "3", track: "resume", name: "O*NET role vocabulary", pipelineStep: "71_pre_onet_fetch" },
   { designStep: "4", track: "jd", name: "Keyword gap analysis", pipelineStep: "73_pre_keyword_gap" },
   { designStep: "5", track: "jd", name: "fast-rake + wink-nlp POS filter", pipelineStep: "75_pre_jd_brain" },
   { designStep: "6", track: "resume", name: "Bullet quality analysis", pipelineStep: "72_pre_bullet_quality" },
@@ -105,7 +104,6 @@ export function catalogEntryForDesignStep(
 /** Operator cheat sheet — which design step when a pipeline step fails. */
 export const PIPELINE_STEP_TO_DESIGN: Partial<Record<string, EnhanceDesignStepId>> = {
   "45_tailor_jd_check": "2",
-  "71_pre_onet_fetch": "3",
   "73_pre_keyword_gap": "4",
   "72_pre_bullet_quality": "6",
   "74_pre_ats_parse": "7",

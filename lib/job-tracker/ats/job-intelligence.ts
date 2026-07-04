@@ -11,7 +11,6 @@ import { refineryFormToPrimeResume } from "@/lib/onboarding/hubResume";
 import { analyzeKeywordGap } from "@/lib/job-tracker/ats/keyword-gap";
 import { analyzeBulletQuality } from "@/lib/job-tracker/ats/bullet-quality";
 import { simulateAtsParse } from "@/lib/job-tracker/ats/ats-parse-simulator";
-import { fetchRoleVocabulary } from "@/lib/job-tracker/ats/onet-service";
 import { isKnownSkillToken } from "@/lib/job-tracker/jd/keyword-extract";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -30,8 +29,6 @@ export type JobIntelligence = {
   skillsToAdd: string[];
   /** Keywords that belong in bullet / summary context (multi-word phrases, verbs). */
   keywordsForContent: string[];
-  /** Implicit skills from O*NET that are standard for this role but not in the JD or resume. */
-  implicitSkillsToAdd: string[];
   /** Bullets with quality issues — gives AI (and fallback) exact targets. */
   weakBullets: WeakBulletTarget[];
   /** ATS parse warnings (missing fields, structural issues). */
@@ -40,8 +37,6 @@ export type JobIntelligence = {
   coveragePercent: number;
   /** Whether the resume has enough content for meaningful targeting. */
   hasMinimumContent: boolean;
-  /** O*NET matched occupation title (if found). */
-  onetMatchedTitle?: string;
 };
 
 // ─── Skill vs content classifier ─────────────────────────────────────────────
@@ -104,50 +99,9 @@ export function analyzeJobIntelligence(
     missingKeywords,
     skillsToAdd,
     keywordsForContent,
-    implicitSkillsToAdd: [], // populated by analyzeJobIntelligenceWithOnet
     weakBullets,
     structuralWarnings: parsed.warnings,
     coveragePercent: gap.coveragePercent,
     hasMinimumContent,
-  };
-}
-
-/**
- * Async version — same as analyzeJobIntelligence but also fetches O*NET
- * role vocabulary to surface implicit skills not in the JD.
- * Used in the server-side enhance pipeline where network calls are allowed.
- */
-export async function analyzeJobIntelligenceWithOnet(
-  form: HubRefineryForm,
-  targetRole: string,
-  jobDescription: string,
-): Promise<JobIntelligence> {
-  const base = analyzeJobIntelligence(form, targetRole, jobDescription);
-
-  if (!targetRole.trim()) return base;
-
-  const vocab = await fetchRoleVocabulary(targetRole);
-
-  // Build resume skill set for deduplication
-  const primeData = refineryFormToPrimeResume(form);
-  const resumeSkillsLower = new Set(
-    (primeData.skills ?? []).map((s) => s.toLowerCase().trim()),
-  );
-  const skillsToAddLower = new Set(base.skillsToAdd.map((s) => s.toLowerCase()));
-
-  // O*NET skills/tools that aren't already in the resume or skillsToAdd
-  const onetTerms = [
-    ...vocab.skills.map((s) => s.toLowerCase()),
-    ...vocab.tools.map((t) => t.toLowerCase()),
-  ];
-
-  const implicitSkillsToAdd = onetTerms
-    .filter((s) => !resumeSkillsLower.has(s) && !skillsToAddLower.has(s))
-    .slice(0, 8);
-
-  return {
-    ...base,
-    implicitSkillsToAdd,
-    onetMatchedTitle: vocab.matchedTitle !== targetRole ? vocab.matchedTitle : undefined,
   };
 }

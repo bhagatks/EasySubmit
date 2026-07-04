@@ -162,7 +162,6 @@ export async function tailorJobPipeline(
       for (const stepId of [
         "profile_load",
         "pre_validate",
-        "pre_onet",
         "pre_intelligence",
         "pre_jd_skills",
         "pre_jd_brain",

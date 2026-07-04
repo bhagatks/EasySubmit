@@ -1,6 +1,6 @@
 import type { FeatureSurface } from "@/lib/features/types";
 import type { EnhanceResumeProfileInput } from "@/lib/ai/enhance-resume-for-user";
-import { analyzeJobIntelligenceWithOnet } from "@/lib/job-tracker/ats/job-intelligence";
+import { analyzeJobIntelligence } from "@/lib/job-tracker/ats/job-intelligence";
 import { analyzeKeywordGapFromIntelligence } from "@/lib/job-tracker/ats/keyword-gap";
 import {
   detectPlatform,
@@ -10,10 +10,6 @@ import {
 } from "@/lib/job-tracker/ats/platform-rules";
 import { buildPlatformStrategyInstructionBlock } from "@/lib/job-tracker/ats/platform-strategy-instructions";
 import { computeResumeReadiness } from "@/lib/job-tracker/ats/resume-readiness-score";
-import {
-  fetchRoleVocabulary,
-  resolveOnetVocabularyPipelineOutcome,
-} from "@/lib/job-tracker/ats/onet-service";
 import type { ResumeEnhanceBrief } from "@/lib/job-tracker/enhance/enhance-brief";
 import { buildJdAtomList } from "@/lib/job-tracker/enhance/build-jd-atom-list";
 import { buildJdCoverageReport } from "@/lib/job-tracker/enhance/build-jd-coverage-report";
@@ -186,7 +182,6 @@ export async function buildEnhanceBrief(
   });
 
   const pages = inferResumePagesFromForm(input.form, input.targetRole);
-  const onetApiDebug: ExternalApiDebugExchange[] = [];
 
   let atsPlatform: AtsPlatform = "unknown";
   let jdCaches: Awaited<ReturnType<typeof loadJdCaches>> | null = null;
@@ -215,60 +210,7 @@ export async function buildEnhanceBrief(
     },
   });
 
-  const onet = await fetchRoleVocabulary(input.targetRole, {
-    apiDebug: debug ? onetApiDebug : undefined,
-  });
-
-  const onetArtifacts = externalApiArtifactsFromExchanges(onetApiDebug);
-  if (onet.source === "cache") {
-    onetArtifacts.push(
-      dataArtifact("Vocabulary source", { source: "cache", jobTitle: input.targetRole }, "flags"),
-    );
-  }
-  onetArtifacts.push(
-    dataArtifact("Vocabulary summary", {
-      matchedTitle: onet.matchedTitle,
-      onetCode: onet.onetCode,
-      source: onet.source,
-      skillsSample: onet.skills.slice(0, 20),
-      toolsSample: onet.tools.slice(0, 20),
-    }, "output"),
-  );
-
-  const onetOutcome = resolveOnetVocabularyPipelineOutcome(onet, onetApiDebug);
-  pipelineDebugStep(debug, "pre_onet", {
-    status: onetOutcome.status,
-    detail: onetOutcome.detail,
-    meta: { skills: onet.skills.length, tools: onet.tools.length, source: onet.source },
-    artifacts: onetArtifacts,
-  });
-  pipelineDebugAdvance(debug, "pre_intelligence", "pre_onet");
-
-  logEnhance("server", "pre.onet.done", {
-    traceId: input.traceId,
-    userId: input.userId,
-    step: ENHANCE_PIPELINE.PRE_ONET_FETCH,
-    matchedTitle: onet.matchedTitle,
-  });
-
-  logEnhanceDiag({
-    traceId: input.traceId,
-    designStep: "3",
-    track: "resume",
-    pipelineStep: ENHANCE_PIPELINE.PRE_ONET_FETCH,
-    phase: "done",
-    level: "low",
-    event: "brief.onet",
-    scope: "server",
-    userId: input.userId,
-    params: {
-      matchedTitle: onet.matchedTitle,
-      onetSkills: onet.skills.length,
-      onetTools: onet.tools.length,
-    },
-  });
-
-  let jobIntelligence = await analyzeJobIntelligenceWithOnet(
+  let jobIntelligence = analyzeJobIntelligence(
     input.form,
     input.targetRole,
     hasJd ? trimmedJd : "",
@@ -692,7 +634,6 @@ export async function buildEnhanceBrief(
     },
     experience: { weakBullets },
     jd: jdSlice,
-    onet,
     readiness,
     plan,
     summaryIdentity,

@@ -63,10 +63,8 @@ export const ENHANCE_PIPELINE = {
 
   /** Pre: onboarding lite context builder started (no JD path). */
   PRE_ONBOARDING_START: "70_pre_onboarding_start",
-  /** Pre: O*NET role vocabulary fetched. */
-  PRE_ONET_FETCH: "71_pre_onet_fetch",
   /** Pre: bullet quality analysis complete. */
-  PRE_BULLET_QUALITY: "72_pre_bullet_quality",
+  PRE_BULLET_QUALITY: "71_pre_bullet_quality",
   /** Pre: keyword gap analysis complete (JD surfaces only). */
   PRE_KEYWORD_GAP: "73_pre_keyword_gap",
   /** Pre: ATS parse simulation complete (JD surfaces only). */
@@ -143,8 +141,7 @@ export const ENHANCE_PIPELINE_HINTS: Record<EnhancePipelineStep, string> = {
   [ENHANCE_PIPELINE.SERVER_JD_DIRECTIVE]: "JD Brain directive built for pass 2",
   [ENHANCE_PIPELINE.ENGINE_DETERMINISTIC]: "Deterministic fallback — no AI rewrite",
 
-  [ENHANCE_PIPELINE.PRE_ONBOARDING_START]: "Onboarding lite context — O*NET + bullet quality only",
-  [ENHANCE_PIPELINE.PRE_ONET_FETCH]: "O*NET role vocabulary fetched",
+  [ENHANCE_PIPELINE.PRE_ONBOARDING_START]: "Onboarding lite context — bullet quality only",
   [ENHANCE_PIPELINE.PRE_BULLET_QUALITY]: "Bullet quality analysis complete",
   [ENHANCE_PIPELINE.PRE_KEYWORD_GAP]: "Keyword gap analysis complete",
   [ENHANCE_PIPELINE.PRE_ATS_PARSE]: "ATS parse simulation complete",

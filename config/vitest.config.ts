@@ -70,7 +70,6 @@ export default defineConfig({
         "lib/onboarding/mapping.ts",
         "lib/profile/application-profile-resolve.ts",
         // Fetch / browser / PDF surfaces — not unit-testable here
-        "lib/job-tracker/ats/onet-service.ts",
         "lib/extension/extension-job-pdf.ts",
         "lib/dashboard/use-workspace-section-expansion.ts",
         "lib/onboarding/workbench-session.ts",

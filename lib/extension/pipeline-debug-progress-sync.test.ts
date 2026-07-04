@@ -12,14 +12,14 @@ describe("reconcilePipelineDebugProgress", () => {
     const progress = {
       ...base,
       steps: base.steps.map((step) => {
-        if (step.id === "pre_onet") return { ...step, status: "active" as const };
+        if (step.id === "pre_intelligence") return { ...step, status: "active" as const };
         if (step.id === "post_process") return { ...step, status: "done" as const, detail: "Done" };
         return step;
       }),
     };
 
     const reconciled = reconcilePipelineDebugProgress(progress);
-    expect(reconciled.steps.find((step) => step.id === "pre_onet")?.status).toBe("done");
+    expect(reconciled.steps.find((step) => step.id === "pre_intelligence")?.status).toBe("done");
     expect(reconciled.steps.find((step) => step.id === "post_process")?.status).toBe("done");
   });
 });
@@ -48,7 +48,7 @@ describe("finalizePipelineDebugProgress", () => {
         if (step.id === "status_ready") {
           return { ...step, status: "done" as const, detail: "READY_TO_APPLY" };
         }
-        if (step.id === "pre_onet") {
+        if (step.id === "pre_intelligence") {
           return { ...step, status: "error" as const, detail: "Failed" };
         }
         return step;
@@ -56,7 +56,7 @@ describe("finalizePipelineDebugProgress", () => {
     };
 
     const finalized = finalizePipelineDebugProgress(progress);
-    expect(finalized.steps.find((step) => step.id === "pre_onet")?.status).toBe("error");
+    expect(finalized.steps.find((step) => step.id === "pre_intelligence")?.status).toBe("error");
     expect(finalized.steps.find((step) => step.id === "pre_validate")?.status).toBe("pending");
   });
 });
@@ -70,7 +70,7 @@ describe("resolvePipelineDebugProgressForDisplay", () => {
         if (step.id === "status_ready") {
           return { ...step, status: "done" as const, detail: "READY_TO_APPLY" };
         }
-        if (step.id === "pre_validate" || step.id === "pre_onet") {
+        if (step.id === "pre_validate" || step.id === "pre_intelligence") {
           return { ...step, status: "pending" as const };
         }
         return step;
