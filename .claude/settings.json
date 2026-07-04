@@ -13,7 +13,9 @@
       "Bash(git branch*)",
       "Bash(find . *)",
       "Bash(grep -r *)",
-      "Bash(ls *)"
+      "Bash(ls *)",
+      "Bash(./scripts/graphify *)",
+      "Bash(graphify *)"
     ],
     "deny": [
       "Bash(rm -rf *)",
