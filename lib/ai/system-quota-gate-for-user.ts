@@ -18,6 +18,7 @@ export const SYSTEM_QUOTA_USER_SELECT = {
   vaultKeyId: true,
   activeProvider: true,
   aiSourcePreference: true,
+  systemAiEnabled: true,
   aiEnhancementsToday: true,
   aiCallsToday: true,
   aiQuotaResetAt: true,
@@ -56,6 +57,7 @@ export async function getSystemQuotaGateForUserRow(
     vaultKeyId: user.vaultKeyId,
     activeProvider: user.activeProvider,
     forceSystem: options.forceSystem ?? false,
+    userSystemAiEnabled: user.systemAiEnabled,
     aiEngine,
   });
 

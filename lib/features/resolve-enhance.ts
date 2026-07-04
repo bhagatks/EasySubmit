@@ -4,7 +4,7 @@ import { resolveAiRoute, type ResolvedAiRoute } from "@/src/lib/ai/engine/router
 import { resolveQuotaRowWithReset } from "@/src/lib/ai/engine/system-quota-gate";
 import { checkAiQuota } from "@/src/lib/ai/engine/quota";
 import { getAppConfig, isSubscribed } from "@/src/lib/services/config-service";
-import { getFeatureFlags, isSystemAiEnabled } from "@/src/lib/services/feature-flags-service";
+import { getFeatureFlags } from "@/src/lib/services/feature-flags-service";
 import { isCustomerQuotaUnlimited } from "@/src/lib/services/ai-engine-config";
 import type { AiSourcePreference } from "@/src/lib/ai/engine/constants";
 import type { SystemQuotaUserRow } from "@/src/lib/ai/engine/system-quota-gate";
@@ -161,13 +161,12 @@ export async function resolveEnhanceFeature(
     logEnhanceGate({ traceId, gate: "G3", passed: true, flags: gateFlags, level: "light" });
   }
 
-  const systemAiEnabled = isSystemAiEnabled(flags);
   if (traceId) {
     logEnhanceGate({
       traceId,
       gate: "G4",
       passed: true,
-      flags: { ...gateFlags, systemAiEnabled },
+      flags: { ...gateFlags, systemAiEnabled: aiEngine.enabled },
       level: "light",
     });
   }
@@ -177,7 +176,7 @@ export async function resolveEnhanceFeature(
     aiSourcePreference: preference,
     vaultKeyId: user.vaultKeyId,
     activeProvider: user.activeProvider,
-    systemAiEnabled,
+    userSystemAiEnabled: user.systemAiEnabled,
     forceSystem: opts.forceSystem ?? false,
     allowByokFallback: opts.useCustomerKey ?? true,
     forceCustomerRoute: opts.useCustomerKey === true,
@@ -198,7 +197,7 @@ export async function resolveEnhanceFeature(
         flags: {
           ...gateFlags,
           routeError: route.error,
-          systemAiEnabled,
+          systemAiEnabled: aiEngine.enabled,
         },
       });
     }

@@ -23,12 +23,14 @@ export type AccountSettingsSnapshot = {
   vaultKeyId: string | null;
   activeProvider: string | null;
   aiSourcePreference: string;
+  systemAiEnabled: boolean;
   aiEnhancementsToday: number;
   aiCallsToday: number;
   autoApplyUserSwitch: boolean;
   autoArchiveAppliedJobs: boolean;
   autoApplyFeatureEnabled: boolean;
   resumeProfilePickerMode: ResumeProfilePickerMode;
+  plan: string;
 };
 
 export type UpdateLoginProfileInput = {
@@ -72,12 +74,14 @@ export async function getAccountSettings(): Promise<AccountSettingsSnapshot | nu
         vaultKeyId: true,
         activeProvider: true,
         aiSourcePreference: true,
+        systemAiEnabled: true,
         aiEnhancementsToday: true,
         aiCallsToday: true,
         aiQuotaResetAt: true,
         autoApplyUserSwitch: true,
         autoArchiveAppliedJobs: true,
         resumeProfilePickerMode: true,
+        plan: true,
         accounts: {
           select: { provider: true },
         },
@@ -115,12 +119,14 @@ export async function getAccountSettings(): Promise<AccountSettingsSnapshot | nu
     vaultKeyId: user.vaultKeyId,
     activeProvider: user.activeProvider,
     aiSourcePreference: user.aiSourcePreference,
+    systemAiEnabled: user.systemAiEnabled,
     aiEnhancementsToday: user.aiEnhancementsToday,
     aiCallsToday: user.aiCallsToday,
     autoApplyUserSwitch: user.autoApplyUserSwitch,
     autoArchiveAppliedJobs: user.autoArchiveAppliedJobs,
     autoApplyFeatureEnabled: featureFlags.extensionAutoApply,
     resumeProfilePickerMode: user.resumeProfilePickerMode,
+    plan: user.plan,
   };
 }
 

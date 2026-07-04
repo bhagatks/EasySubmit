@@ -16,8 +16,9 @@ vi.mock("@/src/lib/services/feature-flags-service", () => ({
 
 vi.mock("@/src/lib/services/config-service", () => ({
   getAppConfig: vi.fn(async () => ({
+    enabled: true,
     quotas: {
-      system: { dailyEnhancements: 10, dailyCalls: 20, enable: true },
+      system: { dailyEnhancements: 10, dailyCalls: 20 },
       customer: { dailyEnhancements: 5, dailyCalls: 10 },
     },
     providers: {},
@@ -64,6 +65,7 @@ const baseUser: SystemQuotaUserRow = {
   aiSourcePreference: "auto",
   vaultKeyId: null,
   activeProvider: null,
+  systemAiEnabled: true,
   plan: "free",
   subscriptionStatus: null,
   aiEnhancementsToday: 0,

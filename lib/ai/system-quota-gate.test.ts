@@ -69,6 +69,7 @@ describe("resolveQuotaRowWithReset", () => {
       vaultKeyId: null,
       activeProvider: null,
       aiSourcePreference: "system",
+      systemAiEnabled: true,
       aiEnhancementsToday: 5,
       aiCallsToday: 40,
       aiQuotaResetAt: yesterday,

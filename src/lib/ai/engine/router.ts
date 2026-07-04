@@ -125,8 +125,8 @@ export async function resolveAiRoute(input: {
   /** When true, route to BYOK even if system pool is healthy (extension/dashboard retry). */
   forceCustomerRoute?: boolean;
   aiEngine?: AiEngineConfig;
-  /** From `feature_flags.system_ai_enabled` — when false, routes to BYOK only. */
-  systemAiEnabled?: boolean;
+  /** Per-user flag: when false (free tier), forces BYOK-only mode. */
+  userSystemAiEnabled?: boolean;
 }): Promise<AiRouteResolution> {
   if (!isAiGloballyEnabled()) {
     return { error: "ai_globally_disabled" };
@@ -137,7 +137,7 @@ export async function resolveAiRoute(input: {
   }
 
   const engine = input.aiEngine ?? AI_ENGINE_DEFAULTS;
-  const systemAiEnabled = input.systemAiEnabled ?? true;
+  const systemAiEnabled = engine.enabled && (input.userSystemAiEnabled ?? true);
   const mode = resolveEffectiveAiSource(
     input.aiSourcePreference,
     Boolean(input.vaultKeyId),

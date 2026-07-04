@@ -6,10 +6,7 @@ export type AiEngineQuotaLimits = {
   dailyCalls: number;
 };
 
-export type AiEngineSystemQuotaLimits = AiEngineQuotaLimits & {
-  /** When false, all AI routes use BYOK (customer) keys only. */
-  enable: boolean;
-};
+export type AiEngineSystemQuotaLimits = AiEngineQuotaLimits;
 
 export type AiEngineCustomerQuotaLimits = AiEngineQuotaLimits & {
   /** When true, BYOK users bypass daily enhancement/call counters. */
@@ -17,6 +14,8 @@ export type AiEngineCustomerQuotaLimits = AiEngineQuotaLimits & {
 };
 
 export type AiEngineConfig = {
+  /** Admin flag: when false, system AI is unavailable (forces BYOK mode). */
+  enabled: boolean;
   system: {
     /** Gemini model id for EasySubmit system AI (resume enhance passes). */
     modelId: string;
@@ -45,6 +44,7 @@ import {
 export const JD_EXTRACTION_SYSTEM_MODEL_DEFAULT = GEMINI_JD_EXTRACT_MODEL;
 
 export const AI_ENGINE_DEFAULTS: AiEngineConfig = {
+  enabled: true,
   system: {
     modelId: GEMINI_RESUME_PRIMARY_MODEL,
     jdExtractionModelId: JD_EXTRACTION_SYSTEM_MODEL_DEFAULT,
@@ -52,7 +52,6 @@ export const AI_ENGINE_DEFAULTS: AiEngineConfig = {
   },
   quotas: {
     system: {
-      enable: true,
       dailyEnhancements: 5,
       dailyCalls: 20,
     },
@@ -92,7 +91,6 @@ function parseSystemQuotaLimits(
 ): AiEngineSystemQuotaLimits {
   if (!isRecord(value)) return fallback;
   return {
-    enable: typeof value.enable === "boolean" ? value.enable : fallback.enable,
     dailyEnhancements: parseQuotaInt(value.dailyEnhancements, fallback.dailyEnhancements),
     dailyCalls: parseQuotaInt(value.dailyCalls, fallback.dailyCalls),
   };
@@ -119,6 +117,8 @@ export function parseAiEngineConfig(value: unknown): AiEngineConfig | null {
   const systemRaw = isRecord(value.system) ? value.system : {};
   const quotasRaw = isRecord(value.quotas) ? value.quotas : {};
 
+  const enabled = typeof value.enabled === "boolean" ? value.enabled : AI_ENGINE_DEFAULTS.enabled;
+
   const modelId =
     typeof systemRaw.modelId === "string" && systemRaw.modelId.trim()
       ? systemRaw.modelId.trim()
@@ -135,6 +135,7 @@ export function parseAiEngineConfig(value: unknown): AiEngineConfig | null {
   );
 
   return {
+    enabled,
     system: { modelId, jdExtractionModelId, maxKeySlots },
     quotas: {
       system: parseSystemQuotaLimits(quotasRaw.system, AI_ENGINE_DEFAULTS.quotas.system),
@@ -163,5 +164,8 @@ export function resolveCustomerEnhancementLimit(config: AiEngineConfig): number 
 
 /** System-pool model for JD structured extraction (`generateObject`). */
 export function resolveJdExtractionSystemModel(config: AiEngineConfig): string {
-  return config.system.modelId.trim() || AI_ENGINE_DEFAULTS.system.modelId;
+  return (
+    config.system.jdExtractionModelId.trim() ||
+    AI_ENGINE_DEFAULTS.system.jdExtractionModelId
+  );
 }

@@ -28,8 +28,10 @@ model User {
   vaultKeyId       String?        @db.Uuid
   /// Active BYOK provider (e.g. `anthropic`, `openai`, `gemini`).
   activeProvider   String?
-  /// `auto` | `customer` | `system` — which AI key powers enhance flows.
+  /// `auto` | `customer` | `system` | `disabled` — which AI key powers enhance flows.
   aiSourcePreference String       @default("auto")
+  /// Free users only: when false, forces BYOK-only mode and hides system AI option.
+  systemAiEnabled     Boolean     @default(true)
   aiEnhancementsToday Int         @default(0)
   aiCallsToday        Int         @default(0)
   aiQuotaResetAt      DateTime    @default(now())

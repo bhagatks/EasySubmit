@@ -139,9 +139,9 @@ describe("getAppConfig", () => {
 
     const snapshot = await getAppConfig();
 
+    expect(snapshot.aiEngine.enabled).toBe(true);
     expect(snapshot.aiEngine.system.modelId).toBe("gemini-2.5-flash");
     expect(snapshot.aiEngine.system.maxKeySlots).toBe(3);
-    expect(snapshot.aiEngine.quotas.system.enable).toBe(true);
     expect(snapshot.aiEngine.quotas.system.dailyEnhancements).toBe(5);
     expect(snapshot.aiEngine.quotas.customer.aiDailyUnlimited).toBe(true);
     expect(snapshot.aiEngine.customerDailyEnhancementCap).toBe(50);
@@ -153,9 +153,10 @@ describe("getAppConfig", () => {
       {
         key: "aiEngine",
         value: {
+          enabled: true,
           system: { modelId: "gemini-2.5-flash", maxKeySlots: 3 },
           quotas: {
-            system: { enable: true, dailyEnhancements: 8, dailyCalls: 30 },
+            system: { dailyEnhancements: 8, dailyCalls: 30 },
             customer: { aiDailyUnlimited: false, dailyEnhancements: 40, dailyCalls: 150 },
           },
           customerDailyEnhancementCap: 40,
@@ -167,6 +168,7 @@ describe("getAppConfig", () => {
 
     const engine = await getAppConfig("aiEngine");
 
+    expect(engine.enabled).toBe(true);
     expect(engine.system.modelId).toBe("gemini-2.5-flash");
     expect(engine.quotas.system.dailyEnhancements).toBe(8);
     expect(engine.customerDailyEnhancementCap).toBe(40);

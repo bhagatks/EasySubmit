@@ -168,7 +168,7 @@ export async function enhanceCoverLetterForUserId(
     forceSystem: input.forceSystem ?? false,
     allowByokFallback: input.useCustomerKey ?? false,
     aiEngine,
-    systemAiEnabled: featureFlags.systemAiEnabled,
+    userSystemAiEnabled: user.systemAiEnabled,
   });
 
   if ("error" in route) {

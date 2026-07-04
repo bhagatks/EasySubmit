@@ -22,12 +22,14 @@ export const BYOK_GATE_USER_SELECT = {
   vaultKeyId: true,
   activeProvider: true,
   aiSourcePreference: true,
+  systemAiEnabled: true,
 } as const;
 
 export type ByokGateUserRow = {
   vaultKeyId: string | null;
   activeProvider: string | null;
   aiSourcePreference: string | null;
+  systemAiEnabled: boolean;
 };
 
 export async function findLastKeyRelatedJobFailure(
@@ -67,7 +69,7 @@ async function loadByokGateSignals(
   userId: string,
   user: ByokGateUserRow,
   aiEngine: AiEngineConfig,
-  options?: { forceSystem?: boolean },
+  options?: { forceSystem?: boolean; systemAiEnabled?: boolean },
 ): Promise<Parameters<typeof evaluateByokKeyGate>[0]> {
   const preference = (user.aiSourcePreference ?? "auto") as AiSourcePreference;
   const route = await resolveAiRoute({
@@ -76,6 +78,7 @@ async function loadByokGateSignals(
     vaultKeyId: user.vaultKeyId,
     activeProvider: user.activeProvider,
     forceSystem: options?.forceSystem ?? false,
+    userSystemAiEnabled: options?.systemAiEnabled,
     aiEngine,
   });
 

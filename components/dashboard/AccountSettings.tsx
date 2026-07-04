@@ -24,10 +24,12 @@ import {
 import type { VaultedApiKeySummary } from "@/app/actions/ai/vault-key";
 import type { ResumeProfilePickerMode } from "@/lib/generated/prisma/client";
 import { updateAiSourcePreference } from "@/app/actions/ai/enhance-resume";
+import { updateSystemAiSetting } from "@/app/actions/user/update-system-ai-setting";
 import {
   LegalDocumentLink,
   useLegalDocumentOverlay,
 } from "@/components/legal/legal-document-overlay";
+import { AiSettingsPanel } from "@/components/dashboard/AiSettingsPanel";
 import { AvatarUploadField } from "@/components/profile/avatar-upload-field";
 import {
   DashboardExpandAllButton,
@@ -239,6 +241,8 @@ export function AccountSettings({ initial, initialVaultKeys }: AccountSettingsPr
   const [connecting, setConnecting] = useState<AuthProviderId | null>(null);
   const [aiEnabled, setAiEnabled] = useState(initial.aiSourcePreference !== "disabled");
   const [aiPrefBusy, setAiPrefBusy] = useState(false);
+  const [systemAiEnabled, setSystemAiEnabled] = useState(initial.systemAiEnabled ?? true);
+  const [systemAiBusy, setSystemAiBusy] = useState(false);
   const [autoApplyUserSwitch, setAutoApplyUserSwitch] = useState(initial.autoApplyUserSwitch);
   const [autoApplyUserSwitchBusy, setAutoApplyUserSwitchBusy] = useState(false);
   const [autoArchiveAppliedJobs, setAutoArchiveAppliedJobs] = useState(
@@ -456,6 +460,17 @@ export function AccountSettings({ initial, initialVaultKeys }: AccountSettingsPr
     setProfilePickerMode(result.resumeProfilePickerMode);
   }
 
+  async function handleSystemAiToggle(enabled: boolean) {
+    setSystemAiBusy(true);
+    setError(null);
+    const result = await updateSystemAiSetting(enabled);
+    setSystemAiBusy(false);
+    if (!result.success) {
+      setError(result.error);
+      return;
+    }
+    setSystemAiEnabled(result.systemAiEnabled);
+  }
 
   return (
     <>
@@ -584,6 +599,14 @@ export function AccountSettings({ initial, initialVaultKeys }: AccountSettingsPr
                 disabled={aiPrefBusy || !isClientAiGloballyEnabled()}
                 onChange={(enabled) => void handleAiToggle(enabled)}
                 icon={<Sparkles className="h-3.5 w-3.5 text-primary" aria-hidden="true" />}
+              />
+
+              <AiSettingsPanel
+                systemAiEnabled={systemAiEnabled}
+                isSubscribed={initial.plan !== "free"}
+                systemDailyLimit={5}
+                onToggleSystemAi={handleSystemAiToggle}
+                isLoading={systemAiBusy}
               />
 
               <SettingsVaultKeysPanel

@@ -11,7 +11,7 @@ describe("parseAiEngineConfig", () => {
     expect(parseAiEngineConfig(null)).toBeNull();
     expect(parseAiEngineConfig("bad")).toBeNull();
     expect(AI_ENGINE_DEFAULTS.system.maxKeySlots).toBe(3);
-    expect(AI_ENGINE_DEFAULTS.quotas.system.enable).toBe(true);
+    expect(AI_ENGINE_DEFAULTS.enabled).toBe(true);
     expect(AI_ENGINE_DEFAULTS.quotas.customer.aiDailyUnlimited).toBe(true);
   });
 
@@ -20,24 +20,25 @@ describe("parseAiEngineConfig", () => {
     expect(AI_ENGINE_DEFAULTS.system.jdExtractionModelId).toBe("gemini-2.5-flash-lite");
   });
 
-  it("parses model, enable flag, and quotas", () => {
+  it("parses enabled flag, model, and quotas", () => {
     const config = parseAiEngineConfig({
+      enabled: false,
       system: {
         modelId: "gemini-2.5-flash",
         jdExtractionModelId: "gemini-2.5-flash-lite",
         maxKeySlots: 3,
       },
       quotas: {
-        system: { enable: false, dailyEnhancements: 10, dailyCalls: 40 },
+        system: { dailyEnhancements: 10, dailyCalls: 40 },
         customer: { aiDailyUnlimited: false, dailyEnhancements: 100, dailyCalls: 500 },
       },
       customerDailyEnhancementCap: 75,
     });
 
+    expect(config?.enabled).toBe(false);
     expect(config?.system.modelId).toBe("gemini-2.5-flash");
     expect(config?.system.jdExtractionModelId).toBe("gemini-2.5-flash-lite");
     expect(config?.system.maxKeySlots).toBe(3);
-    expect(config?.quotas.system.enable).toBe(false);
     expect(config?.quotas.system.dailyEnhancements).toBe(10);
     expect(config?.quotas.customer.aiDailyUnlimited).toBe(false);
     expect(config?.customerDailyEnhancementCap).toBe(75);
@@ -46,7 +47,7 @@ describe("parseAiEngineConfig", () => {
   it("allows zero system quotas when explicitly set", () => {
     const config = parseAiEngineConfig({
       quotas: {
-        system: { enable: true, dailyEnhancements: 0, dailyCalls: 0 },
+        system: { dailyEnhancements: 0, dailyCalls: 0 },
       },
     });
 
@@ -78,9 +79,9 @@ describe("resolveCustomerEnhancementLimit", () => {
 });
 
 describe("resolveJdExtractionSystemModel", () => {
-  it("returns the same model as system resume enhance", () => {
+  it("returns the configured JD extraction model for system pool", () => {
     expect(resolveJdExtractionSystemModel(AI_ENGINE_DEFAULTS)).toBe(
-      AI_ENGINE_DEFAULTS.system.modelId,
+      AI_ENGINE_DEFAULTS.system.jdExtractionModelId,
     );
   });
 });

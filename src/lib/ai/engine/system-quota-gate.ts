@@ -12,6 +12,7 @@ export type SystemQuotaUserRow = {
   vaultKeyId: string | null;
   activeProvider: string | null;
   aiSourcePreference: string | null;
+  systemAiEnabled: boolean;
   aiEnhancementsToday: number;
   aiCallsToday: number;
   aiQuotaResetAt: Date;
