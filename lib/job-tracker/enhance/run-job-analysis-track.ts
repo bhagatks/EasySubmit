@@ -34,6 +34,8 @@ import { ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
 import { logEnhanceDiag } from "@/src/lib/ai/engine/enhance-diagnostics";
 import { resolveQuotaRowWithReset } from "@/src/lib/ai/engine/system-quota-gate";
 import { getAppConfig } from "@/src/lib/services/config-service";
+import { resolveAiUpgrade } from "@/lib/job-tracker/enhance/resolve-ai-upgrade";
+import { SYSTEM_QUOTA_USER_SELECT } from "@/lib/ai/system-quota-gate-for-user";
 async function loadJdCaches(jobEntryId: string): Promise<{
   jdIntelligence: JDIntelligence | null;
   jdHash: string | null;
@@ -157,15 +159,6 @@ export async function runJobAnalysisTrack(
 
   pipelineDebugAdvance(debug, "pre_jd_skills");
 
-  const aiEngine = input.aiRoute ? await getAppConfig("aiEngine") : null;
-  const quotaContext =
-    input.quotaUser && aiEngine
-      ? {
-          quotaRow: resolveQuotaRowWithReset(input.quotaUser).quotaRow,
-          aiEngine,
-        }
-      : undefined;
-
   const escoApiDebug: ExternalApiDebugExchange[] = [];
   const jdSkillsVocabulary = await fetchJdSkillsVocabulary({
     jobDescription: trimmedJd,
@@ -200,12 +193,40 @@ export async function runJobAnalysisTrack(
   });
   pipelineDebugAdvance(debug, "pre_jd_brain", "pre_jd_skills");
 
+  let aiRoute = input.aiRoute ?? null;
+  let quotaUser = input.quotaUser ?? null;
+  if (!aiRoute) {
+    const user =
+      quotaUser ??
+      (await prisma.user.findUnique({
+        where: { id: input.userId },
+        select: SYSTEM_QUOTA_USER_SELECT,
+      }));
+    if (user) {
+      quotaUser = user;
+      const aiUpgrade = await resolveAiUpgrade(user, "extension", {
+        traceId: input.traceId,
+      });
+      aiRoute = aiUpgrade.route ?? null;
+    }
+  }
+
+  const aiEngine = aiRoute ? await getAppConfig("aiEngine") : null;
+  const quotaContext =
+    quotaUser && aiEngine
+      ? {
+          quotaRow: resolveQuotaRowWithReset(quotaUser).quotaRow,
+          aiEngine,
+        }
+      : undefined;
+
   const jdResult = await analyzeJobDescription({
     rawDescription: trimmedJd,
     targetRole: input.targetRole,
     cachedIntelligence: caches.jdIntelligence,
     cachedHash: caches.jdHash,
-    aiRoute: input.aiRoute ?? null,
+    aiRoute,
+    jobEntryId: input.jobEntryId,
     jdExtraction: quotaContext
       ? { quotaContext, pipelineDebug: debug }
       : debug

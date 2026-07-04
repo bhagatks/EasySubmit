@@ -20,20 +20,34 @@ vi.mock("@/src/lib/ai/engine/run-enhance", () => ({
 const { callEnhanceObjectModel } = await import("@/src/lib/ai/engine/run-enhance");
 
 describe("jdExtractionRoute", () => {
-  it("returns the enhance route unchanged for system mode", () => {
+  it("uses jdExtractionModelId for system mode", async () => {
     const route = { mode: "system" as const, modelId: "gemini-2.5-flash" };
-    expect(jdExtractionRoute(route)).toBe(route);
+    const resolved = await jdExtractionRoute(route);
+    expect(resolved).toEqual({
+      mode: "system",
+      modelId: AI_ENGINE_DEFAULTS.system.jdExtractionModelId,
+    });
   });
 
-  it("returns the enhance route unchanged for BYOK (same model as resume AI)", () => {
+  it("prefers utility models over enhance primary for BYOK", async () => {
     const customerRoute = {
       mode: "customer" as const,
       vaultKeyId: "vk_1",
       provider: "anthropic" as const,
       modelId: "claude-opus-4-5-20251101",
-      modelCandidates: ["claude-opus-4-5-20251101", "claude-sonnet-4-5-20250929"],
+      modelCandidates: [
+        "claude-opus-4-5-20251101",
+        "claude-sonnet-4-5-20250929",
+        "claude-3-5-haiku-20241022",
+      ],
     };
-    expect(jdExtractionRoute(customerRoute)).toBe(customerRoute);
+    const resolved = await jdExtractionRoute(customerRoute);
+    expect(resolved.mode).toBe("customer");
+    if (resolved.mode === "customer") {
+      expect(resolved.modelId).toBe("claude-3-5-haiku-20241022");
+      expect(resolved.modelCandidates[0]).toBe("claude-3-5-haiku-20241022");
+      expect(resolved.modelCandidates).toContain("claude-opus-4-5-20251101");
+    }
   });
 });
 

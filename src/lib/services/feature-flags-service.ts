@@ -7,6 +7,7 @@ export const FEATURE_FLAG_KEYS = {
   extensionAutoApply: "extension_auto_apply",
   extensionApplyPipelineStepAnalytics: "extension_apply_pipeline_step_analytics",
   systemAiEnabled: "system_ai_enabled",
+  aiJdExtractEnabled: "ai_jd_extract_enabled",
 } as const;
 
 export type FeatureFlagKey = (typeof FEATURE_FLAG_KEYS)[keyof typeof FEATURE_FLAG_KEYS];
@@ -62,6 +63,12 @@ export const FEATURE_FLAG_REGISTRY: Record<
     description: "Global kill switch for EasySubmit system AI pool (BYOK unaffected)",
     defaultEnabled: true,
   },
+  aiJdExtractEnabled: {
+    key: FEATURE_FLAG_KEYS.aiJdExtractEnabled,
+    description:
+      "Call AI structured JD extract (generateObject). ON = yes; OFF = deterministic JD + vocabulary only.",
+    defaultEnabled: true,
+  },
 };
 
 export type FeatureFlagsSnapshot = {
@@ -70,6 +77,7 @@ export type FeatureFlagsSnapshot = {
   extensionAutoApply: boolean;
   extensionApplyPipelineStepAnalytics: boolean;
   systemAiEnabled: boolean;
+  aiJdExtractEnabled: boolean;
 };
 
 export const FEATURE_FLAGS_DEFAULTS: FeatureFlagsSnapshot = {
@@ -79,6 +87,7 @@ export const FEATURE_FLAGS_DEFAULTS: FeatureFlagsSnapshot = {
   extensionApplyPipelineStepAnalytics:
     FEATURE_FLAG_REGISTRY.extensionApplyPipelineStepAnalytics.defaultEnabled,
   systemAiEnabled: FEATURE_FLAG_REGISTRY.systemAiEnabled.defaultEnabled,
+  aiJdExtractEnabled: FEATURE_FLAG_REGISTRY.aiJdExtractEnabled.defaultEnabled,
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -164,6 +173,11 @@ export async function getFeatureFlags(): Promise<FeatureFlagsSnapshot> {
     systemAiEnabled: resolveEnabled(
       FEATURE_FLAG_REGISTRY.systemAiEnabled.key,
       FEATURE_FLAG_REGISTRY.systemAiEnabled.defaultEnabled,
+      byKey,
+    ),
+    aiJdExtractEnabled: resolveEnabled(
+      FEATURE_FLAG_REGISTRY.aiJdExtractEnabled.key,
+      FEATURE_FLAG_REGISTRY.aiJdExtractEnabled.defaultEnabled,
       byKey,
     ),
   };

@@ -17,6 +17,8 @@ import { makeEmptyIntelligence } from "@/lib/job-tracker/jd/jd-intelligence";
 import { logEnhance } from "@/src/lib/ai/engine/enhance-logger";
 import { ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
 import type { JdExtractionOptions } from "@/lib/job-tracker/jd/jd-ai-extractor";
+import { runInflightJdExtract } from "@/lib/job-tracker/jd/jd-extract-inflight";
+import { resolveJdExtractFeature } from "@/lib/features/resolve-jd-extract";
 import {
   pipelineDebugAdvance,
   pipelineDebugStep,
@@ -35,6 +37,7 @@ export type JDAnalysisInput = {
   jdExtraction?: JdExtractionOptions;
   traceId?: string;
   userId?: string | null;
+  jobEntryId?: string;
 };
 
 export type JDAnalysisResult = {
@@ -187,38 +190,60 @@ export async function analyzeJobDescription(
     });
 
     if (useAi && input.aiRoute) {
-      aiAttempted = true;
-      pipelineDebugAdvance(pipelineDebug, "ai_jd_extract", "pre_jd_brain");
+      const { getFeatureFlags } = await import("@/src/lib/services/feature-flags-service");
+      const flags = await getFeatureFlags();
+      const { shouldRunAiExtract } = resolveJdExtractFeature(flags);
 
-      const { extractJDIntelligenceWithAI, mergeAIIntoIntelligence } = await import(
-        "@/lib/job-tracker/jd/jd-ai-extractor"
-      );
-      const aiResult = await extractJDIntelligenceWithAI(
-        segments,
-        targetRole,
-        input.aiRoute,
-        input.traceId ?? "no-trace",
-        input.userId,
-        input.jdExtraction ?? {},
-      );
-      if (aiResult.ok) {
-        aiCallMade = true;
-        intelligence = mergeAIIntoIntelligence(intelligence, aiResult.intelligence);
-        logEnhance("server", "jd.brain.merge", {
+      if (!shouldRunAiExtract) {
+        skipAiJdExtractStep(pipelineDebug, "AI JD extract disabled (ai_jd_extract_enabled)");
+        logEnhance("server", "jd.brain.skip_ai", {
           traceId: input.traceId ?? "no-trace",
           userId: input.userId,
           step: ENHANCE_PIPELINE.PRE_JD_BRAIN,
           descriptionHash,
-          source: intelligence.source,
-          confidence: intelligence.confidence,
-          velocitySignal: intelligence.velocitySignal,
-          ownershipLevel: intelligence.ownershipLevel,
-          industryDomain: intelligence.industryDomain.slice(0, 3),
-          mustHaveSkills: intelligence.mustHaveSkills.slice(0, 12),
-          summaryTheme: intelligence.summaryTheme || null,
+          reason: "feature_disabled",
         });
-      } else if (aiResult.reason === "quota") {
-        skipAiJdExtractStep(pipelineDebug, "Quota blocked");
+      } else {
+        aiAttempted = true;
+        pipelineDebugAdvance(pipelineDebug, "ai_jd_extract", "pre_jd_brain");
+
+        const inflightKey = `${input.userId ?? "anon"}:${input.jobEntryId ?? "no-entry"}:${descriptionHash}`;
+        const outcome = await runInflightJdExtract(inflightKey, async () => {
+          const { extractJDIntelligenceWithAI, mergeAIIntoIntelligence } = await import(
+            "@/lib/job-tracker/jd/jd-ai-extractor"
+          );
+          const aiResult = await extractJDIntelligenceWithAI(
+            segments,
+            targetRole,
+            input.aiRoute!,
+            input.traceId ?? "no-trace",
+            input.userId,
+            input.jdExtraction ?? {},
+          );
+          if (aiResult.ok) {
+            const merged = mergeAIIntoIntelligence(intelligence, aiResult.intelligence);
+            logEnhance("server", "jd.brain.merge", {
+              traceId: input.traceId ?? "no-trace",
+              userId: input.userId,
+              step: ENHANCE_PIPELINE.PRE_JD_BRAIN,
+              descriptionHash,
+              source: merged.source,
+              confidence: merged.confidence,
+              velocitySignal: merged.velocitySignal,
+              ownershipLevel: merged.ownershipLevel,
+              industryDomain: merged.industryDomain.slice(0, 3),
+              mustHaveSkills: merged.mustHaveSkills.slice(0, 12),
+              summaryTheme: merged.summaryTheme || null,
+            });
+            return { intelligence: merged, aiCallMade: true };
+          }
+          if (aiResult.reason === "quota") {
+            skipAiJdExtractStep(pipelineDebug, "Quota blocked");
+          }
+          return { intelligence, aiCallMade: false };
+        });
+        intelligence = outcome.intelligence;
+        aiCallMade = outcome.aiCallMade;
       }
     } else {
       skipAiJdExtractStep(

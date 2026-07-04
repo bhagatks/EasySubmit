@@ -184,6 +184,7 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 
 | Date | Summary |
 |------|---------|
+| 2026-07-04 | **JD extract dedupe + flag** — capture registers pipeline tracks synchronously (fixes duplicate `generateObject`); in-flight lock per job+hash; `ai_jd_extract_enabled` ON/OFF for JD AI; utility routing skips models that failed structured probes. |
 | 2026-07-04 | **Fork/join enhance** — capture starts job track ∥ resume track; light skills merge; slim experience fact ledger for resume AI; full brief/baseline only on AI fail. Dev `/dashboard/pipeline` groups by architecture track. |
 | 2026-07-03 | **JD extract speed cap** — BYOK JD routes pinned to per-provider fast utility models (never Opus/O1); 60s timeout on `generateObject`; fixes ~5m JD steps on Anthropic BYOK. |
 | 2026-07-03 | **BYOK model health** — `user_api_keys.modelHealth` stores ranked probe results; Ignition vault refresh probes top career-grade models; `resolveAiRoute` + enhance runtime try ranked fallbacks within provider. |
@@ -208,7 +209,8 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 | 2026-06-28 | **Screen diagnostics** — `[ScreenDiag]` high/low/light on every route + overlay (`screen-diagnostics.ts`, `ScreenDiagnosticsTracker`); catalog in [`SCREENS.md`](./SCREENS.md) |
 | 2026-06-28 | **Screen inventory** — [`docs/SCREENS.md`](./SCREENS.md): canonical routes, sidebar labels, Review Screen tabs, extension surfaces; linked from FLOW, ARCHITECTURE, PROJECT_STATE |
 | 2026-06-28 | **BYOK enhance observability** — customer-route model failures now write `api_call_logs` + `[EnhanceDiag]`; `enhanceMeta` persists `aiAttempted`/`aiSucceeded`/`warning`; routing respects `forceSystem` / `aiSourcePreference=system` over vault key |
-| 2026-07-04 | **Unified AI model routing** — JD extract (`generateObject`) and resume enhance share the same health-ranked `ResolvedAiRoute` (discovery + model-health probes + fallback); removed BYOK Haiku swap; Workday `Job Description:` segmenter + prompt fallback when requirements empty |
+| 2026-07-04 | **JD utility model routing** — JD extract tries structured-probe verified fast models first, then resume-grade fallbacks; system pool uses `jdExtractionModelId` |
+| 2026-07-04 | **Unified AI model routing** — JD extract and resume enhance share vault key discovery + `withCustomerModelFallback`; Workday segmenter + prompt fallback |
 | 2026-06-28 | **JD Brain extract fix** — system pool uses `jdExtractionModelId` (not slot resume model) for `generateObject`; Gemini BYOK routes JD extract to utility model; text+JSON fallback on parse fail; extension pipeline persists `enhanceMeta`. |
 | 2026-06-28 | **Enhance diagnostic logging** — `[EnhanceDiag]` per-transaction logs with JD/resume/gate tracks, G1–G6 gate params, `app_config.enhanceDiagnostics` threshold (`light`/`low`/`high`); documented in [`enhance-pipeline-design.md`](./enhance-pipeline-design.md) observability section. |
 | 2026-06-27 | **Enhance QA playbook** — [`docs/enhance-qa-playbook.md`](./enhance-qa-playbook.md): repeated AI on/off review protocol, defect registry (D-01–D-22), Case 001 findings, phased fix plan. |

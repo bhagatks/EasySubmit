@@ -5,11 +5,13 @@ import {
 } from "@/src/lib/config/career-grade-models";
 import { GEMINI_JD_EXTRACT_MODEL } from "@/src/lib/ai/engine/gemini-resilience";
 import type { ResolvedAiRoute } from "@/src/lib/ai/engine/router";
+import {
+  AI_ENGINE_DEFAULTS,
+  resolveJdExtractionSystemModel,
+  type AiEngineConfig,
+} from "@/src/lib/services/ai-engine-config";
 
-/**
- * @deprecated JD extract uses the same `ResolvedAiRoute` as resume enhance.
- * Legacy helpers for ranking fast utility models — not used by `jdExtractionRoute` anymore.
- */
+/** Hard cap for JD structured extract — must stay under one minute. */
 export const JD_EXTRACTION_TIMEOUT_MS = 60_000;
 
 /** Fast utility models for BYOK JD extract (never resume-grade Opus/O1). */
@@ -76,32 +78,60 @@ export function rankJdExtractionCandidates(
   return [...fast, ...rest];
 }
 
+function isModelCooldownActive(cooldownUntil: string | null | undefined, now = Date.now()): boolean {
+  if (!cooldownUntil) return false;
+  const until = Date.parse(cooldownUntil);
+  return Number.isFinite(until) && until > now;
+}
+
+function dedupeModelIds(modelIds: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const modelId of modelIds) {
+    const trimmed = modelId.trim();
+    if (!trimmed) continue;
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(trimmed);
+  }
+  return out;
+}
+
 export function resolveJdExtractionCustomerCandidates(
   provider: AiProvider,
   customerEnhanceModelId: string,
   systemJdModelId: string,
   modelCandidates: string[] = [],
+  fallbackCandidates: string[] = modelCandidates,
 ): string[] {
   const providerDefault = isHandshakeProvider(provider)
     ? JD_EXTRACTION_CUSTOMER_DEFAULTS[provider]
     : systemJdModelId;
 
-  // Gemini BYOK enhance flash models are unreliable for generateObject — always flash-lite.
+  // Gemini BYOK enhance flash models are unreliable for generateObject — flash-lite first.
   if (provider === "gemini") {
-    return [providerDefault];
+    return dedupeModelIds([
+      providerDefault,
+      ...modelCandidates,
+      ...fallbackCandidates,
+      customerEnhanceModelId,
+    ]);
   }
 
-  // Prefer models verified on the account (health-ranked) — a hard-coded
-  // default can 404 when the key has no access to it (e.g. Haiku on some
-  // Anthropic accounts). Keep the default as a last-resort fallback.
-  const verified = rankJdExtractionCandidates(provider, [
-    ...modelCandidates,
+  const utilityPool = rankJdExtractionCandidates(provider, modelCandidates);
+  const slowFallback = dedupeModelIds(fallbackCandidates).filter(
+    (modelId) => !isJdExtractionSuitableModel(provider, modelId),
+  );
+
+  const chain = dedupeModelIds([
+    ...utilityPool,
+    ...slowFallback,
     customerEnhanceModelId,
   ]);
-  if (verified.length > 0) {
-    return verified.some((m) => m.toLowerCase() === providerDefault.toLowerCase())
-      ? verified
-      : [...verified, providerDefault];
+
+  if (chain.length > 0) {
+    return chain;
   }
 
   return [providerDefault];
@@ -124,12 +154,26 @@ export function resolveJdExtractionCustomerModel(
 export function resolveJdExtractionCustomerRoute(
   route: Extract<ResolvedAiRoute, { mode: "customer" }>,
   systemJdModelId: string,
+  input?: {
+    structuredCandidates?: string[];
+    fallbackCandidates?: string[];
+    /** When true, never fall back to unprobed `modelCandidates` for the utility tier. */
+    structuredProbeApplied?: boolean;
+  },
 ): Extract<ResolvedAiRoute, { mode: "customer" }> {
+  const structured = input?.structuredProbeApplied
+    ? (input.structuredCandidates ?? [])
+    : input?.structuredCandidates?.length
+      ? input.structuredCandidates
+      : route.modelCandidates;
+  const fallback = input?.fallbackCandidates ?? route.modelCandidates;
+
   const candidates = resolveJdExtractionCustomerCandidates(
     route.provider,
     route.modelId,
     systemJdModelId,
-    route.modelCandidates,
+    structured,
+    fallback,
   );
 
   return {
@@ -137,4 +181,55 @@ export function resolveJdExtractionCustomerRoute(
     modelId: candidates[0]!,
     modelCandidates: candidates,
   };
+}
+
+/** Models on the vault key that passed structured `generateObject` probes and are not in cooldown. */
+export function filterStructuredHealthyModels(
+  rankedModels: string[],
+  entries: Record<string, { status: string; probes: { structured: boolean }; cooldownUntil?: string | null }>,
+  now = Date.now(),
+): string[] {
+  return rankedModels.filter((modelId) => {
+    const entry = entries[modelId];
+    if (!entry || entry.status !== "healthy" || !entry.probes.structured) return false;
+    return !isModelCooldownActive(entry.cooldownUntil, now);
+  });
+}
+
+/**
+ * JD extract tries cheaper utility models first (fast tier, structured-probe verified),
+ * then falls back to resume-grade models on the same key via `modelCandidates`.
+ */
+export async function resolveJdExtractionExecutionRoute(
+  route: ResolvedAiRoute,
+  input: {
+    userId?: string | null;
+    aiEngine?: AiEngineConfig;
+  } = {},
+): Promise<ResolvedAiRoute> {
+  const engine = input.aiEngine ?? AI_ENGINE_DEFAULTS;
+  const systemJdModelId = resolveJdExtractionSystemModel(engine);
+
+  if (route.mode === "system") {
+    return { mode: "system", modelId: systemJdModelId };
+  }
+
+  let structuredCandidates: string[] | undefined;
+  let structuredProbeApplied = false;
+  if (input.userId) {
+    const { loadProviderModelHealth } = await import(
+      "@/lib/ai/model-health/resolve-model-candidates"
+    );
+    const health = await loadProviderModelHealth(input.userId, route.provider);
+    if (health?.rankedModels.length) {
+      structuredProbeApplied = true;
+      structuredCandidates = filterStructuredHealthyModels(health.rankedModels, health.entries);
+    }
+  }
+
+  return resolveJdExtractionCustomerRoute(route, systemJdModelId, {
+    structuredCandidates,
+    structuredProbeApplied,
+    fallbackCandidates: route.modelCandidates,
+  });
 }

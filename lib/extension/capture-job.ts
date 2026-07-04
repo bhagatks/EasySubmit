@@ -9,9 +9,6 @@ import {
   type SaveJobTrackerInput,
 } from "@/lib/extension/job-service";
 import { startPipelineTracks } from "@/lib/job-tracker/enhance/pipeline-track-coordinator";
-import { resolveAiUpgrade } from "@/lib/job-tracker/enhance/resolve-ai-upgrade";
-import { prisma } from "@/lib/prisma";
-import { SYSTEM_QUOTA_USER_SELECT } from "@/lib/ai/system-quota-gate-for-user";
 import { createEnhanceTraceId, logEnhance } from "@/src/lib/ai/engine/enhance-logger";
 import { TAILOR_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
 import { pipelineDebugContext } from "@/lib/extension/pipeline-debug-hooks";
@@ -60,56 +57,37 @@ export async function captureJob(
   });
 
   if (input.startTracks !== false) {
-    // Fire-and-forget: job track ∥ resume track while client proceeds to tailor.
-    void startCaptureTracks(userId, saved.id, input, traceId).catch(() => undefined);
+    const debug = pipelineDebugContext(userId, saved.id);
+    const targetRole = input.title?.trim() || "Professional";
+
+    logEnhance("pipeline", "capture.tracks_start", {
+      step: TAILOR_PIPELINE.APPLY_START,
+      userId,
+      entryId: saved.id,
+      traceId,
+    });
+
+    // Register tracks synchronously so tailor's awaitPipelineTracks cannot start a duplicate JD run.
+    startPipelineTracks({
+      job: {
+        userId,
+        jobEntryId: saved.id,
+        jobDescription: input.description,
+        targetRole,
+        companyName: input.company,
+        traceId,
+        pipelineDebug: debug,
+      },
+      resume: {
+        userId,
+        jobEntryId: saved.id,
+        sourceProfileId: input.sourceProfileId,
+        targetRole,
+        traceId,
+        pipelineDebug: debug,
+      },
+    });
   }
 
   return { id: saved.id, status: saved.status };
-}
-
-async function startCaptureTracks(
-  userId: string,
-  jobEntryId: string,
-  input: CaptureJobInput,
-  traceId: string,
-): Promise<void> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: SYSTEM_QUOTA_USER_SELECT,
-  });
-  if (!user) return;
-
-  const aiUpgrade = await resolveAiUpgrade(user, "extension", { traceId });
-  const debug = pipelineDebugContext(userId, jobEntryId);
-  const targetRole = input.title?.trim() || "Professional";
-
-  logEnhance("pipeline", "capture.tracks_start", {
-    step: TAILOR_PIPELINE.APPLY_START,
-    userId,
-    entryId: jobEntryId,
-    traceId,
-    aiAllowed: aiUpgrade.aiAllowed,
-  });
-
-  startPipelineTracks({
-    job: {
-      userId,
-      jobEntryId,
-      jobDescription: input.description,
-      targetRole,
-      companyName: input.company,
-      aiRoute: aiUpgrade.route ?? null,
-      quotaUser: user,
-      traceId,
-      pipelineDebug: debug,
-    },
-    resume: {
-      userId,
-      jobEntryId,
-      sourceProfileId: input.sourceProfileId,
-      targetRole,
-      traceId,
-      pipelineDebug: debug,
-    },
-  });
 }
