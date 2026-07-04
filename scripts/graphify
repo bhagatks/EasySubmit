@@ -1,0 +1,13 @@
+#!/bin/sh
+# Project-local graphify wrapper — works even when ~/.local/bin is not on PATH.
+set -e
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PYTHON="${GRAPHIFY_PYTHON:-}"
+if [ -z "$PYTHON" ] && [ -f "$ROOT/graphify-out/.graphify_python" ]; then
+  PYTHON="$(cat "$ROOT/graphify-out/.graphify_python")"
+fi
+if [ -z "$PYTHON" ]; then
+  PYTHON="python3"
+fi
+cd "$ROOT"
+exec "$PYTHON" -m graphify "$@"
