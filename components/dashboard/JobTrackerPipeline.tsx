@@ -38,6 +38,7 @@ import {
 import { useDashboardExtensionConnected } from "@/lib/hooks/useDashboardExtensionConnected";
 import { shouldShowExtensionInstallCta } from "@/lib/extension/extension-install-cta";
 import { cn } from "@/lib/utils";
+import { serverActionClientErrorMessage } from "@/lib/server-action-client";
 
 type JobTrackerPipelineProps = {
   entries: JobTrackerSummary[];
@@ -129,13 +130,22 @@ export function JobTrackerPipeline({
   async function handleDelete() {
     if (!deleteTarget) return false;
     setBusyId(deleteTarget.id);
-    const result = await deleteJobTrackerEntry(deleteTarget.id);
-    setBusyId(null);
-    if (result.success) {
+    try {
+      const result = await deleteJobTrackerEntry(deleteTarget.id);
+      if (result?.success === false) {
+        setExtensionHint(result.error ?? "Could not delete this job. Try again.");
+        return false;
+      }
       onMutated?.();
       return true;
+    } catch (error) {
+      setExtensionHint(
+        serverActionClientErrorMessage(error, "Could not delete this job. Try again."),
+      );
+      return false;
+    } finally {
+      setBusyId(null);
     }
-    return false;
   }
 
   async function handleApply(entry: JobTrackerSummary, journey: JourneyDisplay) {

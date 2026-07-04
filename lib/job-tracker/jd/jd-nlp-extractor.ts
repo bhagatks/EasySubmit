@@ -3,27 +3,54 @@
  * Do not import from client components.
  */
 
-import { createRequire } from "node:module";
-
-const require = createRequire(import.meta.url);
-
-const rake = require("rake-js").default ?? require("rake-js");
-const winkNLP = require("wink-nlp");
-const model = require("wink-eng-lite-web-model");
 import { MASTER_SKILLS } from "@/src/lib/constants/skills";
 import { KEYWORD_STOP_WORDS } from "@/lib/job-tracker/jd/keyword-extract";
 import type { JDSegments } from "@/lib/job-tracker/jd/jd-intelligence";
 
 const MASTER_SKILLS_SET = new Set(MASTER_SKILLS.map((skill) => skill.toLowerCase()));
 
-const nlp = winkNLP(model);
-const its = nlp.its;
-
 const KEEP_POS = new Set(["NOUN", "PROPN", "SYM"]);
 
 const MASTER_SKILL_BY_LOWER = new Map(
   MASTER_SKILLS.map((skill) => [skill.toLowerCase(), skill] as const),
 );
+
+type WinkToken = { out: (prop: unknown) => string };
+type WinkNlp = {
+  readDoc: (text: string) => {
+    tokens: () => {
+      filter: (fn: (token: WinkToken) => boolean) => { out: (prop: unknown) => string[] };
+    };
+  };
+  its: Record<string, unknown>;
+};
+
+let nlp: WinkNlp | null = null;
+let nlpInitAttempted = false;
+let rakeExtract: ((text: string, opts: { language: string }) => string[]) | null = null;
+
+function loadRake(): (text: string, opts: { language: string }) => string[] {
+  if (!rakeExtract) {
+    // Static require — Next webpack externals must resolve this from node_modules.
+    const rake = require("rake-js") as { default?: unknown };
+    rakeExtract = (rake.default ?? rake) as (text: string, opts: { language: string }) => string[];
+  }
+  return rakeExtract;
+}
+
+function loadNlp(): WinkNlp | null {
+  if (nlpInitAttempted) return nlp;
+  nlpInitAttempted = true;
+  try {
+    const winkNLP = require("wink-nlp") as (model: unknown) => WinkNlp;
+    const model = require("wink-eng-lite-web-model");
+    nlp = winkNLP(model);
+  } catch (error) {
+    console.error("[jd-nlp-extractor] fail winkNLP init", error);
+    nlp = null;
+  }
+  return nlp;
+}
 
 function normalizePhrase(phrase: string): string {
   return phrase.trim().replace(/\s+/g, " ");
@@ -34,19 +61,25 @@ function canonicalSkill(label: string): string {
 }
 
 function phrasePosTags(phrase: string): string[] {
-  const doc = nlp.readDoc(phrase);
+  const engine = loadNlp();
+  if (!engine) return [];
+
+  const doc = engine.readDoc(phrase);
   return doc
     .tokens()
-    .filter((token: { out: (prop: unknown) => string }) => {
-      const type = token.out(its.type);
+    .filter((token: WinkToken) => {
+      const type = token.out(engine.its.type);
       return type === "word" || type === "number";
     })
-    .out(its.pos);
+    .out(engine.its.pos);
 }
 
 function passesPosFilter(phrase: string): boolean {
   const lower = phrase.toLowerCase();
   if (MASTER_SKILLS_SET.has(lower)) return true;
+
+  const engine = loadNlp();
+  if (!engine) return true;
 
   const tags = phrasePosTags(phrase);
   if (tags.length === 0) return false;
@@ -71,15 +104,37 @@ function isStructuralTechToken(token: string): boolean {
   return lower.includes("-") && lower.length >= 4;
 }
 
+function extractMasterSkillHitsFallback(text: string): string[] {
+  const lower = text.toLowerCase();
+  const hits = new Set<string>();
+
+  for (const skill of MASTER_SKILLS) {
+    const skillLower = skill.toLowerCase();
+    if (skillLower.length < 2) continue;
+    if (lower.includes(skillLower)) {
+      hits.add(canonicalSkill(skill));
+    }
+  }
+
+  if (/\bci\s*\/\s*cd\b/i.test(text) && MASTER_SKILLS_SET.has("ci/cd")) {
+    hits.add("CI/CD");
+  }
+
+  return Array.from(hits);
+}
+
 function extractMasterSkillHits(text: string): string[] {
-  const doc = nlp.readDoc(text);
+  const engine = loadNlp();
+  if (!engine) return extractMasterSkillHitsFallback(text);
+
+  const doc = engine.readDoc(text);
   const values = doc
     .tokens()
-    .filter((token: { out: (prop: unknown) => string }) => {
-      const type = token.out(its.type);
+    .filter((token: WinkToken) => {
+      const type = token.out(engine.its.type);
       return type === "word" || type === "number";
     })
-    .out(its.value);
+    .out(engine.its.value);
 
   const hits = new Set<string>();
 
@@ -140,9 +195,13 @@ function extractNlpKeywordsFromText(text: string): string[] {
     addPhrase(skill.toLowerCase());
   }
 
-  const rakePhrases = rake(text, { language: "english" }) as string[];
-  for (const phrase of rakePhrases) {
-    addPhrase(phrase);
+  try {
+    const rakePhrases = loadRake()(text, { language: "english" });
+    for (const phrase of rakePhrases) {
+      addPhrase(phrase);
+    }
+  } catch (error) {
+    console.error("[jd-nlp-extractor] fail rake extract", error);
   }
 
   return ranked;

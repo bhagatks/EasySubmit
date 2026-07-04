@@ -15,7 +15,7 @@ import { JOB_TRACKER_EDITABLE_STATUSES } from "@/lib/job-tracker/pipeline";
 import type { JobTrackerSummary, JobTrackerDetail } from "@/lib/job-tracker/types";
 import { updateJobTrackerStatus, updateJobTrackerEntryFields } from "@/lib/extension/job-service";
 import { markJobTrackerApplied } from "@/lib/extension/mark-applied";
-import { journeySyncLog } from "@/src/shared/extension/journey-sync-log";
+import { journeySyncLog, journeySyncWarn } from "@/src/shared/extension/journey-sync-log";
 import { resumeProfileDisplayLabel } from "@/lib/extension/resume-profiles";
 import { getMergedResumeForJob, updateJobReviewDocuments } from "@/lib/profile/job-resume-tailor";
 import { findProfileForUser } from "@/lib/profile/resume-profile-core";
@@ -471,21 +471,34 @@ export async function deleteJobTrackerEntry(entryId: string): Promise<JobTracker
     return { success: false, error: "Sign in required" };
   }
 
-  const result = await prisma.jobTrackerEntry.deleteMany({
-    where: { id: entryId.trim(), userId },
-  });
-
-  if (result.count === 0) {
-    return { success: false, error: "Job not found" };
+  const trimmedId = entryId.trim();
+  if (!trimmedId) {
+    return { success: false, error: "Job id is required" };
   }
 
-  journeySyncLog("server", "job_deleted", {
-    entryId: entryId.trim(),
-    userId,
-  });
+  try {
+    const result = await prisma.jobTrackerEntry.deleteMany({
+      where: { id: trimmedId, userId },
+    });
 
-  revalidatePath("/dashboard/job-tracker");
-  return { success: true };
+    if (result.count === 0) {
+      return { success: false, error: "Job not found" };
+    }
+
+    journeySyncLog("server", "job_deleted", {
+      entryId: trimmedId,
+      userId,
+    });
+
+    return { success: true };
+  } catch (error) {
+    journeySyncWarn("server", "job_delete_fail", {
+      entryId: trimmedId,
+      userId,
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
+    return { success: false, error: "Could not delete this job. Try again." };
+  }
 }
 
 export async function updateJobTrackerEntryStatus(
