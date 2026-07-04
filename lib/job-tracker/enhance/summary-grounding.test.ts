@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   enforceSummaryIdentityOpening,
+  experienceBlobFromForm,
+  normalizeExperienceDateFields,
   normalizePresentDateArtifacts,
   postProcessSummaryOutput,
   sanitizeUngroundedSummaryClaims,
@@ -113,5 +115,19 @@ describe("summary-grounding", () => {
     expect(summary).not.toContain("[review]");
     expect(summary.toLowerCase()).toContain("applies strategic sourcing");
     expect(warnings.some((w) => w.includes("may not match"))).toBe(true);
+  });
+
+  it("builds experience blob and normalizes duplicated Present fields", () => {
+    expect(
+      experienceBlobFromForm([
+        { title: "Engineer", company: "Co", bullets: "Built APIs." },
+      ]),
+    ).toContain("Built APIs.");
+
+    const normalized = normalizeExperienceDateFields([
+      { endYear: "Present Present", bullets: "Jan 2024 – Present Present" },
+    ]);
+    expect(normalized[0]?.endYear).toBe("Present");
+    expect(normalized[0]?.bullets).toBe("Jan 2024 – Present");
   });
 });

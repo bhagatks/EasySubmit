@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { resolveSummaryIdentity } from "@/lib/job-tracker/enhance/resolve-summary-identity";
+import {
+  computeExperienceJdOverlap,
+  isNonTechJdDomain,
+  resolveSummaryIdentity,
+} from "@/lib/job-tracker/enhance/resolve-summary-identity";
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
 
 const engForm = {
@@ -80,5 +84,88 @@ describe("resolveSummaryIdentity", () => {
     });
 
     expect(result.identity).toBe("Head of Engineering");
+  });
+
+  it("allows JD target role in summary for aligned technical leadership jobs", () => {
+    const result = resolveSummaryIdentity({
+      profileTargetTitle: "Head of Engineering",
+      form: {
+        experience: [
+          {
+            title: "Head of Engineering",
+            company: "7-Eleven",
+            bullets:
+              "Led AWS microservices, platform architecture, data migration, and Agentic AI delivery workflows.",
+          },
+        ],
+      } as HubRefineryForm,
+      jdTargetRole: "Director, AI/ML and Data Architecture",
+      jdKeywords: ["machine learning", "data architecture", "platform", "engineering"],
+      jdDomain: "ml-ai",
+    });
+
+    expect(result.isTechnicalCandidate).toBe(true);
+    expect(result.mayUseJdTitleInSummary).toBe(true);
+  });
+
+  it("extracts summary lead from years pattern when valid", () => {
+    const result = resolveSummaryIdentity({
+      form: { experience: [] } as HubRefineryForm,
+      currentSummary: "Engineering Manager with 18 years leading platform and API teams.",
+      jdTargetRole: "Director, Engineering",
+      jdKeywords: ["platform", "engineering"],
+    });
+
+    expect(result.identity).toBe("Engineering Manager");
+  });
+
+  it("defaults identity to Professional when no valid candidate exists", () => {
+    const result = resolveSummaryIdentity({
+      form: { experience: [] } as HubRefineryForm,
+      jdTargetRole: "",
+      jdKeywords: [],
+    });
+
+    expect(result.identity).toBe("Professional");
+    expect(result.jdTargetRole).toBe("Professional");
+  });
+
+  it("skips hidden experience when picking recent title", () => {
+    const result = resolveSummaryIdentity({
+      form: {
+        experience: [
+          { title: "Hidden Role", company: "Co", hidden: true, bullets: "" },
+          { title: "Platform Engineer", company: "Co", bullets: "Built APIs." },
+        ],
+      } as HubRefineryForm,
+      jdTargetRole: "Engineer",
+    });
+
+    expect(result.identity).toBe("Platform Engineer");
+  });
+});
+
+describe("computeExperienceJdOverlap", () => {
+  it("returns zero when JD keywords are empty", () => {
+    expect(computeExperienceJdOverlap(engForm, [])).toBe(0);
+  });
+
+  it("scores overlap from experience bullets and titles", () => {
+    const score = computeExperienceJdOverlap(engForm, [
+      "platform",
+      "mobile",
+      "procurement",
+    ]);
+    expect(score).toBeGreaterThan(0);
+    expect(score).toBeLessThanOrEqual(1);
+  });
+});
+
+describe("isNonTechJdDomain", () => {
+  it("flags procurement and product domains as non-technical", () => {
+    expect(isNonTechJdDomain("procurement-supply-chain")).toBe(true);
+    expect(isNonTechJdDomain("product-management")).toBe(true);
+    expect(isNonTechJdDomain(undefined)).toBe(false);
+    expect(isNonTechJdDomain("ml-ai")).toBe(false);
   });
 });
