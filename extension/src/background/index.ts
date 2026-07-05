@@ -20,7 +20,7 @@ import {
   shouldClearStaleLocalApiBasePin,
 } from "@shared/extension/resolve-api-base";
 import { mergeExtensionRuntimeConfig } from "@shared/extension/runtime-config-merge";
-import { fetchGreenhouseEmbeddedJobData } from "@shared/extension/greenhouse-board-fetch";
+import { fetchGreenhouseJobFromPageUrl } from "@shared/extension/greenhouse-board-fetch";
 import { isPipelineDebugEnabled } from "@shared/extension/pipeline-debug-gate";
 import type {
   ExtensionRuntimeConfig,
@@ -428,7 +428,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (action === EXTENSION_MESSAGE.FETCH_GREENHOUSE_EMBEDDED && typeof message.url === "string") {
-    void fetchGreenhouseEmbeddedJobData(message.url)
+    void fetchGreenhouseJobFromPageUrl(message.url)
       .then((metadata) => {
         if (!metadata?.title) {
           console.log("[EasySubmit] bg:greenhouse-embedded-fetch fail", { url: message.url, error: "not_found" });

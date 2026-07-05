@@ -42,7 +42,8 @@ import { setupFieldCaptureBridge } from "@shared/extension/field-capture-bridge"
 import type { FieldCapturePayload } from "@shared/extension/field-descriptor";
 import type { ServerLookupMap } from "@shared/extension/field-resolution";
 import { injectApiInterceptScript, onApiIntercept, type InterceptedJobData } from "@shared/extension/api-intercept";
-import { isGreenhouseEmbeddedJobUrl } from "@shared/extension/greenhouse-helpers";
+import { isGreenhouseEmbeddedJobUrl, isGreenhouseBoardJobUrl } from "@shared/extension/greenhouse-helpers";
+import { preferGreenhouseBoardApiDescription } from "@shared/extension/greenhouse-board-fetch";
 import { isEasySubmitManagedAppPage } from "@shared/extension/easysubmit-app-page";
 import { isExtensionGlobalSwitchOn } from "@shared/extension/extension-global-switch";
 import type { ApplicationProfile } from "@/lib/profile/application-profile";
@@ -4810,7 +4811,7 @@ async function updateCard(): Promise<void> {
       return;
     }
 
-    if (isGreenhouseEmbeddedJobUrl(location.href)) {
+    if (isGreenhouseEmbeddedJobUrl(location.href) || isGreenhouseBoardJobUrl(location.href)) {
       await maybeFetchGreenhouseEmbeddedJob().catch(() => undefined);
     }
 
@@ -4878,17 +4879,48 @@ function interceptedToMetadata(data: InterceptedJobData): ScrapedJobMetadata {
   };
 }
 
-function hasEmbeddedGreenhouseDescription(): boolean {
-  return canApplyCapture({
-    url: location.href,
-    description: interceptedMetadata?.description,
-  });
+function isGreenhouseApiFetchUrl(url: string): boolean {
+  return isGreenhouseEmbeddedJobUrl(url) || isGreenhouseBoardJobUrl(url);
+}
+
+function applyGreenhouseApiMetadata(data: InterceptedJobData): void {
+  const apiMeta = interceptedToMetadata(data);
+  const domDesc =
+    interceptedMetadataSource === "page-intercept"
+      ? interceptedMetadata?.description
+      : scrapeDescription(document);
+  const preferredDesc = preferGreenhouseBoardApiDescription(domDesc, apiMeta.description);
+
+  if (
+    !interceptedMetadata ||
+    preferredDesc === apiMeta.description ||
+    (apiMeta.description?.length ?? 0) >= (domDesc?.length ?? 0) + 400
+  ) {
+    interceptedMetadata = {
+      ...apiMeta,
+      description: preferredDesc ?? apiMeta.description,
+      company: apiMeta.company || interceptedMetadata?.company || null,
+      location: apiMeta.location ?? interceptedMetadata?.location ?? null,
+      title: apiMeta.title || interceptedMetadata?.title || "",
+    };
+    interceptedMetadataSource = "greenhouse-board-api";
+    return;
+  }
+
+  if (interceptedMetadata && preferredDesc) {
+    interceptedMetadata = {
+      ...interceptedMetadata,
+      description: preferredDesc,
+      title: interceptedMetadata.title || apiMeta.title,
+      company: interceptedMetadata.company || apiMeta.company,
+      platform: interceptedMetadata.platform || apiMeta.platform,
+    };
+  }
 }
 
 async function maybeFetchGreenhouseEmbeddedJob(): Promise<void> {
   const url = location.href;
-  if (!isGreenhouseEmbeddedJobUrl(url)) return;
-  if (hasEmbeddedGreenhouseDescription()) return;
+  if (!isGreenhouseApiFetchUrl(url)) return;
 
   const fetchKey = url;
   if (greenhouseEmbeddedFetchKey === fetchKey && greenhouseEmbeddedFetchPromise) {
@@ -4898,7 +4930,7 @@ async function maybeFetchGreenhouseEmbeddedJob(): Promise<void> {
 
   greenhouseEmbeddedFetchKey = fetchKey;
   greenhouseEmbeddedFetchPromise = (async () => {
-    console.log("[EasySubmit] greenhouse:embedded-fetch start", { url });
+    console.log("[EasySubmit] greenhouse:api-fetch start", { url });
     try {
       const response = await sendMessage<{
         success: boolean;
@@ -4909,21 +4941,20 @@ async function maybeFetchGreenhouseEmbeddedJob(): Promise<void> {
         url,
       });
       if (response?.success && response.metadata?.title) {
-        interceptedMetadata = interceptedToMetadata(response.metadata);
-        interceptedMetadataSource = "greenhouse-board-api";
-        console.log("[EasySubmit] greenhouse:embedded-fetch done", {
+        applyGreenhouseApiMetadata(response.metadata);
+        console.log("[EasySubmit] greenhouse:api-fetch done", {
           title: response.metadata.title,
           descriptionLength: response.metadata.description?.length ?? 0,
         });
         return;
       }
-      console.log("[EasySubmit] greenhouse:embedded-fetch fail", {
+      console.log("[EasySubmit] greenhouse:api-fetch fail", {
         error: response?.error ?? "empty_response",
       });
     } catch (error) {
-      console.warn("[EasySubmit] greenhouse:embedded-fetch fail", error);
+      console.warn("[EasySubmit] greenhouse:api-fetch fail", error);
     } finally {
-      if (!hasEmbeddedGreenhouseDescription()) {
+      if (interceptedMetadataSource !== "greenhouse-board-api") {
         greenhouseEmbeddedFetchKey = null;
         greenhouseEmbeddedFetchPromise = null;
       }
@@ -4945,7 +4976,32 @@ function bootJobPageObservers(): void {
     onApiIntercept((data) => {
       if (!data.title) return;
       console.log("[EasySubmit] intercept:job-data received", { title: data.title, company: data.company, platform: data.platform });
-      interceptedMetadata = interceptedToMetadata(data);
+      const incoming = interceptedToMetadata(data);
+      if (
+        interceptedMetadataSource === "greenhouse-board-api" &&
+        interceptedMetadata?.description
+      ) {
+        const preferred = preferGreenhouseBoardApiDescription(
+          incoming.description,
+          interceptedMetadata.description,
+        );
+        if (preferred === interceptedMetadata.description) {
+          interceptedMetadata = {
+            ...interceptedMetadata,
+            title: interceptedMetadata.title || incoming.title,
+            company: interceptedMetadata.company || incoming.company,
+            location: interceptedMetadata.location ?? incoming.location,
+            platform: interceptedMetadata.platform || incoming.platform,
+          };
+          if (cardHost) {
+            void updateCard().catch(swallowContextInvalidation);
+          } else {
+            scheduleUpdate();
+          }
+          return;
+        }
+      }
+      interceptedMetadata = incoming;
       interceptedMetadataSource = "page-intercept";
       if (cardHost) {
         void updateCard().catch(swallowContextInvalidation);

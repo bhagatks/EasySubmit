@@ -5,6 +5,50 @@ import { parseCompanyFromJobHost } from "./job-url-parse";
 
 export const GREENHOUSE_BOARDS_API_BASE = "https://boards-api.greenhouse.io/v1/boards";
 
+/** DOM scrape below this length is treated as weak vs boards-api JD. */
+export const GREENHOUSE_DOM_JD_WEAK_CHARS = 2000;
+
+/** Prefer API when it exceeds DOM length by at least this margin. */
+export const GREENHOUSE_API_JD_MIN_GAIN = 400;
+
+export function preferGreenhouseBoardApiDescription(
+  domDescription: string | null | undefined,
+  apiDescription: string | null | undefined,
+): string | null {
+  const dom = domDescription?.trim() ?? "";
+  const api = apiDescription?.trim() ?? "";
+  if (api.length < 120) return dom || null;
+  if (dom.length < 120) return api;
+  if (api.length >= dom.length + GREENHOUSE_API_JD_MIN_GAIN) return api;
+  if (dom.length < GREENHOUSE_DOM_JD_WEAK_CHARS && api.length >= GREENHOUSE_DOM_JD_WEAK_CHARS) {
+    return api;
+  }
+  if (api.length > dom.length) return api;
+  return dom;
+}
+
+export function parseGreenhouseBoardSlugFromUrl(url: string): string | null {
+  try {
+    const match = new URL(url).pathname.match(/^\/([^/]+)\/jobs\/(\d+)\/?$/i);
+    const slug = match?.[1]?.trim().toLowerCase();
+    return slug && slug.length >= 2 ? slug : null;
+  } catch {
+    return null;
+  }
+}
+
+export function parseGreenhouseBoardJobIdFromUrl(url: string): string | null {
+  const fromQuery = parseGreenhouseJobPostId(url);
+  if (fromQuery) return fromQuery;
+  try {
+    const match = new URL(url).pathname.match(/\/jobs\/(\d+)\/?$/i);
+    const id = match?.[1]?.trim();
+    return id && /^\d+$/.test(id) ? id : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Host → Greenhouse board slug when it differs from the apex domain label. */
 const EMBEDDED_HOST_BOARD_SLUG: Record<string, string> = {
   "suvoda.com": "suvoda",
@@ -118,4 +162,59 @@ export async function fetchGreenhouseEmbeddedJobData(
   }
 
   return null;
+}
+
+function boardJobToIntercepted(
+  pageUrl: string,
+  boardSlug: string,
+  job: GreenhouseBoardApiJob,
+): InterceptedJobData {
+  return {
+    type: INTERCEPT_MESSAGE_TYPE,
+    platform: "greenhouse",
+    title: job.title,
+    company: parseCompanyFromJobHost(pageUrl) ?? boardSlug,
+    location: job.location ?? undefined,
+    description: job.description,
+  };
+}
+
+/** Fetch full JD from boards-api for embedded `gh_jid` and native board job URLs. */
+export async function fetchGreenhouseJobFromPageUrl(
+  pageUrl: string,
+  options?: { fetchImpl?: typeof fetch },
+): Promise<InterceptedJobData | null> {
+  const fetchImpl = options?.fetchImpl ?? fetch;
+  const embedded = await fetchGreenhouseEmbeddedJobData(pageUrl, { fetchImpl });
+
+  const boardSlug = parseGreenhouseBoardSlugFromUrl(pageUrl);
+  const boardJobId = parseGreenhouseBoardJobIdFromUrl(pageUrl);
+  let board: InterceptedJobData | null = null;
+  if (boardSlug && boardJobId) {
+    const job = await fetchGreenhouseBoardJob(boardSlug, boardJobId, fetchImpl);
+    if (job) {
+      board = boardJobToIntercepted(pageUrl, boardSlug, job);
+    }
+  }
+
+  if (!embedded && !board) return null;
+  if (!embedded) return board;
+  if (!board) return embedded;
+
+  const description =
+    preferGreenhouseBoardApiDescription(embedded.description, board.description) ??
+    embedded.description ??
+    board.description;
+
+  const preferBoard = description === board.description;
+  const primary = preferBoard ? board : embedded;
+  const secondary = preferBoard ? embedded : board;
+
+  return {
+    ...primary,
+    title: primary.title || secondary.title,
+    company: primary.company || secondary.company,
+    location: primary.location || secondary.location,
+    description,
+  };
 }

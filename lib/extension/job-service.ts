@@ -242,6 +242,26 @@ async function archiveAppliedRowForReapply(userId: string, urlHash: string): Pro
   });
 }
 
+async function archiveDuplicateActiveEntries(
+  userId: string,
+  urlHash: string,
+  keepEntryId: string,
+): Promise<void> {
+  await prisma.jobTrackerEntry.updateMany({
+    where: {
+      userId,
+      urlHash,
+      id: { not: keepEntryId },
+      archivedAt: null,
+      status: { not: "ARCHIVED" },
+    },
+    data: {
+      status: "ARCHIVED",
+      archivedAt: new Date(),
+    },
+  });
+}
+
 export async function saveJobTrackerEntry(userId: string, input: SaveJobTrackerInput) {
   const normalized = normalizeSaveJobInput(input);
   if ("error" in normalized) {
@@ -299,6 +319,8 @@ export async function saveJobTrackerEntry(userId: string, input: SaveJobTrackerI
   if (diagnostics && typeof diagnostics === "object") {
     logJobCaptureOnSave(diagnostics as never, { userId, entryId: saved.id });
   }
+
+  await archiveDuplicateActiveEntries(userId, urlHash, saved.id);
 
   return saved;
 }

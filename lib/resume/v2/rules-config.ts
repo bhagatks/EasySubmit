@@ -67,9 +67,9 @@ export const RESUME_RULES_V2_TWO_PAGE: ResumeRulesProfileV2 = {
     targetSentencesMax: 4,
     warnSentencesFrom: 5,
     wordTargetMin: 70,
-    wordTargetMax: 90,
-    warnWordsFrom: 91,
-    warnWordsTo: 110,
+    wordTargetMax: 80,
+    warnWordsFrom: 81,
+    warnWordsTo: 90,
     errorWordsFrom: 111,
   },
   skills: {

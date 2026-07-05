@@ -1,6 +1,9 @@
 | Date | Item |
 |------|------|
-| 2026-07-05 | Resume rules **v2 branch coverage** — `lib/resume/v2/branch-coverage.test.ts` (172 v2-suite tests); v2 stack branches **>85%**; whole-repo branch gate **>78%** |
+| 2026-07-05 | **Readiness polish** — summary 4-sentence word trim, injectable keyword merge, skills headroom, light-path grounding always on |
+| 2026-07-05 | **Extension GH JD quality** — boards-api preferred over DOM for embedded + native GH URLs; page intercept cannot downgrade API JD |
+| 2026-07-05 | **Job capture dedupe** — `saveJobTrackerEntry` archives duplicate active rows for same URL hash |
+| 2026-07-05 | **E2E readiness 90+ batch** — keyword merge, summary normalizer, extension scrape fixes, bulk tracker select, `scripts/batch-ats-readiness.ts` |
 | 2026-07-05 | Dev dashboard **500 / Failed to fetch fix** — webpack ignores broken `rake-js` `.js.map` files in `next.config.mjs`; clears client import chain `AtsPanel → readiness → jd-extractor → rake-js` |
 | 2026-07-05 | Resume rules **v2 all page modes** — profiles for 1/3/4/4+ (4+ unlimited + ATS warning), profile-aware validation/repair/readiness/enhance prompts, AtsPanel page mode + skillsText + 4+ banner, tailored preview `skillsText` |
 | 2026-07-05 | Resume rules **v2 complete wiring** — `resumeRulesV2` feature flag (default on), page mode selector in studio, v2 studio lint, features framework resolver, enhance session meta `resumeRulesVersion`, testing guide `docs/resume/RULES-V2-TESTING.md` |

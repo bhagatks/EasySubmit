@@ -3,7 +3,10 @@ import {
   buildGreenhouseBoardJobApiUrl,
   deriveGreenhouseBoardSlugCandidates,
   fetchGreenhouseEmbeddedJobData,
+  fetchGreenhouseJobFromPageUrl,
+  parseGreenhouseBoardSlugFromUrl,
   parseGreenhouseBoardApiJob,
+  preferGreenhouseBoardApiDescription,
 } from "@/src/shared/extension/greenhouse-board-fetch";
 
 const SUVODA_JOB =
@@ -47,6 +50,49 @@ describe("parseGreenhouseBoardApiJob", () => {
 
   it("returns null when content is too short", () => {
     expect(parseGreenhouseBoardApiJob({ title: "Role", content: "short" })).toBeNull();
+  });
+});
+
+describe("preferGreenhouseBoardApiDescription", () => {
+  it("prefers API when DOM scrape is weak", () => {
+    const dom = "Short role summary. ".repeat(8);
+    const api = "Full greenhouse boards-api description. ".repeat(120);
+    expect(preferGreenhouseBoardApiDescription(dom, api)?.trim()).toBe(api.trim());
+  });
+
+  it("keeps DOM when API is not materially better", () => {
+    const dom = "x".repeat(2500);
+    const api = "y".repeat(2600);
+    expect(preferGreenhouseBoardApiDescription(dom, api)).toBe(api);
+  });
+});
+
+describe("parseGreenhouseBoardSlugFromUrl", () => {
+  it("parses native board job URL slug", () => {
+    expect(
+      parseGreenhouseBoardSlugFromUrl(
+        "https://job-boards.greenhouse.io/hightouch/jobs/5727573004",
+      ),
+    ).toBe("hightouch");
+  });
+});
+
+describe("fetchGreenhouseJobFromPageUrl", () => {
+  it("fetches native board URL via boards-api", async () => {
+    const fetchImpl = vi.fn(async (url: string | URL | Request) => {
+      const href = typeof url === "string" ? url : url instanceof URL ? url.href : url.url;
+      if (href.includes("/boards/hightouch/jobs/5727573004")) {
+        return Response.json(SAMPLE_API_PAYLOAD);
+      }
+      return new Response(null, { status: 404 });
+    });
+
+    const data = await fetchGreenhouseJobFromPageUrl(
+      "https://job-boards.greenhouse.io/hightouch/jobs/5727573004",
+      { fetchImpl },
+    );
+    expect(data?.title).toBe("Director, Software Engineering");
+    expect(data?.description?.length).toBeGreaterThan(120);
   });
 });
 

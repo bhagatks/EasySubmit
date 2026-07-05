@@ -226,6 +226,43 @@ describe("saveJobTrackerEntry re-apply", () => {
     );
     expect(saved.id).toBe("entry-new");
   });
+
+  it("archives duplicate active rows for the same URL hash", async () => {
+    vi.mocked(prisma.jobTrackerEntry.findFirst).mockResolvedValueOnce({
+      id: "entry-progress",
+      status: "READY_TO_APPLY",
+      title: "Old",
+      company: null,
+      canonicalUrl: URL,
+    } as never);
+
+    vi.mocked(prisma.jobTrackerEntry.update).mockResolvedValue({
+      id: "entry-progress",
+      status: "CAPTURED",
+      title: "Engineer",
+      company: "Acme",
+      canonicalUrl: URL,
+    } as never);
+    vi.mocked(prisma.jobTrackerEntry.updateMany).mockResolvedValue({ count: 1 });
+
+    await saveJobTrackerEntry("user-1", {
+      url: URL,
+      title: "Engineer",
+      company: "Acme",
+      description: LONG_JD,
+    });
+
+    expect(prisma.jobTrackerEntry.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          userId: "user-1",
+          id: { not: "entry-progress" },
+          archivedAt: null,
+        }),
+        data: expect.objectContaining({ status: "ARCHIVED" }),
+      }),
+    );
+  });
 });
 
 describe("findActiveJobTrackerEntryForUrl", () => {
