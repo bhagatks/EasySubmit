@@ -4,6 +4,7 @@ import { analyzeBulletQuality } from "@/lib/job-tracker/ats/bullet-quality";
 import type { WeakBulletTarget } from "@/lib/job-tracker/ats/job-intelligence";
 import type { JDDomain } from "@/lib/job-tracker/jd/jd-intelligence";
 import { resolveKeywordGap } from "@/lib/job-tracker/ats/resolve-keyword-gap";
+import type { KeywordGapResult } from "@/lib/job-tracker/ats/keyword-gap";
 import type { JDIntelligence } from "@/lib/job-tracker/jd/jd-intelligence";
 import { normalizeBrandTokens } from "@/lib/resume/brand-normalize";
 import {
@@ -20,6 +21,21 @@ import { taperExperienceEntries } from "@/lib/resume/experience-bullet-rules";
 import { inferResumePagesFromForm } from "@/src/lib/ai/engine/candidate-context";
 
 export const ATS_BULLET_MAX_CHARS = 200;
+
+/** JD keywords to merge — injectable (synonym-only) first, then top missing. */
+export function skillsKeywordsFromGap(gap: KeywordGapResult): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const kw of [...gap.injectable, ...gap.topMissing]) {
+    const trimmed = kw.trim();
+    if (!trimmed || trimmed.length > 40) continue;
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(trimmed);
+  }
+  return out.slice(0, 8);
+}
 
 const BULLET_DANGLING_ENDINGS = new Set([
   "a", "an", "the", "and", "or", "in", "on", "at", "to", "for", "of", "with", "by",
@@ -298,9 +314,7 @@ export function repairResumeFormForReadiness(
       trimmedJd,
       input.jdIntelligence,
     );
-    const skillsToAdd = gap.topMissing
-      .filter((kw) => kw.length <= 40)
-      .slice(0, 8);
+    const skillsToAdd = skillsKeywordsFromGap(gap);
     if (skillsToAdd.length > 0) {
       const merged = mergeSkills(next.skillsText ?? "", skillsToAdd);
       if (merged !== (next.skillsText ?? "")) {

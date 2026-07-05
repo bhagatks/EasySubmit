@@ -207,14 +207,62 @@ export function normalizeSummaryForReadiness(
     out = joinSummarySentences(sentences);
   }
 
-  while (
-    countSummaryWords(out) > SUMMARY_WORD_MAX &&
-    sentences.length > 1
+  if (
+    sentences.length === SUMMARY_SENTENCE_COUNT &&
+    countSummaryWords(out) > SUMMARY_WORD_MAX
   ) {
-    sentences.pop();
-    out = joinSummarySentences(sentences);
+    out = trimSummaryWordsPreservingSentences(sentences, SUMMARY_WORD_MAX, SUMMARY_WORD_MIN);
+  } else {
+    while (
+      countSummaryWords(out) > SUMMARY_WORD_MAX &&
+      sentences.length > 1
+    ) {
+      sentences.pop();
+      out = joinSummarySentences(sentences);
+    }
   }
 
+  return out.trim();
+}
+
+/** Trim words from longest sentences while keeping the target sentence count. */
+export function trimSummaryWordsPreservingSentences(
+  sentences: string[],
+  targetMax: number,
+  targetMin: number,
+): string {
+  let kept = sentences.map((s) => s.trim()).filter(Boolean);
+  if (kept.length === 0) return "";
+
+  const wordCount = () => countSummaryWords(joinSummarySentences(kept));
+
+  while (wordCount() > targetMax) {
+    let longestIdx = 0;
+    for (let i = 1; i < kept.length; i += 1) {
+      if (countSummaryWords(kept[i]!) > countSummaryWords(kept[longestIdx]!)) {
+        longestIdx = i;
+      }
+    }
+
+    const words = kept[longestIdx]!.split(/\s+/).filter(Boolean);
+    if (words.length <= 8) {
+      if (kept.length > 1) {
+        kept.splice(longestIdx, 1);
+        continue;
+      }
+      kept[longestIdx] = words.slice(0, targetMax).join(" ");
+      if (!/[.!?]$/.test(kept[longestIdx]!)) kept[longestIdx] += ".";
+      break;
+    }
+
+    words.pop();
+    kept[longestIdx] = `${words.join(" ")}.`.replace(/\.\.+$/, ".");
+  }
+
+  let out = joinSummarySentences(kept);
+  if (countSummaryWords(out) < targetMin && sentences.length > 0) {
+    out = joinSummarySentences(sentences);
+  }
   return out.trim();
 }
 

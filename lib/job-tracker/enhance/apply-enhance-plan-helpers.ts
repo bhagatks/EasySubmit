@@ -132,8 +132,8 @@ function rewriteBullet(
 export function mergeSkills(existing: string, toAdd: string[]): string {
   if (toAdd.length === 0) return existing;
 
-  const existingSkills = parseSkillsText(existing);
-  const existingLower = new Set(existingSkills.map((s) => s.toLowerCase()));
+  let baseSkills = parseSkillsText(existing).filter((s) => !isBannedSkill(s));
+  const existingLower = new Set(baseSkills.map((s) => s.toLowerCase()));
 
   const newSkills = toAdd
     .map((s) => s.trim())
@@ -147,8 +147,18 @@ export function mergeSkills(existing: string, toAdd: string[]): string {
 
   if (newSkills.length === 0) return existing;
 
-  const combined = [...existingSkills, ...newSkills].slice(0, SKILLS_HARD_MAX);
-  return combined.join(", ");
+  const combined = [...baseSkills];
+  for (const skill of newSkills) {
+    if (combined.length >= SKILLS_HARD_MAX) {
+      while (combined.length >= SKILLS_HARD_MAX && combined.length > newSkills.length) {
+        combined.pop();
+      }
+      if (combined.length >= SKILLS_HARD_MAX) break;
+    }
+    combined.push(skill);
+  }
+
+  return combined.slice(0, SKILLS_HARD_MAX).join(", ");
 }
 
 export function removeSkills(existing: string, toRemove: string[]): string {

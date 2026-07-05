@@ -729,13 +729,7 @@ async function runResumeEnhancePipelineInner(
     skipDeterministicRewrite: aiSucceeded && brief.lightPath,
   });
 
-  const summaryGrounded =
-    aiSucceeded && brief.lightPath
-      ? {
-          summary: finalForm.professionalSummary ?? "",
-          warnings: [] as string[],
-        }
-      : postProcessSummaryOutput(finalForm.professionalSummary ?? "", {
+  const summaryGrounded = postProcessSummaryOutput(finalForm.professionalSummary ?? "", {
     identity: brief.summaryIdentity,
     experienceBlob:
       brief.experienceSourceBlob ?? experienceBlobFromForm(input.form.experience ?? []),

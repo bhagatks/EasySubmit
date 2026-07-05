@@ -5,6 +5,8 @@ import {
   enforceSummaryWordBudget,
   findBannedWords,
   normalizeSummaryForReadiness,
+  trimSummaryWordsPreservingSentences,
+  splitSummarySentences,
   stripBannedSummaryWords,
   validateSummary,
 } from "@/lib/resume/summary-rules";
@@ -102,5 +104,20 @@ describe("normalizeSummaryForReadiness", () => {
     const out = normalizeSummaryForReadiness(VALID_SUMMARY);
     expect(countSummaryWords(out)).toBeLessThanOrEqual(80);
     expect(countSummarySentences(out)).toBeLessThanOrEqual(4);
+  });
+
+  it("keeps four sentences when trimming word count over 80", () => {
+    const sentences = [
+      "Platform engineering leader with twenty-one years of experience building large-scale distributed systems for global retail and healthcare organizations across North America and Europe.",
+      "Expert in cloud architecture, API design, microservices modernization, and cross-functional team leadership spanning mobile, web, and data engineering disciplines in complex enterprise environments.",
+      "Delivered modernization programs that reduced integration latency, improved reliability metrics, and accelerated product delivery cadence for applications serving millions of daily active users worldwide.",
+      "Combines strategic planning with hands-on technical guidance for distributed engineering organizations navigating legacy migration, cloud-native transformation, and platform reliability initiatives.",
+    ];
+    expect(countSummaryWords(sentences.join(" "))).toBeGreaterThan(80);
+
+    const out = trimSummaryWordsPreservingSentences(sentences, 80, 70);
+    expect(countSummarySentences(out)).toBe(4);
+    expect(countSummaryWords(out)).toBeLessThanOrEqual(80);
+    expect(countSummaryWords(out)).toBeGreaterThanOrEqual(70);
   });
 });

@@ -151,15 +151,25 @@ export function postProcessSummaryOutput(
 
   out = enforceSummaryIdentityOpening(out, input.identity, input.employerNames);
 
+  const bulletClauses = input.experienceBlob
+    .split("\n")
+    .flatMap((line) => {
+      const clause = line.trim().split(/[,;]/)[0]?.trim() ?? "";
+      return clause.length >= 24 && clause.length <= 160 ? [clause] : [];
+    });
+
   out = normalizeSummaryForReadiness(out, {
-    sourceSummary: summary,
-    bulletClauses: input.experienceBlob
-      .split("\n")
-      .flatMap((line) => {
-        const clause = line.trim().split(/[,;]/)[0]?.trim() ?? "";
-        return clause.length >= 24 && clause.length <= 160 ? [clause] : [];
-      }),
+    sourceSummary: out,
+    bulletClauses,
   });
+
+  const reGrounded = sanitizeUngroundedSummaryClaims(out, input.experienceBlob);
+  out = reGrounded.summary;
+  if (reGrounded.removed.length > 0) {
+    warnings.push(
+      `Removed unverified claims from summary (${reGrounded.removed.join(", ")}).`,
+    );
+  }
 
   if (input.identity.isCrossDomain) {
     warnings.push(

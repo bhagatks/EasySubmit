@@ -4,6 +4,7 @@ import {
   coalesceBrokenBulletLines,
   compressBulletToMax,
   repairResumeFormForReadiness,
+  skillsKeywordsFromGap,
   splitLongBullet,
 } from "@/lib/job-tracker/enhance/readiness-repair";
 
@@ -133,5 +134,21 @@ describe("repairResumeFormForReadiness", () => {
     });
     expect(form.skillsText).toMatch(/MySQL|BigQuery|DevOps/i);
     expect(repairs).toContain("skills_keywords_merged");
+  });
+});
+
+describe("skillsKeywordsFromGap", () => {
+  it("prioritizes injectable keywords before top missing", () => {
+    const keywords = skillsKeywordsFromGap({
+      matched: [],
+      missing: ["DevOps", "MySQL"],
+      coveragePercent: 50,
+      exactCoveragePercent: 50,
+      topMissing: ["MySQL"],
+      injectable: ["DevOps"],
+      nonInjectable: [],
+    });
+    expect(keywords[0]).toBe("DevOps");
+    expect(keywords).toContain("MySQL");
   });
 });

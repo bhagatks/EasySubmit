@@ -15,6 +15,7 @@ import {
   ATS_BULLET_MAX_CHARS,
   coalesceBrokenBulletLines,
   compressBulletToMax,
+  skillsKeywordsFromGap,
   splitLongBullet,
 } from "@/lib/job-tracker/enhance/readiness-repair";
 import { bulletHasStrongOpening, normalizeBulletOpeningVerb } from "@/lib/resume/resume-bullet-verbs";
@@ -397,9 +398,7 @@ export function repairResumeFormV2(input: RepairResumeFormV2Input): RepairResume
       trimmedJd,
       input.jdIntelligence,
     );
-    const skillsToAdd = gap.topMissing
-      .filter((kw) => kw.length <= 40)
-      .slice(0, 8);
+    const skillsToAdd = skillsKeywordsFromGap(gap);
     if (skillsToAdd.length > 0) {
       const merged = mergeSkills(form.skillsText ?? "", skillsToAdd);
       if (merged !== (form.skillsText ?? "")) {
