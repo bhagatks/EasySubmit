@@ -174,25 +174,84 @@ const JD_SELECTORS = [
   "[data-testid='job-description']",
 ];
 
+/** Footer / chrome blocks that pollute Workday and careers-site body scrapes. */
+const JD_FOOTER_SECTION_PATTERNS = [
+  /\s+privacy(?:\s+notice|\s+policy)?\b[\s\S]*$/i,
+  /\s+equal\s+(?:employment|opportunity)\b[\s\S]*$/i,
+  /\s+cookie(?:\s+policy|\s+preferences)?\b[\s\S]*$/i,
+  /\s+terms\s+(?:of\s+use|and\s+conditions)\b[\s\S]*$/i,
+  /\s+accessibility\b[\s\S]*$/i,
+  /\s+©\s*\d{4}\b[\s\S]*$/i,
+];
+
+const JD_BODY_FALLBACK_MAX_CHARS = 12_000;
+
+const GENERIC_LOCATION_LABELS = new Set([
+  "students",
+  "interns",
+  "internships",
+  "early career",
+  "campus",
+  "job search",
+  "careers",
+]);
+
+/** Strip page chrome from scraped JD text (Workday body fallback, noisy selectors). */
+export function stripJobDescriptionFooterNoise(text: string): string {
+  let out = text.replace(/\r/g, "").replace(/\s+/g, " ").trim();
+  if (!out) return out;
+
+  for (const pattern of JD_FOOTER_SECTION_PATTERNS) {
+    out = out.replace(pattern, "").trim();
+  }
+
+  if (out.length > JD_BODY_FALLBACK_MAX_CHARS) {
+    out = out.slice(0, JD_BODY_FALLBACK_MAX_CHARS).trim();
+  }
+
+  return out;
+}
+
+function isWorkdayJobUrl(url: string): boolean {
+  return /myworkdayjobs\.com|myworkdaysite\.com/i.test(url);
+}
+
+function sanitizeScrapedDescription(text: string): string {
+  const cleaned = stripJobDescriptionFooterNoise(text);
+  return cleaned.length >= 80 ? cleaned : text.trim();
+}
+
+function isGenericLocationLabel(value: string): boolean {
+  const normalized = value.trim().toLowerCase().replace(/\s+/g, " ");
+  if (!normalized || normalized.length > 80) return false;
+  if (GENERIC_LOCATION_LABELS.has(normalized)) return true;
+  return /^(students?|interns?|campus|early\s+career)$/i.test(normalized);
+}
+
 export function scrapeDescription(doc: Document): string {
   const url = doc.defaultView?.location?.href ?? "";
   if (/linkedin\.com\/jobs\//i.test(url)) {
     const linkedIn = scrapeLinkedInDescription(doc);
-    if (linkedIn.length >= 80) return linkedIn;
+    if (linkedIn.length >= 80) return sanitizeScrapedDescription(linkedIn);
+  }
+
+  if (isWorkdayJobUrl(url)) {
+    const fromJsonLd = parseJobDescriptionFromJsonLd(doc);
+    if (fromJsonLd.length >= 80) return sanitizeScrapedDescription(fromJsonLd);
   }
 
   const fromSelectors = firstLongText(doc, JD_SELECTORS, 80);
-  if (fromSelectors.length >= 80) return fromSelectors;
+  if (fromSelectors.length >= 80) return sanitizeScrapedDescription(fromSelectors);
 
   const fromJsonLd = parseJobDescriptionFromJsonLd(doc);
-  if (fromJsonLd.length >= 80) return fromJsonLd;
+  if (fromJsonLd.length >= 80) return sanitizeScrapedDescription(fromJsonLd);
 
   const body = doc.body?.innerText?.trim() ?? "";
   if (body.length >= 120 && hasJobSectionKeywords(doc)) {
-    return body.slice(0, 48_000);
+    return sanitizeScrapedDescription(body);
   }
 
-  return fromSelectors;
+  return sanitizeScrapedDescription(fromSelectors);
 }
 
 export function scrapeTitle(doc: Document, fallbacks: string[]): string {
@@ -236,10 +295,14 @@ export function parseLocationFromBodyText(body: string): string | null {
 }
 
 export function scrapeLocation(doc: Document, selectors: string[]): string | null {
-  const value = firstText(doc, selectors);
-  if (value) return value;
+  for (const sel of selectors) {
+    const value = text(doc.querySelector(sel));
+    if (value && !isGenericLocationLabel(value)) return value;
+  }
   const body = doc.body?.innerText ?? "";
-  return parseLocationFromBodyText(body);
+  const parsed = parseLocationFromBodyText(body);
+  if (parsed && !isGenericLocationLabel(parsed)) return parsed;
+  return null;
 }
 
 export function scrapeSalary(doc: Document, selectors: string[]): string | null {

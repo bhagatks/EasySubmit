@@ -70,7 +70,7 @@ export async function refreshProviderModelHealth(
     });
     entries[modelId] = {
       modelId,
-      status: probes.text ? "healthy" : "failed",
+      status: probes.text && probes.structured ? "healthy" : "failed",
       lastCheckedAt: checkedAt,
       lastError: probes.text ? null : probes.error ?? "probe_failed",
       cooldownUntil: probes.text ? null : buildFailedModelCooldownUntil(),

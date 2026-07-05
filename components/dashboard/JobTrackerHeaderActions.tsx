@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Archive, Briefcase, Plus } from "lucide-react";
 import { DashboardHeaderHeroButton } from "@/components/dashboard/DashboardWorkspaceHeader";
@@ -9,23 +9,27 @@ import { cn } from "@/lib/utils";
 
 type JobTrackerHeaderActionsProps = {
   onAddJob: () => void;
+  activeEntryIds?: string[];
   archivedEntryIds?: string[];
   selectedEntryIds?: string[];
-  onToggleSelectAll?: () => void;
+  onSelectedEntryIdsChange?: (ids: string[]) => void;
+  onArchiveSelected?: () => Promise<boolean>;
   onDeleteSelected?: () => Promise<boolean>;
 };
 
 export function JobTrackerHeaderActions({
   onAddJob,
+  activeEntryIds = [],
   archivedEntryIds = [],
   selectedEntryIds = [],
-  onToggleSelectAll,
+  onSelectedEntryIdsChange,
+  onArchiveSelected,
   onDeleteSelected,
 }: JobTrackerHeaderActionsProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const archivedView = searchParams.get("view") === "archive";
-  const [deleteAllOpen, setDeleteAllOpen] = useState(false);
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
 
   const toggleArchiveView = useCallback(() => {
     if (archivedView) {
@@ -35,16 +39,37 @@ export function JobTrackerHeaderActions({
     router.push("/dashboard/job-tracker?view=archive", { scroll: false });
   }, [archivedView, router]);
 
-  const showArchiveBulkActions = archivedView && archivedEntryIds.length > 0;
+  const selectableEntryIds = useMemo(
+    () => (archivedView ? archivedEntryIds : activeEntryIds),
+    [activeEntryIds, archivedEntryIds, archivedView],
+  );
+
   const selectedCount = selectedEntryIds.length;
   const allSelected =
-    archivedEntryIds.length > 0 &&
-    archivedEntryIds.every((id) => selectedEntryIds.includes(id));
+    selectableEntryIds.length > 0 &&
+    selectableEntryIds.every((id) => selectedEntryIds.includes(id));
+
+  const showBulkActions = selectableEntryIds.length > 0;
+
+  const handleToggleSelectAll = useCallback(() => {
+    if (!onSelectedEntryIdsChange) return;
+    onSelectedEntryIdsChange(allSelected ? [] : selectableEntryIds);
+  }, [allSelected, onSelectedEntryIdsChange, selectableEntryIds]);
+
+  const bulkConfirmTitle = archivedView
+    ? "Delete selected jobs?"
+    : "Archive selected jobs?";
+
+  const bulkConfirmDescription = archivedView
+    ? `${selectedCount} archived ${selectedCount === 1 ? "job" : "jobs"} will be permanently removed from your tracker. This cannot be undone.`
+    : `${selectedCount} ${selectedCount === 1 ? "job" : "jobs"} will move to Archive. You can restore them anytime from the Archive view.`;
+
+  const bulkConfirmLabel = archivedView ? "Delete permanently" : "Archive";
 
   return (
     <>
       <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-        {showArchiveBulkActions ? (
+        {showBulkActions ? (
           <>
             <DashboardHeaderHeroButton
               type="button"
@@ -52,7 +77,7 @@ export function JobTrackerHeaderActions({
               className={cn(
                 "border-primary/50 bg-transparent text-primary hover:bg-primary/10 hover:text-primary",
               )}
-              onClick={onToggleSelectAll}
+              onClick={handleToggleSelectAll}
             >
               {allSelected ? "Deselect" : "Select All"}
             </DashboardHeaderHeroButton>
@@ -60,13 +85,15 @@ export function JobTrackerHeaderActions({
               type="button"
               variant="outline"
               className={cn(
-                "border-destructive/50 bg-transparent text-destructive hover:bg-destructive/10 hover:text-destructive",
+                archivedView
+                  ? "border-destructive/50 bg-transparent text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  : "border-primary/50 bg-transparent text-primary hover:bg-primary/10 hover:text-primary",
                 selectedCount === 0 && "pointer-events-none opacity-50",
               )}
               disabled={selectedCount === 0}
-              onClick={() => setDeleteAllOpen(true)}
+              onClick={() => setBulkConfirmOpen(true)}
             >
-              Delete All
+              {archivedView ? "Delete All" : "Archive Selected"}
             </DashboardHeaderHeroButton>
           </>
         ) : null}
@@ -94,17 +121,19 @@ export function JobTrackerHeaderActions({
       </div>
 
       <ConfirmDialog
-        open={deleteAllOpen}
-        onOpenChange={setDeleteAllOpen}
-        title="Delete selected jobs?"
-        description={`${selectedCount} archived ${
-          selectedCount === 1 ? "job" : "jobs"
-        } will be permanently removed from your tracker. This cannot be undone.`}
-        confirmLabel="Delete permanently"
-        confirmVariant="destructive"
+        open={bulkConfirmOpen}
+        onOpenChange={setBulkConfirmOpen}
+        title={bulkConfirmTitle}
+        description={bulkConfirmDescription}
+        confirmLabel={bulkConfirmLabel}
+        confirmVariant={archivedView ? "destructive" : "default"}
         onConfirm={async () => {
-          if (!onDeleteSelected) return false;
-          return onDeleteSelected();
+          if (archivedView) {
+            if (!onDeleteSelected) return false;
+            return onDeleteSelected();
+          }
+          if (!onArchiveSelected) return false;
+          return onArchiveSelected();
         }}
       />
     </>

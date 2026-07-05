@@ -27,5 +27,22 @@ describe("buildTailoredResumePreview", () => {
     expect(result.preview.summary).toBe("Tailored summary");
     expect(result.preview.skills).toContain("TypeScript");
     expect(result.previewHtml).toContain("Tailored summary");
+    expect(result.skillsText).toBe("TypeScript, Leadership");
+  });
+
+  it("persists page length and rules version metadata", () => {
+    const form = {
+      ...emptyHubRefineryForm(),
+      pageLengthPreference: "4+" as const,
+      skillsText: "Data: SQL, Python",
+    };
+
+    const result = buildTailoredResumePreview(form, "Director", ["skills"], "2026-07-05T00:00:00.000Z", {
+      resumeRulesVersion: 2,
+    });
+
+    expect(result.pageLengthPreference).toBe("4+");
+    expect(result.resumeRulesVersion).toBe(2);
+    expect(result.skillsText).toBe("Data: SQL, Python");
   });
 });

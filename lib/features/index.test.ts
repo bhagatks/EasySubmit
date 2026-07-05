@@ -17,7 +17,12 @@ vi.mock("@/lib/ai/ai-global-enabled", () => ({
 vi.mock("@/src/lib/services/feature-flags-service", () => ({
   getFeatureFlags: vi.fn(async () => ({
     enhanceWithAiResumeProfile: true,
+    extensionGlobalSwitch: true,
+    extensionAutoApply: true,
+    extensionApplyPipelineStepAnalytics: false,
     systemAiEnabled: true,
+    aiJdExtractEnabled: false,
+    resumeRulesV2: true,
   })),
   isSystemAiEnabled: vi.fn(() => true),
 }));
@@ -88,6 +93,7 @@ const baseUserRow: SystemQuotaUserRow = {
   aiEnhancementsToday: 0,
   aiCallsToday: 0,
   aiQuotaResetAt: new Date(),
+  systemAiEnabled: true,
 };
 
 function mockPrismaUser(user: SystemQuotaUserRow | null) {
@@ -214,6 +220,15 @@ describe("resolveFeature", () => {
         }),
       }),
     );
+  });
+
+  it("loads jdExtract via feature flags", async () => {
+    const result = await resolveFeature({
+      feature: "jdExtract",
+      userId: USER_ID,
+      surface: "job_apply",
+    });
+    expect(result.shouldRunAiExtract).toBe(false);
   });
 
   it("throws for unknown feature name", async () => {

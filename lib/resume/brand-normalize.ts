@@ -6,6 +6,10 @@ const BRAND_REPLACEMENTS: ReadonlyArray<{ pattern: RegExp; replacement: string }
   { pattern: /\bnode\s+\.\s*js\b/gi, replacement: "Node.js" },
   { pattern: /\bnext\s+\.\s*js\b/gi, replacement: "Next.js" },
   { pattern: /\bvs\s+\.\s*code\b/gi, replacement: "VS Code" },
+  { pattern: /\bi\s+os\b/gi, replacement: "iOS" },
+  { pattern: /\bgraph\s+ql\b/gi, replacement: "GraphQL" },
+  { pattern: /\btype\s+script\b/gi, replacement: "TypeScript" },
+  { pattern: /\bspring\s+boot\b/gi, replacement: "Spring Boot" },
 ];
 
 export function normalizeBrandTokens(text: string): string {

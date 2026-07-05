@@ -34,7 +34,7 @@ import { ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
 import { logEnhanceDiag } from "@/src/lib/ai/engine/enhance-diagnostics";
 import { resolveQuotaRowWithReset } from "@/src/lib/ai/engine/system-quota-gate";
 import { getAppConfig } from "@/src/lib/services/config-service";
-import { resolveAiUpgrade } from "@/lib/job-tracker/enhance/resolve-ai-upgrade";
+import { resolveFeature } from "@/lib/features";
 import { SYSTEM_QUOTA_USER_SELECT } from "@/lib/ai/system-quota-gate-for-user";
 async function loadJdCaches(jobEntryId: string): Promise<{
   jdIntelligence: JDIntelligence | null;
@@ -66,6 +66,8 @@ async function loadJdCaches(jobEntryId: string): Promise<{
 
 function persistJdCaches(
   jobEntryId: string,
+  traceId: string,
+  userId: string,
   data: {
     jdIntelligence?: JDIntelligence;
     jdDescriptionHash?: string;
@@ -86,7 +88,15 @@ function persistJdCaches(
         ...(data.jdIntelligence ? { jdIntelUpdatedAt: new Date() } : {}),
       },
     })
-    .catch(() => undefined);
+    .catch((err) => {
+      logEnhance("server", "job_track.persist.fail", {
+        traceId,
+        userId,
+        step: ENHANCE_PIPELINE.PRE_JD_BRAIN,
+        jobEntryId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
 }
 
 function platformBundle(atsPlatform: AtsPlatform): JobAnalysisBundle["platform"] {
@@ -196,20 +206,27 @@ export async function runJobAnalysisTrack(
 
   let aiRoute = input.aiRoute ?? null;
   let quotaUser = input.quotaUser ?? null;
-  if (!aiRoute) {
-    const user =
+  const surface = input.surface ?? "job_apply";
+
+  const [jdExtractGate, enhanceGate] = await Promise.all([
+    resolveFeature({ feature: "jdExtract", userId: input.userId, surface }),
+    aiRoute
+      ? Promise.resolve(null)
+      : resolveFeature({
+          feature: "enhance",
+          userId: input.userId,
+          surface,
+        }),
+  ]);
+
+  if (!aiRoute && enhanceGate?.route) {
+    aiRoute = enhanceGate.route;
+    quotaUser =
       quotaUser ??
       (await prisma.user.findUnique({
         where: { id: input.userId },
         select: SYSTEM_QUOTA_USER_SELECT,
       }));
-    if (user) {
-      quotaUser = user;
-      const aiUpgrade = await resolveAiUpgrade(user, "extension", {
-        traceId: input.traceId,
-      });
-      aiRoute = aiUpgrade.route ?? null;
-    }
   }
 
   const aiEngine = aiRoute ? await getAppConfig("aiEngine") : null;
@@ -227,6 +244,7 @@ export async function runJobAnalysisTrack(
     cachedIntelligence: caches.jdIntelligence,
     cachedHash: caches.jdHash,
     aiRoute,
+    shouldRunAiExtract: jdExtractGate.shouldRunAiExtract,
     jobEntryId: input.jobEntryId,
     jdExtraction: quotaContext
       ? { quotaContext, pipelineDebug: debug }
@@ -246,7 +264,12 @@ export async function runJobAnalysisTrack(
     aiAttempted: jdResult.aiAttempted,
   });
 
-  const persist: Parameters<typeof persistJdCaches>[1] = {};
+  const persist: {
+    jdIntelligence?: JDIntelligence;
+    jdDescriptionHash?: string;
+    jdSkillsVocabulary?: JdSkillsVocabulary;
+    jdSkillsHash?: string;
+  } = {};
   if (!jdResult.cacheHit) {
     persist.jdIntelligence = jdResult.intelligence;
     persist.jdDescriptionHash = jdResult.descriptionHash;
@@ -256,7 +279,7 @@ export async function runJobAnalysisTrack(
     persist.jdSkillsHash = jdSkillsVocabulary.descriptionHash;
   }
   if (Object.keys(persist).length > 0) {
-    persistJdCaches(input.jobEntryId, persist);
+    persistJdCaches(input.jobEntryId, input.traceId, input.userId, persist);
   }
 
   logEnhanceDiag({

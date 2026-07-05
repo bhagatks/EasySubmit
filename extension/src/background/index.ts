@@ -20,6 +20,7 @@ import {
   shouldClearStaleLocalApiBasePin,
 } from "@shared/extension/resolve-api-base";
 import { mergeExtensionRuntimeConfig } from "@shared/extension/runtime-config-merge";
+import { fetchGreenhouseEmbeddedJobData } from "@shared/extension/greenhouse-board-fetch";
 import { isPipelineDebugEnabled } from "@shared/extension/pipeline-debug-gate";
 import type {
   ExtensionRuntimeConfig,
@@ -423,6 +424,28 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     void loadRuntimeConfig()
       .then((config) => sendResponse({ success: true, config }))
       .catch(() => sendResponse({ success: false }));
+    return true;
+  }
+
+  if (action === EXTENSION_MESSAGE.FETCH_GREENHOUSE_EMBEDDED && typeof message.url === "string") {
+    void fetchGreenhouseEmbeddedJobData(message.url)
+      .then((metadata) => {
+        if (!metadata?.title) {
+          console.log("[EasySubmit] bg:greenhouse-embedded-fetch fail", { url: message.url, error: "not_found" });
+          sendResponse({ success: false, error: "not_found" });
+          return;
+        }
+        console.log("[EasySubmit] bg:greenhouse-embedded-fetch done", {
+          url: message.url,
+          title: metadata.title,
+          descriptionLength: metadata.description?.length ?? 0,
+        });
+        sendResponse({ success: true, metadata });
+      })
+      .catch((error) => {
+        console.warn("[EasySubmit] bg:greenhouse-embedded-fetch fail", error);
+        sendResponse({ success: false, error: "network_error" });
+      });
     return true;
   }
 

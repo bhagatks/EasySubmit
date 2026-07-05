@@ -12,6 +12,7 @@ import {
   validateSummarySection,
   validateTargetRole,
 } from "@/lib/resume/validation/validators";
+import { validateResumeWithRulesV2 } from "@/lib/resume/validation/validate-resume-v2-bridge";
 
 export type {
   ResumeValidationResult,
@@ -45,12 +46,17 @@ export function validateResume(
 ): ResumeValidationResult {
   const header = validateHeader(form);
   const targetRoleResult = validateTargetRole(targetRole);
+  const education = validateEducationSection(form);
+
+  if (options.useRulesV2) {
+    return validateResumeWithRulesV2(form, header, targetRoleResult, education);
+  }
+
   const summary = validateSummarySection(form, {
     required: options.summaryRequired !== false,
   });
   const skills = validateSkillsSection(parseSkillsText(form.skillsText ?? ""));
   const experience = validateExperienceSection(form, targetRole);
-  const education = validateEducationSection(form);
 
   return {
     header,

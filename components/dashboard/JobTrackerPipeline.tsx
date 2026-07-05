@@ -270,7 +270,7 @@ export function JobTrackerPipeline({
                 <div className="flex flex-col gap-2">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex min-w-0 flex-1 items-center gap-2 py-0.5">
-                      {archivedView && onSelectedEntryIdsChange ? (
+                      {onSelectedEntryIdsChange ? (
                         <input
                           type="checkbox"
                           checked={selectedIdSet.has(entry.id)}

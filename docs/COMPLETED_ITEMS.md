@@ -1,5 +1,11 @@
 | Date | Item |
 |------|------|
+| 2026-07-05 | Resume rules **v2 branch coverage** — `lib/resume/v2/branch-coverage.test.ts` (172 v2-suite tests); v2 stack branches **>85%**; whole-repo branch gate **>78%** |
+| 2026-07-05 | Dev dashboard **500 / Failed to fetch fix** — webpack ignores broken `rake-js` `.js.map` files in `next.config.mjs`; clears client import chain `AtsPanel → readiness → jd-extractor → rake-js` |
+| 2026-07-05 | Resume rules **v2 all page modes** — profiles for 1/3/4/4+ (4+ unlimited + ATS warning), profile-aware validation/repair/readiness/enhance prompts, AtsPanel page mode + skillsText + 4+ banner, tailored preview `skillsText` |
+| 2026-07-05 | Resume rules **v2 complete wiring** — `resumeRulesV2` feature flag (default on), page mode selector in studio, v2 studio lint, features framework resolver, enhance session meta `resumeRulesVersion`, testing guide `docs/resume/RULES-V2-TESTING.md` |
+| 2026-07-05 | Resume rules **v2 wiring** — env opt-in (`RESUME_RULES_V2_ENABLED` / `NEXT_PUBLIC_RESUME_RULES_V2`): pipeline repair + readiness delta, enhance brief + AI pass v2 prompts, AtsPanel scorer, export no silent bullet cap |
+| 2026-07-04 | Resume rules **v2** (isolated) — `lib/resume/v2/` 2-page profile, validation, DeepSeek prompt builder, **`computeResumeReadinessV2()`** (four pillars scored with v2 rules, filters v1 §8 bullet-cap warnings); v1 pipeline/export unchanged; Fidelity flash benchmark `.tmp-debug/chat-parity-v2-2page-result.json` |
 | 2026-07-04 | Fork/join enhance — capture starts job track ∥ resume track (`pipeline-track-coordinator`); light skills merge; slim experience fact ledger; light brief for resume AI; full brief/baseline only on AI fail; `/dashboard/pipeline` QA groups by architecture track |
 | 2026-07-03 | Max-ATS enhance default — `buildAtsOptimizationSpec()`, single AI pass, skills-only baseline when AI runs, full deterministic fallback + warning UX, cross-domain 6-skill cap removed, title+company path (extension tailor + Review), Review ATS delta cap removed; `partialEnhance` dropped |
 | 2026-07-01 | Extension CI CRX pipeline — `pack-extension-crx.mjs`, `upload-extension-cws.mjs`, `deploy.yml` artifacts + Verified CRX publish |

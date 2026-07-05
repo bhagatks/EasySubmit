@@ -45,6 +45,7 @@ type ResumeStudioEditorProps = {
   rawResumeText?: string | null;
   enhanceWithAiEnabled?: boolean;
   dependentJobs?: Array<{ id: string; title: string; company: string | null }>;
+  resumeRulesV2Enabled?: boolean;
 };
 
 export function ResumeStudioEditor({
@@ -54,6 +55,7 @@ export function ResumeStudioEditor({
   rawResumeText,
   enhanceWithAiEnabled = false,
   dependentJobs = [],
+  resumeRulesV2Enabled = false,
 }: ResumeStudioEditorProps) {
   const router = useRouter();
   const [targetRole, setTargetRole] = useState(initialTargetTitle);
@@ -258,6 +260,7 @@ export function ResumeStudioEditor({
         onPageLengthPreferenceChange={handlePageLengthPreferenceChange}
         autoPageLengthRecommendation={autoPageLengthRecommendation}
         resolvedPageCount={resolvedPageCount}
+        rulesV2Enabled={resumeRulesV2Enabled}
         preview={
           <PrimeResume resume={resumePreview} variant="workbench" className="w-full" />
         }

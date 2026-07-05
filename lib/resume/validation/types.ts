@@ -26,4 +26,6 @@ export type ResumeValidationResult = {
 export type ValidateResumeOptions = {
   /** When false, an empty professional summary does not block finalize. Default true. */
   summaryRequired?: boolean;
+  /** Use RULES v2 validators (summary/skills/bullets) when true. */
+  useRulesV2?: boolean;
 };

@@ -54,6 +54,7 @@ type JobResumeStudioEditorProps = {
   initialForm: HubRefineryForm;
   rawResumeText?: string | null;
   enhanceWithAiEnabled?: boolean;
+  resumeRulesV2Enabled?: boolean;
 };
 
 export function JobResumeStudioEditor({
@@ -65,6 +66,7 @@ export function JobResumeStudioEditor({
   initialForm,
   rawResumeText,
   enhanceWithAiEnabled = false,
+  resumeRulesV2Enabled = false,
 }: JobResumeStudioEditorProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -189,7 +191,10 @@ export function JobResumeStudioEditor({
         ...values,
         skillsText: studioSkills.join(", "),
       };
-      const gate = validateResume(form, targetRole, { summaryRequired: true });
+      const gate = validateResume(form, targetRole, {
+        summaryRequired: true,
+        useRulesV2: resumeRulesV2Enabled,
+      });
       if (!gate.canFinalize) {
         setIsSaving(false);
         setErrors(collectValidationErrorMessages(gate));
@@ -274,6 +279,7 @@ export function JobResumeStudioEditor({
         onPageLengthPreferenceChange={handlePageLengthPreferenceChange}
         autoPageLengthRecommendation={autoPageLengthRecommendation}
         resolvedPageCount={resolvedPageCount}
+        rulesV2Enabled={resumeRulesV2Enabled}
         preview={
           <PrimeResume resume={resumePreview} variant="workbench" className="w-full" />
         }

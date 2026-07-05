@@ -10,7 +10,7 @@ import type {
   LightMergeResult,
   ResumePrepBundle,
 } from "@/lib/job-tracker/enhance/pipeline-track-types";
-import type { JobIntelligence } from "@/lib/job-tracker/ats/job-intelligence";
+import { analyzeJobIntelligence } from "@/lib/job-tracker/ats/job-intelligence";
 import type { KeywordGapResult } from "@/lib/job-tracker/ats/keyword-gap";
 import type { ResumeReadinessResult } from "@/lib/job-tracker/ats/resume-readiness-score";
 import { computeResumeReadiness } from "@/lib/job-tracker/ats/resume-readiness-score";
@@ -39,7 +39,7 @@ const EMPTY_READINESS: ResumeReadinessResult = {
   topActions: [],
 };
 
-const EMPTY_JOB_INTELLIGENCE: JobIntelligence = {
+const EMPTY_JOB_INTELLIGENCE: import("@/lib/job-tracker/ats/job-intelligence").JobIntelligence = {
   missingKeywords: [],
   skillsToAdd: [],
   keywordsForContent: [],
@@ -77,6 +77,11 @@ export function buildLightEnhanceBrief(input: {
     trimmedJd.length > 0
       ? resolveKeywordGap(prime, input.targetRole, trimmedJd, job.intelligence)
       : EMPTY_KEYWORD_GAP;
+
+  const jobIntelligence =
+    trimmedJd.length > 0
+      ? analyzeJobIntelligence(merge.form, input.targetRole, trimmedJd)
+      : EMPTY_JOB_INTELLIGENCE;
 
   return {
     traceId: input.traceId,
@@ -118,7 +123,7 @@ export function buildLightEnhanceBrief(input: {
       count: resume.skillsList.length,
       compositionOk: resume.skillsValidation.compositionOk,
     },
-    experience: { weakBullets: [] },
+    experience: { weakBullets: jobIntelligence.weakBullets },
     jd: job.hasJd
       ? {
           segments: job.segments,
@@ -126,7 +131,7 @@ export function buildLightEnhanceBrief(input: {
           skillsVocabulary: job.skillsVocabulary,
           directive: merge.directive,
           keywordGap,
-          jobIntelligence: EMPTY_JOB_INTELLIGENCE,
+          jobIntelligence,
           atoms: [],
           anchorScores: [],
           coverageBefore: {
@@ -142,8 +147,8 @@ export function buildLightEnhanceBrief(input: {
     plan: {
       skillsToAdd: merge.directive.mustAddSkills,
       skillsToRemove: merge.directive.mustRemoveSkills,
-      weakBullets: [],
-      structuralWarnings: [],
+      weakBullets: jobIntelligence.weakBullets,
+      structuralWarnings: jobIntelligence.structuralWarnings,
       summaryWarnings: resume.summaryValidation.warnings,
       skillsWarnings: [],
       targetRole: input.targetRole,

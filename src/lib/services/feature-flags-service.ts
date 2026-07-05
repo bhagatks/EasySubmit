@@ -8,6 +8,7 @@ export const FEATURE_FLAG_KEYS = {
   extensionApplyPipelineStepAnalytics: "extension_apply_pipeline_step_analytics",
   systemAiEnabled: "system_ai_enabled",
   aiJdExtractEnabled: "ai_jd_extract_enabled",
+  resumeRulesV2: "resume_rules_v2",
 } as const;
 
 export type FeatureFlagKey = (typeof FEATURE_FLAG_KEYS)[keyof typeof FEATURE_FLAG_KEYS];
@@ -69,6 +70,12 @@ export const FEATURE_FLAG_REGISTRY: Record<
       "Call AI structured JD extract (generateObject). ON = yes; OFF = deterministic JD + vocabulary only.",
     defaultEnabled: false,
   },
+  resumeRulesV2: {
+    key: FEATURE_FLAG_KEYS.resumeRulesV2,
+    description:
+      "Resume rules v2 — page mode 2 profile for enhance, repair, readiness, validation, and export.",
+    defaultEnabled: true,
+  },
 };
 
 export type FeatureFlagsSnapshot = {
@@ -78,6 +85,7 @@ export type FeatureFlagsSnapshot = {
   extensionApplyPipelineStepAnalytics: boolean;
   systemAiEnabled: boolean;
   aiJdExtractEnabled: boolean;
+  resumeRulesV2: boolean;
 };
 
 export const FEATURE_FLAGS_DEFAULTS: FeatureFlagsSnapshot = {
@@ -88,6 +96,7 @@ export const FEATURE_FLAGS_DEFAULTS: FeatureFlagsSnapshot = {
     FEATURE_FLAG_REGISTRY.extensionApplyPipelineStepAnalytics.defaultEnabled,
   systemAiEnabled: FEATURE_FLAG_REGISTRY.systemAiEnabled.defaultEnabled,
   aiJdExtractEnabled: FEATURE_FLAG_REGISTRY.aiJdExtractEnabled.defaultEnabled,
+  resumeRulesV2: FEATURE_FLAG_REGISTRY.resumeRulesV2.defaultEnabled,
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -178,6 +187,11 @@ export async function getFeatureFlags(): Promise<FeatureFlagsSnapshot> {
     aiJdExtractEnabled: resolveEnabled(
       FEATURE_FLAG_REGISTRY.aiJdExtractEnabled.key,
       FEATURE_FLAG_REGISTRY.aiJdExtractEnabled.defaultEnabled,
+      byKey,
+    ),
+    resumeRulesV2: resolveEnabled(
+      FEATURE_FLAG_REGISTRY.resumeRulesV2.key,
+      FEATURE_FLAG_REGISTRY.resumeRulesV2.defaultEnabled,
       byKey,
     ),
   };

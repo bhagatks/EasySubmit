@@ -51,6 +51,7 @@ describe("resume-content-model", () => {
 
     const form = {
       ...emptyHubRefineryForm(),
+      pageLengthPreference: "auto" as const,
       experience: [
         {
           id: "1",
@@ -70,6 +71,58 @@ describe("resume-content-model", () => {
     const content = buildResumeContentFromForm(form, "Role");
     expect(content.warnings.some((w) => w.includes("8 bullets"))).toBe(true);
     expect(validateResumeForm(form).valid).toBe(false);
+  });
+
+  it("does not cap bullets when rules v2 page mode 2 is active", () => {
+    const bullets = Array.from({ length: 8 }, (_, i) => `Bullet ${i + 1}`);
+    const form = {
+      ...emptyHubRefineryForm(),
+      pageLengthPreference: "2" as const,
+      experience: [
+        {
+          id: "1",
+          title: "Engineer",
+          company: "Acme",
+          location: "",
+          startMonth: "",
+          startYear: "",
+          endMonth: "",
+          endYear: "",
+          bullets: bullets.join("\n"),
+          hidden: false,
+        },
+      ],
+    };
+
+    const content = buildResumeContentFromForm(form, "Role");
+    expect(content.experience[0]?.bullets).toHaveLength(8);
+    expect(content.warnings).toHaveLength(0);
+  });
+
+  it("does not cap bullets when rules v2 page mode 1 is active", () => {
+    const bullets = Array.from({ length: 8 }, (_, i) => `Bullet ${i + 1}`);
+    const form = {
+      ...emptyHubRefineryForm(),
+      pageLengthPreference: "1" as const,
+      experience: [
+        {
+          id: "1",
+          title: "Engineer",
+          company: "Acme",
+          location: "",
+          startMonth: "",
+          startYear: "",
+          endMonth: "",
+          endYear: "",
+          bullets: bullets.join("\n"),
+          hidden: false,
+        },
+      ],
+    };
+
+    const content = buildResumeContentFromForm(form, "Role");
+    expect(content.experience[0]?.bullets).toHaveLength(8);
+    expect(content.warnings).toHaveLength(0);
   });
 
   it("uses shared section titles from resume-style", () => {

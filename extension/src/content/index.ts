@@ -42,6 +42,7 @@ import { setupFieldCaptureBridge } from "@shared/extension/field-capture-bridge"
 import type { FieldCapturePayload } from "@shared/extension/field-descriptor";
 import type { ServerLookupMap } from "@shared/extension/field-resolution";
 import { injectApiInterceptScript, onApiIntercept, type InterceptedJobData } from "@shared/extension/api-intercept";
+import { isGreenhouseEmbeddedJobUrl } from "@shared/extension/greenhouse-helpers";
 import { isEasySubmitManagedAppPage } from "@shared/extension/easysubmit-app-page";
 import { isExtensionGlobalSwitchOn } from "@shared/extension/extension-global-switch";
 import type { ApplicationProfile } from "@/lib/profile/application-profile";
@@ -247,6 +248,9 @@ type CardHost = {
 let cardHost: CardHost | null = null;
 let currentMetadata: ScrapedJobMetadata | null = null;
 let interceptedMetadata: ScrapedJobMetadata | null = null;
+let interceptedMetadataSource: "page-intercept" | "greenhouse-board-api" | null = null;
+let greenhouseEmbeddedFetchKey: string | null = null;
+let greenhouseEmbeddedFetchPromise: Promise<void> | null = null;
 let lastScrapeContext: { path: string; enrichments: string[] } | null = null;
 let savedStatus: {
   saved: boolean;
@@ -1747,6 +1751,9 @@ function handleJobPageUrlChange(): void {
   pinnedUrl = null;
   runtimeConfig = null;
   interceptedMetadata = null;
+  interceptedMetadataSource = null;
+  greenhouseEmbeddedFetchKey = null;
+  greenhouseEmbeddedFetchPromise = null;
   if (isEasySubmitAppPage()) {
     idleExtensionOnAppPage();
     return;
@@ -2445,12 +2452,6 @@ function renderExpandedCard(root: ShadowRoot): void {
     }
   }
 
-  bindHeaderButton(root, "[data-minimize]", () => {
-    minimizeCard();
-  });
-  bindHeaderButton(root, "[data-refresh-card]", () => {
-    void refreshCardFromHeader();
-  });
   bindSettingsMenu(root);
   bindProfilePicker(root);
 
@@ -3024,7 +3025,17 @@ let profilePickerOutsideCleanup: (() => void) | null = null;
 let settingsMenuOutsideCleanup: (() => void) | null = null;
 let profilePickerDelegationReady = false;
 let settingsMenuDelegationReady = false;
+let headerActionsDelegationReady = false;
 let extensionUiAnalyticsReady = false;
+
+function isHeaderGripActionTarget(node: EventTarget | null): boolean {
+  if (!(node instanceof Element)) return false;
+  return Boolean(
+    node.closest(
+      "[data-minimize], [data-refresh-card], [data-settings], [data-settings-dashboard], [data-fix-ai-dashboard], [data-open-extension-bridge], [data-force-upgrade-update]",
+    ),
+  );
+}
 
 function inferExtensionUiAction(el: Element): { action: string; target: string } {
   const tracked = [
@@ -3303,13 +3314,14 @@ function openSettingsMenu(): void {
 
   window.setTimeout(() => {
     const closeOnOutside = (event: MouseEvent) => {
+      if (isHeaderGripActionTarget(event.target)) return;
       const path = event.composedPath();
       const inside = path.some(
         (node) =>
           node instanceof Element &&
           Boolean(
             node.closest?.(
-              "[data-settings], [data-settings-dashboard], .settings-menu",
+              "[data-settings], [data-settings-dashboard], [data-minimize], [data-refresh-card], .settings-menu",
             ),
           ),
       );
@@ -3317,9 +3329,9 @@ function openSettingsMenu(): void {
       closeSettingsMenu();
       if (cardHost) renderCard(cardHost.shadow);
     };
-    window.addEventListener("click", closeOnOutside, true);
+    window.addEventListener("click", closeOnOutside);
     settingsMenuOutsideCleanup = () => {
-      window.removeEventListener("click", closeOnOutside, true);
+      window.removeEventListener("click", closeOnOutside);
     };
   }, 0);
 }
@@ -3378,21 +3390,24 @@ function openProfilePickerMenu(): void {
 
   window.setTimeout(() => {
     const closeOnOutside = (event: MouseEvent) => {
+      if (isHeaderGripActionTarget(event.target)) return;
       const path = event.composedPath();
       const insideMenuOrPicker = path.some(
         (node) =>
           node instanceof Element &&
           Boolean(
-            node.closest?.("[data-profile-picker], [data-profile-id], .profile-picker-menu"),
+            node.closest?.(
+              "[data-profile-picker], [data-profile-id], [data-minimize], [data-refresh-card], .profile-picker-menu",
+            ),
           ),
       );
       if (insideMenuOrPicker) return;
       closeProfilePickerMenu();
       if (cardHost) renderCard(cardHost.shadow);
     };
-    window.addEventListener("click", closeOnOutside, true);
+    window.addEventListener("click", closeOnOutside);
     profilePickerOutsideCleanup = () => {
-      window.removeEventListener("click", closeOnOutside, true);
+      window.removeEventListener("click", closeOnOutside);
     };
   }, 0);
 }
@@ -3439,6 +3454,29 @@ function bindProfilePicker(_root: ParentNode): void {
   // Delegated on shadow root — see setupProfilePickerDelegation().
 }
 
+function setupHeaderActionsDelegation(shadow: ShadowRoot): void {
+  if (headerActionsDelegationReady) return;
+  headerActionsDelegationReady = true;
+
+  shadow.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+
+    if (target.closest("[data-minimize]")) {
+      event.stopPropagation();
+      event.preventDefault();
+      minimizeCard();
+      return;
+    }
+
+    if (target.closest("[data-refresh-card]")) {
+      event.stopPropagation();
+      event.preventDefault();
+      void refreshCardFromHeader();
+    }
+  });
+}
+
 function applyHostShell(host: HTMLDivElement): void {
   host.style.cssText = [
     "all: initial",
@@ -3478,6 +3516,8 @@ function saveCardPosition(_hostKey: string, _position: FixedCardPosition): void 
 
 function minimizeCard(): void {
   if (!cardHost) return;
+  closeProfilePickerMenu();
+  closeSettingsMenu();
   resetCardViewState();
   stopDrag();
   stopPanelResize();
@@ -4066,6 +4106,7 @@ async function waitForJobDescriptionBeforeSave(maxMs = 4500): Promise<void> {
 async function refreshMetadataBeforeSave(config: ExtensionRuntimeConfig): Promise<void> {
   console.log("[EasySubmit] scrape:refresh-metadata start", { url: location.href, hasIntercepted: Boolean(interceptedMetadata) });
   await waitForJobDescriptionBeforeSave();
+  await maybeFetchGreenhouseEmbeddedJob().catch(() => undefined);
   const detectedDirect = detectJobPage(document, location.href, config);
   const detected =
     detectedDirect ??
@@ -4079,7 +4120,13 @@ async function refreshMetadataBeforeSave(config: ExtensionRuntimeConfig): Promis
   };
 
   lastScrapeContext = {
-    path: interceptedMetadata ? "api-intercept" : detectedDirect ? "detectJobPage" : "buildFallbackJobMetadata",
+    path: interceptedMetadata
+      ? interceptedMetadataSource === "greenhouse-board-api"
+        ? "greenhouse-board-api"
+        : "api-intercept"
+      : detectedDirect
+        ? "detectJobPage"
+        : "buildFallbackJobMetadata",
     enrichments: metaWithEnrichments.enrichmentsApplied ?? [],
   };
   // Prefer API-intercepted data — richer and more reliable than DOM scrape
@@ -4656,6 +4703,7 @@ async function mountCard(
     setupExtensionUiAnalyticsDelegation(shadow);
     setupProfilePickerDelegation(shadow);
     setupSettingsMenuDelegation(shadow);
+    setupHeaderActionsDelegation(shadow);
     setupPanelResizeDelegation(shadow);
   } else if (!isDragging() || options?.useDefaultPosition) {
     cardHost.position = position;
@@ -4687,6 +4735,7 @@ function removeCard(): void {
   closeSettingsMenu();
   profilePickerDelegationReady = false;
   settingsMenuDelegationReady = false;
+  headerActionsDelegationReady = false;
   extensionUiAnalyticsReady = false;
   panelResizeDelegationReady = false;
   void stopJobStatusRealtime();
@@ -4761,6 +4810,10 @@ async function updateCard(): Promise<void> {
       return;
     }
 
+    if (isGreenhouseEmbeddedJobUrl(location.href)) {
+      await maybeFetchGreenhouseEmbeddedJob().catch(() => undefined);
+    }
+
     const { presentation, metadata } = resolveCardContent(config, "auto");
     if (presentation === "no_job") {
       if (inTabReturnGrace) {
@@ -4825,6 +4878,61 @@ function interceptedToMetadata(data: InterceptedJobData): ScrapedJobMetadata {
   };
 }
 
+function hasEmbeddedGreenhouseDescription(): boolean {
+  return canApplyCapture({
+    url: location.href,
+    description: interceptedMetadata?.description,
+  });
+}
+
+async function maybeFetchGreenhouseEmbeddedJob(): Promise<void> {
+  const url = location.href;
+  if (!isGreenhouseEmbeddedJobUrl(url)) return;
+  if (hasEmbeddedGreenhouseDescription()) return;
+
+  const fetchKey = url;
+  if (greenhouseEmbeddedFetchKey === fetchKey && greenhouseEmbeddedFetchPromise) {
+    await greenhouseEmbeddedFetchPromise;
+    return;
+  }
+
+  greenhouseEmbeddedFetchKey = fetchKey;
+  greenhouseEmbeddedFetchPromise = (async () => {
+    console.log("[EasySubmit] greenhouse:embedded-fetch start", { url });
+    try {
+      const response = await sendMessage<{
+        success: boolean;
+        metadata?: InterceptedJobData;
+        error?: string;
+      }>({
+        action: EXTENSION_MESSAGE.FETCH_GREENHOUSE_EMBEDDED,
+        url,
+      });
+      if (response?.success && response.metadata?.title) {
+        interceptedMetadata = interceptedToMetadata(response.metadata);
+        interceptedMetadataSource = "greenhouse-board-api";
+        console.log("[EasySubmit] greenhouse:embedded-fetch done", {
+          title: response.metadata.title,
+          descriptionLength: response.metadata.description?.length ?? 0,
+        });
+        return;
+      }
+      console.log("[EasySubmit] greenhouse:embedded-fetch fail", {
+        error: response?.error ?? "empty_response",
+      });
+    } catch (error) {
+      console.warn("[EasySubmit] greenhouse:embedded-fetch fail", error);
+    } finally {
+      if (!hasEmbeddedGreenhouseDescription()) {
+        greenhouseEmbeddedFetchKey = null;
+        greenhouseEmbeddedFetchPromise = null;
+      }
+    }
+  })();
+
+  await greenhouseEmbeddedFetchPromise;
+}
+
 function bootJobPageObservers(): void {
   if (contentWindow.__easysubmitObserversBooted) return;
   contentWindow.__easysubmitObserversBooted = true;
@@ -4838,6 +4946,7 @@ function bootJobPageObservers(): void {
       if (!data.title) return;
       console.log("[EasySubmit] intercept:job-data received", { title: data.title, company: data.company, platform: data.platform });
       interceptedMetadata = interceptedToMetadata(data);
+      interceptedMetadataSource = "page-intercept";
       if (cardHost) {
         void updateCard().catch(swallowContextInvalidation);
       } else {

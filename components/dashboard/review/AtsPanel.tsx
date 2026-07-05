@@ -9,6 +9,10 @@ import { resolveKeywordGap } from "@/lib/job-tracker/ats/resolve-keyword-gap";
 import { computeSemanticSimilarity } from "@/lib/job-tracker/ats/semantic-similarity";
 import { computeResumeReadiness } from "@/lib/job-tracker/ats/resume-readiness-score";
 import { detectPlatform, getPlatformRules } from "@/lib/job-tracker/ats/platform-rules";
+import { computeResumeReadinessV2 } from "@/lib/resume/v2/resume-readiness-score";
+import { normalizeResumePageModeV2 } from "@/lib/resume/v2/page-mode";
+import { EXTENDED_MODE_ATS_WARNING } from "@/lib/resume/v2/rules-config";
+import { isResumeRulesV2Enabled } from "@/lib/resume/v2/runtime";
 import { computePlatformScores, type PlatformScoreResult } from "@/lib/job-tracker/ats/platform-score";
 import type { JobTrackerDetail } from "@/lib/job-tracker/types";
 import { trackAtsScoreViewed } from "@/src/shared/analytics";
@@ -18,6 +22,7 @@ type AtsPanelProps = {
   entry: JobTrackerDetail;
   /** "modal" = fixed-height scrollable (Review Screen). "inline" = natural page flow. */
   variant?: "modal" | "inline";
+  resumeRulesV2Enabled?: boolean;
 };
 
 const STRATEGY_LABELS: Record<string, string> = {
@@ -604,6 +609,7 @@ type AtsPanelBodyProps = {
   activeSection: Section;
   onSectionChange: (section: Section) => void;
   variant?: "modal" | "inline";
+  resumeRulesV2Enabled?: boolean;
 };
 
 function buildExperienceBlob(data: import("@/components/onboarding/PrimeResume").PrimeResumeData): string {
@@ -612,7 +618,14 @@ function buildExperienceBlob(data: import("@/components/onboarding/PrimeResume")
     .join("\n");
 }
 
-function AtsPanelBody({ entry, preview, activeSection, onSectionChange, variant = "modal" }: AtsPanelBodyProps) {
+function AtsPanelBody({
+  entry,
+  preview,
+  activeSection,
+  onSectionChange,
+  variant = "modal",
+  resumeRulesV2Enabled = false,
+}: AtsPanelBodyProps) {
   const data = preview.preview;
   const targetTitle = preview.targetTitle;
   const jobDescription = entry.description ?? "";
@@ -626,10 +639,42 @@ function AtsPanelBody({ entry, preview, activeSection, onSectionChange, variant 
 
   const platformRules = useMemo(() => getPlatformRules(atsPlatform), [atsPlatform]);
 
-  const readiness = useMemo(
-    () => computeResumeReadiness(data, targetTitle, jobDescription, jdIntelligence, atsPlatform),
-    [data, targetTitle, jobDescription, jdIntelligence, atsPlatform],
-  );
+  const pageLengthSource =
+    preview.pageLengthPreference ??
+    (typeof entry.metadata?.pageLengthPreference === "string"
+      ? entry.metadata.pageLengthPreference
+      : undefined);
+
+  const useRulesV2 =
+    preview.resumeRulesVersion === 2 ||
+    isResumeRulesV2Enabled(pageLengthSource, { featureEnabled: resumeRulesV2Enabled });
+
+  const activePageMode = normalizeResumePageModeV2(pageLengthSource);
+  const skillsTextForScoring =
+    preview.skillsText?.trim() || (data.skills ?? []).join(", ");
+
+  const readiness = useMemo(() => {
+    if (useRulesV2) {
+      return computeResumeReadinessV2(data, targetTitle, jobDescription, {
+        jdIntelligence,
+        platform: atsPlatform,
+        skillsText: skillsTextForScoring,
+        pageMode: activePageMode,
+      });
+    }
+    return computeResumeReadiness(data, targetTitle, jobDescription, jdIntelligence, atsPlatform);
+  }, [
+    useRulesV2,
+    data,
+    targetTitle,
+    jobDescription,
+    jdIntelligence,
+    atsPlatform,
+    skillsTextForScoring,
+    activePageMode,
+  ]);
+
+  const showExtendedModeWarning = useRulesV2 && activePageMode === "4+";
 
   const bulletQuality = useMemo(() => analyzeBulletQuality(data), [data]);
 
@@ -718,6 +763,16 @@ function AtsPanelBody({ entry, preview, activeSection, onSectionChange, variant 
         <div className="space-y-5">
 
           <PlatformStrategyBanner platform={platformRules} />
+
+          {showExtendedModeWarning && (
+            <div className="flex items-start gap-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground">Extended page mode (4+)</p>
+                <p className="mt-1 text-sm text-muted-foreground">{EXTENDED_MODE_ATS_WARNING}</p>
+              </div>
+            </div>
+          )}
 
           {/* Hero score + platforms passed */}
           <div className="flex items-center gap-5 rounded-xl border border-border/60 bg-surface/40 px-4 py-4">
@@ -845,7 +900,11 @@ function AtsPanelBody({ entry, preview, activeSection, onSectionChange, variant 
   );
 }
 
-export function AtsPanel({ entry, variant = "modal" }: AtsPanelProps) {
+export function AtsPanel({
+  entry,
+  variant = "modal",
+  resumeRulesV2Enabled = false,
+}: AtsPanelProps) {
   const [activeSection, setActiveSection] = useState<Section>("score");
   const preview = entry.tailoredResumePreview;
   const trackedEntryRef = useRef<string | null>(null);
@@ -873,6 +932,7 @@ export function AtsPanel({ entry, variant = "modal" }: AtsPanelProps) {
       activeSection={activeSection}
       onSectionChange={setActiveSection}
       variant={variant}
+      resumeRulesV2Enabled={resumeRulesV2Enabled}
     />
   );
 }

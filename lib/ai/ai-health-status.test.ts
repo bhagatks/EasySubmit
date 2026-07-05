@@ -19,6 +19,15 @@ vi.mock("@/lib/ai/ai-global-enabled", () => ({
 vi.mock("@/src/lib/services/feature-flags-service", () => ({
   getFeatureFlags: vi.fn(),
   isSystemAiEnabled: vi.fn(() => true),
+  FEATURE_FLAGS_DEFAULTS: {
+    enhanceWithAiResumeProfile: true,
+    extensionGlobalSwitch: true,
+    extensionAutoApply: true,
+    extensionApplyPipelineStepAnalytics: false,
+    systemAiEnabled: true,
+    aiJdExtractEnabled: false,
+    resumeRulesV2: true,
+  },
 }));
 
 vi.mock("@/lib/vault/user-key-vault", () => ({
@@ -28,7 +37,7 @@ vi.mock("@/lib/vault/user-key-vault", () => ({
 import { getAiHealthStatusForUser } from "@/lib/ai/ai-health-status";
 import { getAiReadinessForUser } from "@/lib/ai/ai-readiness-gate-for-user";
 import { prisma } from "@/lib/prisma";
-import { getFeatureFlags } from "@/src/lib/services/feature-flags-service";
+import { getFeatureFlags, FEATURE_FLAGS_DEFAULTS } from "@/src/lib/services/feature-flags-service";
 import { getActiveVaultKeyUpdatedAt } from "@/lib/vault/user-key-vault";
 
 const healthyReadiness = {
@@ -56,13 +65,7 @@ describe("getAiHealthStatusForUser", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getActiveVaultKeyUpdatedAt).mockResolvedValue(null);
-    vi.mocked(getFeatureFlags).mockResolvedValue({
-      enhanceWithAiResumeProfile: true,
-      extensionGlobalSwitch: true,
-      extensionAutoApply: true,
-      extensionApplyPipelineStepAnalytics: false,
-      systemAiEnabled: true,
-    });
+    vi.mocked(getFeatureFlags).mockResolvedValue(FEATURE_FLAGS_DEFAULTS);
     vi.mocked(prisma.user.findUnique).mockResolvedValue({
       vaultKeyId: "vault-1",
       aiSourcePreference: "customer",

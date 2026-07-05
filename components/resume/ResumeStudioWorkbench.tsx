@@ -46,6 +46,7 @@ type ResumeStudioWorkbenchProps = {
   onPageLengthPreferenceChange?: (value: PageLengthPreference) => void;
   autoPageLengthRecommendation?: string;
   resolvedPageCount?: 1 | 2;
+  rulesV2Enabled?: boolean;
 };
 
 function subscribeMediaQuery(query: string, callback: () => void) {
@@ -88,6 +89,7 @@ export function ResumeStudioWorkbench({
   onPageLengthPreferenceChange,
   autoPageLengthRecommendation = "",
   resolvedPageCount = 1,
+  rulesV2Enabled = false,
 }: ResumeStudioWorkbenchProps) {
   const isDesktop = useDesktopLayout();
   const [mobileTab, setMobileTab] = useState<"preview" | "edit">("edit");
@@ -162,6 +164,7 @@ export function ResumeStudioWorkbench({
       autoPageLengthRecommendation={autoPageLengthRecommendation}
       resolvedPageCount={resolvedPageCount}
       renderedPageCount={renderedPageCount}
+      rulesV2Enabled={rulesV2Enabled}
       variant={variant}
       monoClass={monoClass}
     />

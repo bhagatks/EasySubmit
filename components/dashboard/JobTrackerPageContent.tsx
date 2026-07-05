@@ -1,12 +1,16 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useState } from "react";
 import type { JobTrackerSummary } from "@/lib/job-tracker/types";
 import type { DashboardManualJobProfileOption } from "@/lib/job-tracker/dashboard-manual-capture";
-import { deleteJobTrackerEntries } from "@/app/actions/job-tracker";
+import {
+  archiveJobTrackerEntries,
+  deleteJobTrackerEntries,
+} from "@/app/actions/job-tracker";
 import { DashboardWorkspacePage } from "@/components/dashboard/DashboardWorkspacePage";
 import { JobTrackerHeaderActions } from "@/components/dashboard/JobTrackerHeaderActions";
 import { JobTrackerWorkspace } from "@/components/dashboard/JobTrackerWorkspace";
+import { notifyExtensionJobArchived } from "@/lib/extension/start-job-apply-from-dashboard";
 import { AnalyticsEvents, captureAnalyticsEvent } from "@/src/shared/analytics";
 
 type JobTrackerPageContentProps = {
@@ -25,16 +29,10 @@ export function JobTrackerPageContent({
   loadError,
 }: JobTrackerPageContentProps) {
   const [manualAddOpen, setManualAddOpen] = useState(false);
+  const [activeEntryIds, setActiveEntryIds] = useState<string[]>([]);
   const [archivedEntryIds, setArchivedEntryIds] = useState<string[]>([]);
   const [selectedEntryIds, setSelectedEntryIds] = useState<string[]>([]);
   const [archiveRefreshToken, setArchiveRefreshToken] = useState(0);
-
-  const handleToggleSelectAllArchived = useCallback(() => {
-    const allSelected =
-      archivedEntryIds.length > 0 &&
-      archivedEntryIds.every((id) => selectedEntryIds.includes(id));
-    setSelectedEntryIds(allSelected ? [] : archivedEntryIds);
-  }, [archivedEntryIds, selectedEntryIds]);
 
   const openManualAdd = useCallback(() => {
     captureAnalyticsEvent(AnalyticsEvents.JOB_TRACKER_MANUAL_ADD_OPENED, {
@@ -43,9 +41,9 @@ export function JobTrackerPageContent({
     setManualAddOpen(true);
   }, []);
 
-  useEffect(() => {
-    setSelectedEntryIds((current) => current.filter((id) => archivedEntryIds.includes(id)));
-  }, [archivedEntryIds]);
+  const bumpArchiveRefresh = useCallback(() => {
+    setArchiveRefreshToken((value) => value + 1);
+  }, []);
 
   return (
     <DashboardWorkspacePage
@@ -55,14 +53,26 @@ export function JobTrackerPageContent({
         <Suspense fallback={null}>
           <JobTrackerHeaderActions
             onAddJob={openManualAdd}
+            activeEntryIds={activeEntryIds}
             archivedEntryIds={archivedEntryIds}
             selectedEntryIds={selectedEntryIds}
-            onToggleSelectAll={handleToggleSelectAllArchived}
+            onSelectedEntryIdsChange={setSelectedEntryIds}
+            onArchiveSelected={async () => {
+              const result = await archiveJobTrackerEntries(selectedEntryIds);
+              if (result.success) {
+                for (const id of selectedEntryIds) {
+                  notifyExtensionJobArchived(id);
+                }
+                setSelectedEntryIds([]);
+                bumpArchiveRefresh();
+              }
+              return result.success;
+            }}
             onDeleteSelected={async () => {
               const result = await deleteJobTrackerEntries(selectedEntryIds);
               if (result.success) {
                 setSelectedEntryIds([]);
-                setArchiveRefreshToken((value) => value + 1);
+                bumpArchiveRefresh();
               }
               return result.success;
             }}
@@ -86,6 +96,7 @@ export function JobTrackerPageContent({
             onOpenManualAdd={openManualAdd}
             selectedEntryIds={selectedEntryIds}
             onSelectedEntryIdsChange={setSelectedEntryIds}
+            onActiveEntryIdsChange={setActiveEntryIds}
             onArchivedEntryIdsChange={setArchivedEntryIds}
             archiveRefreshToken={archiveRefreshToken}
           />

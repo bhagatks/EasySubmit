@@ -4,6 +4,7 @@ import {
   countSummaryWords,
   enforceSummaryWordBudget,
   findBannedWords,
+  normalizeSummaryForReadiness,
   stripBannedSummaryWords,
   validateSummary,
 } from "@/lib/resume/summary-rules";
@@ -83,5 +84,23 @@ describe("enforceSummaryWordBudget", () => {
     const words = Array.from({ length: 84 }, (_, i) => `word${i}`).join(" ");
     const trimmed = enforceSummaryWordBudget(`${words}.`);
     expect(countSummaryWords(trimmed)).toBeLessThanOrEqual(80);
+  });
+});
+
+describe("normalizeSummaryForReadiness", () => {
+  it("pads short summaries toward four sentences using source text", () => {
+    const source = VALID_SUMMARY;
+    const out = normalizeSummaryForReadiness("Engineering leader with twenty-one years.", {
+      sourceSummary: source,
+    });
+    expect(countSummarySentences(out)).toBe(4);
+    expect(countSummaryWords(out)).toBeGreaterThanOrEqual(70);
+    expect(validateSummary(out).sentenceError).toBeNull();
+  });
+
+  it("trims overlong summaries to the word budget", () => {
+    const out = normalizeSummaryForReadiness(VALID_SUMMARY);
+    expect(countSummaryWords(out)).toBeLessThanOrEqual(80);
+    expect(countSummarySentences(out)).toBeLessThanOrEqual(4);
   });
 });

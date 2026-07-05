@@ -8,9 +8,12 @@ import {
 } from "@/lib/resume/page-length-preference";
 
 describe("page-length-preference", () => {
-  it("defaults unknown values to auto", () => {
+  it("normalizes v2 page modes and legacy values", () => {
     expect(normalizePageLengthPreference(undefined)).toBe(DEFAULT_PAGE_LENGTH_PREFERENCE);
-    expect(normalizePageLengthPreference("3")).toBe(DEFAULT_PAGE_LENGTH_PREFERENCE);
+    expect(normalizePageLengthPreference("3")).toBe("3");
+    expect(normalizePageLengthPreference("4+")).toBe("4+");
+    expect(normalizePageLengthPreference("4")).toBe("4+");
+    expect(normalizePageLengthPreference("bogus")).toBe(DEFAULT_PAGE_LENGTH_PREFERENCE);
   });
 
   it("infers auto pages from years and executive titles", () => {

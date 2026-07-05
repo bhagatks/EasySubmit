@@ -10,6 +10,8 @@ import {
 } from "@/lib/job-tracker/ats/platform-rules";
 import { buildPlatformStrategyInstructionBlock } from "@/lib/job-tracker/ats/platform-strategy-instructions";
 import { computeResumeReadiness } from "@/lib/job-tracker/ats/resume-readiness-score";
+import { computeResumeReadinessV2 } from "@/lib/resume/v2/resume-readiness-score";
+import { resolveFeature } from "@/lib/features";
 import type { ResumeEnhanceBrief } from "@/lib/job-tracker/enhance/enhance-brief";
 import { buildJdAtomList } from "@/lib/job-tracker/enhance/build-jd-atom-list";
 import { buildJdCoverageReport } from "@/lib/job-tracker/enhance/build-jd-coverage-report";
@@ -356,12 +358,19 @@ export async function buildEnhanceBrief(
     });
     pipelineDebugAdvance(debug, "pre_jd_brain", "pre_jd_skills");
 
+    const jdExtractGate = await resolveFeature({
+      feature: "jdExtract",
+      userId: input.userId,
+      surface: input.surface,
+    });
+
     const jdResult = await analyzeJobDescription({
       rawDescription: trimmedJd,
       targetRole: input.targetRole,
       cachedIntelligence: caches.jdIntelligence,
       cachedHash: caches.jdHash,
       aiRoute: input.aiRoute ?? null,
+      shouldRunAiExtract: jdExtractGate.shouldRunAiExtract,
       jdExtraction: quotaContext
         ? { quotaContext, pipelineDebug: debug }
         : debug
@@ -513,13 +522,27 @@ export async function buildEnhanceBrief(
     };
   }
 
-  const readiness = computeResumeReadiness(
-    prime,
-    input.targetRole,
-    hasJd ? trimmedJd : "",
-    hasJd ? jdSlice!.intelligence : undefined,
-    atsPlatform,
-  );
+  const rulesV2Resolution = await resolveFeature({
+    feature: "resumeRulesV2",
+    userId: input.userId,
+    surface: input.surface,
+    pageLengthPreference: input.form.pageLengthPreference,
+  });
+
+  const readiness = rulesV2Resolution.enabled
+    ? computeResumeReadinessV2(prime, input.targetRole, hasJd ? trimmedJd : "", {
+        jdIntelligence: hasJd ? jdSlice!.intelligence : undefined,
+        platform: atsPlatform,
+        pageMode: input.form.pageLengthPreference,
+        skillsText: input.form.skillsText,
+      })
+    : computeResumeReadiness(
+        prime,
+        input.targetRole,
+        hasJd ? trimmedJd : "",
+        hasJd ? jdSlice!.intelligence : undefined,
+        atsPlatform,
+      );
 
   const plan = buildEnhancePlan(
     input.form,

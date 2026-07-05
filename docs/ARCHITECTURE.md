@@ -184,6 +184,12 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 
 | Date | Summary |
 |------|---------|
+| 2026-07-05 | **Job Tracker bulk select (active list)** — checkboxes + Select All / Archive Selected on main tracker; `archiveJobTrackerEntries()` bulk action. |
+| 2026-07-05 | **Readiness 90+ pipeline fixes** — post-AI additive keyword merge (v1+v2), `normalizeSummaryForReadiness()` (4 sentences / 70–80 words), extension Workday JSON-LD-first scrape + footer strip + location noise filter; GH embed fetch retry on failure. |
+| 2026-07-05 | **Extension embedded Greenhouse fetch** — proactive `boards-api.greenhouse.io` lookup for `gh_jid` career URLs when DOM scrape + page intercept fail (e.g. Suvoda); background `FETCH_GREENHOUSE_EMBEDDED` message. |
+| 2026-07-05 | **Resume rules v2 branch coverage + dev fix** — `branch-coverage.test.ts`; v2 repair defers bullet normalization to length-enforcement pass; webpack ignores `rake-js` broken `.js.map` so `AtsPanel` client bundle builds. |
+| 2026-07-05 | **Resume rules v2 wiring (env opt-in)** — pipeline repair/readiness, enhance brief + `run-enhance` v2 JSON prompts, AtsPanel v2 scorer, export skips silent 6-bullet cap; `isResumeRulesV2Enabled()` in `lib/resume/v2/runtime.ts`. |
+| 2026-07-04 | **Resume rules v2 (isolated)** — `lib/resume/v2/*` page-mode rules (2-page profile only), `computeResumeReadinessV2()` aligned with v2 validators; v1 export/enhance untouched; prototype `.tmp-debug/chat-parity-v2-2page.mts` + `docs/resume/RULES-V2.md`. |
 | 2026-07-04 | **JD extract dedupe + flag** — capture registers pipeline tracks synchronously (fixes duplicate `generateObject`); in-flight lock per job+hash; `ai_jd_extract_enabled` ON/OFF for JD AI; utility routing skips models that failed structured probes. |
 | 2026-07-04 | **Fork/join enhance** — capture starts job track ∥ resume track; light skills merge; slim experience fact ledger for resume AI; full brief/baseline only on AI fail. Dev `/dashboard/pipeline` groups by architecture track. |
 | 2026-07-03 | **JD extract speed cap** — BYOK JD routes pinned to per-provider fast utility models (never Opus/O1); 60s timeout on `generateObject`; fixes ~5m JD steps on Anthropic BYOK. |

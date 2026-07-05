@@ -1,6 +1,6 @@
 export type FeatureSurface = "onboarding" | "job_apply" | "resume" | "extension";
 
-export type FeatureName = "enhance" | "subscription";
+export type FeatureName = "enhance" | "subscription" | "resumeRulesV2" | "jdExtract";
 
 // ─── Enhance ─────────────────────────────────────────────────────────────────
 
@@ -52,9 +52,32 @@ export type SubscriptionFeatureResolution = {
   canUpgrade: boolean;
 };
 
+// ─── Resume rules v2 ──────────────────────────────────────────────────────────
+
+export type ResumeRulesV2OffReason =
+  | "feature_disabled"
+  | "env_disabled"
+  | "page_mode_not_implemented";
+
+export type ResumeRulesV2FeatureResolution = {
+  enabled: boolean;
+  pageMode: import("@/lib/resume/v2/page-mode").ResumePageModeV2;
+  profileImplemented: boolean;
+  reason?: ResumeRulesV2OffReason;
+};
+
+// ─── JD extract ───────────────────────────────────────────────────────────────
+
+export type JdExtractFeatureResolution = {
+  /** When true, run AI JD extract (generateObject). When false, deterministic + vocab only. */
+  shouldRunAiExtract: boolean;
+};
+
 // ─── Registry return types ────────────────────────────────────────────────────
 
 export type FeatureResolutionMap = {
   enhance: EnhanceFeatureResolution;
   subscription: SubscriptionFeatureResolution;
+  resumeRulesV2: ResumeRulesV2FeatureResolution;
+  jdExtract: JdExtractFeatureResolution;
 };

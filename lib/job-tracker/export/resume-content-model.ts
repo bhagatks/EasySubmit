@@ -18,6 +18,7 @@ import {
   resolvePageBudget,
 } from "@/src/lib/ai/engine/candidate-context";
 import { normalizePageLengthPreference } from "@/lib/resume/page-length-preference";
+import { isResumeRulesV2Enabled } from "@/lib/resume/v2/runtime";
 
 export { MAX_BULLETS_PER_ROLE };
 
@@ -118,17 +119,24 @@ export function parseBulletLines(raw: string): string[] {
     .filter(Boolean);
 }
 
-/** Cap bullets at MAX_BULLETS_PER_ROLE and report truncation. */
-export function normalizeRoleBullets(rawBullets: string[] | string): {
+/** Cap bullets at MAX_BULLETS_PER_ROLE and report truncation. Pass maxBullets: null to skip silent cap (v2). */
+export function normalizeRoleBullets(
+  rawBullets: string[] | string,
+  options?: { maxBullets?: number | null },
+): {
   bullets: string[];
   truncated: boolean;
   originalCount: number;
 } {
   const parsed = Array.isArray(rawBullets) ? rawBullets.map((b) => line(b)).filter(Boolean) : parseBulletLines(rawBullets);
   const originalCount = parsed.length;
-  const truncated = originalCount > MAX_BULLETS_PER_ROLE;
+  const cap =
+    options?.maxBullets === null
+      ? null
+      : (options?.maxBullets ?? MAX_BULLETS_PER_ROLE);
+  const truncated = cap !== null && originalCount > cap;
   return {
-    bullets: parsed.slice(0, MAX_BULLETS_PER_ROLE),
+    bullets: cap === null ? parsed : parsed.slice(0, cap),
     truncated,
     originalCount,
   };
@@ -174,6 +182,10 @@ export function validateResumeForm(form: HubRefineryForm): ResumeContentValidati
   return violations.length === 0 ? { valid: true } : { valid: false, violations };
 }
 
+function isExplicitResumeRulesV2PageMode(value: unknown): boolean {
+  return value === "1" || value === "2" || value === "3" || value === "4+" || value === "4";
+}
+
 export function buildResumeContentFromForm(
   form: HubRefineryForm,
   targetTitle: string,
@@ -185,10 +197,20 @@ export function buildResumeContentFromForm(
     " | ",
   );
 
+  const skipBulletCap =
+    isExplicitResumeRulesV2PageMode(form.pageLengthPreference) &&
+    isResumeRulesV2Enabled(form.pageLengthPreference, { featureEnabled: true });
+  const bulletNormalizeOptions: { maxBullets: number | null } | undefined = skipBulletCap
+    ? { maxBullets: null }
+    : undefined;
+
   const experience: ResumeContentExperience[] = form.experience
     .filter((entry) => !entry.hidden && (line(entry.title) || line(entry.company)))
     .map((entry) => {
-      const { bullets, truncated, originalCount } = normalizeRoleBullets(entry.bullets);
+      const { bullets, truncated, originalCount } = normalizeRoleBullets(
+        entry.bullets,
+        bulletNormalizeOptions,
+      );
       const titleLine = resolveResumeEntryTitleLine(
         line(entry.title) || "Role",
         formatResumeDateRange(
@@ -256,11 +278,13 @@ export function buildResumeContentFromForm(
     targetTitle,
     normalizePageLengthPreference(form.pageLengthPreference),
   ).pages;
-  const warnings = bulletCountWarnings(
-    form.experience ?? [],
-    pages,
-    (index) => line(form.experience[index]?.title) || `Role ${index + 1}`,
-  );
+  const warnings = skipBulletCap
+    ? []
+    : bulletCountWarnings(
+        form.experience ?? [],
+        pages,
+        (index) => line(form.experience[index]?.title) || `Role ${index + 1}`,
+      );
 
   return {
     name,

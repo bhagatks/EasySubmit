@@ -21,9 +21,14 @@ export default async function JobResumeStudioPage({ params }: JobResumePageProps
   await requireDashboardSession(session.user.id);
 
   const { id } = await params;
-  const [result, enhance] = await Promise.all([
+  const [result, enhance, rulesV2] = await Promise.all([
     getJobResumeStudio(id),
     resolveFeature({ feature: "enhance", userId: session.user.id, surface: "job_apply" }),
+    resolveFeature({
+      feature: "resumeRulesV2",
+      userId: session.user.id,
+      surface: "job_apply",
+    }),
   ]);
 
   if (!result.success) {
@@ -42,6 +47,7 @@ export default async function JobResumeStudioPage({ params }: JobResumePageProps
           initialForm={result.form}
           rawResumeText={result.rawResumeText}
           enhanceWithAiEnabled={enhance.aiAvailable}
+          resumeRulesV2Enabled={rulesV2.enabled}
         />
       </Suspense>
     </div>

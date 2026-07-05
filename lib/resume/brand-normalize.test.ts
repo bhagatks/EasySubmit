@@ -7,4 +7,10 @@ describe("normalizeBrandTokens", () => {
       "GitHub Copilot and GitHub",
     );
   });
+
+  it("fixes iOS and GraphQL spacing from AI output", () => {
+    expect(normalizeBrandTokens("API, i OS, Android and Graph QL APIs")).toBe(
+      "API, iOS, Android and GraphQL APIs",
+    );
+  });
 });

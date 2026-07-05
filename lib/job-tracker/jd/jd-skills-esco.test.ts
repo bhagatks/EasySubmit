@@ -71,6 +71,15 @@ describe("isEscoSearchPhrase", () => {
     expect(isEscoSearchPhrase("machine learning")).toBe(true);
     expect(isEscoSearchPhrase("data architecture")).toBe(true);
   });
+
+  it("rejects immigration and sponsorship HR boilerplate phrases", () => {
+    expect(isEscoSearchPhrase("provide immigration advice")).toBe(false);
+    expect(isEscoSearchPhrase("obtain sponsorship")).toBe(false);
+    expect(isEscoSearchPhrase("write job descriptions")).toBe(false);
+    expect(isEscoSkillRelevant("immigration sponsorship", "provide immigration advice")).toBe(
+      false,
+    );
+  });
 });
 
 describe("isEscoSkillRelevant", () => {

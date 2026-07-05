@@ -11,8 +11,11 @@ import {
 } from "@/src/lib/ai/engine/candidate-context";
 import {
   buildEnhanceSystemPrompt,
+  buildEnhanceSystemPromptV2,
   buildEnhanceUserPrompt,
+  buildEnhanceUserPromptV2,
 } from "@/src/lib/ai/engine/brain";
+import { isResumeRulesV2Enabled } from "@/lib/resume/v2/runtime";
 import { buildAtsOptimizationSpecFromBrief } from "@/lib/job-tracker/ats/build-ats-optimization-spec";
 import type { AtsOptimizationSpec } from "@/lib/job-tracker/ats/build-ats-optimization-spec";
 import {
@@ -75,6 +78,8 @@ export type RunEnhanceInput = {
   hasFullJd?: boolean;
   /** Temporary QA overlay — live AI pass updates. */
   pipelineDebug?: import("@/lib/extension/pipeline-debug-hooks").PipelineDebugHookContext;
+  /** When true, use RULES v2 prompts (JSON output). */
+  rulesV2Enabled?: boolean;
 };
 
 export type RunEnhanceSuccess = {
@@ -939,6 +944,7 @@ async function runPass(
   userId: string | null | undefined,
   pricingMap?: AiPricingMap | null,
   preferredSlot?: number,
+  rulesV2Enabled = false,
 ): Promise<{
   text: string;
   tokensUsed: number;
@@ -964,8 +970,11 @@ async function runPass(
     readinessScore: spec.readiness.total,
   });
 
-  const system = buildEnhanceSystemPrompt(ctx);
-  const prompt = buildEnhanceUserPrompt(ctx, spec);
+  const useRulesV2 =
+    rulesV2Enabled ||
+    isResumeRulesV2Enabled(ctx.resumeBody.pageLengthPreference, { featureEnabled: false });
+  const system = useRulesV2 ? buildEnhanceSystemPromptV2(ctx) : buildEnhanceSystemPrompt(ctx);
+  const prompt = useRulesV2 ? buildEnhanceUserPromptV2(ctx, spec) : buildEnhanceUserPrompt(ctx, spec);
   const result = await callEnhanceModel(
     route,
     system,
@@ -1081,6 +1090,8 @@ export async function runResumeEnhance(
       traceId,
       input.userId,
       pricingMap,
+      undefined,
+      input.rulesV2Enabled ?? false,
     );
     totalTokens += pass.tokensUsed;
     totalCost += pass.estimatedCost;

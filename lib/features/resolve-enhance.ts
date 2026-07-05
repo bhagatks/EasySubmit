@@ -4,7 +4,7 @@ import { resolveAiRoute, type ResolvedAiRoute } from "@/src/lib/ai/engine/router
 import { resolveQuotaRowWithReset } from "@/src/lib/ai/engine/system-quota-gate";
 import { checkAiQuota } from "@/src/lib/ai/engine/quota";
 import { getAppConfig, isSubscribed } from "@/src/lib/services/config-service";
-import { getFeatureFlags } from "@/src/lib/services/feature-flags-service";
+import { getFeatureFlags, isSystemAiEnabled } from "@/src/lib/services/feature-flags-service";
 import { isCustomerQuotaUnlimited } from "@/src/lib/services/ai-engine-config";
 import type { AiSourcePreference } from "@/src/lib/ai/engine/constants";
 import type { SystemQuotaUserRow } from "@/src/lib/ai/engine/system-quota-gate";
@@ -176,7 +176,7 @@ export async function resolveEnhanceFeature(
     aiSourcePreference: preference,
     vaultKeyId: user.vaultKeyId,
     activeProvider: user.activeProvider,
-    userSystemAiEnabled: user.systemAiEnabled,
+    userSystemAiEnabled: (user.systemAiEnabled ?? true) && isSystemAiEnabled(flags),
     forceSystem: opts.forceSystem ?? false,
     allowByokFallback: opts.useCustomerKey ?? true,
     forceCustomerRoute: opts.useCustomerKey === true,

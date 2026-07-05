@@ -60,6 +60,7 @@ describe("getFeatureFlags", () => {
       extensionApplyPipelineStepAnalytics: false,
       systemAiEnabled: false,
       aiJdExtractEnabled: false,
+      resumeRulesV2: true,
     });
   });
 });

@@ -30,6 +30,7 @@ If two of these are true for something you are building, it is a feature and it 
 |---|---|---|
 | `enhance` | `resolve-enhance.ts` | onboarding · job_apply · resume · extension |
 | `subscription` | `resolve-subscription.ts` | onboarding · job_apply · resume · extension |
+| `resumeRulesV2` | `resolve-resume-rules-v2.ts` | onboarding · job_apply · resume · extension |
 
 Add a row here when registering a new feature.
 

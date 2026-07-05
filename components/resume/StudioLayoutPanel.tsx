@@ -21,6 +21,7 @@ type StudioLayoutPanelProps = {
   autoPageLengthRecommendation?: string;
   resolvedPageCount?: 1 | 2;
   renderedPageCount?: number;
+  rulesV2Enabled?: boolean;
   variant?: "onboarding" | "dashboard";
   monoClass?: string;
   className?: string;
@@ -36,6 +37,7 @@ export function StudioLayoutPanel({
   autoPageLengthRecommendation,
   resolvedPageCount,
   renderedPageCount,
+  rulesV2Enabled = false,
   variant = "dashboard",
   monoClass,
   className,
@@ -75,11 +77,12 @@ export function StudioLayoutPanel({
             guidance from your experience.
           </p>
           <PageLengthSelect
-            value={pageLengthPreference ?? "auto"}
+            value={pageLengthPreference ?? "2"}
             onChange={onPageLengthPreferenceChange!}
             autoRecommendation={autoPageLengthRecommendation ?? ""}
             resolvedPages={resolvedPageCount ?? 1}
             renderedPageCount={renderedPageCount}
+            rulesV2Enabled={rulesV2Enabled}
             variant={variant}
             monoClass={monoClass}
             hintClassName={hintClass}

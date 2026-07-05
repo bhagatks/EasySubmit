@@ -21,20 +21,23 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/src/lib/services/feature-flags-service", () => ({
   getFeatureFlags: vi.fn(),
   isSystemAiEnabled: vi.fn(() => true),
+  FEATURE_FLAGS_DEFAULTS: {
+    enhanceWithAiResumeProfile: true,
+    extensionGlobalSwitch: true,
+    extensionAutoApply: true,
+    extensionApplyPipelineStepAnalytics: false,
+    systemAiEnabled: true,
+    aiJdExtractEnabled: false,
+    resumeRulesV2: true,
+  },
 }));
 
 import { getServerSession } from "next-auth";
 import { resolveFeature } from "@/lib/features";
-import { getFeatureFlags, isSystemAiEnabled } from "@/src/lib/services/feature-flags-service";
+import { getFeatureFlags, isSystemAiEnabled, FEATURE_FLAGS_DEFAULTS } from "@/src/lib/services/feature-flags-service";
 import { checkEnhanceWithAiPreflight } from "@/app/actions/ai/enhance-resume";
 
-const defaultFlags = {
-  enhanceWithAiResumeProfile: true,
-  extensionGlobalSwitch: true,
-  extensionAutoApply: true,
-  extensionApplyPipelineStepAnalytics: false,
-  systemAiEnabled: true,
-};
+const defaultFlags = FEATURE_FLAGS_DEFAULTS;
 
 describe("checkEnhanceWithAiPreflight", () => {
   beforeEach(() => {

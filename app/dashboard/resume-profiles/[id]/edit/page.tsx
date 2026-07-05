@@ -23,15 +23,21 @@ export default async function EditResumeProfilePage({
   await requireDashboardSession(session.user.id);
 
   const { id } = await params;
-  const [result, enhance, dependents] = await Promise.all([
-    getResumeProfileStudio(id),
-    resolveFeature({ feature: "enhance", userId: session.user.id, surface: "resume" }),
-    getProfileDependentJobs(id),
-  ]);
-
+  const result = await getResumeProfileStudio(id);
   if (!result.success) {
     notFound();
   }
+
+  const [enhance, rulesV2, dependents] = await Promise.all([
+    resolveFeature({ feature: "enhance", userId: session.user.id, surface: "resume" }),
+    resolveFeature({
+      feature: "resumeRulesV2",
+      userId: session.user.id,
+      surface: "resume",
+      pageLengthPreference: result.form.pageLengthPreference,
+    }),
+    getProfileDependentJobs(id),
+  ]);
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
@@ -42,6 +48,7 @@ export default async function EditResumeProfilePage({
         rawResumeText={result.rawResumeText}
         enhanceWithAiEnabled={enhance.aiAvailable}
         dependentJobs={dependents.success ? dependents.jobs : []}
+        resumeRulesV2Enabled={rulesV2.enabled}
       />
     </div>
   );

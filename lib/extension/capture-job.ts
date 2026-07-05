@@ -68,6 +68,7 @@ export async function captureJob(
     });
 
     // Register tracks synchronously so tailor's awaitPipelineTracks cannot start a duplicate JD run.
+    // Warm-start JD track only — resume prep needs tailor form (see pipeline-track-coordinator).
     startPipelineTracks({
       job: {
         userId,
@@ -76,14 +77,7 @@ export async function captureJob(
         targetRole,
         companyName: input.company,
         traceId,
-        pipelineDebug: debug,
-      },
-      resume: {
-        userId,
-        jobEntryId: saved.id,
-        sourceProfileId: input.sourceProfileId,
-        targetRole,
-        traceId,
+        surface: "extension",
         pipelineDebug: debug,
       },
     });

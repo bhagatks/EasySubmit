@@ -138,4 +138,6 @@ export type EnhanceSessionMeta = {
   skillsGaps?: string[];
   readinessDelta?: { before: number; after: number };
   coherenceWarnings?: string[];
+  resumeRulesVersion?: 2;
+  pageLengthPreference?: string;
 };

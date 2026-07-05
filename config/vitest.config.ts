@@ -3,6 +3,30 @@ import { defineConfig } from "vitest/config";
 
 const rootDir = path.resolve(__dirname, "..");
 
+// Tests import lib/prisma.ts, which constructs a Prisma client at module load and
+// throws when DATABASE_URL is missing. Load .env.local here (config is evaluated
+// before any test worker starts) so `npm test`, `npm run test:coverage`, and the
+// pre-push hook all have the local dev env — matching how `run easy` runs tests.
+// Skips prod DBs / CI via the same guards as the run scripts (env-resolution.mjs).
+loadLocalTestEnv();
+
+function loadLocalTestEnv(): void {
+  if (process.env.EASYSUBMIT_SKIP_LOCAL_ENV === "1" || process.env.VERCEL || process.env.CI) {
+    return;
+  }
+  const envPath = path.join(rootDir, ".env.local");
+  const fs = require("node:fs") as typeof import("node:fs");
+  if (!fs.existsSync(envPath)) return;
+
+  const { parse } = require("dotenv") as typeof import("dotenv");
+  const parsed = parse(fs.readFileSync(envPath, "utf8"));
+  for (const [key, value] of Object.entries(parsed)) {
+    if (process.env[key] === undefined) {
+      process.env[key] = value;
+    }
+  }
+}
+
 export default defineConfig({
   test: {
     environment: "node",

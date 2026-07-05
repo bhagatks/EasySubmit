@@ -40,4 +40,30 @@ describe("model-health candidates", () => {
     expect(resolved.primaryModelId).toBe("claude-3-5-sonnet-20241022");
     expect(resolved.rankedModels).not.toContain("claude-3-5-sonnet-latest");
   });
+
+  it("requires structured probe for healthy status ranking", () => {
+    const health: ProviderModelHealth = {
+      checkedAt: new Date().toISOString(),
+      primaryModelId: "text-only-model",
+      rankedModels: ["structured-model"],
+      discoveredCount: 2,
+      entries: {
+        "text-only-model": {
+          modelId: "text-only-model",
+          status: "failed",
+          lastCheckedAt: new Date().toISOString(),
+          probes: { text: true, structured: false, error: "schema_fail" },
+        },
+        "structured-model": {
+          modelId: "structured-model",
+          status: "healthy",
+          lastCheckedAt: new Date().toISOString(),
+          probes: { text: true, structured: true },
+        },
+      },
+    };
+
+    const resolved = resolveCandidatesFromHealth("anthropic", health);
+    expect(resolved.primaryModelId).toBe("structured-model");
+  });
 });

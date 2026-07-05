@@ -37,6 +37,15 @@ const nextConfig = {
   webpack: (config, { isServer }) => {
     config.resolve.alias.canvas = false;
     config.resolve.alias.encoding = false;
+    // rake-js ships broken .js.map files that its dynamic require() context pulls in;
+    // webpack tries to parse them as modules and fails. Ignore source maps so the
+    // client bundle (v2 readiness scorer via AtsPanel) can include rake-js.
+    config.module.rules.push({
+      test: /\.js\.map$/,
+      include: /node_modules[/\\]rake-js/,
+      type: "asset/resource",
+      generator: { emit: false },
+    });
     if (isServer) {
       config.externals = [
         ...(config.externals ?? []),

@@ -2,9 +2,12 @@
 
 import {
   DEFAULT_PAGE_LENGTH_PREFERENCE,
-  PAGE_LENGTH_OPTIONS,
   type PageLengthPreference,
 } from "@/lib/resume/page-length-preference";
+import {
+  resumeLengthOptionsForRules,
+  type ResumeLengthSelectValue,
+} from "@/lib/resume/resume-length-select-options";
 import { studioSelectClass, studioSelectStyle } from "@/lib/resume/studio-field-styles";
 import { cn } from "@/lib/utils";
 
@@ -14,6 +17,7 @@ type PageLengthSelectProps = {
   autoRecommendation: string;
   resolvedPages: 1 | 2;
   renderedPageCount?: number;
+  rulesV2Enabled?: boolean;
   layout?: "stacked";
   variant?: "onboarding" | "dashboard";
   monoClass?: string;
@@ -28,6 +32,7 @@ export function PageLengthSelect({
   autoRecommendation,
   resolvedPages,
   renderedPageCount,
+  rulesV2Enabled = false,
   variant = "dashboard",
   monoClass,
   className,
@@ -36,6 +41,7 @@ export function PageLengthSelect({
 }: PageLengthSelectProps) {
   const selectId = "resume-page-length-select";
   const normalizedValue = value ?? DEFAULT_PAGE_LENGTH_PREFERENCE;
+  const options = resumeLengthOptionsForRules(rulesV2Enabled);
   const previewNote =
     renderedPageCount === undefined
       ? null
@@ -44,6 +50,16 @@ export function PageLengthSelect({
         : renderedPageCount < resolvedPages
           ? `Preview fills ${renderedPageCount} page${renderedPageCount === 1 ? "" : "s"}.`
           : `Preview fills ${renderedPageCount} page${renderedPageCount === 1 ? "" : "s"}.`;
+
+  const hintText = rulesV2Enabled
+    ? normalizedValue === "4+"
+      ? "Using RULES v2 page mode 4+ — no content limits; ATS parse risk warning shown in Review."
+      : normalizedValue === "2"
+        ? "Using RULES v2 page mode 2 — conservative ATS budget with category skills and tier bullet limits."
+        : `Using RULES v2 page mode ${normalizedValue} — ${options.find((option) => option.id === normalizedValue)?.description ?? "profile active"}.`
+    : normalizedValue === "auto"
+      ? `Auto recommends ${autoRecommendation}.`
+      : `Using ${resolvedPages}-page bullet and role budgets.`;
 
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>
@@ -55,17 +71,19 @@ export function PageLengthSelect({
         style={studioSelectStyle(variant)}
         aria-label="Resume length"
       >
-        {PAGE_LENGTH_OPTIONS.map((option) => (
+        {options.map((option) => (
           <option key={option.id} value={option.id}>
             {option.label}
           </option>
         ))}
       </select>
-      <p className={cn("mt-1.5", hintClassName)}>
-        {normalizedValue === "auto"
-          ? `Auto recommends ${autoRecommendation}.`
-          : `Using ${resolvedPages}-page bullet and role budgets.`}
-      </p>
+      <p className={cn("mt-1.5", hintClassName)}>{hintText}</p>
+      {rulesV2Enabled && "description" in (options[0] ?? {}) ? (
+        <p className={cn("text-[11px] leading-snug", hintClassName)}>
+          {(options.find((option) => option.id === normalizedValue) as { description?: string })
+            ?.description ?? ""}
+        </p>
+      ) : null}
       {previewNote ? (
         <p
           className={cn(
@@ -82,3 +100,5 @@ export function PageLengthSelect({
     </div>
   );
 }
+
+export type { ResumeLengthSelectValue };

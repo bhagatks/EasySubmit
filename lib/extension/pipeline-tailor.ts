@@ -23,17 +23,18 @@ import {
   targetTitleFromProfile,
 } from "@/lib/profile/studio-form-db";
 import { sanitizeString } from "@/lib/profile/sanitize";
+import { getPipelineDebugProgress } from "@/lib/extension/pipeline-debug-progress";
 import {
   createEnhanceTraceId,
   logEnhance,
   summarizeFormDelta,
   summarizeFormForLog,
 } from "@/src/lib/ai/engine/enhance-logger";
+import { TAILOR_PIPELINE, ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
 import {
   hasFullJd,
   resolveEnhanceContextRequirement,
 } from "@/lib/job-tracker/enhance/max-ats-helpers";
-import { TAILOR_PIPELINE, ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
 
 export type PipelineTailorInput = {
   entryId: string;
@@ -68,7 +69,8 @@ export async function runPipelineTailor(
   userId: string,
   input: PipelineTailorInput,
 ): Promise<PipelineTailorResult> {
-  const traceId = createEnhanceTraceId();
+  const existingProgress = await getPipelineDebugProgress(userId, input.entryId);
+  const traceId = existingProgress?.traceId ?? createEnhanceTraceId();
   const debug = pipelineDebugContext(userId, input.entryId);
 
   pipelineDebugAdvance(debug, "profile_load");

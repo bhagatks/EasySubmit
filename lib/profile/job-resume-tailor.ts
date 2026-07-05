@@ -20,6 +20,7 @@ export type JobResumeTailorRecord = {
   overrides: JobResumeOverrides;
   changedSections: StudioEditorSectionId[];
   enhanceTraceId: string | null;
+  enhanceMeta?: Prisma.JsonValue | null;
   coverLetter: string | null;
   resumeLatex: string | null;
   coverLetterLatex: string | null;
@@ -173,6 +174,7 @@ function toRecord(row: {
   overrides: unknown;
   changedSections: string[];
   enhanceTraceId: string | null;
+  enhanceMeta?: unknown;
   coverLetter?: string | null;
   resumeLatex?: string | null;
   coverLetterLatex?: string | null;
@@ -185,6 +187,7 @@ function toRecord(row: {
     overrides: parseJobResumeOverrides(row.overrides),
     changedSections: row.changedSections as StudioEditorSectionId[],
     enhanceTraceId: row.enhanceTraceId,
+    enhanceMeta: row.enhanceMeta ?? null,
     coverLetter: row.coverLetter ?? null,
     resumeLatex: row.resumeLatex ?? null,
     coverLetterLatex: row.coverLetterLatex ?? null,

@@ -75,10 +75,19 @@ function phraseContentTokens(phrase: string): string[] {
     .filter((token) => token.length >= 3 && !KEYWORD_STOP_WORDS.has(token));
 }
 
+const ESCO_JUNK_PATTERN =
+  /\b(immigration|sponsorship|obtain\s+sponsorship|provide\s+immigration|job\s+descriptions?|blocking\s+notes?|visa\s+sponsorship)\b/i;
+
+/** HR / legal boilerplate from JD disclaimers — never query ESCO for these. */
+export function isEscoJunkPhrase(phrase: string): boolean {
+  return ESCO_JUNK_PATTERN.test(phrase.trim());
+}
+
 /** Skip generic English / HR tokens that produce unrelated ESCO occupation skills. */
 export function isEscoSearchPhrase(phrase: string): boolean {
   const trimmed = phrase.trim();
   if (trimmed.length < 3 || trimmed.length > 48) return false;
+  if (isEscoJunkPhrase(trimmed)) return false;
 
   const words = trimmed.split(/\s+/).filter(Boolean);
   if (words.length === 1) {
@@ -98,6 +107,7 @@ export function isEscoSearchPhrase(phrase: string): boolean {
 export function isEscoSkillRelevant(phrase: string, label: string): boolean {
   const labelKey = label.trim().toLowerCase();
   if (!labelKey) return false;
+  if (isEscoJunkPhrase(label) || isEscoJunkPhrase(phrase)) return false;
   if (isKnownSkillToken(labelKey) || MASTER_BY_LOWER.has(labelKey)) return true;
 
   const phraseWords = phrase.trim().split(/\s+/).filter(Boolean);

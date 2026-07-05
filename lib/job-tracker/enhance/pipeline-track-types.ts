@@ -1,3 +1,4 @@
+import type { FeatureSurface } from "@/lib/features/types";
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
 import type { AtsPlatform, PlatformStrategy } from "@/lib/job-tracker/ats/platform-rules";
 import type {
@@ -71,6 +72,7 @@ export type RunJobAnalysisTrackInput = {
   aiRoute?: ResolvedAiRoute | null;
   quotaUser?: SystemQuotaUserRow | null;
   traceId: string;
+  surface?: FeatureSurface;
   pipelineDebug?: PipelineDebugHookContext | null;
 };
 

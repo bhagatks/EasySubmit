@@ -58,6 +58,7 @@ describe("buildResumeDocx", () => {
 
   it("validateResumeForm fails when a role exceeds six bullets", () => {
     const form = sampleForm();
+    form.pageLengthPreference = "auto";
     form.experience[0]!.bullets = Array.from({ length: 7 }, (_, i) => `Bullet ${i + 1}`).join("\n");
     const result = validateResumeForm(form);
     expect(result.valid).toBe(false);

@@ -71,4 +71,8 @@ export type JobTrackerTailoredResumePreview = {
   preview: PrimeResumeData;
   /** Self-contained HTML for iframe preview in Review Screen. */
   previewHtml: string;
+  /** Category-style skills block for v2 readiness scoring. */
+  skillsText?: string;
+  pageLengthPreference?: string;
+  resumeRulesVersion?: 2;
 };

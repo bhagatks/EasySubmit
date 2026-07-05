@@ -43,6 +43,8 @@ import {
   postProcessSummaryOutput,
 } from "@/lib/job-tracker/enhance/summary-grounding";
 import { repairResumeFormForReadiness } from "@/lib/job-tracker/enhance/readiness-repair";
+import { repairResumeFormV2 } from "@/lib/resume/v2/readiness-repair";
+import { resolveFeature } from "@/lib/features";
 import { diffChangedSections } from "@/src/lib/ai/engine/post-process";
 import {
   buildQuotaSnapshot,
@@ -57,6 +59,7 @@ import {
 } from "@/src/lib/ai/engine/system-quota-gate";
 import { getAppConfig } from "@/src/lib/services/config-service";
 import { computeResumeReadiness } from "@/lib/job-tracker/ats/resume-readiness-score";
+import { computeResumeReadinessV2 } from "@/lib/resume/v2/resume-readiness-score";
 import { refineryFormToPrimeResume, type HubRefineryForm } from "@/lib/onboarding/hubResume";
 
 import {
@@ -83,15 +86,55 @@ function applyReadinessRepair(
   form: HubRefineryForm,
   input: ResumeEnhancePipelineInput,
   brief: ResumeEnhanceBrief,
-  options?: { skipSkillsMerge?: boolean },
+  rulesV2Enabled: boolean,
+  options?: { skipDeterministicRewrite?: boolean },
 ): HubRefineryForm {
+  if (rulesV2Enabled) {
+    return repairResumeFormV2({
+      enhanced: form,
+      source: input.form,
+      targetRole: input.targetRole,
+      pageMode: input.form.pageLengthPreference,
+      jobDescription: input.jobDescription,
+      jdIntelligence: brief.jd?.intelligence,
+    }).form;
+  }
+
   return repairResumeFormForReadiness(form, {
     targetRole: input.targetRole,
     jobDescription: input.jobDescription,
     jdIntelligence: brief.jd?.intelligence,
     jdDomain: brief.jd?.intelligence?.domain,
-    skipSkillsMerge: options?.skipSkillsMerge,
+    sourceSummary: input.form.professionalSummary,
+    skipDeterministicRewrite: options?.skipDeterministicRewrite,
   }).form;
+}
+
+function computePipelineReadiness(
+  form: HubRefineryForm,
+  input: ResumeEnhancePipelineInput,
+  brief: ResumeEnhanceBrief,
+  rulesV2Enabled: boolean,
+): number {
+  const trimmedJd = input.jobDescription?.trim() ?? "";
+  const prime = refineryFormToPrimeResume(form, { targetRole: input.targetRole });
+
+  if (rulesV2Enabled) {
+    return computeResumeReadinessV2(prime, input.targetRole, trimmedJd, {
+      jdIntelligence: brief.jd?.intelligence,
+      platform: brief.platform.id,
+      pageMode: form.pageLengthPreference,
+      skillsText: form.skillsText,
+    }).total;
+  }
+
+  return computeResumeReadiness(
+    prime,
+    input.targetRole,
+    trimmedJd,
+    brief.jd?.intelligence,
+    brief.platform.id,
+  ).total;
 }
 
 function needsJd(input: ResumeEnhancePipelineInput): boolean {
@@ -117,6 +160,13 @@ async function runResumeEnhancePipelineInner(
   const { userId, user, traceId } = input;
   const aiEngine = await getAppConfig("aiEngine");
   const debug = pipelineDebugContext(userId, input.jobEntryId);
+  const rulesV2Resolution = await resolveFeature({
+    feature: "resumeRulesV2",
+    userId,
+    surface: input.surface,
+    pageLengthPreference: input.form.pageLengthPreference,
+  });
+  const rulesV2Enabled = rulesV2Resolution.enabled;
 
   logEnhanceDiag({
     traceId,
@@ -237,6 +287,7 @@ async function runResumeEnhancePipelineInner(
           aiRoute: aiUpgrade?.route ?? null,
           quotaUser: user,
           traceId,
+          surface: input.surface,
           pipelineDebug: debug,
         },
         resume: {
@@ -424,7 +475,7 @@ async function runResumeEnhancePipelineInner(
     });
   }
 
-  const readinessBefore = brief.readiness.total;
+  const readinessBefore = computePipelineReadiness(input.form, input, brief, rulesV2Enabled);
   const companyName = await resolveJobCompanyName(input.jobEntryId, input.companyName);
   const fullJd = hasFullJd(input.jobDescription);
   const willAttemptAi = allowAi && Boolean(aiUpgrade?.aiAllowed && aiUpgrade?.route);
@@ -552,6 +603,7 @@ async function runResumeEnhancePipelineInner(
           companyName,
           hasFullJd: fullJd,
           pipelineDebug: debug ?? undefined,
+          rulesV2Enabled,
         },
         pricingMap,
       );
@@ -579,20 +631,6 @@ async function runResumeEnhancePipelineInner(
           ...finalForm,
           experience: normalizeExperienceDateFields(finalForm.experience ?? []),
         };
-        const summaryGrounded = postProcessSummaryOutput(
-          finalForm.professionalSummary ?? "",
-          {
-            identity: brief.summaryIdentity,
-            experienceBlob:
-              brief.experienceSourceBlob ??
-              experienceBlobFromForm(input.form.experience ?? []),
-            employerNames: (input.form.experience ?? [])
-              .map((e) => e.company?.trim())
-              .filter(Boolean) as string[],
-          },
-        );
-        finalForm = { ...finalForm, professionalSummary: summaryGrounded.summary };
-        coherenceWarnings.push(...summaryGrounded.warnings);
 
         logEnhance("server", "pipeline.ai.success", {
           traceId,
@@ -687,19 +725,30 @@ async function runResumeEnhancePipelineInner(
     });
   }
 
-  finalForm = applyReadinessRepair(finalForm, input, brief, {
-    skipSkillsMerge: aiSucceeded,
+  finalForm = applyReadinessRepair(finalForm, input, brief, rulesV2Enabled, {
+    skipDeterministicRewrite: aiSucceeded && brief.lightPath,
   });
+
+  const summaryGrounded =
+    aiSucceeded && brief.lightPath
+      ? {
+          summary: finalForm.professionalSummary ?? "",
+          warnings: [] as string[],
+        }
+      : postProcessSummaryOutput(finalForm.professionalSummary ?? "", {
+    identity: brief.summaryIdentity,
+    experienceBlob:
+      brief.experienceSourceBlob ?? experienceBlobFromForm(input.form.experience ?? []),
+    employerNames: (input.form.experience ?? [])
+      .map((e) => e.company?.trim())
+      .filter(Boolean) as string[],
+  });
+  finalForm = { ...finalForm, professionalSummary: summaryGrounded.summary };
+  coherenceWarnings.push(...summaryGrounded.warnings);
 
   const trimmedJd = input.jobDescription?.trim() ?? "";
   const changedSections = diffChangedSections(input.form, finalForm, false);
-  const readinessAfter = computeResumeReadiness(
-    refineryFormToPrimeResume(finalForm),
-    input.targetRole,
-    trimmedJd,
-    brief.jd?.intelligence,
-    brief.platform.id,
-  ).total;
+  const readinessAfter = computePipelineReadiness(finalForm, input, brief, rulesV2Enabled);
   const readinessDelta = {
     before: readinessBefore,
     after: readinessAfter,
@@ -804,6 +853,8 @@ async function runResumeEnhancePipelineInner(
     skillsGaps: baselineForMeta.coverageAfter?.gaps.map((g) => g.atom.label),
     readinessDelta,
     coherenceWarnings: uniqueCoherenceWarnings.length > 0 ? uniqueCoherenceWarnings : undefined,
+    resumeRulesVersion: rulesV2Enabled ? 2 : undefined,
+    pageLengthPreference: finalForm.pageLengthPreference,
   };
 
   logJourneyStep("server", "pipeline.complete", {

@@ -8,7 +8,7 @@ const DESCRIPTION =
 async function main(): Promise<void> {
   const { vars } = loadEnv(LOCAL_ENV_FILE);
   for (const [key, value] of Object.entries(mergeEnv(process.env, vars))) {
-    if (value !== undefined) process.env[key] = value;
+    if (typeof value === "string") process.env[key] = value;
   }
 
   await prisma.featureFlag.upsert({

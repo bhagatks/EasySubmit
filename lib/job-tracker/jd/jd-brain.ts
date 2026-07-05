@@ -18,7 +18,6 @@ import { logEnhance } from "@/src/lib/ai/engine/enhance-logger";
 import { ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
 import type { JdExtractionOptions } from "@/lib/job-tracker/jd/jd-ai-extractor";
 import { runInflightJdExtract } from "@/lib/job-tracker/jd/jd-extract-inflight";
-import { resolveJdExtractFeature } from "@/lib/features/resolve-jd-extract";
 import {
   pipelineDebugAdvance,
   pipelineDebugStep,
@@ -38,6 +37,8 @@ export type JDAnalysisInput = {
   traceId?: string;
   userId?: string | null;
   jobEntryId?: string;
+  /** Resolved via features framework — when false, skip AI JD extract. */
+  shouldRunAiExtract?: boolean;
 };
 
 export type JDAnalysisResult = {
@@ -200,9 +201,7 @@ export async function analyzeJobDescription(
     });
 
     if (useAi && input.aiRoute) {
-      const { getFeatureFlags } = await import("@/src/lib/services/feature-flags-service");
-      const flags = await getFeatureFlags();
-      const { shouldRunAiExtract } = resolveJdExtractFeature(flags);
+      const shouldRunAiExtract = input.shouldRunAiExtract ?? true;
 
       if (!shouldRunAiExtract) {
         skipAiJdExtractStep(

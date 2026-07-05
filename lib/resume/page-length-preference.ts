@@ -1,6 +1,9 @@
-export type PageLengthPreference = "auto" | "1" | "2";
+import type { ResumePageModeV2 } from "@/lib/resume/v2/page-mode";
 
-export const DEFAULT_PAGE_LENGTH_PREFERENCE: PageLengthPreference = "auto";
+/** v1 length prefs plus v2 page modes (stored on the same form field). Legacy `"4"` maps to `"4+"`. */
+export type PageLengthPreference = "auto" | "1" | "2" | "3" | "4+" | ResumePageModeV2;
+
+export const DEFAULT_PAGE_LENGTH_PREFERENCE: PageLengthPreference = "2";
 
 export const PAGE_LENGTH_OPTIONS: ReadonlyArray<{
   id: PageLengthPreference;
@@ -8,11 +11,12 @@ export const PAGE_LENGTH_OPTIONS: ReadonlyArray<{
 }> = [
   { id: "auto", label: "Auto (recommended)" },
   { id: "1", label: "1 page" },
-  { id: "2", label: "2 pages" },
+  { id: "2", label: "2 pages (default)" },
 ];
 
 export function normalizePageLengthPreference(value: unknown): PageLengthPreference {
-  if (value === "auto" || value === "1" || value === "2") {
+  if (value === "4" || value === "4+") return "4+";
+  if (value === "auto" || value === "1" || value === "2" || value === "3") {
     return value;
   }
   return DEFAULT_PAGE_LENGTH_PREFERENCE;
@@ -35,8 +39,10 @@ export function resolveResumePages(
   preference: PageLengthPreference = DEFAULT_PAGE_LENGTH_PREFERENCE,
 ): 1 | 2 {
   if (preference === "1") return 1;
-  if (preference === "2") return 2;
-  return inferAutoResumePages(years, targetRole);
+  if (preference === "auto") {
+    return inferAutoResumePages(years, targetRole);
+  }
+  return 2;
 }
 
 export function describeAutoPageLengthRecommendation(

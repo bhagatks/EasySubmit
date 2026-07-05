@@ -98,10 +98,15 @@ const pipelineNavItem = {
   icon: Workflow,
 } as const;
 
-function buildWorkspaceNavItems(extensionConnected: boolean | null): readonly typeof workspaceNavItems[number][] {
-  let items: Array<(typeof workspaceNavItems)[number] | typeof pipelineNavItem> = [
-    ...workspaceNavItems,
-  ];
+type WorkspaceNavItem =
+  | (typeof workspaceNavItems)[number]
+  | typeof pipelineNavItem
+  | typeof extensionNavItem;
+
+function buildWorkspaceNavItems(
+  extensionConnected: boolean | null,
+): readonly WorkspaceNavItem[] {
+  let items: WorkspaceNavItem[] = [...workspaceNavItems];
   if (isPipelineDebugEnabled()) {
     items = [...items.slice(0, 3), pipelineNavItem, ...items.slice(3)];
   }

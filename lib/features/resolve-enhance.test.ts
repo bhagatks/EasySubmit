@@ -55,8 +55,8 @@ vi.mock("@/src/lib/ai/engine/quota", () => ({
 }));
 
 import { isAiGloballyEnabled } from "@/lib/ai/ai-global-enabled";
-import { getFeatureFlags } from "@/src/lib/services/feature-flags-service";
 import { resolveAiRoute } from "@/src/lib/ai/engine/router";
+import { getFeatureFlags, isSystemAiEnabled } from "@/src/lib/services/feature-flags-service";
 import { checkAiQuota } from "@/src/lib/ai/engine/quota";
 import { isSubscribed } from "@/src/lib/services/config-service";
 import { isCustomerQuotaUnlimited } from "@/src/lib/services/ai-engine-config";
@@ -130,6 +130,18 @@ describe("resolveEnhanceFeature", () => {
     const result = await resolveEnhanceFeature(user, "job_apply");
     expect(result.aiAvailable).toBe(false);
     expect(result.reason).toBe("user_disabled");
+  });
+
+  it("G4: passes combined user + feature systemAiEnabled to router", async () => {
+    vi.mocked(getFeatureFlags).mockResolvedValue({
+      enhanceWithAiResumeProfile: true,
+      systemAiEnabled: false,
+    } as Awaited<ReturnType<typeof getFeatureFlags>>);
+    vi.mocked(isSystemAiEnabled).mockReturnValue(false);
+    await resolveEnhanceFeature(baseUser, "job_apply");
+    expect(resolveAiRoute).toHaveBeenCalledWith(
+      expect.objectContaining({ userSystemAiEnabled: false }),
+    );
   });
 
   // ── G4+G5: route resolution ───────────────────────────────────────────────────

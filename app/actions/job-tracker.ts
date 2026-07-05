@@ -245,6 +245,15 @@ export async function getJobTrackerEntryById(entryId: string): Promise<JobTracke
         merged.targetTitle,
         merged.tailor.changedSections,
         merged.tailor.updatedAt,
+        {
+          resumeRulesVersion:
+            merged.tailor.enhanceMeta &&
+            typeof merged.tailor.enhanceMeta === "object" &&
+            !Array.isArray(merged.tailor.enhanceMeta) &&
+            (merged.tailor.enhanceMeta as Record<string, unknown>).resumeRulesVersion === 2
+              ? 2
+              : undefined,
+        },
       );
     } else {
       previewError = merged.error;
@@ -432,6 +441,38 @@ export async function archiveJobTrackerEntry(entryId: string): Promise<JobTracke
 
   revalidatePath("/dashboard/job-tracker");
   return { success: true };
+}
+
+export async function archiveJobTrackerEntries(
+  entryIds: string[],
+): Promise<JobTrackerMutationResult & { archivedCount?: number }> {
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return { success: false, error: "Sign in required" };
+  }
+
+  const ids = [...new Set(entryIds.map((id) => id.trim()).filter(Boolean))];
+  if (ids.length === 0) {
+    return { success: false, error: "Select at least one job." };
+  }
+
+  const result = await prisma.jobTrackerEntry.updateMany({
+    where: {
+      id: { in: ids },
+      userId,
+      status: { not: "ARCHIVED" },
+    },
+    data: { status: "ARCHIVED", archivedAt: new Date() },
+  });
+
+  if (result.count === 0) {
+    return { success: false, error: "No active jobs matched your selection." };
+  }
+
+  revalidatePath("/dashboard/job-tracker");
+  return { success: true, archivedCount: result.count };
 }
 
 export async function unarchiveJobTrackerEntry(entryId: string): Promise<JobTrackerMutationResult> {

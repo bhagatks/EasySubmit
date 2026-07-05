@@ -93,6 +93,61 @@ describe("summary-grounding", () => {
     expect(fixed).toMatch(/^Director, AI\/ML and Data Architecture/);
   });
 
+  it("rewrites generic director opening to JD target title when allowed", () => {
+    const identity = resolveSummaryIdentity({
+      profileTargetTitle: "Head of Engineering",
+      form: {
+        experience: [
+          {
+            title: "Head of Engineering",
+            company: "7-Eleven",
+            bullets:
+              "Led AWS microservices, data architecture, machine learning pipelines, and cloud platform modernization.",
+          },
+        ],
+      } as HubRefineryForm,
+      jdTargetRole: "Director, AI/ML and Data Architecture",
+      jdKeywords: ["data architecture", "machine learning", "cloud"],
+      jdDomain: "ml-ai",
+    });
+
+    const fixed = enforceSummaryIdentityOpening(
+      "Director-level engineering executive with 21 years of experience driving data architecture modernization.",
+      identity,
+    );
+
+    expect(identity.mayUseJdTitleInSummary).toBe(true);
+    expect(fixed.startsWith("Director, AI/ML and Data Architecture with 21 years")).toBe(true);
+  });
+
+  it("rewrites generic director opening when summary uses with over N years", () => {
+    const identity = resolveSummaryIdentity({
+      profileTargetTitle: "Head of Engineering",
+      form: {
+        experience: [
+          {
+            title: "Head of Engineering",
+            company: "7-Eleven",
+            bullets:
+              "Led AWS microservices, data architecture, machine learning pipelines, and cloud platform modernization.",
+          },
+        ],
+      } as HubRefineryForm,
+      jdTargetRole: "Director, AI/ML and Data Architecture",
+      jdKeywords: ["data architecture", "machine learning", "cloud"],
+      jdDomain: "ml-ai",
+    });
+
+    const fixed = enforceSummaryIdentityOpening(
+      "Director-level engineering executive with over 21 years of experience driving data architecture modernization.",
+      identity,
+    );
+
+    expect(fixed.startsWith("Director, AI/ML and Data Architecture with over 21 years")).toBe(
+      true,
+    );
+  });
+
   it("fixes Present Present artifacts", () => {
     expect(normalizePresentDateArtifacts("Jan 2024 – Present Present")).toBe(
       "Jan 2024 – Present",

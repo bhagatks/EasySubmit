@@ -1,7 +1,6 @@
 import type { SummaryIdentityResolution } from "@/lib/job-tracker/enhance/resolve-summary-identity";
 import {
-  enforceSummaryWordBudget,
-  repairSummaryOrphans,
+  normalizeSummaryForReadiness,
   stripBannedSummaryWords,
 } from "@/lib/resume/summary-rules";
 
@@ -66,6 +65,9 @@ export function sanitizeUngroundedSummaryClaims(
   return { summary: out, removed };
 }
 
+const SUMMARY_WITH_YEARS_OPENING = /^(.+?)\s+with\s+(?:over\s+)?\d+/i;
+const SUMMARY_WITH_YEARS_TAIL = /^(.+?)(\s+with\s+(?:over\s+)?\d+[\s\S]*)$/i;
+
 export function enforceSummaryIdentityOpening(
   summary: string,
   identity: SummaryIdentityResolution,
@@ -78,7 +80,7 @@ export function enforceSummaryIdentityOpening(
     (experienceCompanies ?? []).map((c) => c.trim().toLowerCase()).filter(Boolean),
   );
 
-  const withYears = trimmed.match(/^(.+?)\s+with\s+\d+/i);
+  const withYears = trimmed.match(SUMMARY_WITH_YEARS_OPENING);
   if (withYears?.[1]) {
     const opening = withYears[1].trim().replace(/\s+/g, " ");
     const openingLower = opening.toLowerCase();
@@ -96,7 +98,23 @@ export function enforceSummaryIdentityOpening(
     }
   }
 
-  if (identity.mayUseJdTitleInSummary) return trimmed;
+  if (identity.mayUseJdTitleInSummary) {
+    const jdLower = identity.jdTargetRole.toLowerCase();
+    if (trimmed.toLowerCase().startsWith(jdLower)) return trimmed;
+
+    const withYearsTail = trimmed.match(SUMMARY_WITH_YEARS_TAIL);
+    if (withYearsTail?.[2]) {
+      const opening = withYearsTail[1].trim().replace(/\s+/g, " ");
+      const openingLower = opening.toLowerCase();
+      const isGenericDirectorOpening =
+        /^director-level\b/i.test(opening) ||
+        /\b(engineering|technology)\s+executive$/i.test(opening);
+      if (openingLower !== jdLower || isGenericDirectorOpening) {
+        return `${identity.jdTargetRole}${withYearsTail[2]}`;
+      }
+    }
+    return trimmed;
+  }
 
   const jdLower = identity.jdTargetRole.toLowerCase();
   const lower = trimmed.toLowerCase();
@@ -133,8 +151,15 @@ export function postProcessSummaryOutput(
 
   out = enforceSummaryIdentityOpening(out, input.identity, input.employerNames);
 
-  out = repairSummaryOrphans(out);
-  out = enforceSummaryWordBudget(out);
+  out = normalizeSummaryForReadiness(out, {
+    sourceSummary: summary,
+    bulletClauses: input.experienceBlob
+      .split("\n")
+      .flatMap((line) => {
+        const clause = line.trim().split(/[,;]/)[0]?.trim() ?? "";
+        return clause.length >= 24 && clause.length <= 160 ? [clause] : [];
+      }),
+  });
 
   if (input.identity.isCrossDomain) {
     warnings.push(

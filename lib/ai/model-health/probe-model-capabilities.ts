@@ -6,6 +6,7 @@ import type { HandshakeProvider } from "@/src/lib/config/career-grade-models";
 import {
   MODEL_HEALTH_PROBE_MAX_OUTPUT_TOKENS,
   MODEL_HEALTH_PROBE_PROMPT,
+  MODEL_HEALTH_STRUCTURED_PROBE_MAX_OUTPUT_TOKENS,
 } from "@/lib/ai/model-health/constants";
 import type { ModelProbeResult } from "@/lib/ai/model-health/types";
 
@@ -45,7 +46,7 @@ export async function probeModelCapabilities(input: {
       model,
       prompt: 'Return JSON: {"ok": true}',
       schema: healthSchema,
-      maxOutputTokens: MODEL_HEALTH_PROBE_MAX_OUTPUT_TOKENS,
+      maxOutputTokens: MODEL_HEALTH_STRUCTURED_PROBE_MAX_OUTPUT_TOKENS,
       maxRetries: 0,
       temperature: 0,
     });
