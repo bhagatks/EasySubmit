@@ -37,7 +37,6 @@ dotenv.config({ path: ".env" });
 dotenv.config({ path: ".env.local", override: true });
 
 const DATA_REFRESH_KEY = "dataRefresh";
-const AI_CONFIG_KEY = "aiConfig";
 const AI_PRICING_MAP_KEY = "ai_pricing_map";
 const ENHANCE_WITH_AI_CONFIG_KEY = "enhanceWithAi";
 
@@ -46,14 +45,6 @@ const DATA_REFRESH_VALUE = {
   interval: 1440,
   description: "Refresh interval in minutes (1440 = 24 hours)",
 };
-
-function buildAiConfigValue() {
-  return {
-    defaultProvider: "gemini",
-    discoveryEnabled: true,
-    lastGlobalSync: new Date().toISOString(),
-  };
-}
 
 const AI_PRICING_MAP_VALUE = {
   default: { inputPer1k: 0.00015, outputPer1k: 0.0006 },
@@ -106,17 +97,6 @@ async function main() {
       },
       update: {
         value: DATA_REFRESH_VALUE,
-      },
-    });
-
-    await prisma.appConfig.upsert({
-      where: { key: AI_CONFIG_KEY },
-      create: {
-        key: AI_CONFIG_KEY,
-        value: buildAiConfigValue(),
-      },
-      update: {
-        value: buildAiConfigValue(),
       },
     });
 
@@ -227,7 +207,7 @@ async function main() {
     }
 
     console.log(
-      `Seeded AppConfig keys: ${DATA_REFRESH_KEY}, ${AI_CONFIG_KEY}, ${AI_PRICING_MAP_KEY}, ${ENHANCE_WITH_AI_CONFIG_KEY}, ${AI_ENGINE_CONFIG_KEY}, ${EXTENSION_SITES_CONFIG_KEY}, ${EXTENSION_FORCE_UPGRADE_CONFIG_KEY}, ${RESUME_PROFILES_CONFIG_KEY}, ${LEGAL_DOCUMENTS_CONFIG_KEY}; feature_flags registry`,
+      `Seeded AppConfig keys: ${DATA_REFRESH_KEY}, ${AI_PRICING_MAP_KEY}, ${ENHANCE_WITH_AI_CONFIG_KEY}, ${AI_ENGINE_CONFIG_KEY}, ${EXTENSION_SITES_CONFIG_KEY}, ${EXTENSION_FORCE_UPGRADE_CONFIG_KEY}, ${RESUME_PROFILES_CONFIG_KEY}, ${LEGAL_DOCUMENTS_CONFIG_KEY}; feature_flags registry`,
     );
   } finally {
     await prisma.$disconnect();

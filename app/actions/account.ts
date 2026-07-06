@@ -37,6 +37,8 @@ export type AccountSettingsSnapshot = {
   /** When false, BYOK uses `customerDailyEnhancementLimit` per day. */
   customerAiDailyUnlimited: boolean;
   customerDailyEnhancementLimit: number;
+  /** Global `feature_flags.system_ai_enabled` — shared pool kill switch. */
+  systemAiFeatureEnabled: boolean;
 };
 
 export type UpdateLoginProfileInput = {
@@ -132,6 +134,7 @@ export async function getAccountSettings(): Promise<AccountSettingsSnapshot | nu
     autoApplyUserSwitch: user.autoApplyUserSwitch,
     autoArchiveAppliedJobs: user.autoArchiveAppliedJobs,
     autoApplyFeatureEnabled: featureFlags.extensionAutoApply,
+    systemAiFeatureEnabled: featureFlags.systemAiEnabled,
     resumeProfilePickerMode: user.resumeProfilePickerMode,
     plan: user.plan,
     systemDailyEnhancementLimit: aiEngine.quotas.system.dailyUserEnhancements,

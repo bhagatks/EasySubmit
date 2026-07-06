@@ -349,7 +349,7 @@ Upserts all keys below (including `forceUpgrade`). Existing rows are not overwri
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `key` | `string` PK | Config namespace (`dataRefresh`, `aiConfig`, …) |
+| `key` | `string` PK | Config namespace (`dataRefresh`, `aiEngine`, …) |
 | `value` | `json` | Structured payload for the key |
 | `info` | `json?` | Human-readable field docs for admins — never parsed by runtime loaders |
 | `createdAt` / `updatedAt` | `datetime` | |
@@ -357,7 +357,6 @@ Upserts all keys below (including `forceUpgrade`). Existing rows are not overwri
 | Key | Default `value` | Description |
 |-----|-----------------|-------------|
 | `dataRefresh` | `{ aiModelsUpdate: 1440, interval: 1440, description: "…" }` | Model catalog refresh interval (minutes) |
-| `aiConfig` | `{ defaultProvider: "openai", discoveryEnabled: true, lastGlobalSync: ISO8601 }` | Global AI discovery defaults |
 | `ai_pricing_map` | `{ default: { inputPer1k, outputPer1k }, models: { [modelId]: rates }, patterns: [{ match, inputPer1k, outputPer1k }] }` | BYOK USD/1K token rates for usage widgets — update without deploy |
 | `enhanceWithAi` | `{ enhanceWithAiTimeoutMs: 90000 }` | Client-side max wait for Enhance with AI server action (ms). Client also bumps timeout to ≥135% of workload estimate. Legacy key `EnhanceWithAITimeout` accepted. Env fallback: `EASYSUBMIT_ENHANCE_WITH_AI_TIMEOUT_MS`. |
 | `aiEngine` | `{ enabled, system: { provider, modelId, jdExtractionModelId, maxKeySlots }, quotas: { system: { dailyTotalSystemCalls, dailyTotalSystemEnhancements, dailyUserCalls, dailyUserEnhancements }, customer: { aiDailyUnlimited, dailyCalls, dailyEnhancements } } }` + optional `info` metadata | Top-level `enabled` gates EasySubmit system AI. Per-user shared AI cap: `quotas.system.dailyUserEnhancements`. BYOK cap when limited: `quotas.customer.dailyEnhancements`. Legacy `customerDailyEnhancementCap` in DB JSON is ignored. |

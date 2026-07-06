@@ -78,6 +78,8 @@ export type IgnitionGateProps = {
   lockProvider?: boolean;
   /** When adding a second provider, allow opting out of switching the active BYOK pointer. */
   setAsActiveOnSave?: boolean;
+  /** Hide these providers from the dropdown (e.g. already vaulted in Settings add flow). */
+  excludeProviders?: readonly HandshakeProvider[];
   /** Called after successful vault + model discovery in manage mode. */
   onKeySaved?: () => void;
   /** Called when `igniteEngineVault` returns success (handshake + vault complete). */
@@ -171,6 +173,7 @@ export function IgnitionGate({
   initialProvider,
   lockProvider = false,
   setAsActiveOnSave = true,
+  excludeProviders,
   isFirstKey = false,
   onKeySaved,
   onVaultSuccess,
@@ -491,6 +494,7 @@ export function IgnitionGate({
                 onChange={handleProviderChange}
                 disabled={isHandshaking || isLaunching || lockProvider}
                 monoClass={monoClass}
+                excludeProviders={excludeProviders}
               />
             </div>
 

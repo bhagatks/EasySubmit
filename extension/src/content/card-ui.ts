@@ -851,7 +851,8 @@ export function manualCaptureStyles(): string {
       color: ${t.primaryMuted};
     }
     .keyword-gap-row {
-      display: none;
+      display: flex;
+      flex-direction: column;
       margin: 8px 0 0;
       padding: 8px 10px;
       border-radius: 10px;
@@ -1329,6 +1330,30 @@ export type SummaryCardInput = {
   escapeHtml: (value: string) => string;
 };
 
+const KEYWORD_GAP_CHIP_LIMIT = 8;
+
+export function renderKeywordGapRow(
+  keywordGap: { topMissing: string[]; coveragePercent: number | null } | null | undefined,
+  escapeHtml: (value: string) => string,
+): string {
+  const missing = keywordGap?.topMissing?.filter((kw) => kw.trim().length > 0) ?? [];
+  if (missing.length === 0) return "";
+
+  const chips = missing
+    .slice(0, KEYWORD_GAP_CHIP_LIMIT)
+    .map((kw) => `<span class="keyword-gap-chip">${escapeHtml(kw.trim())}</span>`)
+    .join("");
+  const coverageSuffix =
+    keywordGap?.coveragePercent != null
+      ? ` · ${Math.round(keywordGap.coveragePercent)}% covered`
+      : "";
+
+  return `<div class="keyword-gap-row">
+    <p class="keyword-gap-label">Missing keywords${coverageSuffix}</p>
+    <div class="keyword-gap-chips">${chips}</div>
+  </div>`;
+}
+
 export function renderSummaryCardBody(input: SummaryCardInput): string {
   const companyRow = input.showMetaRow
     ? `<p class="company-name">${input.company ? input.escapeHtml(input.company) : "Company unknown"}</p>`
@@ -1370,7 +1395,7 @@ export function renderSummaryCardBody(input: SummaryCardInput): string {
     .filter(Boolean)
     .join("");
 
-  const keywordGapMarkup = "";
+  const keywordGapMarkup = renderKeywordGapRow(input.keywordGap, input.escapeHtml);
 
   const heroBlock = `
     <div class="card-hero">

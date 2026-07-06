@@ -79,7 +79,7 @@ Per-request AI cost ledger. **Kept.**
 
 ### `app_config`
 
-Global runtime config (`dataRefresh`, `aiConfig`, `ai_pricing_map`).
+Global runtime config (`dataRefresh`, `aiEngine`, `ai_pricing_map`).
 
 ### `feature_flags`
 

@@ -88,6 +88,19 @@ describe("parseAiEngineConfig", () => {
     expect(config?.system.maxKeySlots).toBe(10);
   });
 
+  it("normalizes legacy deepseek-chat in app_config to deepseek-v4-flash", () => {
+    const config = parseAiEngineConfig({
+      system: {
+        provider: "deepseek",
+        modelId: "deepseek-chat",
+        jdExtractionModelId: "deepseek-chat",
+      },
+    });
+
+    expect(config?.system.modelId).toBe("deepseek-v4-flash");
+    expect(config?.system.jdExtractionModelId).toBe("deepseek-v4-flash");
+  });
+
   it("exports aiEngine info metadata for app_config.info seeding", () => {
     expect(AI_ENGINE_CONFIG_INFO.openRouter.freeRequestsPerDay).toBe(1000);
     expect(AI_ENGINE_CONFIG_INFO.fields["system.slot0"]).toContain("openrouter/free");

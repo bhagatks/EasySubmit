@@ -1,5 +1,7 @@
 # Action Items
 
+Last reconciled: **2026-07-05** (code on `main` @ `79f52313`). Shipped features → [`PROJECT_STATE.md`](./PROJECT_STATE.md). Agent coordination → [`ACTIVE_WORK.md`](./ACTIVE_WORK.md).
+
 ## QA & E2E testing (priority)
 
 **Enhance playbook:** [`docs/enhance-qa-playbook.md`](./enhance-qa-playbook.md) · **Pipeline matrix:** [`docs/north-star.md`](./north-star.md) §14 · **Dev harness:** `/dashboard/testing-resume` (dev only)
@@ -42,12 +44,12 @@ End-to-end **job tracker + tailor** flows — assumes a base resume profile exis
 |------|--------|-------|
 | Dashboard — manual add job (paste JD) → capture → async tailor | **Todo** | `JobTrackerPageContent` — no extension |
 | Extension — detect → capture → pipeline tailor → `RESUME_READY` | **Todo** | `POST /api/extension/jobs/pipeline` |
-| Review Screen — Job \| Resume \| Cover \| Apply tabs | **Todo** | Open from tracker row; toolbar exports + Enhance |
+| Review Screen — Job \| Resume \| Cover \| ATS tabs | **Todo** | Apply tab removed; open from tracker row; toolbar exports + Enhance |
 | Tailor — **AI off** enhance → persist `job_resume_tailors` | **Todo** | Part of Enhance QA A/B/C on a real job entry |
 | Tailor — **AI on** enhance → same job entry | **Todo** | Compare to base + AI off artifacts |
 | Cover letter — template + optional AI enhance | **Todo** | Review Cover tab |
 | Status transitions — `CAPTURED` → tailor → `RESUME_READY` → Apply CTA | **Todo** | Retry optimize on stuck `CAPTURED` — row action exists; verify E2E |
-| Keyword gap overlay on extension card (`READY_TO_APPLY`) | **Todo** | `GET_KEYWORD_GAP` — verify on live apply page |
+| Keyword gap overlay on extension card (`READY_TO_APPLY`) | **Done** | API + fetch + `renderKeywordGapRow` chip strip (`card-ui.ts`); E2E verify on live apply page |
 
 ---
 
@@ -75,6 +77,7 @@ End-to-end **job tracker + tailor** flows — assumes a base resume profile exis
 | **PostHog UI settings** (both projects) | **Closeout** | `npm run analytics:closeout` — PostHog keys only; see [`docs/rules/env-domains.md`](./rules/env-domains.md) |
 | **PostHog dashboards** | **Closeout** | Included in `analytics:closeout` |
 | **`prod:health` from laptop** | **Done** | `npx vercel link` + `npm run prod:health` (uses `vercel env run -e production`) |
+| **Remove legacy `app_config.aiConfig` row (prod DB)** | **Pending** | Code + seed no longer use it — run `scripts/sql/remove-legacy-ai-config.sql` on prod Supabase after deploy |
 
 ## Post-deploy smoke test
 
@@ -212,7 +215,7 @@ Full spec: **[`docs/JD_BRAIN_ARCHITECTURE.md`](./JD_BRAIN_ARCHITECTURE.md)**
 | LinkedIn | ✓ Done | Pending | Pending |
 | Indeed | ✓ Done | Pending | Pending |
 | Greenhouse | ✓ Done | Pending | ✓ partial |
-| Workday | ✓ Done | Partial stub | ✓ partial |
+| Workday | ✓ Done | v2/v3 — engine in `workday-autofill.ts` (not v1 product) | ✓ partial |
 | Generic fallback | ✓ Done | — | — |
 
 ### Phase 1
@@ -246,10 +249,10 @@ Full spec: **[`docs/JD_BRAIN_ARCHITECTURE.md`](./JD_BRAIN_ARCHITECTURE.md)**
 | Network API intercept (Greenhouse/Lever/Ashby/SmartRecruiters) | `src/shared/extension/api-intercept.ts` | ✓ Done |
 | Per-question answer vault | `src/shared/extension/answer-vault.ts` | ✓ Done |
 
-**Still pending:**
-- Wire `injectApiInterceptScript()` + `onApiIntercept()` into content script boot (`extension/src/content/index.ts`)
-- Wire answer vault into Workday autofill field-fill loop
-- ~~Real-time keyword gap overlay in card during form fill~~ — **Done** (`/api/extension/jobs/[id]/keyword-gap`, `GET_KEYWORD_GAP` message, fetched on `READY_TO_APPLY` transition, rendered as red chip strip in summary card)
+**Reconciled 2026-07-05:**
+- ~~Wire `injectApiInterceptScript()` + `onApiIntercept()` into content script boot~~ — **Done** (`extension/src/content/index.ts`)
+- ~~Wire answer vault into Workday autofill field-fill loop~~ — **Done** via `field-resolution.ts` ladder in `workday-autofill.ts`
+- ~~Keyword gap overlay~~ — **Done** — fetch on `READY_TO_APPLY` + `renderKeywordGapRow` chip strip in `card-ui.ts`
 
 ---
 
@@ -275,9 +278,9 @@ Full specs: **[`docs/JOB_TRACKER.md`](./JOB_TRACKER.md)** · Workday E2E (cancel
 | Workday scraper hardening (W1–W10) | Partial — apply URL canonicalize + company fallback |
 | Enhance AI in pipeline (Phase B) | Done — B1–B7 (B6 partial: card busy label + polling) |
 | Workday autofill port (Phase C) | **Cancelled** — one-click apply out of scope |
-| **Part 1 — Manual detection & force capture** | Todo — force show → manual capture; inject script if missing; see `EXTENSION_POPUP_REDESIGN.md` |
-| **Part 2 — Extension popup redesign** | Todo — launcher UI, mini stats, settings; no one-click toggle |
-| Extension popup one-click toggle | **Remove in Part 2** |
+| **Part 1 — Manual detection & force capture** | **Partial** — inject-on-miss (`popup.ts`), `forceShowCard()` manual launch, `GET_TAB_STATUS`, `Add manually` on `no_job` **done**; UX polish 1.3–1.4 per `EXTENSION_POPUP_REDESIGN.md` remains |
+| **Part 2 — Extension popup redesign** | **Done** — `GET_JOB_STATS`, account chip, tab status, force-upgrade panel (`popup.ts`) |
+| Extension popup one-click toggle | **Done** — removed from popup; legacy `autoApplyUserSwitch` still in Settings (**remove pending**, `decisions.md`) |
 | Extension reconnect UX in popup/settings | Done — popup shows "Connect account" / "Reconnect account" with `OPEN_LOGIN` flow; dashboard banner removal was intentional |
 
 ### Dashboard UX — follow-ups (Jun 2026)

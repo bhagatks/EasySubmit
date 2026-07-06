@@ -180,6 +180,8 @@ export function SettingsVaultKeysPanel({
       ? "Enter a new API key for this provider. The prior vault secret will be replaced."
       : "Pick a provider and paste your API key — validate, then ignite.";
 
+  const allProvidersVaulted = usedProviders.size >= HANDSHAKE_PROVIDERS.length;
+
   return (
     <>
       <IgnitionBlastOverlay payload={blastPayload} onComplete={handleBlastComplete} />
@@ -201,6 +203,12 @@ export function SettingsVaultKeysPanel({
               size="sm"
               className="h-8 shrink-0 rounded-xl"
               onClick={openAddEditor}
+              disabled={allProvidersVaulted}
+              title={
+                allProvidersVaulted
+                  ? "All supported providers already have a vaulted key"
+                  : undefined
+              }
             >
               <Plus className="h-3.5 w-3.5" aria-hidden="true" />
               Add key
@@ -318,6 +326,7 @@ export function SettingsVaultKeysPanel({
             initialProvider={editor.mode === "edit" ? editor.provider : addProviderDefault}
             lockProvider={editor.mode === "edit"}
             setAsActiveOnSave={editor.mode === "add" ? keys.length === 0 : false}
+            excludeProviders={editor.mode === "add" ? [...usedProviders] : undefined}
             isFirstKey={editor.mode === "add" && keys.length === 0}
             manageTitle={editorTitle}
             manageDescription={editorDescription}

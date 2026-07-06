@@ -70,10 +70,18 @@ export const AI_ENGINE_CONFIG_INFO = {
   openRouter: {
     fundedFreeThresholdUsd: 10,
     configuredTopUpUsd: 11,
+    /** Lifetime purchase unlocks 1000/day — balance may drop below $10 after that. */
+    maintainBalanceUsd: 0,
     freeRequestsPerDay: 1000,
     freeRequestsPerMinute: 20,
     freeOnlyGuard:
       "Use openrouter/free plus zero max_price and verify response.model ends with :free.",
+  },
+  deepSeek: {
+    systemModelId: "deepseek-v4-flash",
+    /** Prepaid balance debits per call — top up when low; no deposit tier like OpenRouter. */
+    recommendedTopUpUsd: 10,
+    maintainBalanceUsd: 1,
   },
 } as const;
 

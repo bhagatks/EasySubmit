@@ -46,6 +46,7 @@ import { repairResumeFormForReadiness } from "@/lib/job-tracker/enhance/readines
 import { repairResumeFormV2 } from "@/lib/resume/v2/readiness-repair";
 import { resolveFeature } from "@/lib/features";
 import { diffChangedSections } from "@/src/lib/ai/engine/post-process";
+import { runResumeEnhance } from "@/src/lib/ai/engine/run-enhance";
 import {
   buildQuotaSnapshot,
   incrementQuotaPatch,

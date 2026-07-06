@@ -13,16 +13,24 @@ export const SYSTEM_POOL_PROVIDERS: readonly SystemPoolProvider[] = [
   "gemini",
 ];
 
+/** Canonical DeepSeek model for EasySubmit system pool (resume + JD extract). */
+export const SYSTEM_DEEPSEEK_MODEL_ID = "deepseek-v4-flash";
+
+/** Always route system DeepSeek calls to V4 Flash. */
+export function normalizeSystemDeepSeekModelId(_modelId?: string | null): string {
+  return SYSTEM_DEEPSEEK_MODEL_ID;
+}
+
 /** Resume enhance (`generateText`) defaults per system provider. */
 export const SYSTEM_RESUME_MODEL_DEFAULTS: Record<SystemPoolProvider, string> = {
-  deepseek: "deepseek-v4-flash",
+  deepseek: SYSTEM_DEEPSEEK_MODEL_ID,
   openrouter: "openrouter/free",
   gemini: "gemini-2.5-flash",
 };
 
 /** JD structured extract (`generateObject`) defaults per system provider. */
 export const SYSTEM_JD_EXTRACT_MODEL_DEFAULTS: Record<SystemPoolProvider, string> = {
-  deepseek: "deepseek-v4-flash",
+  deepseek: SYSTEM_DEEPSEEK_MODEL_ID,
   openrouter: "openrouter/free",
   gemini: "gemini-2.5-flash-lite",
 };
@@ -47,6 +55,9 @@ export function resolveSystemResumeModel(
   provider: SystemPoolProvider,
   override?: string,
 ): string {
+  if (provider === "deepseek") {
+    return normalizeSystemDeepSeekModelId(override);
+  }
   const trimmed = override?.trim();
   if (trimmed) return trimmed;
   return SYSTEM_RESUME_MODEL_DEFAULTS[provider];
@@ -56,6 +67,9 @@ export function resolveSystemJdExtractModel(
   provider: SystemPoolProvider,
   override?: string,
 ): string {
+  if (provider === "deepseek") {
+    return normalizeSystemDeepSeekModelId(override);
+  }
   const trimmed = override?.trim();
   if (trimmed) return trimmed;
   return SYSTEM_JD_EXTRACT_MODEL_DEFAULTS[provider];
@@ -66,9 +80,12 @@ export function defaultSlotModelForProvider(
   slot?: number,
 ): string {
   if (provider === "openrouter" || slot === 0) {
-    return SYSTEM_JD_EXTRACT_MODEL_DEFAULTS.openrouter;
+    return SYSTEM_RESUME_MODEL_DEFAULTS.openrouter;
   }
-  return SYSTEM_JD_EXTRACT_MODEL_DEFAULTS[provider];
+  if (provider === "deepseek") {
+    return normalizeSystemDeepSeekModelId();
+  }
+  return SYSTEM_RESUME_MODEL_DEFAULTS[provider];
 }
 
 export function defaultSlotProviderForIndex(slot: number): SystemPoolProvider {

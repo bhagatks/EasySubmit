@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, ChevronDown } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { ProviderIcon } from "@/src/components/shared/ProviderIcon";
 import {
@@ -17,6 +17,8 @@ export type ProviderFuelSelectProps = {
   monoClass?: string;
   /** Raise above full-screen overlays (Key Protector uses z-[110]+). */
   menuZIndexClass?: string;
+  /** Omit providers already vaulted (Settings add-key flow). */
+  excludeProviders?: readonly AiProvider[];
 };
 
 export function ProviderFuelSelect({
@@ -25,10 +27,19 @@ export function ProviderFuelSelect({
   disabled = false,
   monoClass,
   menuZIndexClass = "z-[130]",
+  excludeProviders,
 }: ProviderFuelSelectProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const listboxId = useId();
+  const excluded = useMemo(
+    () => new Set(excludeProviders ?? []),
+    [excludeProviders],
+  );
+  const availableProviders = useMemo(
+    () => HANDSHAKE_PROVIDERS.filter((providerId) => !excluded.has(providerId)),
+    [excluded],
+  );
   const selected = getProviderRegistryEntry(value);
 
   useEffect(() => {
@@ -109,7 +120,12 @@ export function ProviderFuelSelect({
             "absolute left-0 right-0 top-[calc(100%+0.5rem)] max-h-80 overflow-y-auto rounded-xl border border-white/10 bg-[oklch(0.12_0.03_268)] p-1 shadow-[0_16px_40px_oklch(0_0_0/0.35)]",
           )}
         >
-          {HANDSHAKE_PROVIDERS.map((providerId) => {
+          {availableProviders.length === 0 ? (
+            <li className="px-2.5 py-2.5 text-[11px] text-[oklch(0.55_0.02_268)]">
+              All providers already have a vaulted key.
+            </li>
+          ) : (
+            availableProviders.map((providerId) => {
             const entry = getProviderRegistryEntry(providerId);
             const isSelected = providerId === value;
 
@@ -146,7 +162,8 @@ export function ProviderFuelSelect({
                 </button>
               </li>
             );
-          })}
+          })
+          )}
         </ul>
       ) : null}
     </div>

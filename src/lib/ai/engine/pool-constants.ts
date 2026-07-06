@@ -3,7 +3,7 @@ export const FREE_SLOT_DAILY_CALL_CAP = 1_000;
 export const MAX_POOL_ATTEMPTS = 2;
 export const OPENROUTER_FREE_SLOT = 0;
 export const DEEPSEEK_OVERFLOW_SLOT = 1;
-export const DEFAULT_SLOT_MODEL_ID = "deepseek-chat";
+export const DEFAULT_SLOT_MODEL_ID = "deepseek-v4-flash";
 export const BILLING_MODE_CACHE_MS = 30_000;
 
 export const SLOT_LABELS = ["Alpha", "Beta"] as const;

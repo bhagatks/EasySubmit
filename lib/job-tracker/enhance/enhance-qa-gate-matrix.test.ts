@@ -60,7 +60,7 @@ vi.mock("@/src/lib/ai/engine/quota", () => ({
 }));
 
 import { isAiGloballyEnabled } from "@/lib/ai/ai-global-enabled";
-import { getFeatureFlags } from "@/src/lib/services/feature-flags-service";
+import { getFeatureFlags, isSystemAiEnabled } from "@/src/lib/services/feature-flags-service";
 import { getAppConfig } from "@/src/lib/services/config-service";
 import { resolveAiRoute } from "@/src/lib/ai/engine/router";
 
@@ -81,6 +81,7 @@ describe("enhance QA gate matrix", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(isAiGloballyEnabled).mockReturnValue(true);
+    vi.mocked(isSystemAiEnabled).mockReturnValue(true);
     vi.mocked(getFeatureFlags).mockResolvedValue({
       enhanceWithAiResumeProfile: true,
       systemAiEnabled: true,
@@ -170,6 +171,46 @@ describe("enhance QA gate matrix", () => {
       "job_apply",
     );
     expect(r.aiAvailable).toBe(false);
+  });
+
+  it("S11 G4 feature flag system_ai_enabled off, no BYOK → baseline only", async () => {
+    vi.mocked(getFeatureFlags).mockResolvedValue({
+      enhanceWithAiResumeProfile: true,
+      systemAiEnabled: false,
+    } as Awaited<ReturnType<typeof getFeatureFlags>>);
+    vi.mocked(isSystemAiEnabled).mockReturnValue(false);
+    vi.mocked(resolveAiRoute).mockResolvedValue({ error: "no_system_key" });
+    const r = await resolveEnhanceFeature(baseUser, "job_apply");
+    expect(r.aiAvailable).toBe(false);
+    expect(r.baselineAvailable).toBe(true);
+    expect(r.reason).toBe("no_key");
+    expect(resolveAiRoute).toHaveBeenCalledWith(
+      expect.objectContaining({ userSystemAiEnabled: false }),
+    );
+  });
+
+  it("S11b G4 feature flag off, BYOK user → customer AI available", async () => {
+    vi.mocked(getFeatureFlags).mockResolvedValue({
+      enhanceWithAiResumeProfile: true,
+      systemAiEnabled: false,
+    } as Awaited<ReturnType<typeof getFeatureFlags>>);
+    vi.mocked(isSystemAiEnabled).mockReturnValue(false);
+    vi.mocked(resolveAiRoute).mockResolvedValue({
+      mode: "customer",
+      modelId: "gpt-4o",
+      modelCandidates: ["gpt-4o"],
+      provider: "openai",
+      vaultKeyId: "vault-1",
+    });
+    const r = await resolveEnhanceFeature(
+      { ...baseUser, vaultKeyId: "vault-1", activeProvider: "openai" },
+      "job_apply",
+    );
+    expect(r.aiAvailable).toBe(true);
+    expect(r.mode).toBe("customer");
+    expect(resolveAiRoute).toHaveBeenCalledWith(
+      expect.objectContaining({ userSystemAiEnabled: false }),
+    );
   });
 
   it("S07 default free user → system AI available", async () => {

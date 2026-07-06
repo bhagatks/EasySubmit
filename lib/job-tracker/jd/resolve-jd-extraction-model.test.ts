@@ -23,6 +23,12 @@ describe("isJdExtractionSuitableModel", () => {
     expect(isJdExtractionSuitableModel("gemini", GEMINI_JD_EXTRACT_MODEL)).toBe(true);
     expect(isJdExtractionSuitableModel("gemini", "gemini-2.5-flash")).toBe(true);
   });
+
+  it("accepts DeepSeek v4 flash for JD extract", () => {
+    expect(isJdExtractionSuitableModel("deepseek", "deepseek-v4-flash")).toBe(true);
+    expect(isJdExtractionSuitableModel("deepseek", "deepseek-chat")).toBe(true);
+    expect(isJdExtractionSuitableModel("deepseek", "deepseek-reasoner")).toBe(false);
+  });
 });
 
 describe("rankJdExtractionCandidates", () => {

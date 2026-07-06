@@ -19,6 +19,7 @@ import {
   defaultBillingModeForSlot,
   defaultSlotModelForProvider,
   defaultSlotProviderForIndex,
+  normalizeSystemDeepSeekModelId,
   parseSystemPoolProvider,
   systemPoolEnvKeyVar,
   systemPoolEnvKeysVar,
@@ -109,6 +110,9 @@ function slotBillingModeForIndex(
 }
 
 function slotModelForRow(slot: number, provider: SystemPoolProvider, modelId?: string | null): string {
+  if (provider === "deepseek" && slot === DEEPSEEK_OVERFLOW_SLOT) {
+    return normalizeSystemDeepSeekModelId(modelId);
+  }
   const trimmed = modelId?.trim();
   if (trimmed) return trimmed;
   return defaultSlotModelForProvider(provider, slot);

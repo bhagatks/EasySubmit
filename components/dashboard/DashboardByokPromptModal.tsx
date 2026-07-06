@@ -75,7 +75,6 @@ export function DashboardByokPromptModal({
           apiKeyInputId="dashboard-setup-byok-key"
           initialProvider={HANDSHAKE_PROVIDERS[0]}
           setAsActiveOnSave
-          isFirstKey
           manageTitle="Add provider key"
           manageDescription="Pick a provider and paste your API key — validate, then ignite."
           manageSubmitLabel="Save Key"

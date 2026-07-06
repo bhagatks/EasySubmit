@@ -30,6 +30,7 @@ import {
   useLegalDocumentOverlay,
 } from "@/components/legal/legal-document-overlay";
 import { AiSettingsPanel } from "@/components/dashboard/AiSettingsPanel";
+import { buildAiSettingsStatusText, isAiTailoringAvailable } from "@/lib/dashboard/ai-settings-copy";
 import { SettingToggleRow } from "@/components/dashboard/SettingToggleRow";
 import { AvatarUploadField } from "@/components/profile/avatar-upload-field";
 import {
@@ -190,8 +191,6 @@ export function AccountSettings({ initial, initialVaultKeys }: AccountSettingsPr
   const [connecting, setConnecting] = useState<AuthProviderId | null>(null);
   const [aiEnabled, setAiEnabled] = useState(initial.aiSourcePreference !== "disabled");
   const [aiPrefBusy, setAiPrefBusy] = useState(false);
-  const [systemAiEnabled, setSystemAiEnabled] = useState(initial.systemAiEnabled ?? true);
-  const [systemAiBusy, setSystemAiBusy] = useState(false);
   const [autoApplyUserSwitch, setAutoApplyUserSwitch] = useState(initial.autoApplyUserSwitch);
   const [autoApplyUserSwitchBusy, setAutoApplyUserSwitchBusy] = useState(false);
   const [autoArchiveAppliedJobs, setAutoArchiveAppliedJobs] = useState(
@@ -275,12 +274,25 @@ export function AccountSettings({ initial, initialVaultKeys }: AccountSettingsPr
     router.replace("/dashboard/settings", { scroll: false });
   }, [expanded, openAddKeyOnMount, router, searchParams, toggleSection]);
 
-  const engineHot = Boolean(initial.vaultKeyId);
-  const aiSummaryKeys = aiEnabled
-    ? engineHot
-      ? "Your key active — unlimited AI tailoring"
-      : "EasySubmit AI — add a key for unlimited tailoring"
-    : "AI off · rules engine only";
+  useEffect(() => {
+    setAiEnabled(initial.aiSourcePreference !== "disabled");
+  }, [initial.aiSourcePreference]);
+
+  const hasByokKey = initialVaultKeys.length > 0;
+  const aiTailoringAvailable = isAiTailoringAvailable({
+    systemAiFeatureEnabled: initial.systemAiFeatureEnabled,
+    hasByokKey,
+  });
+  const effectiveAiEnabled = aiEnabled && aiTailoringAvailable;
+  const aiSummaryKeys = buildAiSettingsStatusText({
+    aiEnabled: effectiveAiEnabled,
+    hasByokKey,
+    systemAiFeatureEnabled: initial.systemAiFeatureEnabled,
+    customerAiDailyUnlimited: initial.customerAiDailyUnlimited,
+    customerDailyEnhancementLimit: initial.customerDailyEnhancementLimit,
+    systemDailyLimit: initial.systemDailyEnhancementLimit,
+    isSubscribed: initial.plan !== "free",
+  });
   const generalSummary = `${autoApplyUserSwitch ? "One-click on" : "One-click off"} · ${profilePickerMode === "DEFAULT" ? "Default resume" : "Last used resume"}`;
 
   const connectedSet = new Set(initial.connectedProviders);
@@ -293,8 +305,8 @@ export function AccountSettings({ initial, initialVaultKeys }: AccountSettingsPr
   }, [expanded, toggleSection]);
 
   const byokHeaderButton = useMemo(
-    () => (engineHot ? null : <BYOKKeyHeaderAction onClick={handleOpenAddKey} />),
-    [engineHot, handleOpenAddKey],
+    () => (hasByokKey ? null : <BYOKKeyHeaderAction onClick={handleOpenAddKey} />),
+    [hasByokKey, handleOpenAddKey],
   );
 
   useRegisterDashboardHeaderActions(byokHeaderButton);
@@ -361,17 +373,37 @@ export function AccountSettings({ initial, initialVaultKeys }: AccountSettingsPr
   }
 
   async function handleAiToggle(enabled: boolean) {
+    if (enabled && !aiTailoringAvailable) return;
     setAiPrefBusy(true);
     setError(null);
     const previous = aiEnabled;
     setAiEnabled(enabled);
-    const result = await updateAiSourcePreference(enabled ? "auto" : "disabled");
+    const preference = enabled ? "auto" : "disabled";
+    const result = await updateAiSourcePreference(preference);
+    if (enabled) {
+      await updateSystemAiSetting(true);
+    }
     setAiPrefBusy(false);
     if (!result.success) {
       setAiEnabled(previous);
       setError(result.error);
+      return;
     }
+    router.refresh();
   }
+
+  useEffect(() => {
+    if (aiTailoringAvailable || !aiEnabled) return;
+    void (async () => {
+      setAiPrefBusy(true);
+      const result = await updateAiSourcePreference("disabled");
+      setAiPrefBusy(false);
+      if (result.success) {
+        setAiEnabled(false);
+        router.refresh();
+      }
+    })();
+  }, [aiTailoringAvailable, aiEnabled, router]);
 
   async function handleAutoApplyUserSwitchChange(enabled: boolean) {
     setAutoApplyUserSwitchBusy(true);
@@ -407,18 +439,6 @@ export function AccountSettings({ initial, initialVaultKeys }: AccountSettingsPr
       return;
     }
     setProfilePickerMode(result.resumeProfilePickerMode);
-  }
-
-  async function handleSystemAiToggle(enabled: boolean) {
-    setSystemAiBusy(true);
-    setError(null);
-    const result = await updateSystemAiSetting(enabled);
-    setSystemAiBusy(false);
-    if (!result.success) {
-      setError(result.error);
-      return;
-    }
-    setSystemAiEnabled(result.systemAiEnabled);
   }
 
   return (
@@ -535,33 +555,16 @@ export function AccountSettings({ initial, initialVaultKeys }: AccountSettingsPr
             hasError={settingsSectionHasActionItems("ai-keys", actionItems)}
           >
             <div className="space-y-4">
-              <SettingToggleRow
-                label="AI enhancements"
-                description={
-                  aiEnabled
-                    ? engineHot
-                      ? initial.customerAiDailyUnlimited
-                        ? "Your key active — unlimited AI tailoring"
-                        : `Your key active — daily limit: ${initial.customerDailyEnhancementLimit} enhancements`
-                      : initial.customerAiDailyUnlimited
-                        ? "EasySubmit AI — add a provider key below for unlimited use"
-                        : `EasySubmit AI — your key allows ${initial.customerDailyEnhancementLimit} enhancements/day`
-                    : "Off — resume tailoring uses the rules engine only"
-                }
-                checked={aiEnabled}
-                disabled={aiPrefBusy || !isClientAiGloballyEnabled()}
-                onChange={(enabled) => void handleAiToggle(enabled)}
-                icon={<Sparkles className="h-3.5 w-3.5 text-primary" aria-hidden="true" />}
-              />
-
               <AiSettingsPanel
-                systemAiEnabled={systemAiEnabled}
+                aiEnabled={effectiveAiEnabled}
+                systemAiFeatureEnabled={initial.systemAiFeatureEnabled}
                 isSubscribed={initial.plan !== "free"}
                 systemDailyLimit={initial.systemDailyEnhancementLimit}
                 customerAiDailyUnlimited={initial.customerAiDailyUnlimited}
                 customerDailyEnhancementLimit={initial.customerDailyEnhancementLimit}
-                onToggleSystemAi={handleSystemAiToggle}
-                isLoading={systemAiBusy}
+                hasByokKey={hasByokKey}
+                onToggleAiEnabled={handleAiToggle}
+                isLoading={aiPrefBusy || !isClientAiGloballyEnabled()}
               />
 
               <SettingsVaultKeysPanel
@@ -570,7 +573,7 @@ export function AccountSettings({ initial, initialVaultKeys }: AccountSettingsPr
                 openAddRequestId={openAddKeyRequestId}
               />
 
-              {aiEnabled ? (
+              {effectiveAiEnabled ? (
                 <p className="text-[11px] leading-snug text-muted-foreground">
                   AI uses work history only — contact info stays local.{" "}
                   <LegalDocumentLink documentId="terms" onOpen={openDocument}>

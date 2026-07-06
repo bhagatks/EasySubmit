@@ -110,16 +110,9 @@ export {
   DASHBOARD_TUTORIAL_VIDEOS_DEFAULTS,
 } from "@/src/lib/services/dashboard-tutorial-videos-config";
 
-export interface AiConfigRecord {
-  defaultProvider: string;
-  discoveryEnabled: boolean;
-  lastGlobalSync: string;
-}
-
 /** Runtime snapshot of seeded `app_config` namespaces used by the engine. */
 export interface AppConfigSnapshot {
   dataRefresh: DataRefreshConfig;
-  aiConfig: AiConfigRecord | null;
   aiPricingMap: AiPricingMap;
   enhanceWithAi: EnhanceWithAiConfig;
   enhanceDiagnostics: EnhanceDiagnosticsConfig;
@@ -132,7 +125,6 @@ export interface AppConfigSnapshot {
 }
 
 const DATA_REFRESH_KEY = "dataRefresh";
-const AI_CONFIG_KEY = "aiConfig";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -170,37 +162,12 @@ function parseDataRefreshConfig(value: unknown): DataRefreshConfig | null {
   return config;
 }
 
-function parseAiConfigRecord(value: unknown): AiConfigRecord | null {
-  if (!isRecord(value)) {
-    return null;
-  }
-
-  if (typeof value.defaultProvider !== "string" || !value.defaultProvider.trim()) {
-    return null;
-  }
-
-  if (typeof value.discoveryEnabled !== "boolean") {
-    return null;
-  }
-
-  if (typeof value.lastGlobalSync !== "string" || !value.lastGlobalSync.trim()) {
-    return null;
-  }
-
-  return {
-    defaultProvider: value.defaultProvider.trim(),
-    discoveryEnabled: value.discoveryEnabled,
-    lastGlobalSync: value.lastGlobalSync.trim(),
-  };
-}
-
 /**
  * Loads global `app_config` rows for the engine.
  * Falls back to `{ interval: 1440 }` when `dataRefresh` is missing or invalid.
  */
 export async function getAppConfig(): Promise<AppConfigSnapshot>;
 export async function getAppConfig(key: "dataRefresh"): Promise<DataRefreshConfig>;
-export async function getAppConfig(key: "aiConfig"): Promise<AiConfigRecord | null>;
 export async function getAppConfig(key: "ai_pricing_map"): Promise<AiPricingMap>;
 export async function getAppConfig(key: "enhanceWithAi"): Promise<EnhanceWithAiConfig>;
 export async function getAppConfig(key: "enhanceDiagnostics"): Promise<EnhanceDiagnosticsConfig>;
@@ -217,7 +184,6 @@ export async function getAppConfig(
 export async function getAppConfig(
   key?:
     | "dataRefresh"
-    | "aiConfig"
     | "ai_pricing_map"
     | "enhanceWithAi"
     | "enhanceDiagnostics"
@@ -230,8 +196,6 @@ export async function getAppConfig(
 ): Promise<
   | AppConfigSnapshot
   | DataRefreshConfig
-  | AiConfigRecord
-  | null
   | AiPricingMap
   | EnhanceWithAiConfig
   | EnhanceDiagnosticsConfig
@@ -246,10 +210,6 @@ export async function getAppConfig(
 
   if (key === "dataRefresh") {
     return snapshot.dataRefresh;
-  }
-
-  if (key === "aiConfig") {
-    return snapshot.aiConfig;
   }
 
   if (key === "ai_pricing_map") {
@@ -297,7 +257,6 @@ async function loadAppConfigSnapshot(): Promise<AppConfigSnapshot> {
       key: {
         in: [
           DATA_REFRESH_KEY,
-          AI_CONFIG_KEY,
           AI_PRICING_MAP_KEY,
           ENHANCE_WITH_AI_CONFIG_KEY,
           ENHANCE_DIAGNOSTICS_CONFIG_KEY,
@@ -321,7 +280,6 @@ async function loadAppConfigSnapshot(): Promise<AppConfigSnapshot> {
   const dataRefresh =
     parseDataRefreshConfig(byKey.get(DATA_REFRESH_KEY)) ?? DATA_REFRESH_SAFETY_DEFAULT;
 
-  const aiConfig = parseAiConfigRecord(byKey.get(AI_CONFIG_KEY));
   const aiPricingMap =
     parseAiPricingMap(byKey.get(AI_PRICING_MAP_KEY)) ?? AI_PRICING_MAP_DEFAULT;
 
@@ -356,7 +314,6 @@ async function loadAppConfigSnapshot(): Promise<AppConfigSnapshot> {
 
   return {
     dataRefresh,
-    aiConfig,
     aiPricingMap,
     enhanceWithAi,
     enhanceDiagnostics,

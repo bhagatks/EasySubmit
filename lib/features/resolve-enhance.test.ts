@@ -147,9 +147,25 @@ describe("resolveEnhanceFeature", () => {
 
   it("G3: forceAiEnabled bypasses user disabled preference (dev harness)", async () => {
     const user = { ...baseUser, aiSourcePreference: "disabled" };
-    const result = await resolveEnhanceFeature(user, "job_apply", { forceAiEnabled: true });
+    const result = await resolveEnhanceFeature(user, "job_apply", {
+      forceAiEnabled: true,
+      forceSystem: true,
+    });
     expect(result.aiAvailable).toBe(true);
     expect(result.mode).toBe("system");
+    expect(resolveAiRoute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        aiSourcePreference: "system",
+        forceSystem: true,
+      }),
+    );
+  });
+
+  it("G3: maps unexpected router ai_disabled errors back to user_disabled", async () => {
+    vi.mocked(resolveAiRoute).mockResolvedValue({ error: "ai_disabled" });
+    const result = await resolveEnhanceFeature(baseUser, "job_apply");
+    expect(result.aiAvailable).toBe(false);
+    expect(result.reason).toBe("user_disabled");
   });
 
   it("G4: passes combined user + feature systemAiEnabled to router", async () => {

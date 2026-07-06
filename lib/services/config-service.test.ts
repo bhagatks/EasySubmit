@@ -30,7 +30,6 @@ describe("getAppConfig", () => {
 
     expect(config.dataRefresh).toEqual<DataRefreshConfig>({ interval: 1440 });
     expect(config.dataRefresh.interval).toBe(1440);
-    expect(config.aiConfig).toBeNull();
     expect(config.aiPricingMap.default.inputPer1k).toBeGreaterThan(0);
   });
 
@@ -70,31 +69,6 @@ describe("getAppConfig", () => {
     const config = await getAppConfig("dataRefresh");
 
     expect(config).toEqual(DATA_REFRESH_SAFETY_DEFAULT);
-  });
-
-  it("includes aiConfig when present", async () => {
-    vi.mocked(prisma.appConfig.findMany).mockResolvedValue([
-      { key: "dataRefresh", value: { interval: 1440 }, createdAt: d, updatedAt: d },
-      {
-        key: "aiConfig",
-        value: {
-          defaultProvider: "openai",
-          discoveryEnabled: true,
-          lastGlobalSync: "2026-06-19T12:00:00.000Z",
-        },
-        createdAt: d,
-        updatedAt: d,
-      },
-    ]);
-
-    const config = await getAppConfig();
-
-    expect(config.dataRefresh.interval).toBe(1440);
-    expect(config.aiConfig).toEqual({
-      defaultProvider: "openai",
-      discoveryEnabled: true,
-      lastGlobalSync: "2026-06-19T12:00:00.000Z",
-    });
   });
 
   it("loads ai_pricing_map when keyed accessor is used", async () => {

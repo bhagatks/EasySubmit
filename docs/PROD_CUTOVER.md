@@ -23,6 +23,7 @@ Prod Supabase project: **`yofgnflcqajqsepbfdkc`** (see `.env.vercel.example`).
 | Pending migrations after local work | Check | Confirm committed before deploy — latest: `20260702120000_enable_rls_public_tables` |
 | Job Tracker Realtime (optional) | QA done locally | Run `scripts/sql/job-tracker-realtime-setup.sql` on prod Supabase if Realtime needed |
 | System Gemini keys in vault | Optional | `npm run db:import-system-keys` against prod when using system AI |
+| **Remove legacy `app_config.aiConfig` row** | **Pending** | Run `scripts/sql/remove-legacy-ai-config.sql` on prod Supabase SQL editor — unused since `aiEngine` + `dataRefresh` replaced it (2026-07-06) |
 
 > Full P3009 recovery guide: [`MIGRATION_RECOVERY.md`](./MIGRATION_RECOVERY.md)  
 > **Do not** use `migrate reset` on prod — drops data.

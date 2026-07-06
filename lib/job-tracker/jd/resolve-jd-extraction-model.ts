@@ -22,7 +22,7 @@ export const JD_EXTRACTION_CUSTOMER_DEFAULTS: Partial<Record<HandshakeProvider, 
   anthropic: "claude-3-5-haiku-20241022",
   openai: "gpt-4o-mini",
   groq: "llama-3.1-8b-instant",
-  deepseek: "deepseek-chat",
+  deepseek: "deepseek-v4-flash",
   openrouter: "openai/gpt-4o-mini",
   zai: "glm-4-flash",
   deepinfra: "meta-llama/Llama-3.3-70B-Instruct",
@@ -36,7 +36,7 @@ const JD_SLOW_MODEL_PATTERN =
   /opus|o1(-|$)|o3(-|$)|reasoner|thinking|preview.*pro|claude-3-opus/i;
 
 const JD_FAST_MODEL_PATTERN =
-  /haiku|flash-lite|mini|8b-instant|instant|deepseek-chat(?!.*reasoner)/i;
+  /haiku|flash-lite|mini|8b-instant|instant|deepseek-v4-flash|deepseek-chat(?!.*reasoner)/i;
 
 export function isJdExtractionSuitableModel(
   provider: AiProvider,
@@ -56,7 +56,7 @@ export function isJdExtractionSuitableModel(
     return normalized.includes("mini") || normalized === "gpt-4o";
   }
   if (provider === "deepseek") {
-    return normalized === "deepseek-chat";
+    return normalized === "deepseek-v4-flash" || normalized === "deepseek-chat";
   }
   if (provider === "groq") {
     return normalized.includes("llama") || normalized.includes("mixtral");

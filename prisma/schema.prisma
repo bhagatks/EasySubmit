@@ -302,7 +302,7 @@ model ApiCallLog {
   @@map("api_call_logs")
 }
 
-/// Global runtime configuration keyed by logical namespace (e.g. dataRefresh, aiConfig).
+/// Global runtime configuration keyed by logical namespace (e.g. dataRefresh, aiEngine).
 model AppConfig {
   key       String   @id
   value     Json

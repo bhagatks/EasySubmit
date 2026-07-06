@@ -193,6 +193,12 @@ export async function resolveEnhanceFeature(
   if (traceId) {
     logEnhanceGate({ traceId, gate: "G3", passed: true, flags: gateFlags, level: "light" });
   }
+  const routePreference: AiSourcePreference =
+    preference === "disabled" && opts.forceAiEnabled
+      ? opts.forceSystem
+        ? "system"
+        : "auto"
+      : preference;
 
   if (traceId) {
     logEnhanceGate({
@@ -206,7 +212,7 @@ export async function resolveEnhanceFeature(
 
   const route = await resolveAiRoute({
     userId: user.id,
-    aiSourcePreference: preference,
+    aiSourcePreference: routePreference,
     vaultKeyId: user.vaultKeyId,
     activeProvider: user.activeProvider,
     userSystemAiEnabled: (user.systemAiEnabled ?? true) && isSystemAiEnabled(flags),
@@ -220,6 +226,8 @@ export async function resolveEnhanceFeature(
     const reason =
       route.error === "no_customer_key" || route.error === "no_system_key"
         ? "no_key"
+        : route.error === "ai_disabled"
+          ? "user_disabled"
         : "pool_down";
     if (traceId) {
       logEnhanceGate({
