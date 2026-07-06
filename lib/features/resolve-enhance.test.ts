@@ -36,6 +36,14 @@ vi.mock("@/src/lib/services/ai-engine-config", () => ({
   AI_ENGINE_DEFAULTS: {},
 }));
 
+vi.mock("@/lib/vault/reconcile-user-vault-key", () => ({
+  reconcileUserVaultKeyState: vi.fn(async () => ({
+    vaultKeyId: null,
+    activeProvider: null,
+    changed: false,
+  })),
+}));
+
 vi.mock("@/src/lib/ai/engine/router", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/src/lib/ai/engine/router")>();
   return {

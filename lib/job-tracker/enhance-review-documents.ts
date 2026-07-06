@@ -5,6 +5,7 @@ import { computeResumeReadiness } from "@/lib/job-tracker/ats/resume-readiness-s
 import { generateResumeLatex } from "@/lib/job-tracker/latex/review-latex";
 import { buildCoverLetterDocumentPatch } from "@/lib/job-tracker/persist-cover-letter";
 import { persistEnhancedResume } from "@/lib/job-tracker/persist-enhanced-resume";
+import { mergeJobEntryMetadata } from "@/lib/extension/pipeline-metadata";
 import { refineryFormToPrimeResume } from "@/lib/onboarding/hubResume";
 import {
   getMergedResumeForJob,
@@ -32,6 +33,8 @@ export type EnhanceResumeActionResult =
       readinessDelta?: { before: number; after: number };
       enhanceSummary?: string;
       warning?: string;
+      action?: import("@/lib/ai/call-kernel/types").AiEnhanceOutcomeAction;
+      actionHref?: string | null;
       aiAttempted?: boolean;
       aiSucceeded?: boolean;
       aiBlockCode?: string;
@@ -171,6 +174,15 @@ export async function enhanceJobResumeForUser(
     return { success: false, error: persist.error, code: "persist_failed" };
   }
 
+  await mergeJobEntryMetadata(userId, jobId, {
+    pipelineAiWarning:
+      enhanced.aiAttempted && !enhanced.aiSucceeded && enhanced.warning?.trim()
+        ? enhanced.warning.trim()
+        : enhanced.aiSucceeded
+          ? null
+          : undefined,
+  });
+
   const { changedSections } = persist;
   const resumeLatex = generateResumeLatex(enhanced.form, enhanced.targetRole);
   await updateJobReviewDocuments(userId, jobId, { resumeLatex });
@@ -205,6 +217,8 @@ export async function enhanceJobResumeForUser(
     readinessDelta: enhanced.readinessDelta ?? { before: beforeScore, after: afterScore },
     enhanceSummary: enhanced.enhanceSummary ?? enhanced.fallbackSummary,
     warning: enhanced.warning,
+    action: enhanced.action,
+    actionHref: enhanced.actionHref,
     aiAttempted: enhanced.aiAttempted,
     aiSucceeded: enhanced.aiSucceeded,
     aiBlockCode: enhanced.aiBlockCode,

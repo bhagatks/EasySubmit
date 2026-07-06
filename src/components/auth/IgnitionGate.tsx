@@ -191,6 +191,7 @@ export function IgnitionGate({
   );
   const [apiKey, setApiKey] = useState("");
   const [customEndpointUrl, setCustomEndpointUrl] = useState("");
+  const [customModelId, setCustomModelId] = useState("");
   const [showKey, setShowKey] = useState(false);
   const [makeActive, setMakeActive] = useState(setAsActiveOnSave);
   const [refreshIntervalMinutes, setRefreshIntervalMinutes] = useState<RefreshIntervalMinutes>(
@@ -396,6 +397,7 @@ export function IgnitionGate({
       customEndpointUrl: providerRequiresCustomBaseUrl(provider)
         ? customEndpointUrl.trim()
         : null,
+      customModelId: providerRequiresCustomBaseUrl(provider) ? customModelId.trim() || null : null,
     });
 
     finishManageSave(result);
@@ -499,26 +501,49 @@ export function IgnitionGate({
             </div>
 
             {providerRequiresCustomBaseUrl(provider) ? (
-              <div>
-                <label
-                  htmlFor={`${apiKeyInputId}-custom-base`}
-                  className={cn(monoClass, "mb-2 block text-[10px] uppercase tracking-[0.16em]")}
-                  style={{ color: MUTED }}
-                >
-                  OpenAI-compatible base URL
-                </label>
-                <input
-                  id={`${apiKeyInputId}-custom-base`}
-                  type="url"
-                  value={customEndpointUrl}
-                  onChange={(event) => setCustomEndpointUrl(event.target.value)}
-                  disabled={isHandshaking || isLaunching}
-                  placeholder="https://your-proxy.example.com/v1"
-                  className={cn(
-                    monoClass,
-                    "w-full rounded-xl border border-white/10 bg-[oklch(0.14_0.03_268)] px-3 py-3 text-[12px] text-[oklch(0.98_0.01_268)] placeholder:text-[oklch(0.4_0.02_268)] focus:border-[oklch(0.62_0.21_265/0.5)] focus:outline-none focus:ring-1 focus:ring-[oklch(0.62_0.21_265/0.35)] disabled:opacity-60",
-                  )}
-                />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label
+                    htmlFor={`${apiKeyInputId}-custom-base`}
+                    className={cn(monoClass, "mb-2 block text-[10px] uppercase tracking-[0.16em]")}
+                    style={{ color: MUTED }}
+                  >
+                    OpenAI-compatible base URL
+                  </label>
+                  <input
+                    id={`${apiKeyInputId}-custom-base`}
+                    type="url"
+                    value={customEndpointUrl}
+                    onChange={(event) => setCustomEndpointUrl(event.target.value)}
+                    disabled={isHandshaking || isLaunching}
+                    placeholder="https://your-proxy.example.com/v1"
+                    className={cn(
+                      monoClass,
+                      "w-full rounded-xl border border-white/10 bg-[oklch(0.14_0.03_268)] px-3 py-3 text-[12px] text-[oklch(0.98_0.01_268)] placeholder:text-[oklch(0.4_0.02_268)] focus:border-[oklch(0.62_0.21_265/0.5)] focus:outline-none focus:ring-1 focus:ring-[oklch(0.62_0.21_265/0.35)] disabled:opacity-60",
+                    )}
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor={`${apiKeyInputId}-custom-model`}
+                    className={cn(monoClass, "mb-2 block text-[10px] uppercase tracking-[0.16em]")}
+                    style={{ color: MUTED }}
+                  >
+                    Model ID <span className="normal-case tracking-normal">(optional)</span>
+                  </label>
+                  <input
+                    id={`${apiKeyInputId}-custom-model`}
+                    type="text"
+                    value={customModelId}
+                    onChange={(event) => setCustomModelId(event.target.value)}
+                    disabled={isHandshaking || isLaunching}
+                    placeholder="coding-glm-5.1-free"
+                    className={cn(
+                      monoClass,
+                      "w-full rounded-xl border border-white/10 bg-[oklch(0.14_0.03_268)] px-3 py-3 text-[12px] text-[oklch(0.98_0.01_268)] placeholder:text-[oklch(0.4_0.02_268)] focus:border-[oklch(0.62_0.21_265/0.5)] focus:outline-none focus:ring-1 focus:ring-[oklch(0.62_0.21_265/0.35)] disabled:opacity-60",
+                    )}
+                  />
+                </div>
               </div>
             ) : null}
 

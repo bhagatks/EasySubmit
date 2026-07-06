@@ -62,7 +62,12 @@ type IgnitionStoreActions = {
   runDiscovery: (
     provider: HandshakeProvider,
     apiKey: string,
-    options?: { setAsActive?: boolean; isFirstKey?: boolean; customEndpointUrl?: string | null },
+    options?: {
+      setAsActive?: boolean;
+      isFirstKey?: boolean;
+      customEndpointUrl?: string | null;
+      customModelId?: string | null;
+    },
   ) => Promise<IgniteEngineVaultResult>;
   restoreDiscoveryFromCache: (
     provider: HandshakeProvider,
@@ -217,6 +222,7 @@ export const useIgnitionStore = create<IgnitionStore>()(
           provider,
           setAsActive: options?.setAsActive ?? true,
           customEndpointUrl: options?.customEndpointUrl,
+          customModelId: options?.customModelId,
         });
 
         if (result.success && result.unlocked) {

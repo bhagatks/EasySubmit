@@ -102,6 +102,7 @@ async function main() {
     console.error(`User not found: ${email}`);
     process.exit(1);
   }
+  const userRow: SystemQuotaUserRow = user;
 
   const vaultedAll = await prisma.userApiKey.findMany({
     where: { userId: user.id },
@@ -148,7 +149,7 @@ async function main() {
     opts?: { forceAiEnabled?: boolean; forceSystem?: boolean },
   ) {
     const resolution = await resolveEnhanceFeature(
-      { ...user, ...userPatch },
+      { ...userRow, ...userPatch },
       "job_apply",
       opts,
     );
@@ -267,10 +268,10 @@ async function main() {
     expect: { engineMode: "ai" | "deterministic"; aiSucceeded: boolean },
   ) {
     const started = Date.now();
-    const patched = { ...user, ...userPatch };
+    const patched: SystemQuotaUserRow = { ...userRow, ...userPatch };
     try {
       const result = await runResumeEnhancePipeline({
-        userId: user.id,
+        userId: userRow.id,
         user: patched,
         form: ENHANCE_QA_BASE_FORM,
         targetRole: qaCase.targetRole,

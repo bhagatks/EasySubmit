@@ -87,12 +87,15 @@ export async function refreshProviderModelHealth(
     throw new Error(discovery.error.message);
   }
 
-  const discoverablePool = [
-    ...new Set([
-      ...getDefaultModelsForProvider(input.provider),
-      ...discovery.models,
-    ]),
-  ];
+  const discoverablePool =
+    input.provider === "custom"
+      ? [...discovery.models]
+      : [
+          ...new Set([
+            ...getDefaultModelsForProvider(input.provider),
+            ...discovery.models,
+          ]),
+        ];
 
   const candidates = selectModelsToProbe(
     discoverablePool,

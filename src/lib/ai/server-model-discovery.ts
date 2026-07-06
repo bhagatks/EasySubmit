@@ -18,6 +18,7 @@ import {
   isGeminiProjectDeniedMessage,
 } from "@/src/lib/ai/gemini-access-messages";
 import { validateGeminiKey } from "@/src/lib/ai/validate-gemini-key";
+import { logApiCall } from "@/src/shared/observability";
 
 const OPENAI_COMPATIBLE_PROVIDERS: AiProvider[] = [...OPENAI_COMPATIBLE_AI_PROVIDERS];
 
@@ -105,7 +106,7 @@ async function parseProviderErrorBody(res: Response): Promise<ProviderErrorBody 
   }
 }
 
-function filterOpenAiDiscoveryModels(provider: AiProvider, ids: string[]): string[] {
+export function filterOpenAiDiscoveryModels(provider: AiProvider, ids: string[]): string[] {
   const normalized = ids.filter(Boolean);
 
   if (provider === "openai") {
@@ -135,6 +136,7 @@ async function probeOpenAiCompatibleChat(
   provider: AiProvider,
   apiKey: string,
   customEndpointUrl?: string | null,
+  customModelId?: string | null,
 ): Promise<ProviderHandshakeResult> {
   if (!isOpenAiCompatibleProvider(provider)) {
     return {
@@ -145,7 +147,11 @@ async function probeOpenAiCompatibleChat(
   }
 
   const entry = PROVIDER_REGISTRY[provider];
-  const probeModel = entry.defaultModels[0];
+  const trimmedCustomModel = customModelId?.trim() ?? "";
+  const probeModel =
+    provider === "custom"
+      ? trimmedCustomModel || entry.defaultModels[0]
+      : entry.defaultModels[0];
   const url = `${resolveOpenAiCompatChatBaseUrl(provider, customEndpointUrl)}/chat/completions`;
 
   const headers: Record<string, string> = {
@@ -157,6 +163,8 @@ async function probeOpenAiCompatibleChat(
     headers["HTTP-Referer"] = "https://easysubmit.ai";
     headers["X-Title"] = "EasySubmit";
   }
+
+  const probeStartedAt = Date.now();
 
   const res = await fetch(url, {
     method: "POST",
@@ -170,6 +178,23 @@ async function probeOpenAiCompatibleChat(
   });
 
   if (res.ok || res.status === 429) {
+    if (provider === "custom") {
+      logApiCall({
+        domain: "ai",
+        operation: "ai.discovery.custom_chat_probe",
+        provider,
+        status: "success",
+        durationMs: Date.now() - probeStartedAt,
+        aiMode: "customer",
+        metadata: {
+          feature: "ignition_handshake",
+          verifiedModel: probeModel,
+          hasCustomModelId: Boolean(trimmedCustomModel),
+        },
+      });
+      return { ok: true, models: [probeModel] };
+    }
+
     const models = bundledOpenAiCompatibleModels(provider);
     if (models.length === 0) {
       return {
@@ -182,13 +207,40 @@ async function probeOpenAiCompatibleChat(
   }
 
   const body = await parseProviderErrorBody(res);
-  return mapHttpFailure(res.status, body);
+  const failure = mapHttpFailure(res.status, body);
+  if (provider === "custom" && !failure.ok) {
+    logApiCall({
+      domain: "ai",
+      operation: "ai.discovery.custom_chat_probe",
+      provider,
+      status: "error",
+      durationMs: Date.now() - probeStartedAt,
+      aiMode: "customer",
+      errorCode: failure.code,
+      errorMessage: failure.message,
+      metadata: { feature: "ignition_handshake", probeModel },
+    });
+  }
+  return failure;
+}
+
+function appendCustomModelId(
+  provider: AiProvider,
+  models: string[],
+  customModelId?: string | null,
+): string[] {
+  const trimmed = customModelId?.trim();
+  if (provider !== "custom" || !trimmed || models.includes(trimmed)) {
+    return models;
+  }
+  return [...models, trimmed].sort();
 }
 
 async function fetchOpenAiCompatibleModels(
   provider: AiProvider,
   apiKey: string,
   customEndpointUrl?: string | null,
+  customModelId?: string | null,
 ): Promise<ProviderHandshakeResult> {
   const headers: Record<string, string> = {
     Authorization: `Bearer ${apiKey.trim()}`,
@@ -207,19 +259,20 @@ async function fetchOpenAiCompatibleModels(
   if (!res.ok) {
     const body = await parseProviderErrorBody(res);
     if (res.status === 403 || res.status === 404) {
-      return probeOpenAiCompatibleChat(provider, apiKey, customEndpointUrl);
+      return probeOpenAiCompatibleChat(provider, apiKey, customEndpointUrl, customModelId);
     }
     return mapHttpFailure(res.status, body);
   }
 
   const json = (await res.json()) as { data?: Array<{ id: string }> };
-  const models = filterOpenAiDiscoveryModels(
+  let models = filterOpenAiDiscoveryModels(
     provider,
     (json.data ?? []).map((entry) => entry.id),
   );
+  models = appendCustomModelId(provider, models, customModelId);
 
   if (models.length === 0) {
-    return probeOpenAiCompatibleChat(provider, apiKey, customEndpointUrl);
+    return probeOpenAiCompatibleChat(provider, apiKey, customEndpointUrl, customModelId);
   }
 
   return { ok: true, models };
@@ -329,7 +382,7 @@ async function fetchGeminiModels(apiKey: string): Promise<ProviderHandshakeResul
 export async function handshakeProviderModels(
   provider: AiProvider,
   apiKey: string,
-  options?: { customEndpointUrl?: string | null },
+  options?: { customEndpointUrl?: string | null; customModelId?: string | null },
 ): Promise<ProviderHandshakeResult> {
   const key = apiKey.trim();
   if (!key) {
@@ -354,7 +407,12 @@ export async function handshakeProviderModels(
     }
 
     if (isOpenAiCompatibleProvider(provider)) {
-      return fetchOpenAiCompatibleModels(provider, key, options?.customEndpointUrl);
+      return fetchOpenAiCompatibleModels(
+        provider,
+        key,
+        options?.customEndpointUrl,
+        options?.customModelId,
+      );
     }
 
     return {

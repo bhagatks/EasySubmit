@@ -241,7 +241,7 @@ export const PROVIDER_REGISTRY: Record<AiProvider, ProviderRegistryEntry> = {
     handshakeEndpoint: "/models",
     chatPath: "/chat/completions",
     requiresCustomBaseUrl: true,
-    defaultModels: ["gpt-4o-mini"],
+    defaultModels: [],
     storageKey: "custom_key",
     icon: "plug",
     documentationUrl: "https://platform.openai.com/docs/api-reference/chat",
@@ -412,6 +412,9 @@ export function getDefaultModelsForProvider(provider: AiProvider): string[] {
 export function getTargetAiModel(provider: AiProvider = SYSTEM_DEFAULTS.targetAiProvider): string {
   if (provider === SYSTEM_DEFAULTS.targetAiProvider) {
     return SYSTEM_DEFAULTS.targetAiModel;
+  }
+  if (provider === "custom") {
+    return "";
   }
   return PROVIDER_REGISTRY[provider].defaultModels[0] ?? SYSTEM_DEFAULTS.targetAiModel;
 }

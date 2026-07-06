@@ -289,9 +289,11 @@ export async function runPipelineTailor(
     pipelineError: null,
     pipelineErrorCode: null,
     pipelineAiWarning:
-      enhanced.engineMode === "deterministic" && enhanced.warning?.trim()
+      enhanced.aiAttempted && !enhanced.aiSucceeded && enhanced.warning?.trim()
         ? enhanced.warning.trim()
-        : null,
+        : enhanced.aiSucceeded
+          ? null
+          : null,
     pipelinePhases: ["capture", "tailor"],
     lastTailoredAt: new Date().toISOString(),
     sourceProfileId: source.id,

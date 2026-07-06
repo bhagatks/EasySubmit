@@ -22,7 +22,7 @@ Prod Supabase project: **`yofgnflcqajqsepbfdkc`** (see `.env.vercel.example`).
 | Vault SQL functions (`vault_user_key`, etc.) | Verify | Re-apply `scripts/vault-functions-only.sql` if Ignition BYOK fails after migrate |
 | Pending migrations after local work | Check | Confirm committed before deploy — latest: `20260702120000_enable_rls_public_tables` |
 | Job Tracker Realtime (optional) | QA done locally | Run `scripts/sql/job-tracker-realtime-setup.sql` on prod Supabase if Realtime needed |
-| System Gemini keys in vault | Optional | `npm run db:import-system-keys` against prod when using system AI |
+| System pool keys in vault (OpenRouter slot 0 + DeepSeek slot 1) | **Todo** | `node scripts/run.mjs admin -- npm run db:import-system-keys` — redeploy does **not** update vault rows |
 | **Remove legacy `app_config.aiConfig` row** | **Pending** | Run `scripts/sql/remove-legacy-ai-config.sql` on prod Supabase SQL editor — unused since `aiEngine` + `dataRefresh` replaced it (2026-07-06) |
 
 > Full P3009 recovery guide: [`MIGRATION_RECOVERY.md`](./MIGRATION_RECOVERY.md)  
@@ -142,7 +142,7 @@ npm run analytics:closeout    # optional — phx_ in .env.local; PostHog only (s
 - [ ] Avatar upload on prod (if `avatars` bucket + service role configured)
 - [ ] PostHog Live events — `login_completed` after prod OAuth (project `488042`)
 - [ ] PostHog replay — confirm login/onboarding session records (inputs masked)
-- [ ] **O*NET role vocabulary** — `ONET_API_KEY` set in Vercel Production; extension Apply → pipeline debug step **`pre_role_vocab`** shows `source: api` (or `cache`) with occupation code + skills/tools — not `source: fallback`
+- [x] **O*NET role vocabulary** — `ONET_API_KEY` set in Vercel Production; extension Apply → pipeline debug step **`pre_role_vocab`** shows `source: api` (or `cache`) with occupation code + skills/tools — not `source: fallback` (verified 2026-07-06)
 
 ---
 

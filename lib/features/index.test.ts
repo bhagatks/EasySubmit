@@ -57,6 +57,14 @@ vi.mock("@/src/lib/services/ai-engine-config", () => ({
   AI_ENGINE_DEFAULTS: {},
 }));
 
+vi.mock("@/lib/vault/reconcile-user-vault-key", () => ({
+  reconcileUserVaultKeyState: vi.fn(async () => ({
+    vaultKeyId: null,
+    activeProvider: null,
+    changed: false,
+  })),
+}));
+
 vi.mock("@/src/lib/ai/engine/router", () => ({
   resolveAiRoute: vi.fn(async () => ({
     mode: "system",
@@ -270,6 +278,7 @@ describe("enhanceFeatureRoute re-export", () => {
         modelId: "gemini-1.5-flash",
         quota: { used: 0, limit: 10, unlimited: false },
         fallbackAvailable: true,
+        systemFallbackRoute: route,
       }),
     ).toEqual(route);
   });

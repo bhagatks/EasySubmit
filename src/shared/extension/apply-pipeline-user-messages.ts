@@ -516,6 +516,8 @@ export function resolveExtensionUserMessage(input: {
   pipelineBusyLabel?: string | null;
   saveError?: string | null;
   issueMessage?: string | null;
+  pipelineAiWarning?: string | null;
+  metadata?: unknown;
 }): ApplyPipelineUserMessage {
   if (input.pipelineBusy) {
     const busyLine =
@@ -537,5 +539,8 @@ export function resolveExtensionUserMessage(input: {
     status: (input.status as JobTrackerStatus | undefined) ?? "CAPTURED",
     progress: null,
     issueMessage: input.issueMessage ?? input.saveError,
+    metadata:
+      input.metadata ??
+      (input.pipelineAiWarning ? { pipelineAiWarning: input.pipelineAiWarning } : undefined),
   });
 }

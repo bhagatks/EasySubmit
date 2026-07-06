@@ -20,6 +20,11 @@ import {
   FEATURE_FLAG_KEYS,
   isFeatureEnabled,
 } from "@/src/lib/services/feature-flags-service";
+import { entryHasAiIncompleteTailor } from "@/lib/extension/apply-pipeline-ai-gate";
+import {
+  readEntryDegradedEnhanceOutcome,
+  type EntryDegradedEnhanceOutcome,
+} from "@/lib/job-tracker/enhance/read-entry-degraded-outcome";
 
 export type { ApplyPipelinePhase } from "@/lib/extension/pipeline-types";
 export { ONE_CLICK_APPLY_PLATFORMS } from "@/lib/extension/pipeline-types";
@@ -37,6 +42,12 @@ export type RunApplyPipelineResult =
       hasTailoredResume?: boolean;
       sourceProfileId?: string | null;
       pipelineWarning?: string;
+      warning?: string | null;
+      action?: EntryDegradedEnhanceOutcome["action"];
+      actionHref?: string | null;
+      aiAttempted?: boolean;
+      aiSucceeded?: boolean;
+      aiBlockCode?: string | null;
     }
   | {
       success: false;
@@ -49,6 +60,33 @@ export type RunApplyPipelineResult =
     };
 
 const TAILOR_COMPLETE_STATUSES: JobTrackerStatus[] = ["RESUME_READY", "READY_TO_APPLY"];
+
+type DegradedOutcomeFields = {
+  warning?: string | null;
+  action?: EntryDegradedEnhanceOutcome["action"];
+  actionHref?: string | null;
+  aiAttempted?: boolean;
+  aiSucceeded?: boolean;
+  aiBlockCode?: string | null;
+  pipelineWarning?: string;
+};
+
+function attachDegradedOutcomeFields<T extends object>(
+  target: T,
+  outcome: EntryDegradedEnhanceOutcome | null,
+): T & DegradedOutcomeFields {
+  if (!outcome) return target;
+  return {
+    ...target,
+    warning: outcome.warning,
+    pipelineWarning: outcome.warning ?? undefined,
+    action: outcome.action ?? undefined,
+    actionHref: outcome.actionHref ?? undefined,
+    aiAttempted: outcome.aiAttempted,
+    aiSucceeded: outcome.aiSucceeded,
+    aiBlockCode: outcome.aiBlockCode ?? undefined,
+  };
+}
 
 async function entryHasApplyJobUrl(userId: string, entryId: string): Promise<boolean> {
   const row = await prisma.jobTrackerEntry.findFirst({
@@ -102,6 +140,21 @@ export async function advancePipelineAfterAutofill(
       failedStepId: failure.stepId,
       failedStage: failure.stage,
       detail: failure.detail,
+    });
+    return;
+  }
+
+  if (await entryHasAiIncompleteTailor(userId, entryId)) {
+    logEnhance("pipeline", "apply.advance_blocked", {
+      step: TAILOR_PIPELINE.APPLY_TAILOR_RESULT,
+      userId,
+      entryId,
+      reason: "ai_incomplete_fallback",
+      detail: "AI enhancement incomplete — staying at resume ready",
+    });
+    await setPipelineDebugStep(userId, entryId, "status_ready", {
+      status: "skipped",
+      detail: "AI enhancement incomplete — review resume before apply",
     });
     return;
   }
@@ -165,7 +218,17 @@ export async function tailorJobPipeline(
   userId: string,
   entryId: string,
   input: RunApplyPipelineInput,
-): Promise<{ success: boolean; status: JobTrackerStatus; error?: string }> {
+): Promise<{
+  success: boolean;
+  status: JobTrackerStatus;
+  error?: string;
+  warning?: string | null;
+  action?: EntryDegradedEnhanceOutcome["action"];
+  actionHref?: string | null;
+  aiAttempted?: boolean;
+  aiSucceeded?: boolean;
+  aiBlockCode?: string | null;
+}> {
   try {
     const prefs = await getExtensionUserPrefs(userId);
 
@@ -265,15 +328,30 @@ export async function tailorJobPipeline(
       sourceProfileId: tailor.sourceProfileId,
     });
 
+    const degradedOutcome = await readEntryDegradedEnhanceOutcome(userId, entryId);
+
     const hasApplyUrl = isApplyJobUrl(input.url) || (await entryHasApplyJobUrl(userId, entryId));
     if (hasApplyUrl) {
-      await advancePipelineAfterAutofill(userId, entryId);
+      const aiIncomplete = await entryHasAiIncompleteTailor(userId, entryId);
+      if (!aiIncomplete) {
+        await advancePipelineAfterAutofill(userId, entryId);
+        await mergeJobEntryMetadata(userId, entryId, {
+          pipelinePhases: ["capture", "tailor", "autofill"],
+          pipelineError: null,
+          pipelineErrorCode: null,
+        });
+        return attachDegradedOutcomeFields({ success: true, status: "READY_TO_APPLY" }, degradedOutcome);
+      }
+      await setPipelineDebugStep(userId, entryId, "status_ready", {
+        status: "skipped",
+        detail: "AI enhancement incomplete — review resume before apply",
+      });
       await mergeJobEntryMetadata(userId, entryId, {
-        pipelinePhases: ["capture", "tailor", "autofill"],
+        pipelinePhases: ["capture", "tailor"],
         pipelineError: null,
         pipelineErrorCode: null,
       });
-      return { success: true, status: "READY_TO_APPLY" };
+      return attachDegradedOutcomeFields({ success: true, status: "RESUME_READY" }, degradedOutcome);
     }
 
     await setPipelineDebugStep(userId, entryId, "status_ready", {
@@ -286,7 +364,7 @@ export async function tailorJobPipeline(
       pipelineErrorCode: null,
     });
 
-    return { success: true, status: "RESUME_READY" };
+    return attachDegradedOutcomeFields({ success: true, status: "RESUME_READY" }, degradedOutcome);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Resume optimization failed";
     logEnhance("pipeline", "apply.tailor_crashed", {
@@ -384,20 +462,37 @@ export async function runApplyPipeline(
 
   phases.push("tailor");
 
-  await advancePipelineAfterAutofill(userId, saved.id);
-  await mergeJobEntryMetadata(userId, saved.id, {
-    pipelinePhases: ["capture", "tailor", "autofill"],
-    pipelineError: null,
-    pipelineErrorCode: null,
-  });
+  const aiIncomplete = await entryHasAiIncompleteTailor(userId, saved.id);
+  const degradedOutcome = await readEntryDegradedEnhanceOutcome(userId, saved.id);
+  if (!aiIncomplete) {
+    await advancePipelineAfterAutofill(userId, saved.id);
+    await mergeJobEntryMetadata(userId, saved.id, {
+      pipelinePhases: ["capture", "tailor", "autofill"],
+      pipelineError: null,
+      pipelineErrorCode: null,
+    });
+  } else {
+    await setPipelineDebugStep(userId, saved.id, "status_ready", {
+      status: "skipped",
+      detail: "AI enhancement incomplete — review resume before apply",
+    });
+    await mergeJobEntryMetadata(userId, saved.id, {
+      pipelinePhases: ["capture", "tailor"],
+      pipelineError: null,
+      pipelineErrorCode: null,
+    });
+  }
 
-  return {
-    success: true,
-    id: saved.id,
-    status: "READY_TO_APPLY",
-    phases,
-    pendingPhase: offerAutofill ? "autofill" : null,
-    hasTailoredResume: true,
-    sourceProfileId: tailor.sourceProfileId,
-  };
+  return attachDegradedOutcomeFields(
+    {
+      success: true,
+      id: saved.id,
+      status: aiIncomplete ? "RESUME_READY" : "READY_TO_APPLY",
+      phases,
+      pendingPhase: offerAutofill ? "autofill" : null,
+      hasTailoredResume: true,
+      sourceProfileId: tailor.sourceProfileId,
+    },
+    degradedOutcome,
+  );
 }

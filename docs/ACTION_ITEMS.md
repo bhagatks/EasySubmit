@@ -21,6 +21,8 @@ Code fixes from the first AI on/off review (Phases 1–6, D-01–D-22) are **Don
 | **Dev harness A/B/C** — AI off vs on in one session | **Done** | `/dashboard/testing-resume` — mode selector + **Run A/B/C** |
 | **Multi-model QA** — system + BYOK providers/models | **Todo** | DeepSeek (system pool), OpenRouter/GLM, BYOK routes; Cases 001–003 + switch matrix S07–S10; fix `app_config.aiEngine` provider/modelId alignment first |
 | Extension pipeline tailor — AI off/on on `variant: pipeline` | **Todo** | Same A/B/C protocol as Review |
+| **Enhance AI mission (kernel + failure UX v1)** | **Done** | Phases 0–4 + Phase 5 partial (2026-07-06): kernel, ledger, warnings, extension/Studio surfaces, OpenRouter `response_format`, JD extract note, custom BYOK live QA pass (`bhagathsiddi@gmail.com` / AIHubMix). Spec: [`docs/enhance-ai-failure-ux.md`](./enhance-ai-failure-ux.md) |
+| **Custom Endpoint BYOK (AIHubMix)** | **Done** | Manual model ID, chat-probe fix, live enhance pass 2026-07-06 |
 | Playbook product items **P-01**, **P-02**, **P-03** | **Todo** / **Partial** | Cross-domain role suggestions; feedback tiers; export without JD injection when AI off |
 
 ### Resume E2E (test separately from jobs)
@@ -94,16 +96,16 @@ See also [`PROD_CUTOVER.md`](./PROD_CUTOVER.md) §7.
 
 ### O*NET Web Services — Vocabulary step
 
-Organization approved **2026-07-05**. API key in `.env.local`; add `ONET_API_KEY` to Vercel prod when wiring the pipeline step.
+Organization approved **2026-07-05**. Prod verified **2026-07-06** — see [`COMPLETED_ITEMS.md`](./COMPLETED_ITEMS.md).
 
 | Item | Status | Notes |
 |------|--------|-------|
 | O*NET developer signup | **Done** | Organization approved |
 | Add `ONET_API_KEY` to `.env.local` | **Done** | v2 uses `X-API-Key` header |
-| Add `ONET_API_KEY` to **Vercel Production** | **Todo** | See [`PROD_CUTOVER.md`](./PROD_CUTOVER.md) §3 + §7 smoke |
+| Add `ONET_API_KEY` to **Vercel Production** | **Done** | Vercel Production env |
 | Migrate `lib/job-tracker/ats/onet-service.ts` to **v2 API** | **Done** | `api-v2.onetcenter.org`, `online/search` + summary skills/tools |
 | Wire `fetchRoleVocabulary()` into enhance brief + pipeline debug | **Done** | Resume track `pre_role_vocab`; merge-skills-grouped Group 2 |
-| Verify Vocabulary step on a live Apply run | **Todo** | Prod smoke: [`PROD_CUTOVER.md`](./PROD_CUTOVER.md) §7 — `pre_role_vocab` not `source: fallback` |
+| Verify Vocabulary step on a live Apply run | **Done** | Prod Apply run — `pre_role_vocab` `source: api` (not `fallback`) |
 
 ### Pricing & plan marketing copy (v1.0) — **complete**
 

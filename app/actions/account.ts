@@ -8,6 +8,7 @@ import { joinProfileName } from "@/lib/profile/name";
 import { prisma } from "@/lib/prisma";
 import { getAppConfig } from "@/src/lib/services/config-service";
 import { getFeatureFlags } from "@/src/lib/services/feature-flags-service";
+import { reconcileUserVaultKeyState } from "@/lib/vault/reconcile-user-vault-key";
 import type { ResumeProfilePickerMode } from "@/lib/generated/prisma/client";
 
 const SUPPORTED_PROVIDERS = ["google", "linkedin"] as const;
@@ -69,6 +70,8 @@ export async function getAccountSettings(): Promise<AccountSettingsSnapshot | nu
     return null;
   }
 
+  const reconciled = await reconcileUserVaultKeyState(session.user.id);
+
   const [user, featureFlags, aiEngine] = await Promise.all([
     prisma.user.findUnique({
       where: { id: session.user.id },
@@ -125,8 +128,8 @@ export async function getAccountSettings(): Promise<AccountSettingsSnapshot | nu
     image: user.image,
     lastAuthProvider: user.lastAuthProvider,
     connectedProviders,
-    vaultKeyId: user.vaultKeyId,
-    activeProvider: user.activeProvider,
+    vaultKeyId: reconciled.vaultKeyId ?? user.vaultKeyId,
+    activeProvider: reconciled.activeProvider ?? user.activeProvider,
     aiSourcePreference: user.aiSourcePreference,
     systemAiEnabled: user.systemAiEnabled,
     aiEnhancementsToday: user.aiEnhancementsToday,

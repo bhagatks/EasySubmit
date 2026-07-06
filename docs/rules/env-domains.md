@@ -7,6 +7,7 @@ EasySubmit uses **env domains** — each script category may only load keys from
 | Domain | Who uses it | Allowed keys from `.env.local` | DB URLs |
 |--------|-------------|----------------------------------|---------|
 | **database** | `run easy`, `db:migrate`, Vercel build, `prod:health` | Full file (local dev only) | Yes |
+| **prod-debug** | `enhance:trace:prod`, `pool:status:prod`, `run-prod-debug.mjs` | **Never** — use `.env.prod.local` | Yes (prod ref only) |
 | **posthog-admin** | `analytics:closeout`, `analytics:configure`, `analytics:setup` | `POSTHOG_PERSONAL_API_KEY`, project IDs, host | **Never** |
 | **posthog-runtime** | Next.js app, extension build | `NEXT_PUBLIC_POSTHOG_*` (dev) | No |
 
@@ -37,4 +38,7 @@ run easy
 
 # Prod DB check — Vercel only; never .env.local
 npm run prod:health
+
+# Prod job/enhance debug — `.env.prod.local` (see .env.prod.example); never Vercel pull
+npm run enhance:trace:prod -- --user-id <id> --job <id> --posthog
 ```

@@ -17,6 +17,7 @@ import {
   SKIP_LOCAL_ENV_FLAG,
   isProdDB,
   loadEnv,
+  loadEphemeralVercelProductionEnv,
   mergeEnv,
   resolveLocalDevEnv,
   runCommand,
@@ -314,14 +315,24 @@ function runAdmin() {
     );
   }
 
-  console.log("→ Running with Vercel Production env (vercel env run)");
-  console.log("→ Stripped laptop DATABASE_URL / DIRECT_URL from parent env");
-  runCommand(
-    "npx",
-    ["vercel", "env", "run", "-e", "production", "--", ...cmd],
-    stripLocalDatabaseEnv(process.env),
-    { cwd: root },
-  );
+  // Pull prod env to a temp file, parse in-memory, delete it — never writes .env.local.
+  console.log("→ Pulling Vercel Production env (ephemeral temp file, never .env.local)");
+  const prodVars = loadEphemeralVercelProductionEnv(root);
+
+  if (!isProdDB(prodVars.DATABASE_URL)) {
+    console.error(
+      `→ ❌ Pulled DATABASE_URL is not prod (${PROD_SUPABASE_REF}). Refusing to run admin command.`,
+    );
+    process.exit(1);
+  }
+
+  // Start from laptop env stripped of DB URLs, then overlay prod vars + skip-local flag.
+  const baseEnv = stripLocalDatabaseEnv(process.env);
+  const childEnv = mergeEnv(baseEnv, prodVars);
+  childEnv[SKIP_LOCAL_ENV_FLAG] = "1";
+
+  console.log(`→ Admin target: ${PROD_SUPABASE_REF} (prod) — laptop .env.local ignored`);
+  runCommand(cmd[0], cmd.slice(1), childEnv, { cwd: root });
 }
 
 switch (mode) {

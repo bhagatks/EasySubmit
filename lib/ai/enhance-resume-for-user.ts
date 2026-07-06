@@ -52,6 +52,8 @@ export type EnhanceResumeProfileSuccess = {
   aiAttempted?: boolean;
   aiSucceeded?: boolean;
   aiBlockCode?: string;
+  action?: import("@/lib/ai/call-kernel/types").AiEnhanceOutcomeAction;
+  actionHref?: string | null;
   coverageAfter?: EnhanceSessionMeta["coverageAfter"];
   readinessDelta?: EnhanceSessionMeta["readinessDelta"];
   sessionMeta?: EnhanceSessionMeta;
@@ -182,6 +184,8 @@ export async function enhanceResumeForUserId(
     readinessDelta: result.readinessDelta,
     ...(result.warning ? { warning: result.warning } : {}),
     ...(result.aiBlockCode ? { aiBlockCode: result.aiBlockCode } : {}),
+    ...(result.action ? { action: result.action } : {}),
+    ...(result.actionHref ? { actionHref: result.actionHref } : {}),
     ...(result.aiDisabled ? { aiDisabled: true } : {}),
     ...(result.coherenceWarnings?.length ? { coherenceWarnings: result.coherenceWarnings } : {}),
   };

@@ -64,6 +64,7 @@ export type EnhanceCoverLetterFailure = {
     | "rate_limited"
     | "insufficient_quota"
     | "invalid_response"
+    | "parse_failed"
     | "capacity_exhausted"
     | "feature_disabled";
 };

@@ -66,6 +66,7 @@ function buildOpenRouterFreeBody(input: {
     messages,
     max_tokens: input.maxOutputTokens ?? 8192,
     temperature: input.temperature ?? 0.1,
+    response_format: { type: "json_object" },
     provider: {
       max_price: OPENROUTER_FREE_MAX_PRICE,
     },

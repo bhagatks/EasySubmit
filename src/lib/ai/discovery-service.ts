@@ -13,7 +13,7 @@ import {
   type EngineTerminalError,
 } from "@/src/lib/ai/engine-errors";
 import { getProviderConfig } from "@/src/lib/config/app.config";
-import { resolveDiscoverableModels } from "@/lib/ai/model-health/discover-chat-models";
+import { resolveDiscoverableModels, filterDiscoverableChatModels } from "@/lib/ai/model-health/discover-chat-models";
 import { suggestDiscoveredPrimaryFuel } from "@/lib/ai/model-health/classify-model-tier";
 import {
   isHandshakeProvider,
@@ -25,6 +25,8 @@ export type EngineHandshakeInput = {
   provider: HandshakeProvider;
   apiKey: string;
   customEndpointUrl?: string | null;
+  /** User-supplied model ID for custom OpenAI-compatible gateways. */
+  customModelId?: string | null;
 };
 
 export type EngineHandshakeSuccess = {
@@ -58,8 +60,23 @@ async function fetchProviderModelCatalog(
   provider: HandshakeProvider,
   apiKey: string,
   customEndpointUrl?: string | null,
+  customModelId?: string | null,
 ): Promise<ProviderHandshakeResult> {
-  return handshakeProviderModels(provider, apiKey, { customEndpointUrl });
+  return handshakeProviderModels(provider, apiKey, { customEndpointUrl, customModelId });
+}
+
+function mergeCustomModelId(
+  provider: HandshakeProvider,
+  models: string[],
+  customModelId?: string | null,
+): string[] {
+  const trimmed = customModelId?.trim();
+  if (!trimmed || models.includes(trimmed)) {
+    return models;
+  }
+
+  const augmented = filterDiscoverableChatModels(provider, [trimmed, ...models]);
+  return augmented.includes(trimmed) ? augmented : models;
 }
 
 /**
@@ -90,10 +107,12 @@ export async function performEngineHandshake(
   }
 
   const catalogStartedAt = Date.now();
+
   const catalog = await fetchProviderModelCatalog(
     handshakeProvider,
     apiKey,
     input.customEndpointUrl,
+    input.customModelId,
   );
   logApiCall({
     traceId: logContext?.traceId,
@@ -115,7 +134,30 @@ export async function performEngineHandshake(
     return toFailure(catalog);
   }
 
-  const discoverableModels = resolveDiscoverableModels(handshakeProvider, catalog.models);
+  const discoverableModels = mergeCustomModelId(
+    handshakeProvider,
+    resolveDiscoverableModels(handshakeProvider, catalog.models),
+    input.customModelId,
+  );
+
+  if (input.customModelId?.trim()) {
+    logApiCall({
+      traceId: logContext?.traceId,
+      userId: logContext?.userId,
+      domain: "ai",
+      operation: "ai.discovery.custom_model_id",
+      provider: handshakeProvider,
+      status: discoverableModels.includes(input.customModelId.trim()) ? "success" : "error",
+      durationMs: Date.now() - catalogStartedAt,
+      aiMode: "customer",
+      metadata: {
+        feature: "ignition_handshake",
+        customModelId: input.customModelId.trim(),
+        merged: discoverableModels.includes(input.customModelId.trim()),
+        discoverableCount: discoverableModels.length,
+      },
+    });
+  }
 
   if (discoverableModels.length === 0) {
     return {
@@ -129,13 +171,19 @@ export async function performEngineHandshake(
     };
   }
 
+  const trimmedCustomModel = input.customModelId?.trim();
+  const suggestedPrimaryFuel =
+    trimmedCustomModel && discoverableModels.includes(trimmedCustomModel)
+      ? trimmedCustomModel
+      : suggestDiscoveredPrimaryFuel(discoverableModels);
+
   return {
     success: true,
     provider: handshakeProvider,
     providerLabel: getProviderConfig(handshakeProvider).label,
     models: discoverableModels,
     careerGradeModels: discoverableModels,
-    suggestedPrimaryFuel: suggestDiscoveredPrimaryFuel(discoverableModels),
+    suggestedPrimaryFuel,
     discoveredAt: Date.now(),
     rawModelCount: catalog.models.length,
   };

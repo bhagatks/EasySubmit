@@ -29,4 +29,9 @@ describe("discover-chat-models", () => {
     expect(models.length).toBeGreaterThan(0);
     expect(models.some((id) => id.includes("gemini"))).toBe(true);
   });
+
+  it("does not fall back to bundled OpenAI defaults for custom provider", () => {
+    const models = resolveDiscoverableModels("custom", []);
+    expect(models).toEqual([]);
+  });
 });

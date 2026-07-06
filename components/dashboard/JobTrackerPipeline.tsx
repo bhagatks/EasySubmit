@@ -227,6 +227,9 @@ export function JobTrackerPipeline({
             status: entry.status,
             stepFailure: pipelineFailure,
             issueMessage: entry.issueMessage,
+            metadata: entry.pipelineAiWarning
+              ? { pipelineAiWarning: entry.pipelineAiWarning }
+              : undefined,
             extensionInstalled,
             appliedSource: entry.appliedSource,
           });

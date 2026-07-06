@@ -9,6 +9,7 @@ import {
   isProdDB,
   mergeEnv,
   resolveMigrateEnvRecord,
+  resolveProdDebugEnvRecord,
   shouldSkipLocalEnvFile,
   stripLocalDatabaseEnv,
 } from "./env-resolution.mjs";
@@ -137,5 +138,25 @@ describe("POSTHOG_ADMIN_ENV_KEYS", () => {
     for (const key of POSTHOG_ADMIN_ENV_KEYS) {
       expect(key).not.toMatch(/DATABASE|DIRECT_URL|SUPABASE_SERVICE/i);
     }
+  });
+});
+
+describe("resolveProdDebugEnvRecord", () => {
+  it("merges prod database vars and strips laptop DB", () => {
+    const { env, error } = resolveProdDebugEnvRecord(
+      { DATABASE_URL: devDatabaseUrl, PATH: "/usr/bin" },
+      { DATABASE_URL: prodDatabaseUrl, DIRECT_URL: prodDirectUrl, NEXTAUTH_SECRET: "nope" },
+    );
+    expect(error).toBeNull();
+    expect(env?.DATABASE_URL).toBe(prodDatabaseUrl);
+    expect(env?.DIRECT_URL).toBe(prodDirectUrl);
+    expect(env?.NEXTAUTH_SECRET).toBeUndefined();
+    expect(env?.[SKIP_LOCAL_ENV_FLAG]).toBe("1");
+  });
+
+  it("refuses dev DATABASE_URL in prod debug file", () => {
+    const { env, error } = resolveProdDebugEnvRecord({}, { DATABASE_URL: devDatabaseUrl });
+    expect(env).toBeNull();
+    expect(error).toBe("not_prod_database_url");
   });
 });

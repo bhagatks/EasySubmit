@@ -37,6 +37,8 @@ export type EnhanceFeatureResolution = {
   };
   /** Deterministic engine can always run as a substitute. */
   fallbackAvailable: true;
+  /** Pre-resolved system route for BYOK → system escalation inside the AI call kernel. */
+  systemFallbackRoute: import("@/src/lib/ai/engine/router").ResolvedAiRoute | null;
 };
 
 // ─── Subscription ─────────────────────────────────────────────────────────────

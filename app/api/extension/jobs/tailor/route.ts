@@ -43,7 +43,17 @@ export async function POST(request: NextRequest) {
     const result = await tailorJobPipeline(userId, entryId, entryInput);
     revalidatePath("/dashboard/job-tracker");
     revalidatePath("/dashboard");
-    return Response.json({ success: result.success, status: result.status, error: result.error });
+    return Response.json({
+      success: result.success,
+      status: result.status,
+      error: result.error,
+      warning: result.warning ?? null,
+      action: result.action ?? null,
+      actionHref: result.actionHref ?? null,
+      aiAttempted: result.aiAttempted,
+      aiSucceeded: result.aiSucceeded,
+      aiBlockCode: result.aiBlockCode ?? null,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Tailor failed";
     await recordPipelineTailorError(userId, entryId, message, "tailor_crashed");

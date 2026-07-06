@@ -12,6 +12,7 @@ import {
   setActiveVaultedUserApiKey,
   vaultUserApiKey,
 } from "@/lib/vault/user-key-vault";
+import { reconcileUserVaultKeyState } from "@/lib/vault/reconcile-user-vault-key";
 import { getProviderRegistryEntry } from "@/src/lib/config/app.config";
 import {
   isHandshakeProvider,
@@ -63,6 +64,8 @@ export async function listVaultedApiKeys(): Promise<VaultedApiKeySummary[]> {
   if (!userId) {
     return [];
   }
+
+  await reconcileUserVaultKeyState(userId);
 
   const [rows, user] = await Promise.all([
     listVaultedUserApiKeys(userId),

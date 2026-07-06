@@ -63,7 +63,8 @@ import { computeResumeReadiness } from "@/lib/job-tracker/ats/resume-readiness-s
 import { computeResumeReadinessV2 } from "@/lib/resume/v2/resume-readiness-score";
 import { refineryFormToPrimeResume, type HubRefineryForm } from "@/lib/onboarding/hubResume";
 
-import { resolveEnhanceAiRuntimeFallbackWarning } from "@/lib/ai/enhance-failure-messages";
+import { resolveEnhanceOutcome } from "@/lib/ai/enhance-failure-messages";
+import type { AiCallLedgerEntry } from "@/lib/ai/call-kernel/types";
 import {
   hasFullJd,
   MIN_JD_CHARS,
@@ -560,7 +561,18 @@ async function runResumeEnhancePipelineInner(
   let aiSucceeded = false;
   let warning: string | undefined;
   const coherenceWarnings = [...baseline.coherenceWarnings];
-  let aiBlockCode: EnhanceOffReason | "parse_fail" | "timeout" | "provider_error" | undefined;
+
+  if (brief.jdAiAttempted && brief.jdAiCallCount === 0) {
+    const jdNote =
+      "Job description AI enrichment was unavailable — keyword analysis used deterministic extraction only.";
+    warning = jdNote;
+    pipelineDebugStep(debug, "ai_jd_extract", {
+      status: "warning",
+      detail: jdNote,
+    });
+  }
+
+  let aiBlockCode: EnhanceOffReason | "parse_fail" | "parse_failed" | "timeout" | "provider_error" | "invalid_response" | undefined;
   let engineMode: "ai" | "deterministic" = "deterministic";
   let aiMode: AiQuotaMode = "system";
   let tokensUsed = 0;
@@ -568,6 +580,7 @@ async function runResumeEnhancePipelineInner(
   let apiCallCount = 0;
   let modelId = "deterministic";
   let estimatedCost = 0;
+  let aiCallLedger: AiCallLedgerEntry[] | undefined;
 
   if (willAttemptAi && aiUpgrade?.route) {
     if (aiUpgrade.aiAllowed && aiUpgrade.route) {
@@ -591,13 +604,14 @@ async function runResumeEnhancePipelineInner(
         },
       });
 
-      const result = await runResumeEnhance(
+      let result = await runResumeEnhance(
         {
           form: baseline.form,
           targetRole: input.targetRole,
           jobDescription: input.jobDescription,
           rawResumeText: input.rawResumeText,
           route: aiUpgrade.route,
+          systemFallbackRoute: aiUpgrade.systemFallbackRoute ?? null,
           traceId,
           userId,
           jobIntelligence: brief.jd?.jobIntelligence,
@@ -620,6 +634,7 @@ async function runResumeEnhancePipelineInner(
         enhanceApiCallCount = result.apiCallCount;
         apiCallCount = result.apiCallCount + brief.jdAiCallCount;
         modelId = result.modelId;
+        aiCallLedger = result.aiCallLedger;
         pipelineDebugStep(debug, "ai_pass1", {
           status: "done",
           detail: `Max-ATS complete — ${result.modelId}`,
@@ -643,7 +658,20 @@ async function runResumeEnhancePipelineInner(
           apiCallCount,
         });
       } else {
+        aiCallLedger = result.aiCallLedger;
         aiBlockCode = (result.code ?? "provider_error") as typeof aiBlockCode;
+        const lastClassification = result.aiCallLedger?.[result.aiCallLedger.length - 1]?.classification;
+        const outcome = resolveEnhanceOutcome({
+          allowAi: true,
+          aiAttempted: true,
+          aiSucceeded: false,
+          engineMode: "deterministic",
+          aiBlockCode: result.code,
+          routeMode: aiUpgrade.route.mode,
+          byokAvailable: Boolean(user.vaultKeyId),
+          error: result.error,
+          lastClassification,
+        });
         // Lazy full brief only when AI fails — deterministic fallback needs gap/plan/weak bullets.
         let fallbackBrief = brief;
         if (brief.lightPath) {
@@ -672,17 +700,15 @@ async function runResumeEnhancePipelineInner(
         });
         finalForm = fallback.form;
         baselineForMeta = fallback;
-        warning = resolveEnhanceAiRuntimeFallbackWarning({
-          code: result.code,
-          routeMode: aiUpgrade.route.mode,
-          error: result.error,
-          byokAvailable: Boolean(user.vaultKeyId),
-        });
+        warning = outcome.warning ?? undefined;
         coherenceWarnings.push(...fallback.coherenceWarnings);
         pipelineDebugStep(debug, "ai_pass1", {
           status: "warning",
           detail: warning,
-          meta: { code: result.code ?? null },
+          meta: {
+            code: result.code ?? null,
+            routeMode: aiUpgrade.route.mode,
+          },
         });
         pipelineDebugStep(debug, "ai_pass2", {
           status: "skipped",
@@ -715,7 +741,15 @@ async function runResumeEnhancePipelineInner(
         });
       }
     } else {
-      warning = aiUpgrade.warning;
+      const blockedOutcome = resolveEnhanceOutcome({
+        allowAi: true,
+        aiAttempted: false,
+        aiSucceeded: false,
+        engineMode: "deterministic",
+        reason: aiUpgrade.reason,
+        byokAvailable: Boolean(user.vaultKeyId),
+      });
+      warning = blockedOutcome.warning ?? aiUpgrade.warning;
       aiBlockCode = aiUpgrade.reason;
       logEnhance("server", "pipeline.ai.blocked", {
         traceId,
@@ -846,6 +880,27 @@ async function runResumeEnhancePipelineInner(
 
   if (input.jobEntryId) clearPipelineTracks(input.jobEntryId);
 
+  let action: import("@/lib/ai/call-kernel/types").AiEnhanceOutcomeAction = null;
+  let actionHref: string | null = null;
+
+  if (allowAi && !aiSucceeded) {
+    const degradedOutcome = resolveEnhanceOutcome({
+      allowAi: true,
+      aiAttempted,
+      aiSucceeded: false,
+      engineMode,
+      aiBlockCode,
+      routeMode: aiMode,
+      byokAvailable: Boolean(user.vaultKeyId),
+      lastClassification: aiCallLedger?.[aiCallLedger.length - 1]?.classification,
+    });
+    if (!warning) {
+      warning = degradedOutcome.warning ?? undefined;
+    }
+    action = degradedOutcome.action ?? null;
+    actionHref = degradedOutcome.actionHref ?? null;
+  }
+
   const sessionMeta: EnhanceSessionMeta = {
     traceId,
     engineMode,
@@ -861,6 +916,7 @@ async function runResumeEnhancePipelineInner(
     coherenceWarnings: uniqueCoherenceWarnings.length > 0 ? uniqueCoherenceWarnings : undefined,
     resumeRulesVersion: rulesV2Enabled ? 2 : undefined,
     pageLengthPreference: finalForm.pageLengthPreference,
+    aiCallLedger,
   };
 
   logJourneyStep("server", "pipeline.complete", {
@@ -919,6 +975,8 @@ async function runResumeEnhancePipelineInner(
     aiAttempted,
     aiSucceeded,
     warning,
+    action,
+    actionHref,
     aiBlockCode,
     coverageAfter: baselineForMeta.coverageAfter,
     readinessDelta,

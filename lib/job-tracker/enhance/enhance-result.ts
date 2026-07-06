@@ -1,3 +1,4 @@
+import type { AiEnhanceOutcomeAction } from "@/lib/ai/call-kernel/types";
 import type { EnhanceOffReason } from "@/lib/features/types";
 import type { EnhanceResumeProfileFailure } from "@/lib/ai/enhance-resume-for-user";
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
@@ -21,7 +22,9 @@ export type EnhanceRunSuccess = {
   aiAttempted: boolean;
   aiSucceeded: boolean;
   warning?: string;
-  aiBlockCode?: EnhanceOffReason | "parse_fail" | "timeout" | "provider_error";
+  action?: AiEnhanceOutcomeAction;
+  actionHref?: string | null;
+  aiBlockCode?: EnhanceOffReason | "parse_fail" | "parse_failed" | "invalid_response" | "timeout" | "provider_error";
 
   coverageAfter?: JdCoverageReport;
   readinessDelta?: { before: number; after: number };

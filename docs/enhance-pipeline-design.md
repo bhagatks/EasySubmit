@@ -4,6 +4,8 @@ Captured from design session 2026-06-26. Updated 2026-06-28 with diagnostic logg
 
 **QA / regression:** Repeated AI on/off testing protocol, defect registry, and case history → [`docs/enhance-qa-playbook.md`](./enhance-qa-playbook.md).
 
+**Enhance AI mission (aligned 2026-07-06, implemented):** Unified **AI call kernel** (response-driven retry/escalate BYOK → system slot 0 → slot 1, shared parse + error classify, attempt ledger) **plus** failure UX (two buckets, surfaces, `resolveEnhanceOutcome`, no user retry v1) → [`docs/enhance-ai-failure-ux.md`](./enhance-ai-failure-ux.md).
+
 ---
 
 ## What "Enhance" means

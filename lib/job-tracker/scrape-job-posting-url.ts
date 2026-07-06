@@ -132,7 +132,7 @@ function buildResult(
   } else if (!titleOk) {
     hint = "Add a role title below before saving.";
   } else if (partial) {
-    hint = "Review imported fields below, then save.";
+    hint = "Fields imported — nothing saved yet. Review below, then click Save to Job Tracker.";
   }
 
   return {

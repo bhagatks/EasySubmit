@@ -6,6 +6,7 @@ import {
   applyPipelineStageLabelFromTrackerStage,
   formatApplyPipelineDevDetail,
   resolveApplyPipelineUserMessage,
+  resolveExtensionUserMessage,
 } from "@/src/shared/extension/apply-pipeline-user-messages";
 
 describe("resolveApplyPipelineUserMessage", () => {
@@ -109,6 +110,23 @@ describe("resolveApplyPipelineUserMessage", () => {
       line: APPLY_PIPELINE_USER_LINES.applied,
       kind: "success",
       stageId: "applied",
+    });
+  });
+
+  it("resolveExtensionUserMessage surfaces persisted pipelineAiWarning as warning", () => {
+    const warning =
+      "EasySubmit AI is at capacity today. We saved rule-based improvements — add your API key in AI Keys for full AI.";
+    expect(
+      resolveExtensionUserMessage({
+        saved: true,
+        status: "RESUME_READY",
+        pipelineBusy: false,
+        pipelineAiWarning: warning,
+      }),
+    ).toMatchObject({
+      line: warning,
+      kind: "warning",
+      stageId: "optimized_resume",
     });
   });
 });

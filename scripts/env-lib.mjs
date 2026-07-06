@@ -7,6 +7,7 @@ import { parse as parseDotenv } from "dotenv";
 import {
   DEV_SUPABASE_REF,
   LOCAL_ENV_FILE,
+  PROD_DEBUG_ENV_FILE,
   PROD_SUPABASE_REF,
   SKIP_LOCAL_ENV_FLAG,
   applyMigrateDatasourceUrl,
@@ -18,6 +19,7 @@ import {
   mergeEnv,
   resolveAppEnvRecord,
   resolveMigrateEnvRecord,
+  resolveProdDebugEnvRecord,
   shouldSkipLocalEnvFile,
   stripLocalDatabaseEnv,
 } from "../lib/env/env-resolution.mjs";
@@ -25,6 +27,7 @@ import {
 export {
   DEV_SUPABASE_REF,
   LOCAL_ENV_FILE,
+  PROD_DEBUG_ENV_FILE,
   PROD_SUPABASE_REF,
   SKIP_LOCAL_ENV_FLAG,
   assertPostHogOnlyEnv,
@@ -35,6 +38,7 @@ export {
   mergeEnv,
   resolveAppEnvRecord,
   resolveMigrateEnvRecord,
+  resolveProdDebugEnvRecord,
   shouldSkipLocalEnvFile,
   stripLocalDatabaseEnv,
 };
@@ -88,6 +92,16 @@ export function resolveAnalyticsAdminEnv(baseEnv = process.env) {
   const env = buildPostHogAdminEnv(baseEnv, vars);
   assertPostHogOnlyEnv(env, "resolveAnalyticsAdminEnv");
   return env;
+}
+
+/** Prod Postgres debug — `.env.prod.local` database keys only; never `.env.local` DB. */
+export function resolveProdDebugEnv(baseEnv = process.env) {
+  const { vars } = loadEnv(PROD_DEBUG_ENV_FILE);
+  const { env, error } = resolveProdDebugEnvRecord(baseEnv, vars);
+  if (!env) {
+    return { env: null, error };
+  }
+  return { env, error: null };
 }
 
 export function runCommand(command, args, env, options = {}) {

@@ -1,5 +1,10 @@
 | Date | Item |
 |------|------|
+| 2026-07-06 | **Enhance AI closeout** — custom tier routing fix, kernel rate-limit delay, OpenRouter JSON mode, JD extract note; AIHubMix live QA pass |
+| 2026-07-06 | **Enhance AI mission (kernel + failure UX v1)** — `lib/ai/call-kernel/` (classify → decide → retry/escalate loop, `aiCallLedger`, BYOK→slot 0→slot 1 DeepSeek); parse validation part of call (HTTP 200 + bad JSON escalates, no false API success); `resolveEnhanceOutcome()` warnings + fix actions persisted (`enhanceMeta`, `pipelineAiWarning`); surfaces: tracker row ⚠, Review header + `AiOutcomeBanner`, extension card line + session alert, Studio dialog alert; `enhance:trace:prod` prints ledger first; spec `docs/enhance-ai-failure-ux.md` |
+| 2026-07-06 | **Custom Endpoint BYOK model ID** — optional manual Model ID on Ignition Gate / Settings vault (AIHubMix-style gateways); custom chat-probe uses user model and returns it (never bundled gpt-4o*); discovery filters pass gateway IDs like `coding-glm-5.1-free`; custom provider skips OpenAI default fallback |
+| 2026-07-06 | **O*NET prod vocabulary** — `ONET_API_KEY` in Vercel Production; live Apply run verified `pre_role_vocab` step (`source: api`, not `fallback`) |
+| 2026-07-06 | **Prod deploy** — `www.easysubmit.ai` on `cd0cfd5`+ (job URL import, Application answers Settings, three-level AI, 4 pending migrations applied) |
 | 2026-07-06 | **Dashboard job URL import** — Add job modal: optional URL + **Import from URL**; manual role/company/JD only → tailor stops at **Resume ready** (no Apply assist without posting URL); `lib/job-tracker/scrape-job-posting-url.ts` |
 | 2026-07-06 | **Field Memory Settings UI** — `/dashboard/settings` → Application answers (list, search, edit, delete); `app/actions/application-answers.ts`; denylist filter on list |
 | 2026-07-06 | **Extension polish 3.2–3.3** — force-capture loading hint + manual header copy; removed legacy one-click toggle from Settings (DB column retained) |

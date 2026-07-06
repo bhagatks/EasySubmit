@@ -16,6 +16,7 @@ describe("enhanceFeatureRoute", () => {
         modelId: null,
         quota: { used: 5, limit: 5, unlimited: false },
         fallbackAvailable: true,
+        systemFallbackRoute: null,
       }),
     ).toBeNull();
   });
@@ -40,6 +41,7 @@ describe("enhanceFeatureRoute", () => {
         modelId: "gpt-4o",
         quota: { used: 0, limit: Infinity, unlimited: true },
         fallbackAvailable: true,
+        systemFallbackRoute: null,
       }),
     ).toEqual(route);
   });

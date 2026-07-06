@@ -18,6 +18,7 @@ const baseUser: SystemQuotaUserRow = {
   aiEnhancementsToday: 0,
   aiCallsToday: 0,
   aiQuotaResetAt: new Date(),
+  systemAiEnabled: true,
 };
 
 describe("resolveAiUpgrade", () => {
@@ -37,6 +38,7 @@ describe("resolveAiUpgrade", () => {
       modelId: "gemini-1.5-flash",
       quota: { used: 0, limit: 10, unlimited: false },
       fallbackAvailable: true,
+      systemFallbackRoute: { mode: "system", provider: "gemini", modelId: "gemini-1.5-flash" },
     });
 
     const result = await resolveAiUpgrade(baseUser, "job_apply");
@@ -59,6 +61,7 @@ describe("resolveAiUpgrade", () => {
       modelId: null,
       quota: { used: 5, limit: 5, unlimited: false },
       fallbackAvailable: true,
+      systemFallbackRoute: null,
     });
 
     const result = await resolveAiUpgrade(baseUser, "job_apply");

@@ -8,6 +8,7 @@ import {
   loadReviewLatexWorkspace,
   type EnhanceResumeActionResult,
 } from "@/app/actions/review-documents";
+import { AiOutcomeBanner } from "@/components/dashboard/AiOutcomeBanner";
 import { DocumentToolbar, type DocumentToolbarAction } from "@/components/dashboard/review/DocumentToolbar";
 import { ReviewPreviewZoomControls } from "@/components/dashboard/review/ReviewPreviewZoomControls";
 import { ReviewResumePreview } from "@/components/dashboard/review/ReviewResumePreview";
@@ -55,6 +56,18 @@ type EnhanceFeedback = {
   coherenceWarnings?: string[] | null;
   coverageAfter?: import("@/lib/job-tracker/enhance/enhance-brief").JdCoverageReport | null;
 };
+
+function readPersistedAiWarning(entry: JobTrackerDetail): string | null {
+  const fromTracker = entry.metadata?.pipelineAiWarning;
+  if (typeof fromTracker === "string" && fromTracker.trim()) {
+    return fromTracker.trim();
+  }
+  const fromSession = entry.enhanceSessionMeta?.warning;
+  if (typeof fromSession === "string" && fromSession.trim()) {
+    return fromSession.trim();
+  }
+  return null;
+}
 
 function EnhanceFeedbackCard({ feedback }: { feedback: EnhanceFeedback }) {
   const delta = feedback.atsDelta;
@@ -316,6 +329,9 @@ export function ReviewResumePanel({ entry, onRefresh, aiEnabled }: ReviewResumeP
     },
   ];
 
+  const persistedAiWarning = readPersistedAiWarning(entry);
+  const showPersistedBanner = Boolean(persistedAiWarning) && !enhanceFeedback;
+
   return (
     <div className="relative flex h-full min-h-0 flex-1 flex-col">
       <div className="relative min-h-0 flex-1 bg-white">
@@ -358,6 +374,12 @@ export function ReviewResumePanel({ entry, onRefresh, aiEnabled }: ReviewResumeP
           className="absolute inset-0 h-full w-full"
         />
       </div>
+
+      {showPersistedBanner && persistedAiWarning ? (
+        <div className="shrink-0 border-t border-border/60 bg-surface/80 p-2">
+          <AiOutcomeBanner message={persistedAiWarning} />
+        </div>
+      ) : null}
 
       {latexOpen && latexPayload ? (
         <LatexFullscreenEditor

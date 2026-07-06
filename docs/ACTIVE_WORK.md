@@ -13,8 +13,10 @@ Last updated: **2026-07-06**
 
 | Priority | Lane | Status | Doc |
 |----------|------|--------|-----|
+| P0 | Enhance AI kernel + failure UX v1 | **Done** | [`docs/enhance-ai-failure-ux.md`](./enhance-ai-failure-ux.md) |
+| P0 | Custom Endpoint BYOK (AIHubMix) | **Done** | Live QA pass 2026-07-06 |
 | P0 | Enhance QA sign-off (Case 001) | **Done** | Manual A/B/C pass at `/dashboard/testing-resume` |
-| P0 | Prod closeout (RLS migrate, `ONET_API_KEY`, legacy `aiConfig` row) | **Pending** | `PROD_CUTOVER.md` |
+| P0 | Prod closeout (RLS migrate, legacy `aiConfig` row) | **Pending** | `PROD_CUTOVER.md` — `ONET_API_KEY` + vocab smoke **done** |
 | P0 | Chrome Web Store publish | **Blocked** | listing under review |
 | P1 | Resume + Job E2E smoke (all **Todo** in tracker) | **Not started** | `ACTION_ITEMS.md` § E2E |
 | P1 | Extension keyword-gap chip UI | **Done** | `renderKeywordGapRow` in `card-ui.ts` |
@@ -50,6 +52,8 @@ Reconciled **2026-07-05** — verify with `git log` before re-implementing.
 
 | Topic | Owner | Status | Paths / notes |
 |-------|-------|--------|----------------|
+| Enhance AI kernel + failure UX v1 | Dev | **Done** | `lib/ai/call-kernel/`, extension/Review/Studio warnings |
+| Custom BYOK AIHubMix | Dev | **Done** | Live enhance QA pass |
 | Enhance QA — Case 001 A/B/C | Human | **Done** | Manual pass 2026-07-06 |
 | E2E resume flows | QA | **Todo** | onboarding, profile upload, export |
 | E2E job flows | QA | **Todo** | manual add, extension capture, Review |

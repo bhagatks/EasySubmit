@@ -29,7 +29,13 @@ export type DashboardManualJobValidation =
 export const DASHBOARD_MANUAL_JOB_TITLE = "Add job to Job Tracker";
 
 export const DASHBOARD_MANUAL_JOB_SUBTITLE =
-  "Paste a job URL to import details and unlock Apply assist. Or enter the role and description below — without a posting URL you can tailor a resume, but Apply stays unavailable.";
+  "Import from URL fills the form only — nothing is saved until you click Save to Job Tracker. Without a posting URL you can still tailor a resume, but Apply assist stays unavailable.";
+
+/** Shown after URL import succeeds — makes the two-step flow explicit. */
+export const DASHBOARD_URL_IMPORT_DRAFT_BANNER = {
+  title: "Imported into this form — not saved yet",
+  body: "Review the role, company, and description below. When everything looks right, click Save to Job Tracker.",
+} as const;
 
 export function resolveDashboardManualJobProfileId(
   profiles: DashboardManualJobProfileOption[],

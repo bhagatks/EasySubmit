@@ -14,7 +14,7 @@ const FLAGSHIP_FORCE_PATTERN =
   /reasoner|o1(-|$)|o3(-|$)|opus|thinking|claude-opus|claude-3-opus|preview.*pro/i;
 
 const CHEAP_HEURISTIC_PATTERN =
-  /flash-lite|flash(?!.*pro)|mini|haiku|8b-instant|instant|deepseek-v4-flash|deepseek-chat(?!.*reasoner)|lite|turbo(?!.*pro)|qwen.*32b|llama-3\.[18]b|mixtral-8x7b|glm-4-flash/i;
+  /flash-lite|flash(?!.*pro)|mini|haiku|8b-instant|instant|deepseek-v4-flash|deepseek-chat(?!.*reasoner)|lite|turbo(?!.*pro)|qwen.*32b|llama-3\.[18]b|mixtral-8x7b|glm-4-flash|-free$/i;
 
 export function inputCostPer1M(
   modelId: string,

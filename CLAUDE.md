@@ -224,6 +224,7 @@ npm run db:seed
 | Job tracker types | `lib/job-tracker/types.ts` |
 | Review Screen | `components/dashboard/ReviewScreen.tsx` |
 | Pipeline tailor | `lib/extension/pipeline-tailor.ts` |
+| **Prod job/enhance debug** | `cp .env.prod.example .env.prod.local` then `npm run enhance:trace:prod -- --user-id <id> --job <id> --posthog` |
 
 ---
 

@@ -133,5 +133,6 @@ export type JobStatusResponse = {
   title?: string;
   canReapply?: boolean;
   issueMessage?: string | null;
+  pipelineAiWarning?: string | null;
   error?: string;
 };

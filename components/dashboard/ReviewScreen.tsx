@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
   AlertCircle,
+  AlertTriangle,
   Briefcase,
   ExternalLink,
   Loader2,
@@ -574,11 +575,19 @@ export function ReviewScreen({
             {entry ? (
               <span
                 className={cn(
-                  "shrink-0 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-medium",
+                  "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-medium",
                   jobTrackerStatusStyle(entry.status),
                 )}
                 title={jobTrackerStatusLabel(entry.status)}
               >
+                {(entry.enhanceSessionMeta?.aiAttempted && !entry.enhanceSessionMeta.aiSucceeded) ||
+                (typeof entry.metadata?.pipelineAiWarning === "string" &&
+                  entry.metadata.pipelineAiWarning.trim()) ? (
+                  <AlertTriangle
+                    className="h-3 w-3 text-amber-500"
+                    aria-label="AI enhancement incomplete"
+                  />
+                ) : null}
                 {jobTrackerStatusLabel(entry.status)}
               </span>
             ) : null}

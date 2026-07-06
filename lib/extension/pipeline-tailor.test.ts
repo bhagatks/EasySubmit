@@ -110,7 +110,7 @@ describe("runPipelineTailor", () => {
         engineMode: "ai",
         aiAttempted: true,
         aiSucceeded: true,
-        enhanceSummary: null,
+        enhanceSummary: "AI enhance complete",
       },
     });
     vi.mocked(persistEnhancedResume).mockResolvedValue({

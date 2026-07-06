@@ -71,6 +71,8 @@ export type JobTrackerStatusResult = {
   canReapply?: boolean;
   /** Matches dashboard tracker issue — server is source of truth for saved jobs. */
   issueMessage?: string | null;
+  /** Persisted AI-degraded warning for extension card Bucket A. */
+  pipelineAiWarning?: string | null;
 };
 
 const IN_PROGRESS_STATUSES: JobTrackerStatus[] = ["CAPTURED", "RESUME_READY", "READY_TO_APPLY"];
@@ -135,6 +137,15 @@ export async function getJobTrackerStatusForUrl(
     return { saved: false };
   }
 
+  const metadata =
+    row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+      ? (row.metadata as Record<string, unknown>)
+      : null;
+  const pipelineAiWarning =
+    typeof metadata?.pipelineAiWarning === "string" && metadata.pipelineAiWarning.trim()
+      ? metadata.pipelineAiWarning.trim()
+      : null;
+
   return {
     saved: true,
     id: row.id,
@@ -149,11 +160,9 @@ export async function getJobTrackerStatusForUrl(
       salaryText: row.salaryText,
       description: row.description,
       platform: row.platform,
-      metadata:
-        row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
-          ? (row.metadata as Record<string, unknown>)
-          : null,
+      metadata,
     }),
+    pipelineAiWarning,
   };
 }
 

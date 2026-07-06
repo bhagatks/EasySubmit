@@ -259,6 +259,7 @@ let savedStatus: {
   id?: string;
   canReapply?: boolean;
   issueMessage?: string | null;
+  pipelineAiWarning?: string | null;
 } = { saved: false };
 let runtimeConfig: ExtensionRuntimeConfig | null = null;
 let connectedAccountEmail: string | null = null;
@@ -631,6 +632,7 @@ function resolveExtensionJourneyDisplayLocal() {
     pipelineBusyLabel,
     saveError,
     issueMessage: savedStatus.issueMessage,
+    pipelineAiWarning: savedStatus.pipelineAiWarning,
   });
 }
 
@@ -645,6 +647,7 @@ function getExtensionStatusPresentation(): {
     pipelineBusyLabel,
     saveError,
     issueMessage: savedStatus.issueMessage,
+    pipelineAiWarning: savedStatus.pipelineAiWarning,
   });
   return { line: message.line, kind: message.kind };
 }
@@ -1137,8 +1140,12 @@ async function enhanceDocumentPreview(
         fallbackSummary?: string;
         fallbackUsed?: boolean;
         warning?: string;
+        action?: string;
+        actionHref?: string | null;
         engineMode?: "ai" | "deterministic";
         aiMode?: "customer" | "system";
+        aiAttempted?: boolean;
+        aiSucceeded?: boolean;
       }>({
         action: EXTENSION_MESSAGE.ENHANCE_DOCUMENT,
         entryId: savedStatus.id,
@@ -1181,9 +1188,19 @@ async function enhanceDocumentPreview(
 
     documentEnhanceByokOffer = null;
 
-    if (res.warning) {
-      saveError = res.warning;
-      documentEnhanceFallbackFix = null;
+    const aiDegraded = res.aiAttempted === true && res.aiSucceeded === false;
+    if (res.warning || aiDegraded) {
+      saveError =
+        res.warning?.trim() ||
+        "AI could not complete this enhance. We saved rule-based improvements.";
+      if (res.actionHref) {
+        documentEnhanceFallbackFix = {
+          path: res.actionHref,
+          label: "Update AI Keys",
+        };
+      } else {
+        documentEnhanceFallbackFix = null;
+      }
     } else if (res.fallbackUsed || res.engineMode === "deterministic") {
       saveError =
         res.warning?.trim() ||
@@ -1220,6 +1237,10 @@ async function enhanceDocumentPreview(
     } else {
       previewLoadState = "error";
       previewError = previewRes?.error ?? "Could not refresh preview.";
+    }
+
+    if (savedStatus.id) {
+      void refreshSavedStatus().catch(() => undefined);
     }
   } catch (error) {
     if (isDocumentEnhanceRunCancelled(run)) return;
@@ -3807,6 +3828,7 @@ async function refreshSavedStatus(): Promise<{
     id?: string;
     canReapply?: boolean;
     issueMessage?: string | null;
+    pipelineAiWarning?: string | null;
   }>({
     action: EXTENSION_MESSAGE.JOB_STATUS,
     url: lookupUrl,
@@ -3816,13 +3838,14 @@ async function refreshSavedStatus(): Promise<{
     console.warn("[EasySubmit] status:lookup unreachable — background may be asleep", { lookupUrl });
     return null;
   }
-  console.log("[EasySubmit] status:lookup result", { saved: res.saved, status: res.status, id: res.id, canReapply: res.canReapply, issueMessage: res.issueMessage ?? null });
+  console.log("[EasySubmit] status:lookup result", { saved: res.saved, status: res.status, id: res.id, canReapply: res.canReapply, issueMessage: res.issueMessage ?? null, pipelineAiWarning: res.pipelineAiWarning ?? null });
   savedStatus = {
     saved: Boolean(res.saved),
     status: res.status,
     id: typeof res.id === "string" ? res.id : undefined,
     canReapply: Boolean(res.canReapply),
     issueMessage: res.issueMessage ?? null,
+    pipelineAiWarning: res.pipelineAiWarning ?? null,
   };
   return { issueMessage: res.issueMessage };
 }

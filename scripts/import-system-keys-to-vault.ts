@@ -1,34 +1,45 @@
 #!/usr/bin/env npx tsx
 /**
- * One-time (or repeatable) import of system Gemini keys from env into Supabase Vault.
+ * Import system pool keys from env into Supabase Vault + system_api_keys.
  *
- * Usage:
- *   EASYSUBMIT_SYSTEM_GEMINI_API_KEYS=key1,key2 npm run db:import-system-keys
+ * Pool v2 (default):
+ *   slot 0 — OpenRouter free (`EASYSUBMIT_SYSTEM_OPENROUTER_API_KEY(S)`)
+ *   slot 1 — DeepSeek paid overflow (`EASYSUBMIT_SYSTEM_DEEPSEEK_API_KEY(S)`)
  *
- * Requires DATABASE_URL and Vault SQL functions from migration 20260621040000.
+ * Usage (local dev):
+ *   npm run db:import-system-keys
+ *
+ * Usage (production — keys from Vercel, not laptop):
+ *   node scripts/run.mjs admin -- npm run db:import-system-keys
  */
 import dotenv from "dotenv";
-import { slotLabelForIndex } from "../src/lib/ai/engine/pool-constants";
+import {
+  DEEPSEEK_OVERFLOW_SLOT,
+  OPENROUTER_FREE_SLOT,
+  slotLabelForIndex,
+} from "../src/lib/ai/engine/pool-constants";
+import {
+  systemPoolEnvKeyVar,
+  systemPoolEnvKeysVar,
+  type SystemPoolProvider,
+} from "../src/lib/ai/engine/system-model-defaults";
 
 dotenv.config({ path: ".env" });
-// Shell-provided keys win over empty .env.local placeholders.
-dotenv.config({ path: ".env.local" });
+// Prod/admin ops set EASYSUBMIT_SKIP_LOCAL_ENV=1 so laptop dev DB never overrides injected prod env.
+if (process.env.EASYSUBMIT_SKIP_LOCAL_ENV !== "1") {
+  dotenv.config({ path: ".env.local" });
+}
 
-function parseKeys(): string[] {
-  const raw =
-    process.env.EASYSUBMIT_SYSTEM_GEMINI_API_KEYS?.trim() ||
-    process.env.EASYSUBMIT_SYSTEM_GEMINI_API_KEY?.trim() ||
-    "";
+function firstEnvKey(provider: SystemPoolProvider): string {
+  const plural = process.env[systemPoolEnvKeysVar(provider)]?.trim();
+  const single = process.env[systemPoolEnvKeyVar(provider)]?.trim();
+  const raw = plural?.split(",")[0]?.trim() || single || "";
   if (!raw) {
     throw new Error(
-      "Set EASYSUBMIT_SYSTEM_GEMINI_API_KEYS (comma-separated, up to 3) or EASYSUBMIT_SYSTEM_GEMINI_API_KEY",
+      `Set ${systemPoolEnvKeysVar(provider)} or ${systemPoolEnvKeyVar(provider)}`,
     );
   }
-  return raw
-    .split(",")
-    .map((k) => k.trim())
-    .filter(Boolean)
-    .slice(0, 3);
+  return raw;
 }
 
 async function main() {
@@ -36,20 +47,29 @@ async function main() {
     throw new Error("DATABASE_URL is not set");
   }
 
-  const { vaultSystemApiKey } = await import("../lib/vault/system-key-vault");
-  const keys = parseKeys();
+  const openRouterKey = firstEnvKey("openrouter");
+  const deepSeekKey = firstEnvKey("deepseek");
 
-  for (let slot = 0; slot < keys.length; slot += 1) {
-    const result = await vaultSystemApiKey(slot, keys[slot]!, {
-      label: slotLabelForIndex(slot),
-      enabled: true,
-    });
-    console.log(`Vaulted system key slot ${slot} (${result.vaultSecretId})`);
-  }
+  const { vaultSystemApiKey } = await import("../lib/vault/system-key-vault");
+
+  const slot0 = await vaultSystemApiKey(OPENROUTER_FREE_SLOT, openRouterKey, {
+    label: slotLabelForIndex(OPENROUTER_FREE_SLOT),
+    enabled: true,
+    provider: "openrouter",
+  });
+  console.log(`Vaulted slot ${OPENROUTER_FREE_SLOT} OpenRouter (${slot0.vaultSecretId})`);
+
+  const slot1 = await vaultSystemApiKey(DEEPSEEK_OVERFLOW_SLOT, deepSeekKey, {
+    label: slotLabelForIndex(DEEPSEEK_OVERFLOW_SLOT),
+    enabled: true,
+    provider: "deepseek",
+  });
+  console.log(`Vaulted slot ${DEEPSEEK_OVERFLOW_SLOT} DeepSeek (${slot1.vaultSecretId})`);
 
   console.log(
-    `\nDone — ${keys.length} key(s) in Vault.\n` +
-      "Next: remove EASYSUBMIT_SYSTEM_GEMINI_API_KEYS from production env (see docs/database-schema.md).",
+    "\nDone — system pool v2 keys in Vault.\n" +
+      "Verify: npx tsx scripts/diagnose-system-pool.ts\n" +
+      "Prod:   node scripts/run.mjs admin -- npx tsx scripts/diagnose-system-pool.ts",
   );
 }
 
@@ -57,7 +77,7 @@ main().catch((err) => {
   const message = err instanceof Error ? err.message : String(err);
   if (message.includes("vault_system_key") && message.includes("does not exist")) {
     console.error(
-      "Vault SQL functions are missing. Run migrations first:\n  npx prisma migrate dev",
+      "Vault SQL functions are missing. Run migrations first:\n  npx prisma migrate deploy",
     );
   } else {
     console.error(err);

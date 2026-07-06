@@ -20,7 +20,7 @@ import { useRegisterStudioHeaderCenter } from "@/components/resume/StudioHeaderC
 import { AppAlertDialog } from "@/components/ui/app-alert-dialog";
 import { Button } from "@/components/ui/button";
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
-import { resolveEnhanceWarningTitle } from "@/lib/ai/enhance-failure-messages";
+import { resolveEnhanceWarningTitle, resolveEnhanceActionLabel } from "@/lib/ai/enhance-failure-messages";
 import { studioSkillsFromForm } from "@/lib/profile/studio-form-db";
 import {
   buildSectionExpansionState,
@@ -112,6 +112,8 @@ export function useResumeEnhanceFlow({
   );
   const [warning, setWarning] = useState<string | null>(null);
   const [warningTitle, setWarningTitle] = useState<string | null>(null);
+  const [warningActionHref, setWarningActionHref] = useState<string | null>(null);
+  const [warningActionLabel, setWarningActionLabel] = useState<string | null>(null);
   const [timeoutMs, setTimeoutMs] = useState(DEFAULT_ENHANCE_WITH_AI_TIMEOUT_MS);
   const [activeTraceId, setActiveTraceId] = useState<string | null>(null);
   const [activeJobDescription, setActiveJobDescription] = useState("");
@@ -230,6 +232,8 @@ export function useResumeEnhanceFlow({
       setError(null);
       setErrorCode(undefined);
       setWarning(null);
+      setWarningActionHref(null);
+      setWarningActionLabel(null);
 
       let result: Awaited<ReturnType<typeof enhanceResumeProfile>>;
       try {
@@ -403,13 +407,23 @@ export function useResumeEnhanceFlow({
         ),
       });
 
-      if (result.warning) {
-        setWarning(result.warning);
+      if (result.warning || (result.aiAttempted && result.aiSucceeded === false)) {
+        setWarning(
+          result.warning ??
+            "AI could not complete this enhance. We saved rule-based improvements to your resume.",
+        );
         setWarningTitle(
           resolveEnhanceWarningTitle({
             code: result.aiBlockCode ?? undefined,
           }),
         );
+        if (result.actionHref) {
+          setWarningActionHref(result.actionHref);
+          setWarningActionLabel(resolveEnhanceActionLabel(result.action));
+        } else {
+          setWarningActionHref(null);
+          setWarningActionLabel(null);
+        }
       }
 
       logEnhance("client", "dialog.close", {
@@ -696,21 +710,35 @@ export function useResumeEnhanceFlow({
           if (!open) {
             setWarning(null);
             setWarningTitle(null);
+            setWarningActionHref(null);
+            setWarningActionLabel(null);
           }
         }}
         title={warningTitle ?? "Resume saved with rule-based edits"}
         description={warning ?? ""}
         footer={
-          <Button
-            type="button"
-            className="rounded-xl"
-            onClick={() => {
-              setWarning(null);
-              setWarningTitle(null);
-            }}
-          >
-            Continue
-          </Button>
+          <>
+            {warningActionHref ? (
+              <Button type="button" className="rounded-xl" asChild>
+                <Link href={warningActionHref}>
+                  {warningActionLabel ?? "Update AI Keys"}
+                </Link>
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant={warningActionHref ? "ghost" : "default"}
+              className="rounded-xl"
+              onClick={() => {
+                setWarning(null);
+                setWarningTitle(null);
+                setWarningActionHref(null);
+                setWarningActionLabel(null);
+              }}
+            >
+              Continue
+            </Button>
+          </>
         }
       />
     </>

@@ -117,6 +117,7 @@ export function resolveExtensionJourneyDisplay(input: {
   pipelineBusyLabel?: string | null;
   saveError?: string | null;
   issueMessage?: string | null;
+  pipelineAiWarning?: string | null;
 }): JourneyDisplay {
   if (input.canReapply) {
     return {
@@ -137,6 +138,7 @@ export function resolveExtensionJourneyDisplay(input: {
     pipelineBusyLabel: input.pipelineBusyLabel,
     saveError: input.saveError,
     issueMessage: input.issueMessage,
+    pipelineAiWarning: input.pipelineAiWarning,
   });
   const status = input.saved ? ((input.status as JobTrackerStatus | undefined) ?? null) : null;
   const hasError = userMessage.kind === "error";

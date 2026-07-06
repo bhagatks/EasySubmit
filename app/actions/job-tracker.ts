@@ -37,6 +37,14 @@ import {
   scrapeJobPostingFromUrl,
   type ScrapeJobPostingUrlResult,
 } from "@/lib/job-tracker/scrape-job-posting-url";
+import {
+  findActiveJobTrackerEntryForUrl,
+} from "@/lib/extension/job-service";
+import {
+  shouldCheckJobTrackerUrlDuplicate,
+  toJobTrackerUrlDuplicateSummary,
+  type JobTrackerUrlDuplicateSummary,
+} from "@/lib/job-tracker/job-tracker-url-duplicate";
 
 const AUTO_ARCHIVE_MS = 24 * 60 * 60 * 1000;
 
@@ -107,6 +115,10 @@ function toSummary(entry: {
     hasTailoredResume: Boolean(entry.resumeTailor?.id),
     issueMessage,
     pipelineStepFailure: resolvePipelineStepFailureFromMetadata(metadata, entry.status),
+    pipelineAiWarning:
+      typeof metadata?.pipelineAiWarning === "string" && metadata.pipelineAiWarning.trim()
+        ? metadata.pipelineAiWarning.trim()
+        : null,
   };
 }
 
@@ -259,6 +271,19 @@ export async function getJobTrackerEntryById(entryId: string): Promise<JobTracke
               : undefined,
         },
       );
+      if (
+        merged.tailor.enhanceMeta &&
+        typeof merged.tailor.enhanceMeta === "object" &&
+        !Array.isArray(merged.tailor.enhanceMeta)
+      ) {
+        const em = merged.tailor.enhanceMeta as Record<string, unknown>;
+        entry.enhanceSessionMeta = {
+          aiAttempted: em.aiAttempted === true,
+          aiSucceeded: em.aiSucceeded === true,
+          warning: typeof em.warning === "string" ? em.warning : null,
+          engineMode: em.engineMode === "ai" ? "ai" : "deterministic",
+        };
+      }
     } else {
       previewError = merged.error;
     }
@@ -617,7 +642,41 @@ export async function updateJobTrackerEntryStatus(
 
 export type CreateJobTrackerManualEntryResult =
   | { success: true; entryId: string }
+  | {
+      success: false;
+      error: string;
+      code?: "duplicate_url";
+      existing?: JobTrackerUrlDuplicateSummary;
+    };
+
+export type LookupJobTrackerUrlDuplicateResult =
+  | { success: true; duplicate: JobTrackerUrlDuplicateSummary | null }
   | { success: false; error: string };
+
+export async function lookupJobTrackerUrlDuplicate(
+  rawUrl: string,
+): Promise<LookupJobTrackerUrlDuplicateResult> {
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return { success: false, error: "Sign in required" };
+  }
+
+  if (!shouldCheckJobTrackerUrlDuplicate(rawUrl)) {
+    return { success: true, duplicate: null };
+  }
+
+  const existing = await findActiveJobTrackerEntryForUrl(userId, rawUrl.trim());
+  if (!existing) {
+    return { success: true, duplicate: null };
+  }
+
+  return {
+    success: true,
+    duplicate: toJobTrackerUrlDuplicateSummary(existing),
+  };
+}
 
 export type ImportJobPostingFromUrlResult = ScrapeJobPostingUrlResult;
 
@@ -696,6 +755,25 @@ export async function createJobTrackerManualEntry(
       error: aiBlock,
     });
     return { success: false, error: aiBlock };
+  }
+
+  if (shouldCheckJobTrackerUrlDuplicate(built.input.url)) {
+    const existing = await findActiveJobTrackerEntryForUrl(userId, built.input.url);
+    if (existing) {
+      const duplicate = toJobTrackerUrlDuplicateSummary(existing);
+      journeySyncLog("server", "dashboard.manual_capture.block", {
+        userId,
+        errorCode: "duplicate_url",
+        entryId: existing.id,
+        status: existing.status,
+      });
+      return {
+        success: false,
+        error: `This posting is already in your Job Tracker (${duplicate.statusLabel}). Archive or delete it before adding again.`,
+        code: "duplicate_url",
+        existing: duplicate,
+      };
+    }
   }
 
   journeySyncLog("server", "dashboard.manual_capture.start", { userId });

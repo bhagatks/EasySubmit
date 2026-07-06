@@ -15,6 +15,7 @@ import type { AiEngineConfig } from "@/src/lib/services/ai-engine-config";
 import { getAppConfig, isSubscribed } from "@/src/lib/services/config-service";
 import { getFeatureFlags, isSystemAiEnabled } from "@/src/lib/services/feature-flags-service";
 import { isCustomerQuotaUnlimited } from "@/src/lib/services/ai-engine-config";
+import { reconcileUserVaultKeyState } from "@/lib/vault/reconcile-user-vault-key";
 
 /** Which feature flag gates each surface. */
 const SURFACE_FLAG_MAP = {
@@ -71,6 +72,7 @@ function softOff(
     modelId: null,
     quota: { used: 0, limit: 0, unlimited: false },
     fallbackAvailable: true,
+    systemFallbackRoute: null,
   };
 }
 
@@ -79,6 +81,7 @@ function resolutionFromRoute(
   user: SystemQuotaUserRow,
   aiEngine: AiEngineConfig,
   unlimited: boolean,
+  systemFallbackRoute: ResolvedAiRoute | null,
 ): import("@/lib/features/types").EnhanceFeatureResolution {
   return {
     baselineAvailable: true,
@@ -99,7 +102,28 @@ function resolutionFromRoute(
       unlimited,
     },
     fallbackAvailable: true,
+    systemFallbackRoute,
   };
+}
+
+async function resolveSystemFallbackRoute(
+  routeUser: SystemQuotaUserRow,
+  flags: Awaited<ReturnType<typeof getFeatureFlags>>,
+  aiEngine: AiEngineConfig,
+): Promise<ResolvedAiRoute | null> {
+  const systemRoute = await resolveAiRoute({
+    userId: routeUser.id,
+    aiSourcePreference: "system",
+    vaultKeyId: routeUser.vaultKeyId,
+    activeProvider: routeUser.activeProvider,
+    userSystemAiEnabled: (routeUser.systemAiEnabled ?? true) && isSystemAiEnabled(flags),
+    forceSystem: true,
+    allowByokFallback: false,
+    forceCustomerRoute: false,
+    aiEngine,
+  });
+  if ("error" in systemRoute) return null;
+  return systemRoute;
 }
 
 export async function resolveEnhanceFeature(
@@ -107,14 +131,23 @@ export async function resolveEnhanceFeature(
   surface: FeatureSurface,
   opts: ResolveEnhanceOpts = {},
 ): Promise<import("@/lib/features/types").EnhanceFeatureResolution> {
-  const { quotaRow } = resolveQuotaRowWithReset(user);
+  const reconciled = await reconcileUserVaultKeyState(user.id);
+  const routeUser: SystemQuotaUserRow = reconciled.changed
+    ? {
+        ...user,
+        vaultKeyId: reconciled.vaultKeyId,
+        activeProvider: reconciled.activeProvider,
+      }
+    : user;
+
+  const { quotaRow } = resolveQuotaRowWithReset(routeUser);
   const traceId = opts.traceId;
 
   const gateFlags = {
     surface,
-    aiSourcePreference: user.aiSourcePreference ?? "auto",
-    hasVaultKey: Boolean(user.vaultKeyId),
-    activeProvider: user.activeProvider ?? null,
+    aiSourcePreference: routeUser.aiSourcePreference ?? "auto",
+    hasVaultKey: Boolean(routeUser.vaultKeyId),
+    activeProvider: routeUser.activeProvider ?? null,
     forceSystem: opts.forceSystem ?? false,
     forceAiEnabled: opts.forceAiEnabled ?? false,
     useCustomerKey: opts.useCustomerKey ?? true,
@@ -177,7 +210,7 @@ export async function resolveEnhanceFeature(
     });
   }
 
-  const preference = (user.aiSourcePreference ?? "auto") as AiSourcePreference;
+  const preference = (routeUser.aiSourcePreference ?? "auto") as AiSourcePreference;
   if (preference === "disabled" && !opts.forceAiEnabled) {
     if (traceId) {
       logEnhanceGate({
@@ -211,11 +244,11 @@ export async function resolveEnhanceFeature(
   }
 
   const route = await resolveAiRoute({
-    userId: user.id,
+    userId: routeUser.id,
     aiSourcePreference: routePreference,
-    vaultKeyId: user.vaultKeyId,
-    activeProvider: user.activeProvider,
-    userSystemAiEnabled: (user.systemAiEnabled ?? true) && isSystemAiEnabled(flags),
+    vaultKeyId: routeUser.vaultKeyId,
+    activeProvider: routeUser.activeProvider,
+    userSystemAiEnabled: (routeUser.systemAiEnabled ?? true) && isSystemAiEnabled(flags),
     forceSystem: opts.forceSystem ?? false,
     allowByokFallback: opts.useCustomerKey ?? true,
     forceCustomerRoute: opts.useCustomerKey === true,
@@ -299,5 +332,10 @@ export async function resolveEnhanceFeature(
 
   const unlimited = subscribed || (route.mode === "customer" && isCustomerQuotaUnlimited(aiEngine));
 
-  return resolutionFromRoute(route, user, aiEngine, unlimited);
+  const systemFallbackRoute =
+    route.mode === "customer"
+      ? await resolveSystemFallbackRoute(routeUser, flags, aiEngine)
+      : route;
+
+  return resolutionFromRoute(route, routeUser, aiEngine, unlimited, systemFallbackRoute);
 }

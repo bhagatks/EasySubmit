@@ -143,4 +143,5 @@ export type EnhanceSessionMeta = {
   coherenceWarnings?: string[];
   resumeRulesVersion?: 2;
   pageLengthPreference?: string;
+  aiCallLedger?: import("@/lib/ai/call-kernel/types").AiCallLedgerEntry[];
 };

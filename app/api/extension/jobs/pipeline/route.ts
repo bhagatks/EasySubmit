@@ -64,6 +64,12 @@ export async function POST(request: NextRequest) {
       pendingPhase: result.pendingPhase,
       hasTailoredResume: result.hasTailoredResume ?? false,
       sourceProfileId: result.sourceProfileId ?? null,
+      warning: result.warning ?? result.pipelineWarning ?? null,
+      action: result.action ?? null,
+      actionHref: result.actionHref ?? null,
+      aiAttempted: result.aiAttempted,
+      aiSucceeded: result.aiSucceeded,
+      aiBlockCode: result.aiBlockCode ?? null,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Pipeline failed";

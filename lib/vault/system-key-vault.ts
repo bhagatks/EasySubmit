@@ -2,7 +2,9 @@ import { prisma } from "@/lib/prisma";
 import { slotLabelForIndex } from "@/src/lib/ai/engine/pool-constants";
 import { getTodayPacificDateString } from "@/src/lib/ai/engine/pacific-time";
 import {
+  defaultBillingModeForSlot,
   defaultSlotModelForProvider,
+  defaultSlotProviderForIndex,
   parseSystemPoolProvider,
   type SystemPoolProvider,
 } from "@/src/lib/ai/engine/system-model-defaults";
@@ -11,8 +13,8 @@ import { AI_ENGINE_DEFAULTS } from "@/src/lib/services/ai-engine-config";
 type VaultSystemKeyRow = { vault_system_key: string };
 
 /**
- * Store a system Gemini API key in Supabase Vault (slot 0–2 by default).
- * Secret name: `easysubmit-system-gemini-{slot}`.
+ * Store a system pool API key in Supabase Vault (slot 0 = OpenRouter, slot 1 = DeepSeek).
+ * Secret name: `easysubmit-system-gemini-{slot}` (legacy vault function naming).
  */
 export async function vaultSystemApiKey(
   slot: number,
@@ -44,10 +46,11 @@ export async function vaultSystemApiKey(
 
   const provider = parseSystemPoolProvider(
     options?.provider,
-    AI_ENGINE_DEFAULTS.system.provider,
+    defaultSlotProviderForIndex(slot),
   );
+  const billingMode = defaultBillingModeForSlot(slot);
   const modelId =
-    options?.modelId?.trim() || defaultSlotModelForProvider(provider);
+    options?.modelId?.trim() || defaultSlotModelForProvider(provider, slot);
 
   await prisma.systemApiKey.upsert({
     where: { slot },
@@ -57,13 +60,16 @@ export async function vaultSystemApiKey(
       label: options?.label?.trim() || slotLabelForIndex(slot),
       enabled: options?.enabled ?? true,
       provider,
-      billingMode: "free",
+      billingMode,
       modelId,
       callsToday: 0,
       quotaResetDate: getTodayPacificDateString(),
     },
     update: {
       vaultSecretId,
+      provider,
+      billingMode,
+      modelId,
       ...(options?.label !== undefined ? { label: options.label.trim() || undefined } : {}),
       ...(options?.enabled !== undefined ? { enabled: options.enabled } : {}),
     },

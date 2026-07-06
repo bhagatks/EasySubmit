@@ -27,6 +27,8 @@ export type JobTrackerSummary = {
   hasTailoredResume?: boolean;
   /** First failed capture/resume pipeline step — blocks stage advance on tracker. */
   pipelineStepFailure?: PipelineStepFailure | null;
+  /** Persisted AI-degraded warning for tracker sub-label. */
+  pipelineAiWarning?: string | null;
 };
 
 /** Full job row for the review overlay — job-centric model (tailor/export fields live here). */
@@ -48,6 +50,13 @@ export type JobTrackerDetail = JobTrackerSummary & {
   reviewContact?: JobReviewContact | null;
   /** When merge/preview fails but tailor row exists. */
   previewError?: string | null;
+  /** Subset of tailor enhanceMeta for Review AI outcome banner. */
+  enhanceSessionMeta?: {
+    aiAttempted?: boolean;
+    aiSucceeded?: boolean;
+    warning?: string | null;
+    engineMode?: "ai" | "deterministic";
+  } | null;
 };
 
 export type JobReviewDocuments = {

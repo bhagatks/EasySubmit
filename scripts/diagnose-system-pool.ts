@@ -1,7 +1,9 @@
 #!/usr/bin/env npx tsx
 import dotenv from "dotenv";
 dotenv.config({ path: ".env" });
-dotenv.config({ path: ".env.local" });
+if (process.env.EASYSUBMIT_SKIP_LOCAL_ENV !== "1") {
+  dotenv.config({ path: ".env.local" });
+}
 
 async function main() {
   const { prisma } = await import("@/lib/prisma");

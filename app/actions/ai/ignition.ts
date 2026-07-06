@@ -28,6 +28,8 @@ export type IgniteEngineVaultInput = {
   rawKey: string;
   provider: string;
   customEndpointUrl?: string | null;
+  /** Optional model ID for custom OpenAI-compatible gateways. */
+  customModelId?: string | null;
   /** When false, vault the key without switching the user's active BYOK pointer. */
   setAsActive?: boolean;
 };
@@ -109,6 +111,7 @@ export async function igniteEngineVault(
       provider,
       apiKey: keyMaterial,
       customEndpointUrl: input.customEndpointUrl,
+      customModelId: input.customModelId,
     });
     if (!discovery.success) {
       return {

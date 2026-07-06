@@ -139,7 +139,7 @@ const CAREER_GRADE_PRIORITY: Record<HandshakeProvider, string[]> = {
     "meta-llama/Llama-3.3-70B-Instruct",
   ],
   mistral: ["mistral-large-latest", "mistral-small-latest", "open-mistral-nemo"],
-  custom: ["gpt-4o-mini", "gpt-4o"],
+  custom: [],
 };
 
 function isExcludedModel(modelId: string): boolean {
@@ -184,6 +184,8 @@ export function filterCareerGradeModels(
   const fromApi = intersectCareerGradeModels(provider, modelIds);
 
   if (fromApi.length > 0) return fromApi;
+
+  if (provider === "custom") return [];
 
   return sortCareerGradeModels(
     provider,

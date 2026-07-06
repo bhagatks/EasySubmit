@@ -41,4 +41,16 @@ describe("resolveEnhanceTraceOutcome", () => {
       ]),
     ).toBe("AI failed");
   });
+
+  it("does not report AI success when API rows are green but job meta says aiSucceeded false", () => {
+    expect(
+      resolveEnhanceTraceOutcome(
+        [
+          { operation: "ai.enhance.generate_object", status: "success" },
+          { operation: "ai.enhance.generate_text", status: "success" },
+        ],
+        { aiAttempted: true, aiSucceeded: false },
+      ),
+    ).toBe("AI failed (parse/degraded — API ok)");
+  });
 });

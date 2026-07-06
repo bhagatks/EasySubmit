@@ -40,9 +40,20 @@ export function buildDefaultModelCandidatesForTask(
   const tierFiltered = bundled.filter((modelId) => classifyModelTier(modelId) === taskTier);
   const pool = tierFiltered.length > 0 ? tierFiltered : bundled;
 
+  const preferred = preferredModelId?.trim();
+  if (provider === "custom" && pool.length === 0) {
+    const primary = preferred ?? "";
+    return {
+      primaryModelId: primary,
+      rankedModels: primary ? [primary] : [],
+      source: "defaults",
+      healthCheckedAt: null,
+    };
+  }
+
   const primary =
-    preferredModelId?.trim() && pool.includes(preferredModelId.trim())
-      ? preferredModelId.trim()
+    preferred && pool.includes(preferred)
+      ? preferred
       : taskTier === "cheap"
         ? [...pool].sort((left, right) => inputCostPer1M(left) - inputCostPer1M(right))[0] ??
           pool[0] ??
@@ -103,12 +114,14 @@ export function resolveCandidatesFromHealthForTask(
   const ranked = [
     primary,
     ...sorted.filter((modelId) => modelId !== primary),
-    ...buildDefaultModelCandidatesForTask(provider, taskTier).rankedModels.filter((modelId) => {
-      if (modelId === primary || sorted.includes(modelId)) return false;
-      const entry = health.entries[modelId];
-      if (!entry) return true;
-      return isHealthyStructuredEntry(provider, entry, now);
-    }),
+    ...(provider === "custom"
+      ? []
+      : buildDefaultModelCandidatesForTask(provider, taskTier).rankedModels.filter((modelId) => {
+          if (modelId === primary || sorted.includes(modelId)) return false;
+          const entry = health.entries[modelId];
+          if (!entry) return true;
+          return isHealthyStructuredEntry(provider, entry, now);
+        })),
   ].slice(0, 5);
 
   return {

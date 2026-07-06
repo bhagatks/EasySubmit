@@ -4,10 +4,14 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link2, Loader2 } from "lucide-react";
 import {
+  archiveJobTrackerEntry,
   createJobTrackerManualEntry,
+  deleteJobTrackerEntry,
   importJobPostingFromUrl,
+  lookupJobTrackerUrlDuplicate,
   tailorJobTrackerEntry,
 } from "@/app/actions/job-tracker";
+import { JobTrackerDuplicateConflictAlert } from "@/components/dashboard/JobTrackerDuplicateConflictAlert";
 import { GlossyModal } from "@/components/ui/glossy-modal";
 import { Input } from "@/components/ui/input";
 import { PurposeButton } from "@/components/ui/purpose-button";
@@ -15,6 +19,7 @@ import { serverActionClientErrorMessage } from "@/lib/server-action-client";
 import {
   DASHBOARD_MANUAL_JOB_SUBTITLE,
   DASHBOARD_MANUAL_JOB_TITLE,
+  DASHBOARD_URL_IMPORT_DRAFT_BANNER,
   dashboardManualJobDescriptionHint,
   resolveDashboardManualJobProfileId,
   type DashboardManualJobDraft,
@@ -26,6 +31,10 @@ import {
 } from "@/src/shared/extension/apply-gate";
 import { AnalyticsEvents, captureAnalyticsEvent } from "@/src/shared/analytics";
 import { cn } from "@/lib/utils";
+import {
+  shouldCheckJobTrackerUrlDuplicate,
+  type JobTrackerUrlDuplicateSummary,
+} from "@/lib/job-tracker/job-tracker-url-duplicate";
 
 function emptyDraft(defaultProfileId: string | null): DashboardManualJobDraft {
   return {
@@ -57,12 +66,18 @@ export function JobTrackerManualAddModal({
   const [importing, setImporting] = useState(false);
   const [importHint, setImportHint] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [duplicate, setDuplicate] = useState<JobTrackerUrlDuplicateSummary | null>(null);
+  const [duplicateBusy, setDuplicateBusy] = useState(false);
+  /** True after Import from URL succeeds — user must still click Save. */
+  const [pendingUrlImportDraft, setPendingUrlImportDraft] = useState(false);
 
   const descriptionLength = draft.description.trim().length;
   const hasProfiles = profiles.length > 0;
-  const busy = submitting || importing;
+  const busy = submitting || importing || duplicateBusy;
+  const hasDuplicate = duplicate !== null;
   const canSave =
     hasProfiles &&
+    !hasDuplicate &&
     Boolean(draft.sourceProfileId.trim()) &&
     canDashboardManualJobSave({
       url: draft.url,
@@ -83,14 +98,54 @@ export function JobTrackerManualAddModal({
     setDraft(emptyDraft(defaultProfileId));
     setError(null);
     setImportHint(null);
+    setDuplicate(null);
+    setPendingUrlImportDraft(false);
     setSubmitting(false);
     setImporting(false);
+    setDuplicateBusy(false);
   }, [defaultProfileId]);
+
+  const refreshDuplicateCheck = useCallback(async (url: string) => {
+    if (!shouldCheckJobTrackerUrlDuplicate(url)) {
+      setDuplicate(null);
+      return;
+    }
+
+    try {
+      const result = await lookupJobTrackerUrlDuplicate(url);
+      if (!result.success) {
+        setDuplicate(null);
+        return;
+      }
+      setDuplicate(result.duplicate);
+    } catch {
+      setDuplicate(null);
+    }
+  }, []);
 
   useEffect(() => {
     if (!open) return;
     resetForm();
   }, [open, resetForm]);
+
+  useEffect(() => {
+    if (!open || !shouldCheckJobTrackerUrlDuplicate(draft.url)) {
+      setDuplicate(null);
+      return;
+    }
+
+    const url = draft.url.trim();
+    if (!url) {
+      setDuplicate(null);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void refreshDuplicateCheck(url);
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [draft.url, open, refreshDuplicateCheck]);
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -109,6 +164,7 @@ export function JobTrackerManualAddModal({
     setImporting(true);
     setError(null);
     setImportHint(null);
+    setPendingUrlImportDraft(false);
 
     try {
       const result = await importJobPostingFromUrl(url);
@@ -126,13 +182,58 @@ export function JobTrackerManualAddModal({
         description: result.description || current.description,
         importSource: "url",
       }));
+      setPendingUrlImportDraft(true);
       setImportHint(result.hint);
+      await refreshDuplicateCheck(result.url);
     } catch (importError) {
       setError(serverActionClientErrorMessage(importError, "Could not import from that URL."));
     } finally {
       setImporting(false);
     }
-  }, [draft.url, importing, submitting]);
+  }, [draft.url, importing, refreshDuplicateCheck, submitting]);
+
+  const handleResolveDuplicate = useCallback(
+    async (action: "archive" | "delete") => {
+      if (!duplicate || duplicateBusy) return;
+
+      if (action === "delete") {
+        const confirmed = window.confirm(
+          `Delete "${duplicate.title}" from Job Tracker? This cannot be undone.`,
+        );
+        if (!confirmed) return;
+      }
+
+      setDuplicateBusy(true);
+      setError(null);
+
+      try {
+        const result =
+          action === "archive"
+            ? await archiveJobTrackerEntry(duplicate.id)
+            : await deleteJobTrackerEntry(duplicate.id);
+
+        if (!result.success) {
+          setError(result.error);
+          return;
+        }
+
+        setDuplicate(null);
+        if (shouldCheckJobTrackerUrlDuplicate(draft.url)) {
+          await refreshDuplicateCheck(draft.url.trim());
+        }
+      } catch (resolveError) {
+        setError(
+          serverActionClientErrorMessage(
+            resolveError,
+            action === "archive" ? "Could not archive job." : "Could not delete job.",
+          ),
+        );
+      } finally {
+        setDuplicateBusy(false);
+      }
+    },
+    [draft.url, duplicate, duplicateBusy, refreshDuplicateCheck],
+  );
 
   const handleSubmit = useCallback(async () => {
     if (!canSave || busy) return;
@@ -155,6 +256,9 @@ export function JobTrackerManualAddModal({
     try {
       const result = await createJobTrackerManualEntry(payload);
       if (!result.success) {
+        if (result.code === "duplicate_url" && result.existing) {
+          setDuplicate(result.existing);
+        }
         setError(result.error);
         setSubmitting(false);
         return;
@@ -206,6 +310,11 @@ export function JobTrackerManualAddModal({
             purpose="primary"
             disabled={!canSave || busy}
             onClick={() => void handleSubmit()}
+            title={
+              pendingUrlImportDraft
+                ? "Saves this job to your tracker and starts tailoring"
+                : undefined
+            }
           >
             {submitting ? (
               <>
@@ -257,6 +366,16 @@ export function JobTrackerManualAddModal({
           </div>
         )}
 
+        {pendingUrlImportDraft && !duplicate ? (
+          <div
+            className="rounded-xl border border-primary/35 bg-primary/5 px-4 py-3 text-sm"
+            role="status"
+          >
+            <p className="font-medium text-foreground">{DASHBOARD_URL_IMPORT_DRAFT_BANNER.title}</p>
+            <p className="mt-1 text-muted-foreground">{DASHBOARD_URL_IMPORT_DRAFT_BANNER.body}</p>
+          </div>
+        ) : null}
+
         <div className="space-y-2 rounded-xl border border-border/70 bg-surface/30 p-4">
           <p className="text-sm font-medium text-foreground">
             Job posting URL <span className="font-normal text-muted-foreground">(optional)</span>
@@ -266,13 +385,14 @@ export function JobTrackerManualAddModal({
               id="manual-job-url"
               type="url"
               value={draft.url}
-              onChange={(event) =>
+              onChange={(event) => {
+                setPendingUrlImportDraft(false);
                 setDraft((current) => ({
                   ...current,
                   url: event.target.value,
                   importSource: current.importSource === "url" ? undefined : current.importSource,
-                }))
-              }
+                }));
+              }}
               placeholder="https://boards.greenhouse.io/…"
               className={cn(fieldClass, "sm:flex-1")}
               disabled={busy || !hasProfiles}
@@ -300,7 +420,8 @@ export function JobTrackerManualAddModal({
             </PurposeButton>
           </div>
           <p className="text-xs text-muted-foreground">
-            Paste a link to import fields and unlock Apply assist. Skip the URL to tailor a resume only.
+            Import from URL only fills the form — it does not add the job. Click Save to Job Tracker when
+            you are ready. Skip the URL to tailor a resume only (Apply assist unavailable).
           </p>
         </div>
 
@@ -379,6 +500,15 @@ export function JobTrackerManualAddModal({
             {dashboardManualJobDescriptionHint(descriptionLength)}
           </p>
         </div>
+
+        {duplicate ? (
+          <JobTrackerDuplicateConflictAlert
+            existing={duplicate}
+            busy={duplicateBusy}
+            onArchive={() => void handleResolveDuplicate("archive")}
+            onDelete={() => void handleResolveDuplicate("delete")}
+          />
+        ) : null}
 
         {importHint ? <p className="text-sm text-primary">{importHint}</p> : null}
 

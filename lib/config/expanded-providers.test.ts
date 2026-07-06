@@ -4,7 +4,12 @@ import {
   getOpenAiCompatChatBaseUrl,
   getProviderRegistryEntry,
 } from "@/src/lib/config/app.config";
-import { HANDSHAKE_PROVIDERS } from "@/src/lib/config/career-grade-models";
+import {
+  HANDSHAKE_PROVIDERS,
+  isCareerGradeModel,
+} from "@/src/lib/config/career-grade-models";
+import { filterOpenAiDiscoveryModels } from "@/src/lib/ai/server-model-discovery";
+import { filterDiscoverableChatModels } from "@/lib/ai/model-health/discover-chat-models";
 
 describe("expanded BYOK providers", () => {
   it("registers all 13 spec providers in dropdown order", () => {
@@ -30,5 +35,13 @@ describe("expanded BYOK providers", () => {
       "https://api.deepinfra.com/v1/openai",
     );
     expect(getOpenAiCompatChatBaseUrl("zai")).toBe("https://api.z.ai/api/paas/v4");
+  });
+
+  it("allows gateway-specific custom model IDs through discovery filters", () => {
+    const modelId = "coding-glm-5.1-free";
+
+    expect(isCareerGradeModel("custom", modelId)).toBe(true);
+    expect(filterOpenAiDiscoveryModels("custom", [modelId])).toEqual([modelId]);
+    expect(filterDiscoverableChatModels("custom", [modelId])).toEqual([modelId]);
   });
 });

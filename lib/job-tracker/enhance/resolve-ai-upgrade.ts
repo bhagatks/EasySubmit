@@ -7,6 +7,7 @@ export type AiUpgradeResolution = {
   aiAllowed: boolean;
   reason?: EnhanceOffReason;
   route?: ResolvedAiRoute;
+  systemFallbackRoute?: ResolvedAiRoute | null;
   warning?: string;
   baselineAvailable: true;
   aiAvailable: boolean;
@@ -28,6 +29,7 @@ export async function resolveAiUpgrade(
     return {
       aiAllowed: true,
       route: enhance.route,
+      systemFallbackRoute: enhance.systemFallbackRoute,
       baselineAvailable: true,
       aiAvailable: true,
     };

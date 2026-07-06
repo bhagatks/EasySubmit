@@ -67,5 +67,9 @@ export function resolveDiscoverableModels(
   const fromApi = filterDiscoverableChatModels(provider, apiModelIds);
   if (fromApi.length > 0) return fromApi;
 
+  if (provider === "custom") {
+    return [];
+  }
+
   return filterDiscoverableChatModels(provider, getDefaultModelsForProvider(provider as AiProvider));
 }

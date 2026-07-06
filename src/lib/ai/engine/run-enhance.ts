@@ -52,6 +52,9 @@ import {
   SystemKeyPoolError,
   type PoolCallMeta,
 } from "@/src/lib/ai/engine/system-key-pool";
+import { runAiCallLoop } from "@/lib/ai/call-kernel/run-ai-call-loop";
+import type { AiCallTarget, AiCallLedgerEntry } from "@/lib/ai/call-kernel/types";
+import { OPENROUTER_FREE_SLOT } from "@/src/lib/ai/engine/pool-constants";
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
 import type { StudioEditorSectionId } from "@/lib/resume/studio-editor-sections";
 import type { JobIntelligence } from "@/lib/job-tracker/ats/job-intelligence";
@@ -87,6 +90,8 @@ export type RunEnhanceInput = {
   pipelineDebug?: import("@/lib/extension/pipeline-debug-hooks").PipelineDebugHookContext;
   /** When true, use RULES v2 prompts (JSON output). */
   rulesV2Enabled?: boolean;
+  /** Pre-resolved system route for BYOK → system escalation in the call kernel. */
+  systemFallbackRoute?: ResolvedAiRoute | null;
 };
 
 export type RunEnhanceSuccess = {
@@ -108,6 +113,7 @@ export type RunEnhanceSuccess = {
   };
   /** True when user has AI disabled in settings. */
   aiDisabled?: boolean;
+  aiCallLedger?: AiCallLedgerEntry[];
 };
 
 export type RunEnhanceFailure = {
@@ -116,9 +122,11 @@ export type RunEnhanceFailure = {
   code?:
     | "provider_error"
     | "invalid_response"
+    | "parse_failed"
     | "rate_limited"
     | "insufficient_quota"
     | "capacity_exhausted";
+  aiCallLedger?: AiCallLedgerEntry[];
 };
 
 export type RunEnhanceResult =
@@ -298,6 +306,8 @@ export type EnhanceCallOptions = {
   preferredSlot?: number;
   temperature?: number;
   byokTaskTier?: ByokTaskTier;
+  /** When true, defer model.call.success + api_call_logs until parse validation. */
+  deferSuccessLog?: boolean;
 };
 
 export async function callEnhanceModel(
@@ -386,58 +396,60 @@ export async function callEnhanceModel(
         modelId: fallbackRun.modelId,
         estimatedCost: 0,
       };
-      logEnhance("engine", "model.call.success", {
-        traceId,
-        pass,
-        journey: RESUME_JOURNEY.AI_UPGRADE,
-        aiUsed: true,
-        aiCallStatus: "success",
-        durationMs: Date.now() - passStartedAt,
-        tokensUsed: customerResult.tokensUsed,
-        responseChars: customerResult.text.length,
-        modelId: customerResult.modelId,
-        usedFallbackModel: fallbackRun.attemptCount > 1 || fallbackRun.result.usedFallbackModel,
-        clippedForFallback: fallbackRun.result.clippedForFallback,
-        retryCount: fallbackRun.result.retryCount,
-        responsePreview: customerResult.text,
-      });
-      recordEnhanceModelCall({
-        route: executionRoute,
-        traceId,
-        userId,
-        pass,
-        durationMs: Date.now() - passStartedAt,
-        status: "success",
-        tokensUsed: customerResult.tokensUsed,
-        estimatedCost: customerResult.estimatedCost,
-        requestPreview,
-        responsePreview: customerResult.text,
-        executionModelId: customerResult.modelId,
-      });
-      logEnhanceDiag({
-        traceId,
-        designStep: "13",
-        track: "engine",
-        pipelineStep:
-          pass === "generate"
-            ? ENHANCE_PIPELINE.ENGINE_PASS_GENERATE
-            : ENHANCE_PIPELINE.ENGINE_PASS_OPTIMIZE,
-        phase: "done",
-        level: "low",
-        event: "engine.model.call.success",
-        scope: "engine",
-        userId,
-        flags: { routeMode: "customer", provider: route.provider, pass },
-        params: {
+      if (!callOptions?.deferSuccessLog) {
+        logEnhance("engine", "model.call.success", {
+          traceId,
+          pass,
+          journey: RESUME_JOURNEY.AI_UPGRADE,
+          aiUsed: true,
+          aiCallStatus: "success",
+          durationMs: Date.now() - passStartedAt,
           tokensUsed: customerResult.tokensUsed,
           responseChars: customerResult.text.length,
-          durationMs: Date.now() - passStartedAt,
+          modelId: customerResult.modelId,
           usedFallbackModel: fallbackRun.attemptCount > 1 || fallbackRun.result.usedFallbackModel,
           clippedForFallback: fallbackRun.result.clippedForFallback,
           retryCount: fallbackRun.result.retryCount,
-          modelAttemptCount: fallbackRun.attemptCount,
-        },
-      });
+          responsePreview: customerResult.text,
+        });
+        recordEnhanceModelCall({
+          route: executionRoute,
+          traceId,
+          userId,
+          pass,
+          durationMs: Date.now() - passStartedAt,
+          status: "success",
+          tokensUsed: customerResult.tokensUsed,
+          estimatedCost: customerResult.estimatedCost,
+          requestPreview,
+          responsePreview: customerResult.text,
+          executionModelId: customerResult.modelId,
+        });
+        logEnhanceDiag({
+          traceId,
+          designStep: "13",
+          track: "engine",
+          pipelineStep:
+            pass === "generate"
+              ? ENHANCE_PIPELINE.ENGINE_PASS_GENERATE
+              : ENHANCE_PIPELINE.ENGINE_PASS_OPTIMIZE,
+          phase: "done",
+          level: "low",
+          event: "engine.model.call.success",
+          scope: "engine",
+          userId,
+          flags: { routeMode: "customer", provider: route.provider, pass },
+          params: {
+            tokensUsed: customerResult.tokensUsed,
+            responseChars: customerResult.text.length,
+            durationMs: Date.now() - passStartedAt,
+            usedFallbackModel: fallbackRun.attemptCount > 1 || fallbackRun.result.usedFallbackModel,
+            clippedForFallback: fallbackRun.result.clippedForFallback,
+            retryCount: fallbackRun.result.retryCount,
+            modelAttemptCount: fallbackRun.attemptCount,
+          },
+        });
+      }
       return customerResult;
     } catch (err) {
       if (isVaultDecryptUserError(err)) {
@@ -516,65 +528,67 @@ export async function callEnhanceModel(
       },
     };
 
-    logEnhance("engine", "model.call.success", {
-      traceId,
-      pass,
-      journey: RESUME_JOURNEY.AI_UPGRADE,
-      aiUsed: true,
-      aiCallStatus: "success",
-      durationMs: Date.now() - passStartedAt,
-      tokensUsed: systemResult.tokensUsed,
-      responseChars: systemResult.text.length,
-      modelId: systemResult.modelId,
-      usedFallbackModel: poolResult.result.usedFallbackModel,
-      clippedForFallback: poolResult.result.clippedForFallback,
-      retryCount: poolResult.result.retryCount,
-      keySlot: poolResult.slot,
-      keyLabel: poolResult.label,
-      billingMode: poolResult.billingMode,
-      responsePreview: systemResult.text,
-    });
-    recordEnhanceModelCall({
-      route,
-      poolCall: systemResult.poolCall,
-      traceId,
-      userId,
-      pass,
-      durationMs: Date.now() - passStartedAt,
-      status: "success",
-      tokensUsed: systemResult.tokensUsed,
-      estimatedCost: systemResult.estimatedCost,
-      requestPreview,
-      responsePreview: systemResult.text,
-    });
-    logEnhanceDiag({
-      traceId,
-      designStep: "13",
-      track: "engine",
-      pipelineStep:
-        pass === "generate"
-          ? ENHANCE_PIPELINE.ENGINE_PASS_GENERATE
-          : ENHANCE_PIPELINE.ENGINE_PASS_OPTIMIZE,
-      phase: "done",
-      level: "low",
-      event: "engine.model.call.success",
-      scope: "engine",
-      userId,
-      flags: {
-        routeMode: "system",
+    if (!callOptions?.deferSuccessLog) {
+      logEnhance("engine", "model.call.success", {
+        traceId,
         pass,
-        keySlot: poolResult.slot,
-        keyLabel: poolResult.label,
-      },
-      params: {
+        journey: RESUME_JOURNEY.AI_UPGRADE,
+        aiUsed: true,
+        aiCallStatus: "success",
+        durationMs: Date.now() - passStartedAt,
         tokensUsed: systemResult.tokensUsed,
         responseChars: systemResult.text.length,
-        durationMs: Date.now() - passStartedAt,
+        modelId: systemResult.modelId,
         usedFallbackModel: poolResult.result.usedFallbackModel,
         clippedForFallback: poolResult.result.clippedForFallback,
         retryCount: poolResult.result.retryCount,
-      },
-    });
+        keySlot: poolResult.slot,
+        keyLabel: poolResult.label,
+        billingMode: poolResult.billingMode,
+        responsePreview: systemResult.text,
+      });
+      recordEnhanceModelCall({
+        route,
+        poolCall: systemResult.poolCall,
+        traceId,
+        userId,
+        pass,
+        durationMs: Date.now() - passStartedAt,
+        status: "success",
+        tokensUsed: systemResult.tokensUsed,
+        estimatedCost: systemResult.estimatedCost,
+        requestPreview,
+        responsePreview: systemResult.text,
+      });
+      logEnhanceDiag({
+        traceId,
+        designStep: "13",
+        track: "engine",
+        pipelineStep:
+          pass === "generate"
+            ? ENHANCE_PIPELINE.ENGINE_PASS_GENERATE
+            : ENHANCE_PIPELINE.ENGINE_PASS_OPTIMIZE,
+        phase: "done",
+        level: "low",
+        event: "engine.model.call.success",
+        scope: "engine",
+        userId,
+        flags: {
+          routeMode: "system",
+          pass,
+          keySlot: poolResult.slot,
+          keyLabel: poolResult.label,
+        },
+        params: {
+          tokensUsed: systemResult.tokensUsed,
+          responseChars: systemResult.text.length,
+          durationMs: Date.now() - passStartedAt,
+          usedFallbackModel: poolResult.result.usedFallbackModel,
+          clippedForFallback: poolResult.result.clippedForFallback,
+          retryCount: poolResult.result.retryCount,
+        },
+      });
+    }
     return systemResult;
   } catch (err) {
     const status = (err as { status?: number })?.status;
@@ -1005,6 +1019,7 @@ async function runPass(
   pricingMap?: AiPricingMap | null,
   preferredSlot?: number,
   rulesV2Enabled = false,
+  deferSuccessLog = false,
 ): Promise<{
   text: string;
   tokensUsed: number;
@@ -1042,7 +1057,7 @@ async function runPass(
     traceId,
     "generate",
     userId,
-    { preferredSlot },
+    { preferredSlot, deferSuccessLog },
   );
   const usagePayload = buildUsageLogFromGeneration(
     result.modelId,
@@ -1128,141 +1143,228 @@ export async function runResumeEnhance(
   let totalTokens = 0;
   let totalCost = 0;
   let lastModelId = input.route.modelId;
-  let apiCallCount = 0;
-  const debug = input.pipelineDebug ?? null;
+    let apiCallCount = 0;
+    const debug = input.pipelineDebug ?? null;
 
-  try {
-    pipelineDebugStep(debug, "ai_pass1", {
-      status: "active",
-      detail: "Calling max-ATS resume generation",
-      meta: {
-        routeMode: input.route.mode,
-        modelId: input.route.modelId,
-        provider: input.route.mode === "customer" ? input.route.provider : "system",
-        optimizationMode: spec.mode,
-      },
-    });
+    const systemRoute =
+      input.systemFallbackRoute ??
+      (input.route.mode === "system" ? input.route : null);
 
-    const pass = await runPass(
-      input.route,
-      ctx,
-      spec,
-      traceId,
-      input.userId,
-      pricingMap,
-      undefined,
-      input.rulesV2Enabled ?? false,
-    );
-    totalTokens += pass.tokensUsed;
-    totalCost += pass.estimatedCost;
-    lastModelId = pass.modelId;
-    apiCallCount += 1;
+    const initialTarget: AiCallTarget =
+      input.route.mode === "customer"
+        ? { executor: "customer", routeMode: "customer", attemptOnTarget: 1 }
+        : {
+            executor: "system_pool",
+            routeMode: "system",
+            slot: OPENROUTER_FREE_SLOT,
+            attemptOnTarget: 1,
+          };
 
-    const passBody = parseEnhancedResumeBody(pass.text);
-    if (!passBody) {
-      logEnhance("engine", "run.parse_failed", {
+    let lastPass: Awaited<ReturnType<typeof runPass>> | null = null;
+
+    try {
+      pipelineDebugStep(debug, "ai_pass1", {
+        status: "active",
+        detail: "Calling max-ATS resume generation",
+        meta: {
+          routeMode: input.route.mode,
+          modelId: input.route.modelId,
+          provider: input.route.mode === "customer" ? input.route.provider : "system",
+          optimizationMode: spec.mode,
+        },
+      });
+
+      const loopResult = await runAiCallLoop({
+        traceId,
+        userId: input.userId,
+        initialTarget,
+        systemAvailable: Boolean(systemRoute),
+        execute: async (target) => {
+          const route =
+            target.routeMode === "customer" ? input.route : systemRoute ?? input.route;
+          const pass = await runPass(
+            route,
+            ctx,
+            spec,
+            traceId,
+            input.userId,
+            pricingMap,
+            target.slot,
+            input.rulesV2Enabled ?? false,
+            true,
+          );
+          lastPass = pass;
+          apiCallCount += 1;
+          return {
+            text: pass.text,
+            tokensUsed: pass.tokensUsed,
+            modelId: pass.modelId,
+            estimatedCost: pass.estimatedCost,
+            slot: pass.slot,
+            durationMs: 0,
+          };
+        },
+        onValidatedSuccess: ({ target, result, entry }) => {
+          if (!lastPass) return;
+          const route =
+            target.routeMode === "customer" ? input.route : systemRoute ?? input.route;
+          const requestPreview = buildModelCallRequestPreview(
+            lastPass.promptSystem,
+            lastPass.promptUser,
+          );
+          logEnhance("engine", "model.call.success", {
+            traceId,
+            pass: "generate",
+            journey: RESUME_JOURNEY.AI_UPGRADE,
+            aiUsed: true,
+            aiCallStatus: "success",
+            durationMs: entry.durationMs,
+            tokensUsed: result.tokensUsed,
+            responseChars: result.text.length,
+            modelId: result.modelId,
+            responsePreview: result.text,
+          });
+          recordEnhanceModelCall({
+            route,
+            traceId,
+            userId: input.userId,
+            pass: "generate",
+            durationMs: entry.durationMs,
+            status: "success",
+            tokensUsed: result.tokensUsed,
+            estimatedCost: result.estimatedCost,
+            requestPreview,
+            responsePreview: result.text,
+            executionModelId: result.modelId,
+          });
+        },
+      });
+
+      totalTokens = loopResult.tokensUsed;
+      totalCost = loopResult.estimatedCost;
+      lastModelId = loopResult.modelId;
+      apiCallCount = loopResult.ledger.length;
+
+      if (loopResult.missionFailed) {
+        const failureCode = (loopResult.failureCode ?? "provider_error") as RunEnhanceFailure["code"];
+        logEnhance("engine", "run.parse_failed", {
+          traceId,
+          step: ENHANCE_PIPELINE.ENGINE_MERGE,
+          pass: "max_ats",
+          failureCode,
+          ledgerEntries: loopResult.ledger.length,
+        });
+        logEnhanceDiag({
+          traceId,
+          designStep: "13",
+          track: "engine",
+          pipelineStep: ENHANCE_PIPELINE.ENGINE_MERGE,
+          phase: "fail",
+          level: "high",
+          event: "engine.kernel.mission_failed",
+          scope: "engine",
+          userId: input.userId,
+          errorCode: failureCode,
+          flags: { pass: "max_ats" },
+          params: { ledgerEntries: loopResult.ledger.length },
+        });
+        return {
+          ok: false,
+          error: loopResult.failureMessage ?? "AI enhancement failed.",
+          code: failureCode,
+          aiCallLedger: loopResult.ledger,
+        };
+      }
+
+      const passBody = parseEnhancedResumeBody(loopResult.text);
+      if (!passBody) {
+        return {
+          ok: false,
+          error: "AI returned an invalid resume format. Try again.",
+          code: "invalid_response",
+          aiCallLedger: loopResult.ledger,
+        };
+      }
+
+      const pass = lastPass!;
+      logEnhance("engine", "run.parse_ok", {
         traceId,
         step: ENHANCE_PIPELINE.ENGINE_MERGE,
         pass: "max_ats",
-        responsePreviewChars: Math.min(pass.text.length, 500),
+        ledgerEntries: loopResult.ledger.length,
+      });
+
+      const finalBody = normalizeEnhancedBody(passBody, input.form, traceId, input.userId ?? "unknown");
+
+      pipelineDebugStep(debug, "ai_pass1", {
+        status: "done",
+        detail: `Max-ATS pass complete — ${pass.modelId}`,
+        meta: { tokensUsed: pass.tokensUsed, apiCallCount },
+        artifacts: [
+          aiRequestArtifact("Max-ATS request", {
+            pass: "max_ats",
+            modelId: pass.modelId,
+            system: pass.promptSystem,
+            user: pass.promptUser,
+          }),
+          aiResponseArtifact("Max-ATS response", {
+            text: loopResult.text,
+            modelId: pass.modelId,
+            tokensUsed: pass.tokensUsed,
+          }),
+        ],
+      });
+      pipelineDebugStep(debug, "ai_pass2", {
+        status: "skipped",
+        detail: "Single-pass max-ATS mode",
+      });
+
+      const merged = mergeEnhancedBodyIntoForm(input.form, finalBody);
+      const changedSections = diffChangedSections(input.form, merged, false);
+
+      logEnhance("engine", "run.success", {
+        traceId,
+        step: ENHANCE_PIPELINE.ENGINE_MERGE,
+        durationMs: Date.now() - startedAt,
+        changedSections,
+        changedSectionCount: changedSections.length,
+        totalTokens,
+        totalCost,
+        apiCallCount,
+        modelId: lastModelId,
+        delta: summarizeFormDelta(input.form, merged),
       });
       logEnhanceDiag({
         traceId,
         designStep: "13",
         track: "engine",
         pipelineStep: ENHANCE_PIPELINE.ENGINE_MERGE,
-        phase: "fail",
+        phase: "done",
         level: "high",
-        event: "engine.parse_failed",
+        event: "engine.run.success",
         scope: "engine",
         userId: input.userId,
-        errorCode: "invalid_response",
-        flags: { pass: "max_ats" },
-        params: { responsePreviewChars: Math.min(pass.text.length, 500) },
+        flags: {},
+        params: {
+          changedSectionCount: changedSections.length,
+          totalTokens,
+          apiCallCount,
+          durationMs: Date.now() - startedAt,
+          modelId: lastModelId,
+        },
       });
+
       return {
-        ok: false,
-        error: "AI returned an invalid resume format. Try again.",
-        code: "invalid_response",
-      };
-    }
-
-    logEnhance("engine", "run.parse_ok", {
-      traceId,
-      step: ENHANCE_PIPELINE.ENGINE_MERGE,
-      pass: "max_ats",
-    });
-
-    const finalBody = normalizeEnhancedBody(passBody, input.form, traceId, input.userId ?? "unknown");
-
-    pipelineDebugStep(debug, "ai_pass1", {
-      status: "done",
-      detail: `Max-ATS pass complete — ${pass.modelId}`,
-      meta: { tokensUsed: pass.tokensUsed, apiCallCount: 1 },
-      artifacts: [
-        aiRequestArtifact("Max-ATS request", {
-          pass: "max_ats",
-          modelId: pass.modelId,
-          system: pass.promptSystem,
-          user: pass.promptUser,
-        }),
-        aiResponseArtifact("Max-ATS response", {
-          text: pass.text,
-          modelId: pass.modelId,
-          tokensUsed: pass.tokensUsed,
-        }),
-      ],
-    });
-    pipelineDebugStep(debug, "ai_pass2", {
-      status: "skipped",
-      detail: "Single-pass max-ATS mode",
-    });
-
-    const merged = mergeEnhancedBodyIntoForm(input.form, finalBody);
-    const changedSections = diffChangedSections(input.form, merged, false);
-
-    logEnhance("engine", "run.success", {
-      traceId,
-      step: ENHANCE_PIPELINE.ENGINE_MERGE,
-      durationMs: Date.now() - startedAt,
-      changedSections,
-      changedSectionCount: changedSections.length,
-      totalTokens,
-      totalCost,
-      apiCallCount,
-      modelId: lastModelId,
-      delta: summarizeFormDelta(input.form, merged),
-    });
-    logEnhanceDiag({
-      traceId,
-      designStep: "13",
-      track: "engine",
-      pipelineStep: ENHANCE_PIPELINE.ENGINE_MERGE,
-      phase: "done",
-      level: "high",
-      event: "engine.run.success",
-      scope: "engine",
-      userId: input.userId,
-      flags: {},
-      params: {
-        changedSectionCount: changedSections.length,
-        totalTokens,
-        apiCallCount,
-        durationMs: Date.now() - startedAt,
+        ok: true,
+        form: merged,
+        changedSections,
+        targetRole: originalTarget || input.targetRole,
+        tokensUsed: totalTokens,
         modelId: lastModelId,
-      },
-    });
-
-    return {
-      ok: true,
-      form: merged,
-      changedSections,
-      targetRole: originalTarget || input.targetRole,
-      tokensUsed: totalTokens,
-      modelId: lastModelId,
-      estimatedCost: totalCost,
-      apiCallCount,
-    };
+        estimatedCost: totalCost,
+        apiCallCount,
+        aiCallLedger: loopResult.ledger,
+      };
   } catch (err) {
     const aiMode = input.route.mode;
     let errorCode: string = "provider_error";
