@@ -50,11 +50,7 @@ function parseArgs(argv: string[]): CliOptions {
 }
 
 function readinessForForm(form: typeof ENHANCE_QA_BASE_FORM, targetRole: string, jd: string) {
-  return computeResumeReadiness({
-    resume: refineryFormToPrimeResume(form),
-    targetRole,
-    jobDescription: jd,
-  }).score;
+  return computeResumeReadiness(refineryFormToPrimeResume(form), targetRole, jd).total;
 }
 
 async function runOpenRouterFreeProbe(system: string, prompt: string) {

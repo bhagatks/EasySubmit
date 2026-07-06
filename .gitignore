@@ -10,6 +10,18 @@ dist/
 .idea/
 .cursor/
 
+# Local agent skills — only graphify is vendored; rest installed via bmad/wds init
+.claude/skills/*
+!.claude/skills/graphify/
+.agents/skills/*
+!.agents/skills/graphify/
+.claude/launch.json
+
+# BMAD method install output
+_bmad/
+_bmad-output/
+skills-lock.json
+
 # graphify (local knowledge graph — rebuild with /graphify . or graphify update .)
 graphify-out/
 
@@ -34,5 +46,7 @@ npm-debug.log*
 /lib/generated/prisma
 .vercel
 coverage
+coverage-v2/
 coverage-tmp/
+.tmp-debug/
 .env*
