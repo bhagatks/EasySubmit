@@ -53,6 +53,8 @@ import { isFeatureEnabled } from "@/src/lib/services/feature-flags-service";
 
 const LONG_JD = "Job Description\n\n" + "Requirements for this role. ".repeat(20);
 
+const APPLY_URL = "https://acme.myworkdayjobs.com/job/eng";
+
 describe("runApplyPipeline", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -64,7 +66,16 @@ describe("runApplyPipeline", () => {
       aiSourcePreference: "auto",
       applicationProfile: null,
     });
-    vi.mocked(prisma.jobTrackerEntry.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.jobTrackerEntry.findFirst).mockImplementation(async (args) => {
+      const select = (args as { select?: { canonicalUrl?: boolean; status?: boolean } }).select;
+      if (select?.canonicalUrl) {
+        return { canonicalUrl: APPLY_URL } as never;
+      }
+      if (select?.status) {
+        return { status: "RESUME_READY" } as never;
+      }
+      return null;
+    });
     vi.mocked(hasJobResumeTailor).mockResolvedValue(false);
     vi.mocked(updateJobTrackerStatus).mockResolvedValue({ count: 1 });
   });
@@ -171,10 +182,7 @@ describe("runApplyPipeline", () => {
       status: "CAPTURED",
       title: "Engineer",
       company: null,
-      canonicalUrl: "https://acme.myworkdayjobs.com/job/eng",
-    } as never);
-    vi.mocked(prisma.jobTrackerEntry.findFirst).mockResolvedValue({
-      status: "RESUME_READY",
+      canonicalUrl: APPLY_URL,
     } as never);
     vi.mocked(hasJobResumeTailor).mockResolvedValue(true);
 

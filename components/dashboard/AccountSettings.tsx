@@ -12,15 +12,16 @@ import {
   User,
   Zap,
   Archive,
+  ClipboardList,
 } from "lucide-react";
 import {
   type AccountSettingsSnapshot,
   type AuthProviderId,
   updateLoginProfile,
-  updateAutoApplyUserSwitch,
   updateAutoArchiveAppliedJobs,
   updateResumeProfilePickerMode,
 } from "@/app/actions/account";
+import type { ApplicationAnswerSettingsItem } from "@/app/actions/application-answers";
 import type { VaultedApiKeySummary } from "@/app/actions/ai/vault-key";
 import type { ResumeProfilePickerMode } from "@/lib/generated/prisma/client";
 import { updateAiSourcePreference } from "@/app/actions/ai/enhance-resume";
@@ -45,6 +46,7 @@ import {
 } from "@/components/dashboard/DashboardWorkspacePage";
 import { StudioCollapsibleSection } from "@/components/resume/StudioCollapsibleSection";
 import { SettingsVaultKeysPanel } from "@/components/dashboard/SettingsVaultKeysPanel";
+import { ApplicationAnswersPanel } from "@/components/dashboard/ApplicationAnswersPanel";
 import { isClientAiGloballyEnabled } from "@/lib/ai/ai-global-enabled";
 import {
   buildSettingsSectionExpansion,
@@ -62,6 +64,7 @@ const PROFILE_SAVE_DEBOUNCE_MS = 600;
 type AccountSettingsProps = {
   initial: AccountSettingsSnapshot;
   initialVaultKeys: VaultedApiKeySummary[];
+  initialApplicationAnswers: ApplicationAnswerSettingsItem[];
 };
 
 type ProviderMeta = {
@@ -172,7 +175,7 @@ function ProviderRow({
   );
 }
 
-export function AccountSettings({ initial, initialVaultKeys }: AccountSettingsProps) {
+export function AccountSettings({ initial, initialVaultKeys, initialApplicationAnswers }: AccountSettingsProps) {
   const { update: updateSession } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -191,8 +194,6 @@ export function AccountSettings({ initial, initialVaultKeys }: AccountSettingsPr
   const [connecting, setConnecting] = useState<AuthProviderId | null>(null);
   const [aiEnabled, setAiEnabled] = useState(initial.aiSourcePreference !== "disabled");
   const [aiPrefBusy, setAiPrefBusy] = useState(false);
-  const [autoApplyUserSwitch, setAutoApplyUserSwitch] = useState(initial.autoApplyUserSwitch);
-  const [autoApplyUserSwitchBusy, setAutoApplyUserSwitchBusy] = useState(false);
   const [autoArchiveAppliedJobs, setAutoArchiveAppliedJobs] = useState(
     initial.autoArchiveAppliedJobs,
   );
@@ -293,7 +294,7 @@ export function AccountSettings({ initial, initialVaultKeys }: AccountSettingsPr
     systemDailyLimit: initial.systemDailyEnhancementLimit,
     isSubscribed: initial.plan !== "free",
   });
-  const generalSummary = `${autoApplyUserSwitch ? "One-click on" : "One-click off"} · ${profilePickerMode === "DEFAULT" ? "Default resume" : "Last used resume"}`;
+  const generalSummary = `${profilePickerMode === "DEFAULT" ? "Default resume" : "Last used resume"} · ${initialApplicationAnswers.length} saved answer${initialApplicationAnswers.length === 1 ? "" : "s"}`;
 
   const connectedSet = new Set(initial.connectedProviders);
 
@@ -404,18 +405,6 @@ export function AccountSettings({ initial, initialVaultKeys }: AccountSettingsPr
       }
     })();
   }, [aiTailoringAvailable, aiEnabled, router]);
-
-  async function handleAutoApplyUserSwitchChange(enabled: boolean) {
-    setAutoApplyUserSwitchBusy(true);
-    setError(null);
-    const result = await updateAutoApplyUserSwitch(enabled);
-    setAutoApplyUserSwitchBusy(false);
-    if (!result.success) {
-      setError(result.error);
-      return;
-    }
-    setAutoApplyUserSwitch(result.autoApplyUserSwitch);
-  }
 
   async function handleAutoArchiveChange(enabled: boolean) {
     setAutoArchiveBusy(true);
@@ -612,19 +601,6 @@ export function AccountSettings({ initial, initialVaultKeys }: AccountSettingsPr
           >
             <div className="space-y-4">
               <SettingToggleRow
-                label="One-click apply"
-                description={
-                  initial.autoApplyFeatureEnabled
-                    ? "Workday capture, tailor, and fill — you submit."
-                    : "Disabled platform-wide."
-                }
-                checked={autoApplyUserSwitch}
-                disabled={autoApplyUserSwitchBusy || !initial.autoApplyFeatureEnabled}
-                onChange={(enabled) => void handleAutoApplyUserSwitchChange(enabled)}
-                icon={<Zap className="h-3.5 w-3.5 text-primary" aria-hidden="true" />}
-              />
-
-              <SettingToggleRow
                 label="Auto-archive applied jobs"
                 description="When on, applied jobs move to Archive 24 hours after you mark them applied. When off, use Archive on each row."
                 checked={autoArchiveAppliedJobs}
@@ -647,6 +623,26 @@ export function AccountSettings({ initial, initialVaultKeys }: AccountSettingsPr
                 />
               </div>
             </div>
+          </StudioCollapsibleSection>
+
+          <StudioCollapsibleSection
+            title={
+              <span className="flex items-center gap-2">
+                <ClipboardList className="h-4 w-4 text-primary" aria-hidden="true" />
+                Application answers
+              </span>
+            }
+            description={
+              initialApplicationAnswers.length > 0
+                ? `${initialApplicationAnswers.length} saved from job applications`
+                : "Learned from extension apply forms"
+            }
+            expanded={Boolean(expanded["application-answers"])}
+            onToggle={() => toggleSection("application-answers")}
+            variant="dashboard"
+            showDragHandle={false}
+          >
+            <ApplicationAnswersPanel initialAnswers={initialApplicationAnswers} />
           </StudioCollapsibleSection>
         </DashboardWorkspaceStack>
       </DashboardWorkspacePage>

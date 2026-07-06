@@ -3,7 +3,7 @@
 **Update this file before each Cursor or Claude session.**  
 Both agents should read it first. Only one agent should edit a given path at a time.
 
-Last updated: **2026-07-05** (reconciled against `main` @ `79f52313`)
+Last updated: **2026-07-06**
 
 **Canonical status:** [`PROJECT_STATE.md`](./PROJECT_STATE.md) (shipped) · [`ACTION_ITEMS.md`](./ACTION_ITEMS.md) (open QA, deploy, backlog)
 
@@ -13,13 +13,14 @@ Last updated: **2026-07-05** (reconciled against `main` @ `79f52313`)
 
 | Priority | Lane | Status | Doc |
 |----------|------|--------|-----|
-| P0 | Enhance QA sign-off (AI on blocked by pool) | **Blocked** | `ACTION_ITEMS.md` § QA |
+| P0 | Enhance QA sign-off (Case 001) | **Done** | Manual A/B/C pass at `/dashboard/testing-resume` |
 | P0 | Prod closeout (RLS migrate, `ONET_API_KEY`, legacy `aiConfig` row) | **Pending** | `PROD_CUTOVER.md` |
 | P0 | Chrome Web Store publish | **Blocked** | listing under review |
 | P1 | Resume + Job E2E smoke (all **Todo** in tracker) | **Not started** | `ACTION_ITEMS.md` § E2E |
 | P1 | Extension keyword-gap chip UI | **Done** | `renderKeywordGapRow` in `card-ui.ts` |
-| P2 | Field Memory Settings UI (list/edit answers) | **Not started** | `APPLICATION_FIELD_MEMORY.md` |
-| P2 | Remove legacy one-click (`autoApplyUserSwitch` in Settings) | **Todo** | `decisions.md` |
+| P1 | Extension force-capture UX polish (3.2) | **Done** | `no_job` → Add manually; loading hint; manual header copy |
+| P1 | Remove legacy one-click Settings toggle (3.3) | **Done** | `AccountSettings.tsx` — DB column retained for ops |
+| P2 | Field Memory Settings UI (list/edit answers) | **Done** | Settings → Application answers; `app/actions/application-answers.ts` |
 | v2/v3 | Platform autofill (Workday engine exists; not v1 scope) | **Deferred** | `decisions.md` |
 
 ---
@@ -36,6 +37,7 @@ Reconciled **2026-07-05** — verify with `git log` before re-implementing.
 | Extension Part 1 (core) | `sendToActiveTab` injects `content.js`; `forceShowCard()` manual launch; `resolve-card-content.ts` manual path |
 | API intercept boot | `injectApiInterceptScript()` + `onApiIntercept()` in `content/index.ts` |
 | Field Memory — schema + API + bridge | `user_application_answers`, `application-answers/*`, `field-capture-bridge.ts` |
+| Field Memory — Settings list/edit/delete | Settings → **Application answers**; `app/actions/application-answers.ts` |
 | Field resolution ladder | `field-resolution.ts` → `workday-autofill.ts` (server + vault + `applicationProfile`) |
 | Application Profile — extension setup | Screens 1–3 in content script; `PATCH /api/extension/user-prefs` |
 | Keyword gap API + fetch + card UI | `GET_KEYWORD_GAP` on `READY_TO_APPLY`; chips via `renderKeywordGapRow` |
@@ -48,12 +50,13 @@ Reconciled **2026-07-05** — verify with `git log` before re-implementing.
 
 | Topic | Owner | Status | Paths / notes |
 |-------|-------|--------|----------------|
-| Enhance QA — Case 001 AI on | Human + dev | **Blocked** — system pool health | `/dashboard/testing-resume`, playbook |
+| Enhance QA — Case 001 A/B/C | Human | **Done** | Manual pass 2026-07-06 |
 | E2E resume flows | QA | **Todo** | onboarding, profile upload, export |
 | E2E job flows | QA | **Todo** | manual add, extension capture, Review |
 | Keyword gap card UI | Dev | **Done** | `extension/src/content/card-ui.ts` `renderKeywordGapRow` |
-| Field Memory Settings | Dev | **Not started** | no dashboard list/edit for `application-answers` |
-| Legacy one-click cleanup | Dev | **Todo** | `AccountSettings.tsx` still exposes toggle |
+| Force-capture UX polish (3.2) | Dev | **Done** | Add manually, Save to tracker, loading hint |
+| Legacy one-click Settings toggle (3.3) | Dev | **Done** | Removed from Settings UI |
+| Field Memory Settings | Dev | **Done** | Application answers section on `/dashboard/settings` |
 | CWS publish | Human | **Blocked** | after listing approval |
 
 ---

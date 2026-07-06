@@ -1,4 +1,4 @@
-export const SETTINGS_SECTION_IDS = ["account", "ai-keys", "general"] as const;
+export const SETTINGS_SECTION_IDS = ["account", "ai-keys", "general", "application-answers"] as const;
 
 export type SettingsSectionId = (typeof SETTINGS_SECTION_IDS)[number];
 

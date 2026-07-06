@@ -26,7 +26,7 @@
 - **Codebase cleanup** — removed legacy 11-step wizard, alternate refinery/workbench UIs, TanStack `start/` app, orphan layout/visual components; minimal `components/ui` set retained
 - Supabase Auth signup (`/auth/signup`) — legacy email/OAuth path
 - `finalizeProfile` — Zustand payload → Prisma Postgres
-- **Job Tracker (web v2)** — … **Review Screen** modal: … **Dashboard manual add** — **Add job** / **Tailor for a job** opens paste-JD form → capture + async tailor (no extension); **bulk select on active tracker** — row checkboxes + **Select All** / **Archive Selected** (archive view keeps **Delete All**); …
+- **Job Tracker (web v2)** — … **Dashboard manual add** — **Add job** / **Tailor for a job** opens optional **Import from URL** or manual role/company/JD; without a posting URL the job stops at **Resume ready** (tailor + Review — Apply assist unavailable); with URL → capture + async tailor through Apply when ready; …
 - **Journey sync (extension ↔ app)** — State 0 manual capture, two-card apply assist, Realtime + poll sync, `?es_open=assist`, `MARK_APPLIED` — see [`docs/SYNC_ARCHITECTURE.md`](./SYNC_ARCHITECTURE.md)
 - **Application profile (extension)** — one-time setup Screens 1–2 on first Apply (parallel to pipeline); `PATCH /api/extension/user-prefs` JSONB merge; autofill step 5 from `applicationProfile`; on-demand resume/cover PDF endpoints + file upload injector — see [`docs/APPLICATION_PROFILE.md`](./APPLICATION_PROFILE.md)
 - **Chrome extension v0.1** — MV3 single expandable job card (summary **Job Info / Resume / Cover Letter** + inline detail views); resume/cover detail toolbar (back, edit, **Enhance with AI** sparkles, DOC+PDF download, **Resume Studio** deeplink on second row); preview panel auto-widens to 400px and resets on Back; job fields + cover letter (full inline edit) + resume (lite field edit on demand); preview iframe fills resized panel; 5-state journey (0=unsaved→"Apply with EasySubmit.ai", 1=CAPTURED→no CTA, 2=RESUME_READY→"Apply with Auto Suggest" disabled, 3=READY_TO_APPLY→"Apply with Auto Suggest" active, 4=APPLIED→completed); pipeline on all platforms; manual capture form; AI health issue as right-aligned red banner below card header; **`app_config.forceUpgrade`** min-version gate (in-card update banner + HTTP 426 on extension APIs); `is-live` shell animation stops at APPLIED; auto-detect application confirmation via URL patterns + body phrases
@@ -56,7 +56,7 @@
 - Extension v1 prod — **Part 2 shipped:** popup launcher redesign (`GET_JOB_STATS`, account chip, THIS TAB, settings); Part 1 manual capture live ([`docs/EXTENSION_POPUP_REDESIGN.md`](./EXTENSION_POPUP_REDESIGN.md))
 - Extension v2 — Tier 1 ATS adapters (Lever, Ashby, iCIMS, SmartRecruiters, Taleo, Jobvite); detection architecture in [`docs/EXTENSION_DETECTION.md`](./EXTENSION_DETECTION.md)
 - **Production deploy** — web live at `www.easysubmit.ai`; push `main` or `run easy prod`; env domains separate DB vs PostHog (`docs/rules/env-domains.md`); extension CI builds artifact (CWS publish when approved) — [`docs/DEPLOYMENT.md`](./DEPLOYMENT.md)
-- **Application Field Memory** — spec in [`docs/APPLICATION_FIELD_MEMORY.md`](./APPLICATION_FIELD_MEMORY.md); agent lanes in [`docs/ACTIVE_WORK.md`](./ACTIVE_WORK.md)
+- **Application Field Memory** — spec in [`docs/APPLICATION_FIELD_MEMORY.md`](./APPLICATION_FIELD_MEMORY.md); extension capture + lookup shipped; **Settings UI** (list/search/edit/delete) at `/dashboard/settings` → Application answers (2026-07-06)
 
 Full tracker: [`docs/JOB_TRACKER.md`](./JOB_TRACKER.md)
 

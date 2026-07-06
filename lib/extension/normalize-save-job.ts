@@ -3,7 +3,12 @@ import {
   type SaveJobTrackerInput,
 } from "@/lib/extension/job-service";
 import { resolveJobTrackerPlatform } from "@/src/shared/ats-platform-detection";
-import { canApplyCapture } from "@/src/shared/extension/apply-gate";
+import {
+  buildDashboardManualPlaceholderUrl,
+  canApplyCapture,
+  canDashboardManualJobSave,
+  isApplyJobUrl,
+} from "@/src/shared/extension/apply-gate";
 import { resolveJobIdentity } from "@/src/shared/extension/job-identity";
 
 function pickClientCaptureMetadata(
@@ -30,6 +35,15 @@ function pickClientCaptureMetadata(
   if (metadata.captureMode === "manual" || metadata.captureMode === "auto") {
     out.captureMode = metadata.captureMode;
   }
+  if (metadata.captureMode === "url_import") {
+    out.captureMode = metadata.captureMode;
+  }
+  if (metadata.captureSource === "dashboard") {
+    out.captureSource = "dashboard";
+  }
+  if (metadata.applyUrlMissing === true) {
+    out.applyUrlMissing = true;
+  }
 
   return out;
 }
@@ -43,20 +57,32 @@ export type NormalizedSaveJobInput = Omit<SaveJobTrackerInput, "title" | "compan
   };
 };
 
-/** Layer B — URL + description required; title/company derived when missing. */
+/** Layer B — URL + description required for extension capture; dashboard may omit apply URL. */
 export function normalizeSaveJobInput(
   input: SaveJobTrackerInput,
 ): NormalizedSaveJobInput | { error: string } {
-  const url = input.url?.trim() ?? "";
+  const rawUrl = input.url?.trim() ?? "";
   const description = (input.description?.trim() ?? "").slice(0, MAX_JOB_DESCRIPTION_CHARS);
+  const existingMeta = pickClientCaptureMetadata(input.metadata);
+  const isDashboardManual = existingMeta.captureSource === "dashboard";
 
-  if (!canApplyCapture({ url, description })) {
+  if (isDashboardManual && !isApplyJobUrl(rawUrl)) {
+    if (!canDashboardManualJobSave({ url: rawUrl, title: input.title, description })) {
+      return { error: "role title and job description (min 120 chars) are required" };
+    }
+    const explicitTitle = input.title?.trim() ?? "";
+    if (explicitTitle.length < 2) {
+      return { error: "role title is required for manual capture" };
+    }
+  } else if (!canApplyCapture({ url: rawUrl, description })) {
     return { error: "url and job description (min 120 chars) are required" };
   }
 
-  const existingMeta = pickClientCaptureMetadata(input.metadata);
+  const url =
+    isApplyJobUrl(rawUrl) ? rawUrl : isDashboardManual ? buildDashboardManualPlaceholderUrl() : rawUrl;
+
   const captureMode = existingMeta.captureMode;
-  if (captureMode === "manual") {
+  if (captureMode === "manual" && !isDashboardManual) {
     const explicitTitle = input.title?.trim() ?? "";
     if (explicitTitle.length < 2) {
       return { error: "role title is required for manual capture" };
@@ -80,7 +106,9 @@ export function normalizeSaveJobInput(
     location: input.location?.trim() || null,
     salaryText: input.salaryText?.trim() || null,
     description,
-    platform: resolveJobTrackerPlatform(url, input.platform),
+    platform: isApplyJobUrl(url)
+      ? resolveJobTrackerPlatform(url, input.platform)
+      : "dashboard_manual",
     sourceProfileId: input.sourceProfileId?.trim() || null,
     metadata: {
       ...existingMeta,

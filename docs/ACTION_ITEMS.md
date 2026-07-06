@@ -12,12 +12,12 @@ Code fixes from the first AI on/off review (Phases 1–6, D-01–D-22) are **Don
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Re-run **Case 001** A/B/C — **AI on** sign-off | **Blocked** | System pool `pool_down` / `provider_error` (2026-07-05); deterministic + BYOK gate OK — re-run when pool healthy |
+| Re-run **Case 001** A/B/C — **AI on** sign-off | **Done** | Manual harness review **pass** 2026-07-06; automated matrix gate 7/7 + pipeline 5/5 |
 | **Case 002–003** — same-domain fixtures + matrix | **Done** | Playbook §6 + `enhance-qa-fixtures.ts` (iRhythm SWE, RELX SWE) |
 | **Switch matrix S01–S10** — gate unit tests | **Done** | `enhance-qa-gate-matrix.test.ts` |
-| **Live switch matrix** — pipeline runner | **Partial** | `scripts/enhance-qa-switch-matrix.ts` → `.tmp-debug/enhance-qa-matrix-live.json`; deterministic 3/3 pass; AI-on blocked by pool |
+| **Live switch matrix** — pipeline runner | **Done** | Case 001 gate **7/7** + pipeline **5/5** PASS via `scripts/enhance-qa-switch-matrix.ts` (2026-07-06) |
 | **North-star §14 test matrix** — full pass / sign-off | **Todo** | AI off/on, quota, BYOK, pool down, extension card — Wave C in `north-star.md` |
-| **3-artifact regression** — pipeline-level, not unit slices | **Partial** | Fixtures + live runner; mock gate tests done |
+| **3-artifact regression** — pipeline-level, not unit slices | **Partial** | Case 001 matrix pass done; manual artifact review still open |
 | **Dev harness A/B/C** — AI off vs on in one session | **Done** | `/dashboard/testing-resume` — mode selector + **Run A/B/C** |
 | **Multi-model QA** — system + BYOK providers/models | **Todo** | DeepSeek (system pool), OpenRouter/GLM, BYOK routes; Cases 001–003 + switch matrix S07–S10; fix `app_config.aiEngine` provider/modelId alignment first |
 | Extension pipeline tailor — AI off/on on `variant: pipeline` | **Todo** | Same A/B/C protocol as Review |
@@ -42,7 +42,7 @@ End-to-end **job tracker + tailor** flows — assumes a base resume profile exis
 
 | Flow | Status | Notes |
 |------|--------|-------|
-| Dashboard — manual add job (paste JD) → capture → async tailor | **Todo** | `JobTrackerPageContent` — no extension |
+| Dashboard — manual add job (URL import or paste JD) → capture → async tailor | **Todo** | `JobTrackerManualAddModal` — no extension |
 | Extension — detect → capture → pipeline tailor → `RESUME_READY` | **Todo** | `POST /api/extension/jobs/pipeline` |
 | Review Screen — Job \| Resume \| Cover \| ATS tabs | **Todo** | Apply tab removed; open from tracker row; toolbar exports + Enhance |
 | Tailor — **AI off** enhance → persist `job_resume_tailors` | **Todo** | Part of Enhance QA A/B/C on a real job entry |

@@ -1,4 +1,5 @@
 import { resolveJobIdentity } from "./job-identity";
+import { isApplyJobUrl } from "./apply-gate";
 
 export type CaptureFieldId =
   | "url"
@@ -74,7 +75,7 @@ function isPresent(value: string | null | undefined, minLen = 1): boolean {
 function fieldPresent(field: CaptureFieldId, input: AssessCaptureInput): boolean {
   switch (field) {
     case "url":
-      return isPresent(input.url);
+      return isApplyJobUrl(input.url);
     case "title":
       return isPresent(input.title);
     case "description":

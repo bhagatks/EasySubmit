@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Sparkles } from "lucide-react";
+import { PageLengthSelect } from "@/components/resume/PageLengthSelect";
 import { logEnhance } from "@/src/lib/ai/engine/enhance-logger";
 import type { EnhanceWorkloadTier } from "@/src/lib/ai/engine/enhance-progress";
+import type { PageLengthPreference } from "@/lib/resume/page-length-preference";
 import { Button } from "@/components/ui/button";
 import { GlossyModal } from "@/components/ui/glossy-modal";
 import { cn } from "@/lib/utils";
@@ -19,7 +21,11 @@ export type EnhanceDialogProgress = {
 type EnhanceWithAiDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (jobDescription: string) => void;
+  onSubmit: (jobDescription: string, pageLengthPreference: PageLengthPreference) => void;
+  pageLengthPreference: PageLengthPreference;
+  autoPageLengthRecommendation: string;
+  resolvedPages: 1 | 2;
+  rulesV2Enabled?: boolean;
   isLoading?: boolean;
   progress?: EnhanceDialogProgress | null;
 };
@@ -28,18 +34,30 @@ export function EnhanceWithAiDialog({
   open,
   onOpenChange,
   onSubmit,
+  pageLengthPreference,
+  autoPageLengthRecommendation,
+  resolvedPages,
+  rulesV2Enabled = false,
   isLoading = false,
   progress = null,
 }: EnhanceWithAiDialogProps) {
   const [jobDescription, setJobDescription] = useState("");
+  const [pageLength, setPageLength] = useState<PageLengthPreference>(pageLengthPreference);
+
+  useEffect(() => {
+    if (open) {
+      setPageLength(pageLengthPreference);
+    }
+  }, [open, pageLengthPreference]);
 
   const handleSubmit = () => {
     const trimmed = jobDescription.trim();
     logEnhance("client", "dialog.submit", {
       jobDescriptionChars: trimmed.length,
       hasJobDescription: Boolean(trimmed),
+      pageLengthPreference: pageLength,
     });
-    onSubmit(trimmed);
+    onSubmit(trimmed, pageLength);
   };
 
   const handleOpenChange = (next: boolean) => {
@@ -125,21 +143,39 @@ export function EnhanceWithAiDialog({
           ) : null}
         </div>
       ) : (
-        <label className="block">
-          <span className="mb-2 block text-sm font-medium text-foreground">
-            Optional job description
-          </span>
-          <textarea
-            value={jobDescription}
-            onChange={(event) => setJobDescription(event.target.value)}
-            placeholder="Paste the job posting here to tailor your resume to a specific role…"
-            rows={4}
-            className={cn(
-              "w-full resize-y rounded-xl border border-border bg-background px-3 py-2.5 text-sm",
-              "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
-            )}
-          />
-        </label>
+        <div className="space-y-5">
+          <div>
+            <span className="mb-2 block text-sm font-medium text-foreground">Resume length</span>
+            <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
+              Sets bullet and role budgets for this enhancement run.
+            </p>
+            <PageLengthSelect
+              value={pageLength}
+              onChange={setPageLength}
+              autoRecommendation={autoPageLengthRecommendation}
+              resolvedPages={resolvedPages}
+              rulesV2Enabled={rulesV2Enabled}
+              layout="stacked"
+              variant="dashboard"
+              hintClassName="text-xs text-muted-foreground"
+            />
+          </div>
+          <label className="block">
+            <span className="mb-2 block text-sm font-medium text-foreground">
+              Optional job description
+            </span>
+            <textarea
+              value={jobDescription}
+              onChange={(event) => setJobDescription(event.target.value)}
+              placeholder="Paste the job posting here to tailor your resume to a specific role…"
+              rows={4}
+              className={cn(
+                "w-full resize-y rounded-xl border border-border bg-background px-3 py-2.5 text-sm",
+                "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+              )}
+            />
+          </label>
+        </div>
       )}
     </GlossyModal>
   );

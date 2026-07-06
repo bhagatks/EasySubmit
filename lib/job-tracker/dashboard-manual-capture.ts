@@ -1,8 +1,9 @@
 import type { SaveJobTrackerInput } from "@/lib/extension/job-service";
 import {
   APPLY_JD_MIN_CHARS,
-  canManualCaptureSave,
-  manualCaptureBlockReason,
+  canDashboardManualJobSave,
+  dashboardManualJobBlockReason,
+  isApplyJobUrl,
 } from "@/src/shared/extension/apply-gate";
 
 export type DashboardManualJobDraft = {
@@ -11,6 +12,8 @@ export type DashboardManualJobDraft = {
   company: string;
   description: string;
   sourceProfileId: string;
+  /** Set when fields were populated from URL import. */
+  importSource?: "url" | "manual";
 };
 
 export type DashboardManualJobProfileOption = {
@@ -26,7 +29,7 @@ export type DashboardManualJobValidation =
 export const DASHBOARD_MANUAL_JOB_TITLE = "Add job to Job Tracker";
 
 export const DASHBOARD_MANUAL_JOB_SUBTITLE =
-  "Save the role here and tailor a job-specific resume. Your base resume profiles are not changed.";
+  "Paste a job URL to import details and unlock Apply assist. Or enter the role and description below — without a posting URL you can tailor a resume, but Apply stays unavailable.";
 
 export function resolveDashboardManualJobProfileId(
   profiles: DashboardManualJobProfileOption[],
@@ -52,14 +55,16 @@ export function buildDashboardManualJobInput(
   const description = draft.description.trim();
   const sourceProfileId = draft.sourceProfileId.trim();
 
-  const blockReason = manualCaptureBlockReason({ url, title, description });
+  const blockReason = dashboardManualJobBlockReason({ url, title, description });
   if (blockReason) {
     return { ok: false, error: blockReason };
   }
 
-  if (!canManualCaptureSave({ url, title, description })) {
+  if (!canDashboardManualJobSave({ url, title, description })) {
     return { ok: false, error: "Add job details to continue." };
   }
+
+  const hasApplyUrl = isApplyJobUrl(url);
 
   if (!sourceProfileId) {
     return { ok: false, error: "Select a resume profile to tailor from." };
@@ -68,16 +73,17 @@ export function buildDashboardManualJobInput(
   return {
     ok: true,
     input: {
-      url,
+      url: hasApplyUrl ? url : "",
       title,
       company: company || null,
       description,
       platform: "dashboard_manual",
       sourceProfileId,
       metadata: {
-        captureMode: "manual",
+        captureMode: draft.importSource === "url" ? "url_import" : "manual",
         captureSource: "dashboard",
         sourceProfileId,
+        applyUrlMissing: !hasApplyUrl,
       },
     },
   };

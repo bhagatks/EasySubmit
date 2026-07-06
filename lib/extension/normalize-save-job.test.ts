@@ -49,4 +49,18 @@ describe("normalizeSaveJobInput", () => {
     if ("error" in result) return;
     expect(result.platform).toBe("workable");
   });
+
+  it("allows dashboard manual save without apply url", () => {
+    const result = normalizeSaveJobInput({
+      url: "",
+      title: "Engineer",
+      company: "Acme",
+      description: "x".repeat(150),
+      metadata: { captureSource: "dashboard", applyUrlMissing: true },
+    });
+    expect("error" in result).toBe(false);
+    if ("error" in result) return;
+    expect(result.url.startsWith("easysubmit://dashboard-manual/")).toBe(true);
+    expect(result.platform).toBe("dashboard_manual");
+  });
 });

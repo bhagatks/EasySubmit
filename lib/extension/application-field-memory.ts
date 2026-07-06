@@ -117,6 +117,88 @@ export async function captureApplicationAnswers(
   return { upserted };
 }
 
+export type DashboardApplicationAnswerRow = {
+  id: string;
+  label: string;
+  platform: string;
+  tenantHost: string | null;
+  fieldType: string;
+  answer: StoredAnswer;
+  confidence: number;
+  lastUsedAt: Date;
+};
+
+export async function listDashboardApplicationAnswers(
+  userId: string,
+): Promise<DashboardApplicationAnswerRow[]> {
+  const rows = await prisma.userApplicationAnswer.findMany({
+    where: { userId },
+    orderBy: [{ lastUsedAt: "desc" }, { updatedAt: "desc" }],
+    select: {
+      id: true,
+      label: true,
+      platform: true,
+      tenantHost: true,
+      fieldType: true,
+      answer: true,
+      confidence: true,
+      lastUsedAt: true,
+    },
+  });
+
+  return rows
+    .filter((row) => !isDenylistedApplicationField(row.label))
+    .map((row) => ({
+      id: row.id,
+      label: row.label,
+      platform: row.platform,
+      tenantHost: row.tenantHost,
+      fieldType: row.fieldType,
+      answer: row.answer as StoredAnswer,
+      confidence: row.confidence,
+      lastUsedAt: row.lastUsedAt,
+    }));
+}
+
+export async function updateDashboardApplicationAnswer(
+  userId: string,
+  answerId: string,
+  answer: StoredAnswer,
+): Promise<{ updated: boolean }> {
+  const existing = await prisma.userApplicationAnswer.findFirst({
+    where: { id: answerId, userId },
+  });
+  if (!existing || isDenylistedApplicationField(existing.label)) {
+    return { updated: false };
+  }
+
+  await prisma.userApplicationAnswer.update({
+    where: { id: answerId },
+    data: {
+      answer: answer as Prisma.InputJsonValue,
+      confidence: Math.max(existing.confidence, 0.95),
+      correctCount: existing.correctCount + 1,
+      lastUsedAt: new Date(),
+    },
+  });
+
+  return { updated: true };
+}
+
+export async function deleteDashboardApplicationAnswer(
+  userId: string,
+  answerId: string,
+): Promise<{ deleted: boolean }> {
+  const existing = await prisma.userApplicationAnswer.findFirst({
+    where: { id: answerId, userId },
+    select: { id: true },
+  });
+  if (!existing) return { deleted: false };
+
+  await prisma.userApplicationAnswer.delete({ where: { id: answerId } });
+  return { deleted: true };
+}
+
 export async function lookupApplicationAnswers(
   userId: string,
   params: {

@@ -43,6 +43,10 @@ import {
 } from "@/src/lib/ai/engine/enhance-timeout";
 import { DEFAULT_ENHANCE_WITH_AI_TIMEOUT_MS } from "@/src/lib/services/enhance-with-ai-config";
 import type { StudioEditorSectionId } from "@/lib/resume/studio-editor-sections";
+import {
+  normalizePageLengthPreference,
+  type PageLengthPreference,
+} from "@/lib/resume/page-length-preference";
 import { useEnhanceAiEnabled } from "@/lib/ai/use-enhance-ai-enabled";
 import type { EnhanceAnalyticsSurface } from "@/src/shared/analytics/events";
 import { trackEnhanceClicked, trackEnhanceCompleted } from "@/src/shared/analytics/product-events";
@@ -67,6 +71,11 @@ type UseResumeEnhanceFlowOptions = {
   registerHeader?: boolean;
   /** When false, hides the header button and skips enhance UI wiring. */
   enabled?: boolean;
+  pageLengthPreference?: PageLengthPreference;
+  onPageLengthPreferenceChange?: (value: PageLengthPreference) => void;
+  autoPageLengthRecommendation?: string;
+  resolvedPageCount?: 1 | 2;
+  rulesV2Enabled?: boolean;
 };
 
 function formatTimeoutSeconds(timeoutMs: number): string {
@@ -84,6 +93,11 @@ export function useResumeEnhanceFlow({
   onApply,
   registerHeader = false,
   enabled = true,
+  pageLengthPreference,
+  onPageLengthPreferenceChange,
+  autoPageLengthRecommendation = "",
+  resolvedPageCount = 1,
+  rulesV2Enabled = false,
 }: UseResumeEnhanceFlowOptions) {
   const resolvedSurface: EnhanceAnalyticsSurface =
     analyticsSurface ?? (variant === "onboarding" ? "onboarding_studio" : "dashboard_studio");
@@ -160,11 +174,26 @@ export function useResumeEnhanceFlow({
   }, [enhanceProgress]);
 
   const runEnhance = useCallback(
-    async (jobDescription: string) => {
+    async (jobDescription: string, selectedPageLength?: PageLengthPreference) => {
+      const effectivePageLength = normalizePageLengthPreference(
+        selectedPageLength ?? pageLengthPreference ?? form.pageLengthPreference,
+      );
+      const formForEnhance: HubRefineryForm = {
+        ...mergedForm,
+        pageLengthPreference: effectivePageLength,
+      };
+
+      if (
+        effectivePageLength !== mergedForm.pageLengthPreference &&
+        onPageLengthPreferenceChange
+      ) {
+        onPageLengthPreferenceChange(effectivePageLength);
+      }
+
       const traceId = createEnhanceTraceId();
       const startedAt = performance.now();
       const workload = measureEnhanceWorkload({
-        form: mergedForm,
+        form: formForEnhance,
         jobDescription,
         rawResumeText,
       });
@@ -179,7 +208,7 @@ export function useResumeEnhanceFlow({
         ...summarizeEnhanceRequest({
           traceId,
           profileId,
-          form: mergedForm,
+          form: formForEnhance,
           targetRole,
           jobDescription,
           rawResumeText,
@@ -215,7 +244,7 @@ export function useResumeEnhanceFlow({
         result = await raceWithEnhanceTimeout(
           enhanceResumeProfile({
             profileId,
-            form: mergedForm,
+            form: formForEnhance,
             targetRole,
             jobDescription: jobDescription || undefined,
             rawResumeText,
@@ -393,8 +422,11 @@ export function useResumeEnhanceFlow({
     },
     [
       forceSystem,
+      form.pageLengthPreference,
       mergedForm,
       onApply,
+      onPageLengthPreferenceChange,
+      pageLengthPreference,
       profileId,
       rawResumeText,
       targetRole,
@@ -595,7 +627,13 @@ export function useResumeEnhanceFlow({
       <EnhanceWithAiDialog
         open={dialogOpen}
         onOpenChange={handleDialogOpenChange}
-        onSubmit={(jd) => void runEnhance(jd)}
+        onSubmit={(jd, selectedPageLength) => void runEnhance(jd, selectedPageLength)}
+        pageLengthPreference={
+          pageLengthPreference ?? normalizePageLengthPreference(form.pageLengthPreference)
+        }
+        autoPageLengthRecommendation={autoPageLengthRecommendation}
+        resolvedPages={resolvedPageCount}
+        rulesV2Enabled={rulesV2Enabled}
         isLoading={isLoading}
         progress={dialogProgress}
       />

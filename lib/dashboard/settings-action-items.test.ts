@@ -21,6 +21,7 @@ describe("resolveSettingsActionItems", () => {
       account: false,
       "ai-keys": true,
       general: false,
+      "application-answers": false,
     });
   });
 
@@ -65,6 +66,7 @@ describe("resolveSettingsActionItems", () => {
       account: false,
       "ai-keys": false,
       general: false,
+      "application-answers": false,
     });
   });
 

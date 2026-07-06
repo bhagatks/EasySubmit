@@ -15,6 +15,7 @@ import { hasJobResumeTailor } from "@/lib/profile/job-resume-tailor";
 import { prisma } from "@/lib/prisma";
 import { logEnhance } from "@/src/lib/ai/engine/enhance-logger";
 import { TAILOR_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
+import { isApplyJobUrl } from "@/src/shared/extension/apply-gate";
 import {
   FEATURE_FLAG_KEYS,
   isFeatureEnabled,
@@ -48,6 +49,14 @@ export type RunApplyPipelineResult =
     };
 
 const TAILOR_COMPLETE_STATUSES: JobTrackerStatus[] = ["RESUME_READY", "READY_TO_APPLY"];
+
+async function entryHasApplyJobUrl(userId: string, entryId: string): Promise<boolean> {
+  const row = await prisma.jobTrackerEntry.findFirst({
+    where: { id: entryId, userId },
+    select: { canonicalUrl: true },
+  });
+  return isApplyJobUrl(row?.canonicalUrl);
+}
 
 async function findExistingTailoredState(
   userId: string,
@@ -97,6 +106,21 @@ export async function advancePipelineAfterAutofill(
     return;
   }
 
+  if (!(await entryHasApplyJobUrl(userId, entryId))) {
+    logEnhance("pipeline", "apply.advance_blocked", {
+      step: TAILOR_PIPELINE.APPLY_TAILOR_RESULT,
+      userId,
+      entryId,
+      reason: "missing_apply_url",
+      detail: "No job posting URL — resume ready only",
+    });
+    await setPipelineDebugStep(userId, entryId, "status_ready", {
+      status: "skipped",
+      detail: "No job posting URL — stopped at resume ready",
+    });
+    return;
+  }
+
   const { updateJobTrackerStatus } = await import("@/lib/extension/job-service");
   await updateJobTrackerStatus(userId, entryId, "READY_TO_APPLY");
   await setPipelineDebugStep(userId, entryId, "status_ready", {
@@ -115,6 +139,9 @@ async function ensureApplyAssistStatus(
   }
 
   if (currentStatus === "RESUME_READY") {
+    if (!(await entryHasApplyJobUrl(userId, entryId))) {
+      return currentStatus;
+    }
     await advancePipelineAfterAutofill(userId, entryId);
     await mergeJobEntryMetadata(userId, entryId, {
       pipelinePhases: ["capture", "tailor", "autofill"],
@@ -149,7 +176,15 @@ export async function tailorJobPipeline(
         entryId,
         customizeResume: false,
       });
-      await advancePipelineAfterAutofill(userId, entryId);
+      const hasApplyUrl = isApplyJobUrl(input.url) || (await entryHasApplyJobUrl(userId, entryId));
+      if (hasApplyUrl) {
+        await advancePipelineAfterAutofill(userId, entryId);
+      } else {
+        await setPipelineDebugStep(userId, entryId, "status_ready", {
+          status: "skipped",
+          detail: "No job posting URL — stopped at captured",
+        });
+      }
       await mergeJobEntryMetadata(userId, entryId, {
         pipelinePhases: ["capture"],
         pipelineError: null,
@@ -181,7 +216,8 @@ export async function tailorJobPipeline(
           detail: "Customize resume is off",
         });
       }
-      return { success: true, status: "READY_TO_APPLY" };
+      const status = hasApplyUrl ? "READY_TO_APPLY" : "CAPTURED";
+      return { success: true, status };
     }
 
     const existingTailored = await findExistingTailoredState(userId, entryId);
@@ -229,14 +265,28 @@ export async function tailorJobPipeline(
       sourceProfileId: tailor.sourceProfileId,
     });
 
-    await advancePipelineAfterAutofill(userId, entryId);
+    const hasApplyUrl = isApplyJobUrl(input.url) || (await entryHasApplyJobUrl(userId, entryId));
+    if (hasApplyUrl) {
+      await advancePipelineAfterAutofill(userId, entryId);
+      await mergeJobEntryMetadata(userId, entryId, {
+        pipelinePhases: ["capture", "tailor", "autofill"],
+        pipelineError: null,
+        pipelineErrorCode: null,
+      });
+      return { success: true, status: "READY_TO_APPLY" };
+    }
+
+    await setPipelineDebugStep(userId, entryId, "status_ready", {
+      status: "skipped",
+      detail: "No job posting URL — stopped at resume ready",
+    });
     await mergeJobEntryMetadata(userId, entryId, {
-      pipelinePhases: ["capture", "tailor", "autofill"],
+      pipelinePhases: ["capture", "tailor"],
       pipelineError: null,
       pipelineErrorCode: null,
     });
 
-    return { success: true, status: "READY_TO_APPLY" };
+    return { success: true, status: "RESUME_READY" };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Resume optimization failed";
     logEnhance("pipeline", "apply.tailor_crashed", {

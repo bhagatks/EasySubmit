@@ -147,6 +147,40 @@ export function parseJobDescriptionFromJsonLd(doc: Document, minLen = 80): strin
   return "";
 }
 
+/** Parse JobPosting title, company, and description from JSON-LD. */
+export function parseJobMetadataFromJsonLd(doc: Document): {
+  title: string;
+  company: string;
+  description: string;
+} | null {
+  const scripts = doc.querySelectorAll('script[type="application/ld+json"]');
+  for (const script of scripts) {
+    const raw = script.textContent?.trim();
+    if (!raw) continue;
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      for (const node of collectJobPostingNodes(parsed)) {
+        const title =
+          typeof node.title === "string" ? stripHtml(node.title).trim() : "";
+        const description =
+          typeof node.description === "string" ? stripHtml(node.description).trim() : "";
+        let company = "";
+        const org = node.hiringOrganization;
+        if (org && typeof org === "object" && !Array.isArray(org)) {
+          const name = (org as Record<string, unknown>).name;
+          if (typeof name === "string") company = name.trim();
+        }
+        if (title || description) {
+          return { title, company, description };
+        }
+      }
+    } catch {
+      // ignore malformed JSON-LD blocks
+    }
+  }
+  return null;
+}
+
 const JD_SELECTORS = [
   ".show-more-less-html__markup",
   "[data-testid='expandable-text-box']",

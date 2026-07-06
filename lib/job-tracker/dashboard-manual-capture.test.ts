@@ -38,8 +38,27 @@ describe("buildDashboardManualJobInput", () => {
       captureMode: "manual",
       captureSource: "dashboard",
       sourceProfileId: "profile-default",
+      applyUrlMissing: false,
     });
     expect(result.input.company).toBe("Acme Corp");
+  });
+
+  it("allows dashboard manual save without apply url", () => {
+    const result = buildDashboardManualJobInput({
+      url: "",
+      title: "Software Engineer",
+      company: "Acme Corp",
+      description: "a".repeat(120),
+      sourceProfileId: "profile-default",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.input.url).toBe("");
+    expect(result.input.metadata).toMatchObject({
+      applyUrlMissing: true,
+      captureSource: "dashboard",
+    });
   });
 
   it("rejects missing resume profile", () => {
@@ -68,7 +87,7 @@ describe("buildDashboardManualJobInput", () => {
 
   it("rejects short job description", () => {
     const result = buildDashboardManualJobInput({
-      url: "https://jobs.example.com/role-123",
+      url: "",
       title: "Software Engineer",
       company: "",
       description: "too short",

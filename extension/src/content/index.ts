@@ -1335,7 +1335,7 @@ function syncCardHostPosition(previousHostWidth?: number): void {
 function statusLabel(saved: boolean, status?: string, presentation: CardPresentation = "job"): string {
   if (presentation === "no_job") return "Not detected";
   if (presentation === "loading") return "Reading…";
-  if (presentation === "manual_capture") return "Add details";
+  if (presentation === "manual_capture") return "Manual entry";
   return resolveExtensionJourneyDisplayLocal().label;
 }
 

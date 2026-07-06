@@ -33,6 +33,10 @@ import {
   buildDashboardManualJobInput,
   type DashboardManualJobDraft,
 } from "@/lib/job-tracker/dashboard-manual-capture";
+import {
+  scrapeJobPostingFromUrl,
+  type ScrapeJobPostingUrlResult,
+} from "@/lib/job-tracker/scrape-job-posting-url";
 
 const AUTO_ARCHIVE_MS = 24 * 60 * 60 * 1000;
 
@@ -614,6 +618,42 @@ export async function updateJobTrackerEntryStatus(
 export type CreateJobTrackerManualEntryResult =
   | { success: true; entryId: string }
   | { success: false; error: string };
+
+export type ImportJobPostingFromUrlResult = ScrapeJobPostingUrlResult;
+
+export async function importJobPostingFromUrl(
+  rawUrl: string,
+): Promise<ImportJobPostingFromUrlResult> {
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return { success: false, error: "Sign in required", code: "fetch_failed" };
+  }
+
+  journeySyncLog("server", "dashboard.url_import.start", { userId });
+
+  const result = await scrapeJobPostingFromUrl(rawUrl);
+
+  if (!result.success) {
+    journeySyncLog("server", "dashboard.url_import.fail", {
+      userId,
+      errorCode: result.code,
+      error: result.error,
+    });
+    return result;
+  }
+
+  journeySyncLog("server", "dashboard.url_import.done", {
+    userId,
+    url: result.url,
+    partial: result.partial,
+    platform: result.platform,
+    descriptionLength: result.description.length,
+  });
+
+  return result;
+}
 
 export type TailorJobTrackerEntryResult =
   | { success: true; status: string }

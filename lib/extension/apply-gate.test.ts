@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   canApplyCapture,
+  canDashboardManualJobSave,
   canManualCaptureSave,
   applyCaptureBlockReason,
+  dashboardManualJobBlockReason,
+  isApplyJobUrl,
   manualCaptureBlockReason,
 } from "@/src/shared/extension/apply-gate";
 
@@ -36,5 +39,34 @@ describe("canManualCaptureSave", () => {
         title: "",
       }),
     ).toMatch(/role title/i);
+  });
+});
+
+describe("canDashboardManualJobSave", () => {
+  it("allows save without url when title and description are present", () => {
+    expect(
+      canDashboardManualJobSave({
+        url: "",
+        title: "Director",
+        description: "x".repeat(120),
+      }),
+    ).toBe(true);
+  });
+
+  it("rejects invalid url when provided", () => {
+    expect(
+      dashboardManualJobBlockReason({
+        url: "not-a-url",
+        title: "Director",
+        description: "x".repeat(120),
+      }),
+    ).toMatch(/valid job posting URL/i);
+  });
+});
+
+describe("isApplyJobUrl", () => {
+  it("rejects dashboard placeholder urls", () => {
+    expect(isApplyJobUrl("easysubmit://dashboard-manual/abc")).toBe(false);
+    expect(isApplyJobUrl("https://jobs.example.com/1")).toBe(true);
   });
 });

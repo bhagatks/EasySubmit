@@ -1,6 +1,9 @@
 | Date | Item |
 |------|------|
-| 2026-07-05 | **OpenRouter system pool** — mixed slot 0 `openrouter/free` + slot 1 DeepSeek paid overflow; global `system_ai_daily_usage` counters; `app_config.info` metadata; QA script `scripts/compare-system-models-qa.ts` |
+| 2026-07-06 | **Dashboard job URL import** — Add job modal: optional URL + **Import from URL**; manual role/company/JD only → tailor stops at **Resume ready** (no Apply assist without posting URL); `lib/job-tracker/scrape-job-posting-url.ts` |
+| 2026-07-06 | **Field Memory Settings UI** — `/dashboard/settings` → Application answers (list, search, edit, delete); `app/actions/application-answers.ts`; denylist filter on list |
+| 2026-07-06 | **Extension polish 3.2–3.3** — force-capture loading hint + manual header copy; removed legacy one-click toggle from Settings (DB column retained) |
+| 2026-07-06 | **Enhance QA Case 001 matrix** — automated gate **7/7** + pipeline **5/5** PASS on dev pool (`enhance-qa-switch-matrix.ts`); manual harness sign-off still open |
 | 2026-07-05 | **Readiness polish** — summary 4-sentence word trim, injectable keyword merge, skills headroom, light-path grounding always on |
 | 2026-07-05 | **Extension GH JD quality** — boards-api preferred over DOM for embedded + native GH URLs; page intercept cannot downgrade API JD |
 | 2026-07-05 | **Job capture dedupe** — `saveJobTrackerEntry` archives duplicate active rows for same URL hash |

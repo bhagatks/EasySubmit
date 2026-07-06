@@ -109,15 +109,23 @@ export function JobResumeStudioEditor({
     [yearsExperience, targetRole],
   );
 
+  const handlePageLengthPreferenceChange = useCallback((preference: PageLengthPreference) => {
+    setPageLengthPreference(preference);
+    setFormValues((current) => ({ ...current, pageLengthPreference: preference }));
+    setSaveDisabled(false);
+  }, []);
+
   const handleEnhanceApply = useCallback(
     (result: {
       form: HubRefineryForm;
       skills: string[];
       sectionExpansion: Record<string, boolean>;
     }) => {
+      const nextPageLength = normalizePageLengthPreference(result.form.pageLengthPreference);
+      setPageLengthPreference(nextPageLength);
       setFormValues({
         ...result.form,
-        pageLengthPreference,
+        pageLengthPreference: nextPageLength,
       });
       setStudioSkills(result.skills);
       setSectionExpansion(result.sectionExpansion);
@@ -136,6 +144,11 @@ export function JobResumeStudioEditor({
     registerHeader: false,
     enabled: enhanceWithAiEnabled,
     onApply: handleEnhanceApply,
+    pageLengthPreference,
+    onPageLengthPreferenceChange: handlePageLengthPreferenceChange,
+    autoPageLengthRecommendation,
+    resolvedPageCount,
+    rulesV2Enabled: resumeRulesV2Enabled,
   });
 
   const handleSaveStateChange = useCallback((state: { disabled: boolean } | null) => {
@@ -175,12 +188,6 @@ export function JobResumeStudioEditor({
       pageLengthPreference,
     });
   }, [pageLengthPreference]);
-
-  const handlePageLengthPreferenceChange = useCallback((preference: PageLengthPreference) => {
-    setPageLengthPreference(preference);
-    setFormValues((current) => ({ ...current, pageLengthPreference: preference }));
-    setSaveDisabled(false);
-  }, []);
 
   const handleFinalize = useCallback(
     async (values: HubRefineryForm) => {
@@ -275,11 +282,6 @@ export function JobResumeStudioEditor({
         )}
         studioTabs
         studioAnalyticsSurface="job_studio"
-        pageLengthPreference={pageLengthPreference}
-        onPageLengthPreferenceChange={handlePageLengthPreferenceChange}
-        autoPageLengthRecommendation={autoPageLengthRecommendation}
-        resolvedPageCount={resolvedPageCount}
-        rulesV2Enabled={resumeRulesV2Enabled}
         preview={
           <PrimeResume resume={resumePreview} variant="workbench" className="w-full" />
         }

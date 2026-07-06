@@ -1019,7 +1019,7 @@ export function renderLoadingBody(escapeHtml: (value: string) => string): string
       <div class="loading-panel-accent" aria-hidden="true"></div>
       <p class="loading-kicker">In progress</p>
       <h2 class="loading-title">${escapeHtml(LOADING_JOB_MESSAGE)}</h2>
-      <p class="loading-subtitle">Hang tight — we're pulling the job description from this page.</p>
+      <p class="loading-subtitle">Hang tight — we're pulling the job description from this page. Use <strong>Add manually</strong> if detection stalls.</p>
     </div>
   `;
 }
