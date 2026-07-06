@@ -1,28 +1,53 @@
 import { performEngineHandshake } from "@/src/lib/ai/discovery-service";
-import { filterCareerGradeModels } from "@/src/lib/config/career-grade-models";
+import { getDefaultModelsForProvider } from "@/src/lib/config/app.config";
 import { prisma } from "@/lib/prisma";
 import { logApiCall } from "@/src/shared/observability";
+import {
+  classifyModelTier,
+  inputCostPer1M,
+  suggestDiscoveredPrimaryFuel,
+} from "@/lib/ai/model-health/classify-model-tier";
 import {
   MODEL_HEALTH_MAX_PROBE_COUNT,
 } from "@/lib/ai/model-health/constants";
 import { buildFailedModelCooldownUntil } from "@/lib/ai/model-health/model-candidate-ranking";
-import { probeModelCapabilities } from "@/lib/ai/model-health/probe-model-capabilities";
+import { probeModelCapabilities, probeCountsAsHealthy } from "@/lib/ai/model-health/probe-model-capabilities";
+import {
+  rankModelIdsForTask,
+  selectModelsToProbe,
+} from "@/lib/ai/model-health/score-model-ranking";
 import type {
   ModelHealthEntry,
   ProviderModelHealth,
   RefreshProviderModelHealthInput,
 } from "@/lib/ai/model-health/types";
+import { getAppConfig } from "@/src/lib/services/config-service";
+import type { AiPricingMap } from "@/src/lib/services/ai-pricing-map";
+import { AI_PRICING_MAP_DEFAULT } from "@/src/lib/services/ai-pricing-map";
 
-function rankHealthyModels(entries: Record<string, ModelHealthEntry>): string[] {
-  return Object.values(entries)
-    .filter((entry) => entry.status === "healthy")
-    .sort((left, right) => {
-      const leftScore = (left.probes.structured ? 0 : 1) + (left.probes.text ? 0 : 2);
-      const rightScore = (right.probes.structured ? 0 : 1) + (right.probes.text ? 0 : 2);
-      if (leftScore !== rightScore) return leftScore - rightScore;
-      return left.modelId.localeCompare(right.modelId);
-    })
+function rankHealthyModels(
+  entries: Record<string, ModelHealthEntry>,
+  provider: RefreshProviderModelHealthInput["provider"],
+): string[] {
+  const healthyIds = Object.values(entries)
+    .filter(
+      (entry) =>
+        entry.status === "healthy" &&
+        probeCountsAsHealthy(provider, entry.probes),
+    )
     .map((entry) => entry.modelId);
+
+  const cheapRanked = rankModelIdsForTask(healthyIds, entries, "cheap");
+  const flagshipRanked = rankModelIdsForTask(healthyIds, entries, "flagship");
+
+  const merged: string[] = [];
+  for (const id of cheapRanked) {
+    if (!merged.includes(id)) merged.push(id);
+  }
+  for (const id of flagshipRanked) {
+    if (!merged.includes(id)) merged.push(id);
+  }
+  return merged.length > 0 ? merged : healthyIds;
 }
 
 export async function refreshProviderModelHealth(
@@ -31,9 +56,17 @@ export async function refreshProviderModelHealth(
   const startedAt = Date.now();
   const traceId = input.traceId ?? "model-health";
 
+  let pricingMap: AiPricingMap = AI_PRICING_MAP_DEFAULT;
+  try {
+    pricingMap = await getAppConfig("ai_pricing_map");
+  } catch {
+    pricingMap = AI_PRICING_MAP_DEFAULT;
+  }
+
   const discovery = await performEngineHandshake({
     provider: input.provider,
     apiKey: input.apiKey,
+    customEndpointUrl: input.customEndpointUrl,
   });
 
   if (!discovery.success) {
@@ -54,9 +87,19 @@ export async function refreshProviderModelHealth(
     throw new Error(discovery.error.message);
   }
 
-  const candidates = filterCareerGradeModels(input.provider, discovery.models).slice(
-    0,
+  const discoverablePool = [
+    ...new Set([
+      ...getDefaultModelsForProvider(input.provider),
+      ...discovery.models,
+    ]),
+  ];
+
+  const candidates = selectModelsToProbe(
+    discoverablePool,
+    (modelId) => classifyModelTier(modelId, pricingMap),
+    (modelId) => inputCostPer1M(modelId, pricingMap),
     MODEL_HEALTH_MAX_PROBE_COUNT,
+    getDefaultModelsForProvider(input.provider),
   );
 
   const entries: Record<string, ModelHealthEntry> = {};
@@ -67,14 +110,24 @@ export async function refreshProviderModelHealth(
       provider: input.provider,
       apiKey: input.apiKey,
       modelId,
+      customEndpointUrl: input.customEndpointUrl,
     });
+    const healthy = probeCountsAsHealthy(input.provider, probes);
     entries[modelId] = {
       modelId,
-      status: probes.text && probes.structured ? "healthy" : "failed",
+      status: healthy ? "healthy" : "failed",
       lastCheckedAt: checkedAt,
-      lastError: probes.text ? null : probes.error ?? "probe_failed",
-      cooldownUntil: probes.text ? null : buildFailedModelCooldownUntil(),
-      probes,
+      lastError: healthy ? null : probes.error ?? "probe_failed",
+      cooldownUntil: healthy ? null : buildFailedModelCooldownUntil(),
+      probes: {
+        text: probes.text,
+        structured: probes.structured,
+        error: probes.error,
+      },
+      tier: classifyModelTier(modelId, pricingMap),
+      inputCostPer1M: inputCostPer1M(modelId, pricingMap),
+      lastLatencyMs: probes.lastLatencyMs,
+      sunsetHint: false,
     };
 
     logApiCall({
@@ -84,23 +137,31 @@ export async function refreshProviderModelHealth(
       operation: "ai.model_health.probe",
       provider: input.provider,
       modelId,
-      status: probes.text ? "success" : "error",
-      durationMs: 0,
+      status: healthy ? "success" : "error",
+      durationMs: probes.lastLatencyMs,
       aiMode: "customer",
       keySource: "vault",
-      errorCode: probes.text ? null : "provider_error",
-      errorMessage: probes.text ? null : probes.error ?? "probe_failed",
+      errorCode: healthy ? null : "provider_error",
+      errorMessage: healthy ? null : probes.error ?? "probe_failed",
       metadata: {
         feature: "model_health",
+        tier: entries[modelId]!.tier,
         structuredOk: probes.structured,
+        textOnlyHealthy: healthy && !probes.structured,
       },
     });
   }
 
-  const rankedModels = rankHealthyModels(entries);
+  const rankedModels = rankHealthyModels(entries, input.provider);
+  const primaryModelId =
+    rankedModels.find((modelId) => entries[modelId]?.tier === "flagship") ??
+    suggestDiscoveredPrimaryFuel(discovery.models, pricingMap) ??
+    rankedModels[0] ??
+    null;
+
   const health: ProviderModelHealth = {
     checkedAt,
-    primaryModelId: rankedModels[0] ?? discovery.suggestedPrimaryFuel,
+    primaryModelId,
     rankedModels,
     discoveredCount: discovery.rawModelCount,
     entries,

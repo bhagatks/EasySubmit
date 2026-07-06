@@ -20,6 +20,8 @@ export type EnhanceFeatureResolution = {
   /** @deprecated Use aiAvailable — kept for backward compat. */
   available: boolean;
   reason?: EnhanceOffReason;
+  /** Actionable copy when AI is blocked before a model call. */
+  blockedMessage?: string;
   /** Single routing object for all AI calls (JD extract + resume enhance). */
   route: import("@/src/lib/ai/engine/router").ResolvedAiRoute | null;
   /** Which AI key path runs. Null when available is false. */

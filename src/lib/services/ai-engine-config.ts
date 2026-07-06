@@ -6,7 +6,16 @@ export type AiEngineQuotaLimits = {
   dailyCalls: number;
 };
 
-export type AiEngineSystemQuotaLimits = AiEngineQuotaLimits;
+export type AiEngineSystemQuotaLimits = {
+  /** Global daily OpenRouter `:free` call budget. */
+  dailyTotalSystemCalls: number;
+  /** Global daily system-enhance budget. */
+  dailyTotalSystemEnhancements: number;
+  /** Per-user daily system AI call cap. */
+  dailyUserCalls: number;
+  /** Per-user daily system enhance cap. */
+  dailyUserEnhancements: number;
+};
 
 export type AiEngineCustomerQuotaLimits = AiEngineQuotaLimits & {
   /** When true, BYOK users bypass daily enhancement/call counters. */
@@ -25,7 +34,7 @@ export type AiEngineConfig = {
   /** Admin flag: when false, system AI is unavailable (forces BYOK mode). */
   enabled: boolean;
   system: {
-    /** System pool provider — `deepseek`, `openrouter` (GLM), or legacy `gemini`. */
+    /** Legacy single-provider hint — mixed pool uses per-slot providers. */
     provider: SystemPoolProvider;
     /** Resume enhance model id for the configured system provider. */
     modelId: string;
@@ -38,9 +47,35 @@ export type AiEngineConfig = {
     system: AiEngineSystemQuotaLimits;
     customer: AiEngineCustomerQuotaLimits;
   };
-  /** BYOK daily enhancement cap when `quotas.customer.aiDailyUnlimited` is false. */
-  customerDailyEnhancementCap: number;
 };
+
+/** Seed/docs metadata for the `app_config.info` column on the aiEngine row. */
+export const AI_ENGINE_CONFIG_INFO = {
+  summary: "Runtime AI engine config for EasySubmit system AI and BYOK quotas.",
+  fields: {
+    enabled:
+      "Top-level system pool switch. When false, system AI is unavailable and users must use BYOK.",
+    "quotas.system.dailyTotalSystemCalls":
+      "Global daily OpenRouter free-call budget. For a funded OpenRouter account, use 1000.",
+    "quotas.system.dailyTotalSystemEnhancements":
+      "Global daily system-enhance budget. Recommended 200 for about 2 calls per enhance plus retry headroom.",
+    "quotas.system.dailyUserCalls": "Per-user daily system AI call cap.",
+    "quotas.system.dailyUserEnhancements": "Per-user daily system enhance cap.",
+    "system.maxKeySlots": "Number of system key slots loaded from system_api_keys.",
+    "system.slot0":
+      "OpenRouter funded free tier. Uses openrouter/free and must return a :free model.",
+    "system.slot1":
+      "DeepSeek paid overflow. Used only when OpenRouter free fails or is unhealthy.",
+  },
+  openRouter: {
+    fundedFreeThresholdUsd: 10,
+    configuredTopUpUsd: 11,
+    freeRequestsPerDay: 1000,
+    freeRequestsPerMinute: 20,
+    freeOnlyGuard:
+      "Use openrouter/free plus zero max_price and verify response.model ends with :free.",
+  },
+} as const;
 
 /** Default JD extract model for the default system provider (DeepSeek Flash). */
 export const JD_EXTRACTION_SYSTEM_MODEL_DEFAULT = resolveSystemJdExtractModel(
@@ -53,12 +88,14 @@ export const AI_ENGINE_DEFAULTS: AiEngineConfig = {
     provider: DEFAULT_SYSTEM_POOL_PROVIDER,
     modelId: resolveSystemResumeModel(DEFAULT_SYSTEM_POOL_PROVIDER),
     jdExtractionModelId: JD_EXTRACTION_SYSTEM_MODEL_DEFAULT,
-    maxKeySlots: 3,
+    maxKeySlots: 2,
   },
   quotas: {
     system: {
-      dailyEnhancements: 5,
-      dailyCalls: 20,
+      dailyTotalSystemCalls: 1000,
+      dailyTotalSystemEnhancements: 200,
+      dailyUserCalls: 20,
+      dailyUserEnhancements: 5,
     },
     customer: {
       aiDailyUnlimited: true,
@@ -66,7 +103,6 @@ export const AI_ENGINE_DEFAULTS: AiEngineConfig = {
       dailyCalls: 200,
     },
   },
-  customerDailyEnhancementCap: 50,
 };
 
 const MIN_SLOT = 1;
@@ -95,9 +131,27 @@ function parseSystemQuotaLimits(
   fallback: AiEngineSystemQuotaLimits,
 ): AiEngineSystemQuotaLimits {
   if (!isRecord(value)) return fallback;
+
+  const legacyEnhancements = parseQuotaInt(value.dailyEnhancements, -1);
+  const legacyCalls = parseQuotaInt(value.dailyCalls, -1);
+
   return {
-    dailyEnhancements: parseQuotaInt(value.dailyEnhancements, fallback.dailyEnhancements),
-    dailyCalls: parseQuotaInt(value.dailyCalls, fallback.dailyCalls),
+    dailyTotalSystemCalls: parseQuotaInt(
+      value.dailyTotalSystemCalls,
+      fallback.dailyTotalSystemCalls,
+    ),
+    dailyTotalSystemEnhancements: parseQuotaInt(
+      value.dailyTotalSystemEnhancements,
+      fallback.dailyTotalSystemEnhancements,
+    ),
+    dailyUserCalls: parseQuotaInt(
+      value.dailyUserCalls,
+      legacyCalls >= 0 ? legacyCalls : fallback.dailyUserCalls,
+    ),
+    dailyUserEnhancements: parseQuotaInt(
+      value.dailyUserEnhancements,
+      legacyEnhancements >= 0 ? legacyEnhancements : fallback.dailyUserEnhancements,
+    ),
   };
 }
 
@@ -148,10 +202,6 @@ export function parseAiEngineConfig(value: unknown): AiEngineConfig | null {
       system: parseSystemQuotaLimits(quotasRaw.system, AI_ENGINE_DEFAULTS.quotas.system),
       customer: parseCustomerQuotaLimits(quotasRaw.customer, AI_ENGINE_DEFAULTS.quotas.customer),
     },
-    customerDailyEnhancementCap: parsePositiveInt(
-      value.customerDailyEnhancementCap,
-      AI_ENGINE_DEFAULTS.customerDailyEnhancementCap,
-    ),
   };
 }
 
@@ -166,7 +216,7 @@ export function isCustomerQuotaUnlimited(config: AiEngineConfig): boolean {
 /** Effective BYOK enhancement limit (null when customer quota is unlimited). */
 export function resolveCustomerEnhancementLimit(config: AiEngineConfig): number | null {
   if (isCustomerQuotaUnlimited(config)) return null;
-  return config.customerDailyEnhancementCap;
+  return config.quotas.customer.dailyEnhancements;
 }
 
 /** System-pool model for JD structured extraction (`generateObject`). */

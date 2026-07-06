@@ -23,7 +23,11 @@ export type DocumentPreviewAlertOptions = {
 };
 
 /** Short copy when AI failed and deterministic keyword fallback ran instead. */
-export function resolveEnhanceFallbackWarning(aiMode?: string | null): string {
+export function resolveEnhanceFallbackWarning(
+  aiMode?: string | null,
+  specificMessage?: string | null,
+): string {
+  if (specificMessage?.trim()) return specificMessage.trim();
   return aiMode === "customer"
     ? ENHANCE_BYOK_KEY_FAILED_MESSAGE
     : ENHANCE_SYSTEM_FALLBACK_MESSAGE;

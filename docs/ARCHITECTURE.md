@@ -184,6 +184,9 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 
 | Date | Summary |
 |------|---------|
+| 2026-07-05 | **OpenRouter system pool** — mixed slot 0 OpenRouter free (`openrouter/free` + `:free` guard) + slot 1 DeepSeek paid overflow; `system_ai_daily_usage` global counters; `app_config.info` metadata; QA `scripts/compare-system-models-qa.ts` |
+| 2026-07-05 | **BYOK provider expansion (13 providers)** — `PROVIDER_REGISTRY` + dropdown now include Z.ai, DeepInfra, xAI, SiliconFlow, Together, Mistral, Custom Endpoint; OpenAI-compatible routing via `openai.chat()` + `provider-compat`; optional `customEndpointUrl` on `user_api_keys`. System pool unchanged (DeepSeek/OpenRouter/Gemini slots). |
+| 2026-07-05 | **BYOK automatic cheap/flagship tier routing** — API-driven model discovery (blacklist-only filter), tier classification in `modelHealth`, task-aware routing (`cheap` resume generate / JD extract, `flagship` cover letter); system key pool unchanged. |
 | 2026-07-05 | **Readiness polish + extension GH JD + dedupe** — summary word-trim preserves 4 sentences; injectable keyword merge + skills headroom; light-path summary grounding; boards-api JD preferred over weak DOM for embedded + native GH URLs; archive duplicate active rows on same URL hash; v2 two-page summary max aligned to 80 words. |
 | 2026-07-05 | **Job Tracker bulk select (active list)** — checkboxes + Select All / Archive Selected on main tracker; `archiveJobTrackerEntries()` bulk action. |
 | 2026-07-05 | **Readiness 90+ pipeline fixes** — post-AI additive keyword merge (v1+v2), `normalizeSummaryForReadiness()` (4 sentences / 70–80 words), extension Workday JSON-LD-first scrape + footer strip + location noise filter; GH embed fetch retry on failure. |

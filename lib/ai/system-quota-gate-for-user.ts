@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { AiSourcePreference } from "@/src/lib/ai/engine/constants";
 import {
+  evaluateCombinedSystemQuotaGate,
   evaluateSystemQuotaGate,
   resolveQuotaRowWithReset,
   systemQuotaGateNotApplicable,
@@ -70,5 +71,5 @@ export async function getSystemQuotaGateForUserRow(
   }
 
   const { quotaRow } = resolveQuotaRowWithReset(user);
-  return evaluateSystemQuotaGate(quotaRow, aiEngine, options);
+  return evaluateCombinedSystemQuotaGate(quotaRow, aiEngine, options);
 }

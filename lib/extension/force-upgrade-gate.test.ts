@@ -61,6 +61,7 @@ describe("extensionForceUpgradeResponse", () => {
         updateUrl: "/extension",
         message: "Update the extension.",
       },
+      info: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     });

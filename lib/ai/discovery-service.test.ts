@@ -13,10 +13,10 @@ describe("performEngineHandshake", () => {
     vi.mocked(handshakeProviderModels).mockReset();
   });
 
-  it("returns career-grade models when key lists gpt-4o", async () => {
+  it("returns discoverable models when key lists gpt-4o", async () => {
     vi.mocked(handshakeProviderModels).mockResolvedValue({
       ok: true,
-      models: ["gpt-3.5-turbo", "gpt-4o", "gpt-4o-mini"],
+      models: ["gpt-3.5-turbo", "gpt-4o", "gpt-4o-mini", "text-embedding-3-small"],
     });
 
     const result = await performEngineHandshake({
@@ -26,15 +26,17 @@ describe("performEngineHandshake", () => {
 
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.models).toEqual(["gpt-4o", "gpt-4o-mini"]);
+      expect(result.models).toContain("gpt-4o");
+      expect(result.models).toContain("gpt-4o-mini");
+      expect(result.models).not.toContain("text-embedding-3-small");
       expect(result.suggestedPrimaryFuel).toBe("gpt-4o");
     }
   });
 
-  it("falls back to bundled career-grade defaults when API list has no matches", async () => {
+  it("falls back to bundled defaults when API list has no usable chat models", async () => {
     vi.mocked(handshakeProviderModels).mockResolvedValue({
       ok: true,
-      models: ["gpt-3.5-turbo", "text-embedding-3-small"],
+      models: ["text-embedding-3-small", "whisper-1"],
     });
 
     const result = await performEngineHandshake({
@@ -46,6 +48,23 @@ describe("performEngineHandshake", () => {
     if (result.success) {
       expect(result.models.length).toBeGreaterThan(0);
       expect(result.models).toContain("gpt-4o");
+    }
+  });
+
+  it("accepts newly listed models without a code deploy", async () => {
+    vi.mocked(handshakeProviderModels).mockResolvedValue({
+      ok: true,
+      models: ["gpt-3.5-turbo"],
+    });
+
+    const result = await performEngineHandshake({
+      provider: "openai",
+      apiKey: "sk-test",
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.models).toContain("gpt-3.5-turbo");
     }
   });
 

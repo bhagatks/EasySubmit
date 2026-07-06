@@ -6,6 +6,7 @@ import { authOptions } from "@/lib/auth";
 import { extractLoginIdentity } from "@/lib/auth/extract-login-identity";
 import { joinProfileName } from "@/lib/profile/name";
 import { prisma } from "@/lib/prisma";
+import { getAppConfig } from "@/src/lib/services/config-service";
 import { getFeatureFlags } from "@/src/lib/services/feature-flags-service";
 import type { ResumeProfilePickerMode } from "@/lib/generated/prisma/client";
 
@@ -31,6 +32,11 @@ export type AccountSettingsSnapshot = {
   autoApplyFeatureEnabled: boolean;
   resumeProfilePickerMode: ResumeProfilePickerMode;
   plan: string;
+  /** Per-user daily system AI enhancement cap from `app_config.aiEngine`. */
+  systemDailyEnhancementLimit: number;
+  /** When false, BYOK uses `customerDailyEnhancementLimit` per day. */
+  customerAiDailyUnlimited: boolean;
+  customerDailyEnhancementLimit: number;
 };
 
 export type UpdateLoginProfileInput = {
@@ -61,7 +67,7 @@ export async function getAccountSettings(): Promise<AccountSettingsSnapshot | nu
     return null;
   }
 
-  const [user, featureFlags] = await Promise.all([
+  const [user, featureFlags, aiEngine] = await Promise.all([
     prisma.user.findUnique({
       where: { id: session.user.id },
       select: {
@@ -88,6 +94,7 @@ export async function getAccountSettings(): Promise<AccountSettingsSnapshot | nu
       },
     }),
     getFeatureFlags(),
+    getAppConfig("aiEngine"),
   ]);
 
   if (!user) {
@@ -127,6 +134,9 @@ export async function getAccountSettings(): Promise<AccountSettingsSnapshot | nu
     autoApplyFeatureEnabled: featureFlags.extensionAutoApply,
     resumeProfilePickerMode: user.resumeProfilePickerMode,
     plan: user.plan,
+    systemDailyEnhancementLimit: aiEngine.quotas.system.dailyUserEnhancements,
+    customerAiDailyUnlimited: aiEngine.quotas.customer.aiDailyUnlimited,
+    customerDailyEnhancementLimit: aiEngine.quotas.customer.dailyEnhancements,
   };
 }
 

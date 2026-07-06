@@ -5,13 +5,25 @@
  * Provider registry and runtime defaults unified for the Next.js app.
  */
 
+import {
+  resolveOpenAiCompatChatBaseUrl,
+  resolveProviderHandshakeUrl,
+} from "@/src/lib/config/provider-compat";
+
 export type AiProvider =
+  | "gemini"
   | "openai"
   | "anthropic"
-  | "gemini"
-  | "groq"
   | "deepseek"
-  | "openrouter";
+  | "zai"
+  | "openrouter"
+  | "deepinfra"
+  | "xai"
+  | "groq"
+  | "siliconflow"
+  | "together"
+  | "mistral"
+  | "custom";
 
 /** Lucide icon ref — resolved in UI via `ProviderIcon`. */
 export type ProviderIconRef =
@@ -20,16 +32,27 @@ export type ProviderIconRef =
   | "gem"
   | "zap"
   | "brain"
-  | "route";
+  | "route"
+  | "box"
+  | "server"
+  | "bot"
+  | "cpu"
+  | "users"
+  | "cloud"
+  | "plug";
 
 export interface ProviderRegistryEntry {
   id: AiProvider;
   label: string;
   baseUrl: string;
-  /** Model discovery handshake path (appended to `baseUrl`). */
+  /** Model discovery handshake path (appended to `baseUrl` unless `openAiCompatBaseUrl` is set). */
   handshakeEndpoint: string;
   /** Relative path for chat/completions requests. */
   chatPath: string;
+  /** When set, OpenAI SDK uses this as chat baseURL instead of `baseUrl/v1`. */
+  openAiCompatBaseUrl?: string;
+  /** User must supply `customEndpointUrl` on vault (custom provider). */
+  requiresCustomBaseUrl?: boolean;
   defaultModels: readonly string[];
   /** chrome.storage / sessionStorage BYOK key (extension-ready). */
   storageKey: string;
@@ -39,6 +62,23 @@ export interface ProviderRegistryEntry {
 
 /** Canonical provider catalog for BYOK discovery and engine routing. */
 export const PROVIDER_REGISTRY: Record<AiProvider, ProviderRegistryEntry> = {
+  gemini: {
+    id: "gemini",
+    label: "Google Gemini",
+    baseUrl: "https://generativelanguage.googleapis.com",
+    handshakeEndpoint: "/v1beta/models",
+    chatPath: "/v1beta/models/{model}:generateContent",
+    defaultModels: [
+      "gemini-2.5-flash",
+      "gemini-2.0-flash",
+      "gemini-flash-latest",
+      "gemini-1.5-flash",
+      "gemini-pro-latest",
+    ],
+    storageKey: "gemini_key",
+    icon: "gem",
+    documentationUrl: "https://ai.google.dev/gemini-api/docs",
+  },
   openai: {
     id: "openai",
     label: "OpenAI",
@@ -67,22 +107,72 @@ export const PROVIDER_REGISTRY: Record<AiProvider, ProviderRegistryEntry> = {
     icon: "shield-check",
     documentationUrl: "https://docs.anthropic.com",
   },
-  gemini: {
-    id: "gemini",
-    label: "Google Gemini",
-    baseUrl: "https://generativelanguage.googleapis.com",
-    handshakeEndpoint: "/v1beta/models",
-    chatPath: "/v1beta/models/{model}:generateContent",
+  deepseek: {
+    id: "deepseek",
+    label: "DeepSeek",
+    baseUrl: "https://api.deepseek.com",
+    handshakeEndpoint: "/v1/models",
+    chatPath: "/chat/completions",
+    defaultModels: ["deepseek-v4-flash", "deepseek-v4-pro", "deepseek-chat", "deepseek-reasoner"],
+    storageKey: "deepseek_key",
+    icon: "brain",
+    documentationUrl: "https://api-docs.deepseek.com",
+  },
+  zai: {
+    id: "zai",
+    label: "Z.ai (GLM)",
+    baseUrl: "https://api.z.ai",
+    handshakeEndpoint: "/api/paas/v4/models",
+    chatPath: "/api/paas/v4/chat/completions",
+    openAiCompatBaseUrl: "https://api.z.ai/api/paas/v4",
+    defaultModels: ["glm-5.2", "glm-5-turbo", "glm-4-flash", "glm-4-plus"],
+    storageKey: "zai_key",
+    icon: "box",
+    documentationUrl: "https://docs.z.ai",
+  },
+  openrouter: {
+    id: "openrouter",
+    label: "OpenRouter",
+    baseUrl: "https://openrouter.ai/api",
+    handshakeEndpoint: "/v1/models",
+    chatPath: "/v1/chat/completions",
     defaultModels: [
-      "gemini-2.5-flash",
-      "gemini-2.0-flash",
-      "gemini-flash-latest",
-      "gemini-1.5-flash",
-      "gemini-pro-latest",
+      "google/gemini-2.5-flash",
+      "meta-llama/llama-3.3-70b-instruct",
+      "openai/gpt-4o",
+      "anthropic/claude-3.5-sonnet",
+      "deepseek/deepseek-chat",
     ],
-    storageKey: "gemini_key",
-    icon: "gem",
-    documentationUrl: "https://ai.google.dev/gemini-api/docs",
+    storageKey: "openrouter_key",
+    icon: "route",
+    documentationUrl: "https://openrouter.ai/docs",
+  },
+  deepinfra: {
+    id: "deepinfra",
+    label: "DeepInfra",
+    baseUrl: "https://api.deepinfra.com",
+    handshakeEndpoint: "/v1/openai/models",
+    chatPath: "/v1/openai/chat/completions",
+    openAiCompatBaseUrl: "https://api.deepinfra.com/v1/openai",
+    defaultModels: [
+      "Qwen/Qwen3-32B",
+      "meta-llama/Llama-3.3-70B-Instruct",
+      "deepseek-ai/DeepSeek-V3",
+    ],
+    storageKey: "deepinfra_key",
+    icon: "server",
+    documentationUrl: "https://deepinfra.com/docs",
+  },
+  xai: {
+    id: "xai",
+    label: "xAI (Grok)",
+    baseUrl: "https://api.x.ai",
+    handshakeEndpoint: "/v1/models",
+    chatPath: "/v1/chat/completions",
+    defaultModels: ["grok-3-mini", "grok-3", "grok-2-1212"],
+    storageKey: "xai_key",
+    icon: "bot",
+    documentationUrl: "https://docs.x.ai",
   },
   groq: {
     id: "groq",
@@ -93,38 +183,68 @@ export const PROVIDER_REGISTRY: Record<AiProvider, ProviderRegistryEntry> = {
     defaultModels: [
       "llama-3.3-70b-versatile",
       "llama-3.1-70b-versatile",
-      "mixtral-8x7b-32768",
+      "llama-3.1-8b-instant",
     ],
     storageKey: "groq_key",
     icon: "zap",
     documentationUrl: "https://console.groq.com/docs",
   },
-  deepseek: {
-    id: "deepseek",
-    label: "DeepSeek",
-    baseUrl: "https://api.deepseek.com",
-    handshakeEndpoint: "/v1/models",
-    chatPath: "/v1/chat/completions",
-    defaultModels: ["deepseek-chat", "deepseek-reasoner"],
-    storageKey: "deepseek_key",
-    icon: "brain",
-    documentationUrl: "https://api-docs.deepseek.com",
-  },
-  openrouter: {
-    id: "openrouter",
-    label: "OpenRouter",
-    baseUrl: "https://openrouter.ai/api",
+  siliconflow: {
+    id: "siliconflow",
+    label: "SiliconFlow",
+    baseUrl: "https://api.siliconflow.com",
     handshakeEndpoint: "/v1/models",
     chatPath: "/v1/chat/completions",
     defaultModels: [
-      "openai/gpt-4o",
-      "anthropic/claude-3.5-sonnet",
-      "google/gemini-2.5-pro-preview",
-      "deepseek/deepseek-chat",
+      "deepseek-ai/DeepSeek-V3",
+      "Qwen/Qwen3-32B",
+      "Pro/deepseek-ai/DeepSeek-R1",
     ],
-    storageKey: "openrouter_key",
-    icon: "route",
-    documentationUrl: "https://openrouter.ai/docs",
+    storageKey: "siliconflow_key",
+    icon: "cpu",
+    documentationUrl: "https://docs.siliconflow.com",
+  },
+  together: {
+    id: "together",
+    label: "Together AI",
+    baseUrl: "https://api.together.xyz",
+    handshakeEndpoint: "/v1/models",
+    chatPath: "/v1/chat/completions",
+    defaultModels: [
+      "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+      "meta-llama/Llama-3.3-70B-Instruct",
+      "Qwen/Qwen2.5-72B-Instruct-Turbo",
+    ],
+    storageKey: "together_key",
+    icon: "users",
+    documentationUrl: "https://docs.together.ai",
+  },
+  mistral: {
+    id: "mistral",
+    label: "Mistral AI",
+    baseUrl: "https://api.mistral.ai",
+    handshakeEndpoint: "/v1/models",
+    chatPath: "/v1/chat/completions",
+    defaultModels: [
+      "mistral-large-latest",
+      "mistral-small-latest",
+      "open-mistral-nemo",
+    ],
+    storageKey: "mistral_key",
+    icon: "cloud",
+    documentationUrl: "https://docs.mistral.ai",
+  },
+  custom: {
+    id: "custom",
+    label: "Custom Endpoint",
+    baseUrl: "",
+    handshakeEndpoint: "/models",
+    chatPath: "/chat/completions",
+    requiresCustomBaseUrl: true,
+    defaultModels: ["gpt-4o-mini"],
+    storageKey: "custom_key",
+    icon: "plug",
+    documentationUrl: "https://platform.openai.com/docs/api-reference/chat",
   },
 } as const;
 
@@ -150,12 +270,19 @@ export const SERVICE_REGISTRY: Record<AiProvider, ServiceRegistryEntry> =
   ) as Record<AiProvider, ServiceRegistryEntry>;
 
 export const ALL_AI_PROVIDERS: AiProvider[] = [
+  "gemini",
   "openai",
   "anthropic",
-  "gemini",
-  "groq",
   "deepseek",
+  "zai",
   "openrouter",
+  "deepinfra",
+  "xai",
+  "groq",
+  "siliconflow",
+  "together",
+  "mistral",
+  "custom",
 ];
 
 export interface SystemDefaults {
@@ -180,13 +307,6 @@ export const SYSTEM_DEFAULTS: SystemDefaults = {
   aiModelsUpdateHours: 24,
 };
 
-/** Default BYOK provider — always labeled Recommended in AI provider pickers. */
-export const RECOMMENDED_AI_PROVIDER = SYSTEM_DEFAULTS.targetAiProvider;
-
-export function isRecommendedAiProvider(provider: AiProvider): boolean {
-  return provider === RECOMMENDED_AI_PROVIDER;
-}
-
 /** Runtime URLs and cache keys derived from system defaults. */
 export const APP_RUNTIME = {
   DASHBOARD_URL: getIsDev()
@@ -202,6 +322,13 @@ export interface AiModelsCache {
   groq?: string[];
   deepseek?: string[];
   openrouter?: string[];
+  zai?: string[];
+  deepinfra?: string[];
+  xai?: string[];
+  siliconflow?: string[];
+  together?: string[];
+  mistral?: string[];
+  custom?: string[];
   updatedAt?: number;
 }
 
@@ -250,9 +377,11 @@ export function getServiceEntry(provider: AiProvider): ServiceRegistryEntry {
 /** @deprecated Use getServiceEntry or getProviderRegistryEntry */
 export const getProviderConfig = getServiceEntry;
 
-export function getProviderHandshakeUrl(provider: AiProvider): string {
-  const { baseUrl, handshakeEndpoint } = PROVIDER_REGISTRY[provider];
-  return `${baseUrl}${handshakeEndpoint}`;
+export function getProviderHandshakeUrl(
+  provider: AiProvider,
+  customEndpointUrl?: string | null,
+): string {
+  return resolveProviderHandshakeUrl(provider, customEndpointUrl);
 }
 
 /** Handshake URL — alias for `getProviderHandshakeUrl`. */
@@ -266,6 +395,14 @@ export function getProviderChatUrl(provider: AiProvider, modelId?: string): stri
     return `${baseUrl}${chatPath.replace("{model}", modelId)}`;
   }
   return `${baseUrl}${chatPath}`;
+}
+
+/** OpenAI-compatible SDK base URL — DeepSeek V4 chat omits the `/v1` prefix. */
+export function getOpenAiCompatChatBaseUrl(
+  provider: AiProvider,
+  customEndpointUrl?: string | null,
+): string {
+  return resolveOpenAiCompatChatBaseUrl(provider, customEndpointUrl);
 }
 
 export function getDefaultModelsForProvider(provider: AiProvider): string[] {

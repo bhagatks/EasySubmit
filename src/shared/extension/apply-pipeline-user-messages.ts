@@ -9,8 +9,10 @@ import {
   APPLY_PIPELINE_STAGE_LABELS,
   type ApplyPipelineStageId,
 } from "@/src/shared/extension/apply-pipeline-stage-labels";
+import { truncateEnhanceUserMessage } from "@/lib/ai/enhance-failure-messages";
 
 export { APPLY_PIPELINE_STAGE_LABELS, type ApplyPipelineStageId };
+
 export const APPLY_PIPELINE_USER_LINES = {
   jobCapturing: "Job capturing",
   jobCaptured: "Job captured",
@@ -91,6 +93,12 @@ const STEP_ORDER = new Map(
 function readMetadataObject(metadata: unknown): Record<string, unknown> | null {
   if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return null;
   return metadata as Record<string, unknown>;
+}
+
+function readMetadataAiWarning(metadata: unknown): string | null {
+  const record = readMetadataObject(metadata);
+  const warning = record?.pipelineAiWarning;
+  return typeof warning === "string" && warning.trim() ? warning.trim() : null;
 }
 
 function stepRow(
@@ -286,11 +294,28 @@ function inferStageFromStatus(
 }
 
 function resolveWarningMessage(input: ResolveApplyPipelineUserMessageInput): ApplyPipelineUserMessage | null {
+  const metadataWarning = readMetadataAiWarning(input.metadata);
+  if (metadataWarning) {
+    return {
+      line: truncateEnhanceUserMessage(metadataWarning),
+      kind: "warning",
+      stageId: "optimized_resume",
+    };
+  }
+
   const aiPass1 = stepRow(input.progress ?? null, "ai_pass1");
   if (
     aiPass1?.status === "warning" &&
     resumePrepComplete(input.progress ?? null)
   ) {
+    const detail = aiPass1.detail?.trim();
+    if (detail) {
+      return {
+        line: truncateEnhanceUserMessage(detail),
+        kind: "warning",
+        stageId: "optimized_resume",
+      };
+    }
     return {
       line: APPLY_PIPELINE_FAILURE_LINES.resumeOptimizedWithFallback,
       kind: "warning",

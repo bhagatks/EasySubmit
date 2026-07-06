@@ -29,6 +29,12 @@ import {
 } from "@/src/lib/ai/engine/candidate-context";
 import { logEnhanceDiag } from "@/src/lib/ai/engine/enhance-diagnostics";
 import { ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
+import {
+  fetchRoleVocabulary,
+  resolveOnetVocabularyPipelineOutcome,
+} from "@/lib/job-tracker/ats/onet-service";
+import { dataArtifact, externalApiArtifactsFromExchanges } from "@/lib/extension/pipeline-debug-sanitize";
+import type { ExternalApiDebugExchange } from "@/lib/extension/external-api-debug";
 
 function countMashedRoles(form: ResumePrepBundle["form"]): number {
   let count = 0;
@@ -156,6 +162,69 @@ export async function runResumePrepTrack(
     },
   });
 
+  pipelineDebugAdvance(debug, "pre_role_vocab", "pre_resume_context");
+
+  logEnhanceDiag({
+    traceId: input.traceId,
+    designStep: "3",
+    track: "resume",
+    pipelineStep: ENHANCE_PIPELINE.PRE_BRIEF_START,
+    phase: "start",
+    level: "low",
+    event: "resume_track.onet.start",
+    scope: "server",
+    userId: input.userId,
+    params: { targetRole: input.targetRole },
+  });
+
+  const onetApiDebug: ExternalApiDebugExchange[] = [];
+  const roleVocabulary = await fetchRoleVocabulary(input.targetRole, {
+    apiDebug: debug ? onetApiDebug : undefined,
+  });
+  const onetOutcome = resolveOnetVocabularyPipelineOutcome(roleVocabulary, onetApiDebug);
+
+  pipelineDebugStep(debug, "pre_role_vocab", {
+    status: onetOutcome.status,
+    detail: onetOutcome.detail,
+    meta: {
+      source: roleVocabulary.source,
+      onetCode: roleVocabulary.onetCode,
+      skillCount: roleVocabulary.skills.length,
+      toolCount: roleVocabulary.tools.length,
+    },
+    artifacts: [
+      ...externalApiArtifactsFromExchanges(onetApiDebug),
+      dataArtifact(
+        "Role vocabulary",
+        {
+          matchedTitle: roleVocabulary.matchedTitle,
+          onetCode: roleVocabulary.onetCode,
+          source: roleVocabulary.source,
+          skillsSample: roleVocabulary.skills.slice(0, 12),
+          toolsSample: roleVocabulary.tools.slice(0, 12),
+        },
+        "output",
+      ),
+    ],
+  });
+
+  logEnhanceDiag({
+    traceId: input.traceId,
+    designStep: "3",
+    track: "resume",
+    pipelineStep: ENHANCE_PIPELINE.PRE_BRIEF_START,
+    phase: "done",
+    level: "low",
+    event: "resume_track.onet.done",
+    scope: "server",
+    userId: input.userId,
+    params: {
+      source: roleVocabulary.source,
+      skillCount: roleVocabulary.skills.length,
+      toolCount: roleVocabulary.tools.length,
+    },
+  });
+
   logEnhanceDiag({
     traceId: input.traceId,
     designStep: "9",
@@ -198,5 +267,6 @@ export async function runResumePrepTrack(
     mashedRolesFound: countMashedRoles(form),
     experienceEntryCount: (form.experience ?? []).filter((e) => !e.hidden).length,
     profileUpdatedAt,
+    roleVocabulary,
   };
 }

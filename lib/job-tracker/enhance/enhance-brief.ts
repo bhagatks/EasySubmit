@@ -13,6 +13,7 @@ import type { JdSkillsVocabulary } from "@/lib/job-tracker/jd/jd-skills-types";
 import type { EnhancePlan } from "@/lib/job-tracker/enhance/enhance-plan";
 import type { SummaryIdentityResolution } from "@/lib/job-tracker/enhance/resolve-summary-identity";
 import type { AtsPlatform, PlatformStrategy } from "@/lib/job-tracker/ats/platform-rules";
+import type { OnetRoleVocabulary } from "@/lib/job-tracker/ats/onet-service";
 
 export type JdAtom = {
   id: string;
@@ -115,6 +116,8 @@ export type ResumeEnhanceBrief = {
   plan: EnhancePlan;
   /** Candidate identity for summary sentence 1 (not JD job title). */
   summaryIdentity: SummaryIdentityResolution;
+  /** O*NET occupation norms for target role — Skills Group 2 (resume side). */
+  roleVocabulary: OnetRoleVocabulary;
   /** Detected ATS platform + strategy emphasis for this job. */
   platform: {
     id: AtsPlatform;

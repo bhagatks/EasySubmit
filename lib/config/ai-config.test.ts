@@ -20,11 +20,14 @@ import {
 
 describe("ai-config", () => {
   it("defines all supported providers with handshake URLs", () => {
-    expect(ALL_AI_PROVIDERS).toHaveLength(6);
+    expect(ALL_AI_PROVIDERS).toHaveLength(13);
     expect(getProviderModelsUrl("openai")).toBe("https://api.openai.com/v1/models");
     expect(getProviderModelsUrl("anthropic")).toBe("https://api.anthropic.com/v1/models");
     expect(getProviderHandshakeUrl("groq")).toBe("https://api.groq.com/openai/v1/models");
     expect(getProviderModelsUrl("deepseek")).toBe("https://api.deepseek.com/v1/models");
+    expect(getProviderHandshakeUrl("deepinfra")).toBe(
+      "https://api.deepinfra.com/v1/openai/models",
+    );
     expect(getProviderModelsUrl("openrouter")).toBe("https://openrouter.ai/api/v1/models");
     expect(getProviderModelsUrl("gemini")).toBe(
       "https://generativelanguage.googleapis.com/v1beta/models",

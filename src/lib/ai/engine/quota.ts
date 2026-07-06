@@ -58,15 +58,15 @@ function limitsForMode(config: AiEngineConfig, mode: AiQuotaMode) {
 
   if (mode === "customer") {
     return {
-      enhancementsLimit: resolveCustomerEnhancementLimit(config) ?? config.customerDailyEnhancementCap,
+      enhancementsLimit: resolveCustomerEnhancementLimit(config) ?? config.quotas.customer.dailyEnhancements,
       callsLimit: config.quotas.customer.dailyCalls,
       unlimited: false,
     };
   }
 
   return {
-    enhancementsLimit: config.quotas.system.dailyEnhancements,
-    callsLimit: config.quotas.system.dailyCalls,
+    enhancementsLimit: config.quotas.system.dailyUserEnhancements,
+    callsLimit: config.quotas.system.dailyUserCalls,
     unlimited: false,
   };
 }

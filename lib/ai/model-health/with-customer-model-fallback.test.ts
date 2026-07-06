@@ -8,6 +8,13 @@ vi.mock("@/lib/vault/decrypt-vault-secret", () => ({
   })),
 }));
 
+vi.mock("@/lib/vault/user-key-vault", () => ({
+  getUserApiKeyCredentials: vi.fn(async () => ({
+    apiKey: "test-key",
+    customEndpointUrl: null,
+  })),
+}));
+
 vi.mock("@/lib/ai/model-health/resolve-model-candidates", () => ({
   recordModelRuntimeOutcome: vi.fn(async () => undefined),
 }));

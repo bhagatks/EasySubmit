@@ -10,11 +10,14 @@ Code fixes from the first AI on/off review (Phases 1–6, D-01–D-22) are **Don
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Re-run **Case 001** A/B/C (base → AI off → AI on) on Review | **Todo** | Bhagath eng × iRhythm procurement — manual sign-off per playbook §2.3 |
-| **Case 002+** — same-domain + other JD categories | **Todo** | Playbook §6 — SWE, PM, procurement-native, etc. |
+| Re-run **Case 001** A/B/C — **AI on** sign-off | **Blocked** | System pool `pool_down` / `provider_error` (2026-07-05); deterministic + BYOK gate OK — re-run when pool healthy |
+| **Case 002–003** — same-domain fixtures + matrix | **Done** | Playbook §6 + `enhance-qa-fixtures.ts` (iRhythm SWE, RELX SWE) |
+| **Switch matrix S01–S10** — gate unit tests | **Done** | `enhance-qa-gate-matrix.test.ts` |
+| **Live switch matrix** — pipeline runner | **Partial** | `scripts/enhance-qa-switch-matrix.ts` → `.tmp-debug/enhance-qa-matrix-live.json`; deterministic 3/3 pass; AI-on blocked by pool |
 | **North-star §14 test matrix** — full pass / sign-off | **Todo** | AI off/on, quota, BYOK, pool down, extension card — Wave C in `north-star.md` |
-| **3-artifact regression** — pipeline-level, not unit slices | **Todo** | Extend `enhance-qa-case-001.test.ts` or add `run-resume-enhance-pipeline.test.ts`; D-22 partial today |
-| **Dev harness A/B/C** — AI off vs on in one session | **Todo** | `/dashboard/testing-resume` — toggle + side-by-side diff; today uses user setting only |
+| **3-artifact regression** — pipeline-level, not unit slices | **Partial** | Fixtures + live runner; mock gate tests done |
+| **Dev harness A/B/C** — AI off vs on in one session | **Done** | `/dashboard/testing-resume` — mode selector + **Run A/B/C** |
+| **Multi-model QA** — system + BYOK providers/models | **Todo** | DeepSeek (system pool), OpenRouter/GLM, BYOK routes; Cases 001–003 + switch matrix S07–S10; fix `app_config.aiEngine` provider/modelId alignment first |
 | Extension pipeline tailor — AI off/on on `variant: pipeline` | **Todo** | Same A/B/C protocol as Review |
 | Playbook product items **P-01**, **P-02**, **P-03** | **Todo** / **Partial** | Cross-domain role suggestions; feedback tiers; export without JD injection when AI off |
 
@@ -86,16 +89,18 @@ See also [`PROD_CUTOVER.md`](./PROD_CUTOVER.md) §7.
 
 ## Follow-up (not blocking deploy)
 
-### O*NET Web Services — Vocabulary step (pending approval)
+### O*NET Web Services — Vocabulary step
 
-Submitted **2026-07-03** — waiting for O*NET staff to approve EasySubmit organization. Approval email → **My Account** → project → **Add a new API key**.
+Organization approved **2026-07-05**. API key in `.env.local`; add `ONET_API_KEY` to Vercel prod when wiring the pipeline step.
 
 | Item | Status | Notes |
 |------|--------|-------|
-| O*NET developer signup | **Done** | Submitted; awaiting staff review email |
-| Add `ONET_API_KEY` to `.env.local` (+ Vercel prod when ready) | **Todo** | After approval — key from My Account, not username/password |
-| Migrate `lib/job-tracker/ats/onet-service.ts` to **v2 API** | **Todo** | Today uses v1.9 Basic auth (`guest`/`guest` → 401). Follow [web-services-v2-samples](https://github.com/onetcenter/web-services-v2-samples) (`X-API-Key`, `api-v2.onetcenter.org`, `online/search` + summary skills/tools) |
-| Verify Vocabulary step on a live Apply run | **Todo** | Pipeline debug `pre_onet` should show skills/tools, not `source: fallback` |
+| O*NET developer signup | **Done** | Organization approved |
+| Add `ONET_API_KEY` to `.env.local` | **Done** | v2 uses `X-API-Key` header |
+| Add `ONET_API_KEY` to **Vercel Production** | **Todo** | See [`PROD_CUTOVER.md`](./PROD_CUTOVER.md) §3 + §7 smoke |
+| Migrate `lib/job-tracker/ats/onet-service.ts` to **v2 API** | **Done** | `api-v2.onetcenter.org`, `online/search` + summary skills/tools |
+| Wire `fetchRoleVocabulary()` into enhance brief + pipeline debug | **Done** | Resume track `pre_role_vocab`; merge-skills-grouped Group 2 |
+| Verify Vocabulary step on a live Apply run | **Todo** | Prod smoke: [`PROD_CUTOVER.md`](./PROD_CUTOVER.md) §7 — `pre_role_vocab` not `source: fallback` |
 
 ### Pricing & plan marketing copy (v1.0) — **complete**
 

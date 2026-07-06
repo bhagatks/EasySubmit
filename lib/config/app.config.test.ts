@@ -15,25 +15,17 @@ import {
   getProviderRegistryEntry,
   getTargetAiModel,
   isAiProvider,
-  isRecommendedAiProvider,
   PROVIDER_REGISTRY,
-  RECOMMENDED_AI_PROVIDER,
   SERVICE_REGISTRY,
   SYSTEM_DEFAULTS,
 } from "@/src/lib/config/app.config";
 
-const EXPECTED_PROVIDERS = [
-  "openai",
-  "anthropic",
-  "gemini",
-  "groq",
-  "deepseek",
-  "openrouter",
-] as const;
+import { HANDSHAKE_PROVIDERS } from "@/src/lib/config/career-grade-models";
 
 describe("app.config", () => {
   it("defines PROVIDER_REGISTRY with base URLs, handshake endpoints, icons, and docs", () => {
-    expect(ALL_AI_PROVIDERS).toEqual([...EXPECTED_PROVIDERS]);
+    expect(ALL_AI_PROVIDERS).toEqual([...HANDSHAKE_PROVIDERS]);
+    expect(ALL_AI_PROVIDERS.length).toBeGreaterThanOrEqual(13);
 
     expect(PROVIDER_REGISTRY.openai.baseUrl).toBe("https://api.openai.com");
     expect(PROVIDER_REGISTRY.openai.handshakeEndpoint).toBe("/v1/models");
@@ -70,12 +62,6 @@ describe("app.config", () => {
     expect(getTargetAiModel()).toBe("gemini-2.5-flash");
   });
 
-  it("marks Google Gemini as the recommended BYOK provider", () => {
-    expect(RECOMMENDED_AI_PROVIDER).toBe("gemini");
-    expect(isRecommendedAiProvider("gemini")).toBe(true);
-    expect(isRecommendedAiProvider("openai")).toBe(false);
-  });
-
   it("builds default model catalog from registry", () => {
     const catalog = buildDefaultModelCatalog();
     expect(Object.keys(catalog).sort()).toEqual([...ALL_AI_PROVIDERS].sort());
@@ -86,7 +72,8 @@ describe("app.config", () => {
 
   it("validates provider ids", () => {
     expect(isAiProvider("openai")).toBe(true);
-    expect(isAiProvider("openrouter")).toBe(true);
+    expect(isAiProvider("mistral")).toBe(true);
+    expect(isAiProvider("custom")).toBe(true);
     expect(isAiProvider("grok")).toBe(false);
   });
 

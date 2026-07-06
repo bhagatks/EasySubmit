@@ -351,6 +351,7 @@ Upserts all keys below (including `forceUpgrade`). Existing rows are not overwri
 |--------|------|-------------|
 | `key` | `string` PK | Config namespace (`dataRefresh`, `aiConfig`, …) |
 | `value` | `json` | Structured payload for the key |
+| `info` | `json?` | Human-readable field docs for admins — never parsed by runtime loaders |
 | `createdAt` / `updatedAt` | `datetime` | |
 
 | Key | Default `value` | Description |
@@ -359,7 +360,7 @@ Upserts all keys below (including `forceUpgrade`). Existing rows are not overwri
 | `aiConfig` | `{ defaultProvider: "openai", discoveryEnabled: true, lastGlobalSync: ISO8601 }` | Global AI discovery defaults |
 | `ai_pricing_map` | `{ default: { inputPer1k, outputPer1k }, models: { [modelId]: rates }, patterns: [{ match, inputPer1k, outputPer1k }] }` | BYOK USD/1K token rates for usage widgets — update without deploy |
 | `enhanceWithAi` | `{ enhanceWithAiTimeoutMs: 90000 }` | Client-side max wait for Enhance with AI server action (ms). Client also bumps timeout to ≥135% of workload estimate. Legacy key `EnhanceWithAITimeout` accepted. Env fallback: `EASYSUBMIT_ENHANCE_WITH_AI_TIMEOUT_MS`. |
-| `aiEngine` | `{ system: { modelId, jdExtractionModelId, maxKeySlots }, quotas: { system: { enable, dailyCalls, dailyEnhancements }, customer: { aiDailyUnlimited, dailyCalls, dailyEnhancements } }, customerDailyEnhancementCap }` | `quotas.system.enable` gates EasySubmit system AI; when `false`, all routes require BYOK. `system.jdExtractionModelId` — cheaper model for structured JD extract on system pool only (BYOK uses vaulted model). `quotas.customer.aiDailyUnlimited` bypasses BYOK daily caps when `true`. System secrets live in Vault (below). |
+| `aiEngine` | `{ enabled, system: { provider, modelId, jdExtractionModelId, maxKeySlots }, quotas: { system: { dailyTotalSystemCalls, dailyTotalSystemEnhancements, dailyUserCalls, dailyUserEnhancements }, customer: { aiDailyUnlimited, dailyCalls, dailyEnhancements } } }` + optional `info` metadata | Top-level `enabled` gates EasySubmit system AI. Per-user shared AI cap: `quotas.system.dailyUserEnhancements`. BYOK cap when limited: `quotas.customer.dailyEnhancements`. Legacy `customerDailyEnhancementCap` in DB JSON is ignored. |
 | `resumeProfiles` | `{ maxProfilesPerCustomer: 20 }` | Max `profiles` rows per user — enforced on dashboard create and job-tailor clone |
 | `legalDocuments` | `{ terms: { title, updatedLabel, blocks[] }, privacy: { … } }` | Terms of Service and Privacy Policy copy for `/terms`, `/privacy`, and login overlay — structured blocks (paragraphs, headings, lists, links); seeded from `src/lib/services/legal-documents-defaults.ts` |
 | `forceUpgrade` | `{ enabled: false, minVersion: "0.2.6", updateUrl: "/extension", message: "…" }` | Extension minimum-version gate — see [Extension force-upgrade](#extension-force-upgrade-app_configforceupgrade) below |
@@ -528,9 +529,20 @@ SET extra = '{"maxRetries": 3, "bannerText": "Beta"}'::jsonb,
 WHERE key = 'enhance_with_ai_onboarding';
 ```
 
+## PostgreSQL — `system_ai_daily_usage` (Prisma `SystemAiDailyUsage`)
+
+Platform-wide system AI counters keyed by Pacific calendar day (`YYYY-MM-DD`).
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `date` | `string` PK | Pacific date key |
+| `openRouterCalls` | `int` | OpenRouter `:free` calls today (global cap `dailyTotalSystemCalls`) |
+| `systemEnhancements` | `int` | System enhance completions today |
+| `deepSeekPaidCalls` | `int` | DeepSeek paid overflow calls (visibility only — not capped by OpenRouter budget) |
+
 ## PostgreSQL — `system_api_keys` (Prisma `SystemApiKey`)
 
-Server-side references for EasySubmit system Gemini keys (slots 0–2). Raw secrets in Supabase Vault (`easysubmit-system-gemini-{slot}`).
+Server-side references for EasySubmit system AI keys (mixed pool: slot 0 OpenRouter free, slot 1 DeepSeek paid). Raw secrets in Supabase Vault (`easysubmit-system-{provider}-{slot}`).
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -538,9 +550,9 @@ Server-side references for EasySubmit system Gemini keys (slots 0–2). Raw secr
 | `vaultSecretId` | `uuid` unique | Pointer to `vault.secrets.id` |
 | `label` | `string?` | Admin label |
 | `enabled` | `boolean` | When false, slot skipped by pool |
-| `provider` | `string` | Default `gemini` |
-| `billingMode` | `string` | `free` \| `paid` — slot 2 (Gamma) hot-switch to paid overflow |
-| `modelId` | `string` | Authoritative Gemini model per slot (default `gemini-2.5-flash-lite`) |
+| `provider` | `string` | `openrouter` (slot 0) or `deepseek` (slot 1) |
+| `billingMode` | `string` | `free` \| `paid` — slot 0 free, slot 1 paid overflow |
+| `modelId` | `string` | Slot model (`openrouter/free` or DeepSeek resume model) |
 | `callsToday` | `int` | Per-slot daily call counter |
 | `exhaustedUntil` | `timestamptz?` | Daily quota exhaustion (midnight PT) |
 | `quotaResetDate` | `string?` | Last reset calendar day in `America/Los_Angeles` (`YYYY-MM-DD`) |

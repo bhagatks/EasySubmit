@@ -8,6 +8,7 @@ import type {
 } from "@/lib/job-tracker/jd/jd-intelligence";
 import type { JdSkillsVocabulary } from "@/lib/job-tracker/jd/jd-skills-types";
 import type { SummaryIdentityResolution } from "@/lib/job-tracker/enhance/resolve-summary-identity";
+import type { OnetRoleVocabulary } from "@/lib/job-tracker/ats/onet-service";
 import type { PipelineDebugHookContext } from "@/lib/extension/pipeline-debug-hooks";
 import type { ResolvedAiRoute } from "@/src/lib/ai/engine/router";
 import type { SystemQuotaUserRow } from "@/src/lib/ai/engine/system-quota-gate";
@@ -61,6 +62,8 @@ export type ResumePrepBundle = {
   mashedRolesFound: number;
   experienceEntryCount: number;
   profileUpdatedAt: string | null;
+  /** Role Skills Framework — O*NET occupation vocabulary for targetRole. */
+  roleVocabulary: OnetRoleVocabulary;
 };
 
 export type RunJobAnalysisTrackInput = {

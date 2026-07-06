@@ -1,9 +1,30 @@
 import { prisma } from "@/lib/prisma";
 import type { HandshakeProvider } from "@/src/lib/config/career-grade-models";
+import { providerRequiresCustomBaseUrl, normalizeCustomOpenAiBaseUrl } from "@/src/lib/config/provider-compat";
 
 type VaultUserKeyRow = { vault_user_key: string };
 
 type UnvaultUserKeyRow = { unvault_user_key: string | null };
+
+export type VaultUserApiKeyOptions = {
+  setAsActive?: boolean;
+  customEndpointUrl?: string | null;
+};
+
+export type UserApiKeyCredentials = {
+  apiKey: string;
+  customEndpointUrl: string | null;
+};
+
+function resolveStoredCustomEndpointUrl(
+  provider: HandshakeProvider,
+  customEndpointUrl?: string | null,
+): string | null {
+  if (!providerRequiresCustomBaseUrl(provider)) {
+    return null;
+  }
+  return normalizeCustomOpenAiBaseUrl(customEndpointUrl);
+}
 
 /**
  * Store a BYOK API key in Supabase Vault and persist the secret id on `user_api_keys`.
@@ -13,12 +34,14 @@ export async function vaultUserApiKey(
   userId: string,
   provider: HandshakeProvider,
   rawKey: string,
-  options?: { setAsActive?: boolean },
+  options?: VaultUserApiKeyOptions,
 ): Promise<{ vaultSecretId: string }> {
   const trimmedKey = rawKey.trim();
   if (!trimmedKey) {
     throw new Error("API key is required");
   }
+
+  const customEndpointUrl = resolveStoredCustomEndpointUrl(provider, options?.customEndpointUrl);
 
   const rows = await prisma.$queryRaw<VaultUserKeyRow[]>`
     SELECT public.vault_user_key(${userId}, ${trimmedKey}, ${provider})::text AS vault_user_key
@@ -37,9 +60,11 @@ export async function vaultUserApiKey(
       userId,
       provider,
       vaultSecretId,
+      customEndpointUrl,
     },
     update: {
       vaultSecretId,
+      customEndpointUrl,
     },
   });
 
@@ -67,6 +92,27 @@ export async function vaultUserApiKey(
   }
 
   return { vaultSecretId };
+}
+
+/** Read vaulted BYOK credentials for server-side AI calls — never return raw key to the browser. */
+export async function getUserApiKeyCredentials(
+  userId: string,
+  provider: HandshakeProvider,
+): Promise<UserApiKeyCredentials | null> {
+  const [apiKey, row] = await Promise.all([
+    unvaultUserApiKey(userId, provider),
+    prisma.userApiKey.findUnique({
+      where: { userId_provider: { userId, provider } },
+      select: { customEndpointUrl: true },
+    }),
+  ]);
+
+  if (!apiKey) return null;
+
+  return {
+    apiKey,
+    customEndpointUrl: row?.customEndpointUrl ?? null,
+  };
 }
 
 /** Read a vaulted BYOK key for server-side AI calls only — never return to the browser. */

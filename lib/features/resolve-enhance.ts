@@ -1,15 +1,20 @@
 import type { EnhanceOffReason, FeatureSurface } from "@/lib/features/types";
 import { isAiGloballyEnabled } from "@/lib/ai/ai-global-enabled";
-import { resolveAiRoute, type ResolvedAiRoute } from "@/src/lib/ai/engine/router";
-import { resolveQuotaRowWithReset } from "@/src/lib/ai/engine/system-quota-gate";
+import { resolveEnhanceBlockedMessage } from "@/lib/ai/enhance-failure-messages";
+import type { EnhanceRouteError } from "@/lib/ai/system-pool-messages";
+import { resolveAiRoute, type AiRouteResolution, type ResolvedAiRoute } from "@/src/lib/ai/engine/router";
 import { checkAiQuota } from "@/src/lib/ai/engine/quota";
+import {
+  formatSystemQuotaBlockedMessage,
+  resolveQuotaRowWithReset,
+  type SystemQuotaUserRow,
+} from "@/src/lib/ai/engine/system-quota-gate";
+import type { AiSourcePreference } from "@/src/lib/ai/engine/constants";
+import { logEnhanceGate } from "@/src/lib/ai/engine/enhance-diagnostics";
+import type { AiEngineConfig } from "@/src/lib/services/ai-engine-config";
 import { getAppConfig, isSubscribed } from "@/src/lib/services/config-service";
 import { getFeatureFlags, isSystemAiEnabled } from "@/src/lib/services/feature-flags-service";
 import { isCustomerQuotaUnlimited } from "@/src/lib/services/ai-engine-config";
-import type { AiSourcePreference } from "@/src/lib/ai/engine/constants";
-import type { SystemQuotaUserRow } from "@/src/lib/ai/engine/system-quota-gate";
-import type { AiEngineConfig } from "@/src/lib/services/ai-engine-config";
-import { logEnhanceGate } from "@/src/lib/ai/engine/enhance-diagnostics";
 
 /** Which feature flag gates each surface. */
 const SURFACE_FLAG_MAP = {
@@ -24,18 +29,41 @@ const AI_DISABLED_SURFACES: FeatureSurface[] = ["onboarding"];
 export type ResolveEnhanceOpts = {
   forceSystem?: boolean;
   useCustomerKey?: boolean;
+  /** Dev harness: run AI even when user has aiSourcePreference=disabled. */
+  forceAiEnabled?: boolean;
   /** Correlate gate logs with one enhance transaction. */
   traceId?: string;
 };
 
+function routeErrorForMessage(route: AiRouteResolution): EnhanceRouteError | undefined {
+  if (!("error" in route)) return undefined;
+  if (
+    route.error === "no_customer_key" ||
+    route.error === "no_system_key" ||
+    route.error === "system_pool_exhausted"
+  ) {
+    return route;
+  }
+  return undefined;
+}
+
 function softOff(
   reason: EnhanceOffReason,
+  options?: {
+    routeError?: EnhanceRouteError;
+    quotaMessage?: string;
+  },
 ): import("@/lib/features/types").EnhanceFeatureResolution {
   return {
     baselineAvailable: true,
     aiAvailable: false,
     available: false,
     reason,
+    blockedMessage: resolveEnhanceBlockedMessage({
+      reason,
+      routeError: options?.routeError,
+      quotaMessage: options?.quotaMessage,
+    }),
     route: null,
     mode: null,
     vaultKeyId: null,
@@ -63,7 +91,11 @@ function resolutionFromRoute(
     modelId: route.modelId,
     quota: {
       used: user.aiEnhancementsToday,
-      limit: unlimited ? Infinity : aiEngine.quotas[route.mode].dailyEnhancements,
+      limit: unlimited
+        ? Infinity
+        : route.mode === "system"
+          ? aiEngine.quotas.system.dailyUserEnhancements
+          : aiEngine.quotas.customer.dailyEnhancements,
       unlimited,
     },
     fallbackAvailable: true,
@@ -84,6 +116,7 @@ export async function resolveEnhanceFeature(
     hasVaultKey: Boolean(user.vaultKeyId),
     activeProvider: user.activeProvider ?? null,
     forceSystem: opts.forceSystem ?? false,
+    forceAiEnabled: opts.forceAiEnabled ?? false,
     useCustomerKey: opts.useCustomerKey ?? true,
   };
 
@@ -145,7 +178,7 @@ export async function resolveEnhanceFeature(
   }
 
   const preference = (user.aiSourcePreference ?? "auto") as AiSourcePreference;
-  if (preference === "disabled") {
+  if (preference === "disabled" && !opts.forceAiEnabled) {
     if (traceId) {
       logEnhanceGate({
         traceId,
@@ -201,7 +234,7 @@ export async function resolveEnhanceFeature(
         },
       });
     }
-    return softOff(reason);
+    return softOff(reason, { routeError: routeErrorForMessage(route) });
   }
   if (traceId) {
     logEnhanceGate({
@@ -237,7 +270,9 @@ export async function resolveEnhanceFeature(
           },
         });
       }
-      return softOff("quota_exceeded");
+      return softOff("quota_exceeded", {
+        quotaMessage: formatSystemQuotaBlockedMessage(quotaCheck),
+      });
     }
   }
   if (traceId) {

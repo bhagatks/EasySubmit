@@ -227,7 +227,21 @@ function AtsBand() {
 }
 
 function ByokBand() {
-  const providers = ["OpenAI", "Anthropic", "Gemini", "Groq", "DeepSeek", "OpenRouter"];
+  const providers = [
+    "Gemini",
+    "OpenAI",
+    "Anthropic",
+    "DeepSeek",
+    "Z.ai",
+    "OpenRouter",
+    "DeepInfra",
+    "xAI",
+    "Groq",
+    "SiliconFlow",
+    "Together",
+    "Mistral",
+    "Custom",
+  ];
   return (
     <section id="byok" className="relative scroll-mt-20 border-t border-border/60 py-24">
       <div className="mx-auto grid max-w-7xl gap-12 px-6 lg:grid-cols-2 lg:items-center">

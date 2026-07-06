@@ -58,5 +58,6 @@ export type ResumeEnhancePipelineInput = {
   traceId: string;
   allowAiUpgrade?: boolean;
   forceSystem?: boolean;
+  forceAiEnabled?: boolean;
   useCustomerKey?: boolean;
 };

@@ -63,6 +63,7 @@ export async function runCoverLetterEnhance(
       traceId,
       "generate",
       input.userId,
+      { byokTaskTier: "flagship" },
     );
 
     const body = normalizeCoverLetterBody(result.text);

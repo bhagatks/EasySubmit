@@ -27,7 +27,9 @@ describe("evaluateSystemQuotaGate", () => {
     expect(result.exceeded).toBe(true);
     expect(result.reason).toBe("enhancement_limit");
     expect(result.code).toBe("quota_enhancement");
-    expect(result.message).toContain("Daily enhancement limit reached (5/day)");
+    expect(result.message).toContain(
+      `Daily enhancement limit reached (${AI_ENGINE_DEFAULTS.quotas.system.dailyUserEnhancements}/day)`,
+    );
   });
 
   it("flags call_limit before hard cap when job needs 2 calls", () => {

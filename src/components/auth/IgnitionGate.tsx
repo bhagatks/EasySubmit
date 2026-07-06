@@ -29,6 +29,7 @@ import {
   getProviderRegistryEntry,
   SYSTEM_DEFAULTS,
 } from "@/src/lib/config/app.config";
+import { providerRequiresCustomBaseUrl } from "@/src/lib/config/provider-compat";
 import { getCachedModelsForProvider } from "@/src/lib/config/model-cache";
 import {
   DATA_REFRESH_SAFETY_DEFAULT,
@@ -186,6 +187,7 @@ export function IgnitionGate({
     initialProvider ?? SYSTEM_DEFAULTS.targetAiProvider,
   );
   const [apiKey, setApiKey] = useState("");
+  const [customEndpointUrl, setCustomEndpointUrl] = useState("");
   const [showKey, setShowKey] = useState(false);
   const [makeActive, setMakeActive] = useState(setAsActiveOnSave);
   const [refreshIntervalMinutes, setRefreshIntervalMinutes] = useState<RefreshIntervalMinutes>(
@@ -388,6 +390,9 @@ export function IgnitionGate({
     const result = await runDiscovery(provider, trimmedKey, {
       setAsActive: isManageMode ? makeActive : true,
       isFirstKey,
+      customEndpointUrl: providerRequiresCustomBaseUrl(provider)
+        ? customEndpointUrl.trim()
+        : null,
     });
 
     finishManageSave(result);
@@ -481,10 +486,6 @@ export function IgnitionGate({
               >
                 AI Brain
               </p>
-              <p className="mb-2 text-xs leading-relaxed" style={{ color: MUTED }}>
-                {getProviderRegistryEntry(SYSTEM_DEFAULTS.targetAiProvider).label} is recommended
-                for cost, speed, and free-tier availability.
-              </p>
               <ProviderFuelSelect
                 value={provider}
                 onChange={handleProviderChange}
@@ -492,6 +493,30 @@ export function IgnitionGate({
                 monoClass={monoClass}
               />
             </div>
+
+            {providerRequiresCustomBaseUrl(provider) ? (
+              <div>
+                <label
+                  htmlFor={`${apiKeyInputId}-custom-base`}
+                  className={cn(monoClass, "mb-2 block text-[10px] uppercase tracking-[0.16em]")}
+                  style={{ color: MUTED }}
+                >
+                  OpenAI-compatible base URL
+                </label>
+                <input
+                  id={`${apiKeyInputId}-custom-base`}
+                  type="url"
+                  value={customEndpointUrl}
+                  onChange={(event) => setCustomEndpointUrl(event.target.value)}
+                  disabled={isHandshaking || isLaunching}
+                  placeholder="https://your-proxy.example.com/v1"
+                  className={cn(
+                    monoClass,
+                    "w-full rounded-xl border border-white/10 bg-[oklch(0.14_0.03_268)] px-3 py-3 text-[12px] text-[oklch(0.98_0.01_268)] placeholder:text-[oklch(0.4_0.02_268)] focus:border-[oklch(0.62_0.21_265/0.5)] focus:outline-none focus:ring-1 focus:ring-[oklch(0.62_0.21_265/0.35)] disabled:opacity-60",
+                  )}
+                />
+              </div>
+            ) : null}
 
             {isManageMode ? (
               <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-white/10 bg-[oklch(0.14_0.03_268)] px-3 py-2.5">
@@ -554,7 +579,12 @@ export function IgnitionGate({
             {!showConfigPhase || isManageMode ? (
               <Button
                 type="submit"
-                disabled={!apiKey.trim() || isHandshaking || isLaunching}
+                disabled={
+                  !apiKey.trim() ||
+                  (providerRequiresCustomBaseUrl(provider) && !customEndpointUrl.trim()) ||
+                  isHandshaking ||
+                  isLaunching
+                }
                 variant={manageIgniteGlow && isManageMode ? "mint" : undefined}
                 className={cn(
                   igniteButtonClass,

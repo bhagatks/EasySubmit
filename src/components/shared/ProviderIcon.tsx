@@ -1,9 +1,16 @@
 import {
+  Bot,
+  Box,
   Brain,
+  Cloud,
+  Cpu,
   Gem,
+  Plug,
   Route,
+  Server,
   ShieldCheck,
   Sparkles,
+  Users,
   Zap,
   type LucideIcon,
 } from "lucide-react";
@@ -17,6 +24,13 @@ const ICON_MAP: Record<ProviderIconRef, LucideIcon> = {
   zap: Zap,
   brain: Brain,
   route: Route,
+  box: Box,
+  server: Server,
+  bot: Bot,
+  cpu: Cpu,
+  users: Users,
+  cloud: Cloud,
+  plug: Plug,
 };
 
 export type ProviderIconProps = {

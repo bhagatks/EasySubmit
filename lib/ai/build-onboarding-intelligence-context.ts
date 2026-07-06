@@ -1,8 +1,14 @@
 import { analyzeBulletQuality } from "@/lib/job-tracker/ats/bullet-quality";
+import {
+  fetchRoleVocabulary,
+  resolveOnetVocabularyPipelineOutcome,
+} from "@/lib/job-tracker/ats/onet-service";
 import type { JobIntelligence } from "@/lib/job-tracker/ats/job-intelligence";
 import type { ResumeEnhanceDirective } from "@/lib/job-tracker/jd/jd-intelligence";
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
 import { refineryFormToPrimeResume } from "@/lib/onboarding/hubResume";
+import { parseSkillsText } from "@/lib/resume/skills-rules";
+import { filterJdSkillLabels } from "@/lib/job-tracker/jd/jd-skill-filter";
 import { logEnhance } from "@/src/lib/ai/engine/enhance-logger";
 import { ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
 
@@ -56,6 +62,32 @@ export async function buildOnboardingIntelligenceContext(
     hasMinimumContent,
   });
 
+  logEnhance("server", "pre.onet.start", {
+    traceId,
+    userId,
+    step: ENHANCE_PIPELINE.PRE_BRIEF_START,
+    targetRole,
+  });
+
+  const roleVocabulary = await fetchRoleVocabulary(targetRole);
+  const onetOutcome = resolveOnetVocabularyPipelineOutcome(roleVocabulary);
+
+  logEnhance("server", "pre.onet.done", {
+    traceId,
+    userId,
+    step: ENHANCE_PIPELINE.PRE_BRIEF_START,
+    source: roleVocabulary.source,
+    skillCount: roleVocabulary.skills.length,
+    onetStatus: onetOutcome.status,
+  });
+
+  const existingSkills = new Set(
+    parseSkillsText(form.skillsText ?? "").map((s) => s.toLowerCase()),
+  );
+  const implicitSkills = filterJdSkillLabels(
+    roleVocabulary.skills.filter((skill) => !existingSkills.has(skill.toLowerCase())),
+  ).slice(0, 8);
+
   const intelligence: JobIntelligence = {
     missingKeywords: [],
     skillsToAdd: [],
@@ -67,7 +99,7 @@ export async function buildOnboardingIntelligenceContext(
   };
 
   const directive: ResumeEnhanceDirective = {
-    mustAddSkills: [],
+    mustAddSkills: implicitSkills,
     mustRemoveSkills: [],
     mustWeaveKeywords: [],
     effectiveTargetRole: null,

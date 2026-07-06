@@ -27,6 +27,7 @@ import {
 export type IgniteEngineVaultInput = {
   rawKey: string;
   provider: string;
+  customEndpointUrl?: string | null;
   /** When false, vault the key without switching the user's active BYOK pointer. */
   setAsActive?: boolean;
 };
@@ -104,7 +105,11 @@ export async function igniteEngineVault(
       };
     }
 
-    const discovery = await performEngineHandshake({ provider, apiKey: keyMaterial });
+    const discovery = await performEngineHandshake({
+      provider,
+      apiKey: keyMaterial,
+      customEndpointUrl: input.customEndpointUrl,
+    });
     if (!discovery.success) {
       return {
         success: false,
@@ -117,6 +122,7 @@ export async function igniteEngineVault(
 
     await vaultUserApiKey(userId, provider, keyMaterial, {
       setAsActive: input.setAsActive ?? true,
+      customEndpointUrl: input.customEndpointUrl,
     });
 
     try {

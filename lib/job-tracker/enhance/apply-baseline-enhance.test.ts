@@ -133,7 +133,7 @@ function buildBrief(form: HubRefineryForm): ResumeEnhanceBrief {
         summary: form.professionalSummary,
       }),
     },
-    onet: {
+    roleVocabulary: {
       matchedTitle: targetRole,
       onetCode: "15-1252.00",
       skills: [],

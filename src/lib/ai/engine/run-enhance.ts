@@ -2,6 +2,11 @@ import type { z } from "zod";
 import { withVaultDecryptedSecret, VAULT_DECRYPT_USER_MESSAGE } from "@/lib/vault/decrypt-vault-secret";
 import { createAiSdkLanguageModel } from "@/src/lib/ai/ai-sdk-provider";
 import { withCustomerModelFallback } from "@/lib/ai/model-health/with-customer-model-fallback";
+import {
+  resolveRouteForByokTask,
+  taskTierFromEnhancePass,
+} from "@/lib/ai/model-health/resolve-byok-task-route";
+import type { ByokTaskTier } from "@/lib/ai/model-health/types";
 import { buildUsageLogFromGeneration } from "@/src/lib/ai/estimate-usage-cost";
 import type { AiPricingMap } from "@/src/lib/services/ai-pricing-map";
 import {
@@ -37,7 +42,9 @@ import { logEnhanceDiag } from "@/src/lib/ai/engine/enhance-diagnostics";
 import {
   generateStructuredWithFallback,
   JD_STRUCTURED_MAX_OUTPUT_TOKENS,
+  parseJsonObjectFromModelText,
 } from "@/src/lib/ai/engine/structured-extract";
+import { callOpenRouterFreeStructured, callOpenRouterFreeText } from "@/src/lib/ai/engine/openrouter-free-adapter";
 import { mapEnhanceProviderError } from "@/src/lib/ai/engine/map-enhance-provider-error";
 import { JD_EXTRACTION_TIMEOUT_MS } from "@/lib/job-tracker/jd/resolve-jd-extraction-model";
 import {
@@ -287,6 +294,12 @@ function logCustomerModelCallFailure(input: {
 
 const RESUME_DRAFT_TEMPERATURE = 0.1;
 
+export type EnhanceCallOptions = {
+  preferredSlot?: number;
+  temperature?: number;
+  byokTaskTier?: ByokTaskTier;
+};
+
 export async function callEnhanceModel(
   route: ResolvedAiRoute,
   system: string,
@@ -294,8 +307,7 @@ export async function callEnhanceModel(
   traceId: string,
   pass: "generate" | "optimize",
   userId?: string | null,
-  preferredSlot?: number,
-  temperature: number = RESUME_DRAFT_TEMPERATURE,
+  callOptions?: EnhanceCallOptions,
 ): Promise<{
   text: string;
   tokensUsed: number;
@@ -303,6 +315,10 @@ export async function callEnhanceModel(
   estimatedCost: number;
   poolCall?: PoolCallMeta;
 }> {
+  const preferredSlot = callOptions?.preferredSlot;
+  const temperature = callOptions?.temperature ?? RESUME_DRAFT_TEMPERATURE;
+  const taskTier = taskTierFromEnhancePass(pass, callOptions?.byokTaskTier);
+  const executionRoute = await resolveRouteForByokTask(route, taskTier, { userId });
   const passStartedAt = Date.now();
   const requestPreview = buildModelCallRequestPreview(system, prompt);
   logEnhance("engine", "model.call.start", {
@@ -315,8 +331,9 @@ export async function callEnhanceModel(
     journey: RESUME_JOURNEY.AI_UPGRADE,
     aiUsed: true,
     aiCallStatus: "none",
-    route: sanitizeRouteForLog(route),
+    route: sanitizeRouteForLog(executionRoute),
     preferredSlot: preferredSlot ?? null,
+    byokTaskTier: executionRoute.mode === "customer" ? taskTier : null,
     systemPromptChars: system.length,
     userPromptChars: prompt.length,
     requestPreview,
@@ -346,14 +363,14 @@ export async function callEnhanceModel(
     },
   });
 
-  if (route.mode === "customer") {
+  if (executionRoute.mode === "customer") {
     try {
       const fallbackRun = await withCustomerModelFallback({
-        route,
+        route: executionRoute,
         userId,
-        execute: async (modelId, apiKey) =>
+        execute: async (modelId, apiKey, _customEndpointUrl) =>
           generateGeminiTextWith503Resilience({
-            provider: route.provider,
+            provider: executionRoute.provider,
             apiKey,
             primaryModelId: modelId,
             system,
@@ -385,7 +402,7 @@ export async function callEnhanceModel(
         responsePreview: customerResult.text,
       });
       recordEnhanceModelCall({
-        route,
+        route: executionRoute,
         traceId,
         userId,
         pass,
@@ -425,7 +442,7 @@ export async function callEnhanceModel(
     } catch (err) {
       if (isVaultDecryptUserError(err)) {
         logVaultDecryptFailure({
-          route,
+          route: executionRoute,
           traceId,
           userId,
           pass,
@@ -436,7 +453,7 @@ export async function callEnhanceModel(
         throw err;
       }
       logCustomerModelCallFailure({
-        route,
+        route: executionRoute,
         traceId,
         userId,
         pass,
@@ -452,7 +469,25 @@ export async function callEnhanceModel(
   try {
     const executionModelId = route.modelId;
     const poolResult = await executeWithPoolRetry(
-      async ({ apiKey, provider }) => {
+      async ({ apiKey, provider, billingMode }) => {
+        if (provider === "openrouter" && billingMode === "free") {
+          const free = await callOpenRouterFreeText({
+            apiKey,
+            system,
+            prompt,
+            maxOutputTokens: 8192,
+            temperature,
+            traceId,
+          });
+          return {
+            text: free.text,
+            tokensUsed: free.tokensUsed,
+            modelId: free.modelId,
+            usedFallbackModel: false,
+            clippedForFallback: false,
+            retryCount: 0,
+          };
+        }
         return generateGeminiTextWith503Resilience({
           provider,
           apiKey,
@@ -474,6 +509,7 @@ export async function callEnhanceModel(
       poolCall: {
         slot: poolResult.slot,
         label: poolResult.label,
+        provider: poolResult.provider,
         billingMode: poolResult.billingMode,
         modelId: poolResult.result.modelId,
         keySource: poolResult.keySource,
@@ -639,13 +675,14 @@ export async function callEnhanceObjectModel<T extends z.ZodTypeAny>(
   estimatedCost: number;
   poolCall?: PoolCallMeta;
 }> {
+  const executionRoute = await resolveRouteForByokTask(route, "cheap", { userId });
   const passStartedAt = Date.now();
   const requestPreview = buildModelCallRequestPreview(system, prompt);
   logEnhance("engine", "model.object.start", {
     traceId,
     step: ENHANCE_PIPELINE.PRE_JD_BRAIN,
     pass,
-    route: sanitizeRouteForLog(route),
+    route: sanitizeRouteForLog(executionRoute),
     preferredSlot: preferredSlot ?? null,
     systemPromptChars: system.length,
     userPromptChars: prompt.length,
@@ -656,24 +693,29 @@ export async function callEnhanceObjectModel<T extends z.ZodTypeAny>(
     status: "active",
     detail: "generateObject JD enrichment",
     meta: {
-      routeMode: route.mode,
-      modelId: route.modelId,
-      provider: route.mode === "customer" ? route.provider : route.provider,
+      routeMode: executionRoute.mode,
+      modelId: executionRoute.modelId,
+      provider: executionRoute.mode === "customer" ? executionRoute.provider : executionRoute.provider,
       candidateCount:
-        route.mode === "customer" ? route.modelCandidates.length || 1 : 1,
+        executionRoute.mode === "customer" ? executionRoute.modelCandidates.length || 1 : 1,
     },
   });
 
-  if (route.mode === "customer") {
+  if (executionRoute.mode === "customer") {
     try {
       const fallbackRun = await withCustomerModelFallback({
-        route,
+        route: executionRoute,
         userId,
-        execute: async (modelId, apiKey) => {
-          const model = createAiSdkLanguageModel(route.provider, apiKey, modelId);
+        execute: async (modelId, apiKey, customEndpointUrl) => {
+          const model = createAiSdkLanguageModel(
+            executionRoute.provider,
+            apiKey,
+            modelId,
+            { customEndpointUrl },
+          );
           return generateStructuredWithFallback({
             model,
-            provider: route.provider,
+            provider: executionRoute.provider,
             system,
             prompt,
             schema,
@@ -715,7 +757,7 @@ export async function callEnhanceObjectModel<T extends z.ZodTypeAny>(
         });
       }
       recordEnhanceModelCall({
-        route,
+        route: executionRoute,
         traceId,
         userId,
         pass,
@@ -742,7 +784,7 @@ export async function callEnhanceObjectModel<T extends z.ZodTypeAny>(
           system,
           prompt,
           modelId: customerResult.modelId,
-          responseText: responsePreview,
+          responseText: responsePreview ?? "",
           tokensUsed: customerResult.tokensUsed,
         }),
       });
@@ -751,7 +793,7 @@ export async function callEnhanceObjectModel<T extends z.ZodTypeAny>(
     } catch (err) {
       if (isVaultDecryptUserError(err)) {
         logVaultDecryptFailure({
-          route,
+          route: executionRoute,
           traceId,
           userId,
           pass,
@@ -764,7 +806,7 @@ export async function callEnhanceObjectModel<T extends z.ZodTypeAny>(
         throw err;
       }
       const failureMessage = logCustomerModelCallFailure({
-        route,
+        route: executionRoute,
         traceId,
         userId,
         pass,
@@ -780,13 +822,13 @@ export async function callEnhanceObjectModel<T extends z.ZodTypeAny>(
         status: "warning",
         detail: `JD AI failed — deterministic fallback. ${failureMessage.slice(0, 200)}`,
         meta: {
-          modelId: route.modelId,
-          provider: route.provider,
+          modelId: executionRoute.modelId,
+          provider: executionRoute.mode === "customer" ? executionRoute.provider : "system",
         },
         artifacts: jdExtractPipelineArtifacts({
           system,
           prompt,
-          modelId: route.modelId,
+          modelId: executionRoute.modelId,
           responseText: failureMessage,
         }),
       });
@@ -798,7 +840,24 @@ export async function callEnhanceObjectModel<T extends z.ZodTypeAny>(
 
   try {
     const poolResult = await executeWithPoolRetry(
-      async ({ apiKey, provider }) => {
+      async ({ apiKey, provider, billingMode }) => {
+        if (provider === "openrouter" && billingMode === "free") {
+          const free = await callOpenRouterFreeStructured({
+            apiKey,
+            system,
+            prompt,
+            maxOutputTokens: JD_STRUCTURED_MAX_OUTPUT_TOKENS,
+            timeoutMs: JD_EXTRACTION_TIMEOUT_MS,
+            traceId,
+            parse: (text) => schema.parse(parseJsonObjectFromModelText(text)),
+          });
+          return {
+            object: free.object as z.infer<T>,
+            tokensUsed: free.tokensUsed,
+            modelId: free.modelId,
+            mode: "object" as const,
+          };
+        }
         const model = createAiSdkLanguageModel(provider, apiKey, executionModelId);
         return generateStructuredWithFallback({
           model,
@@ -821,6 +880,7 @@ export async function callEnhanceObjectModel<T extends z.ZodTypeAny>(
       poolCall: {
         slot: poolResult.slot,
         label: poolResult.label,
+        provider: poolResult.provider,
         billingMode: poolResult.billingMode,
         modelId: executionModelId,
         keySource: poolResult.keySource,
@@ -879,7 +939,7 @@ export async function callEnhanceObjectModel<T extends z.ZodTypeAny>(
         system,
         prompt,
         modelId: systemResult.modelId,
-        responseText: responsePreview,
+        responseText: responsePreview ?? "",
         tokensUsed: systemResult.tokensUsed,
       }),
     });
@@ -982,7 +1042,7 @@ async function runPass(
     traceId,
     "generate",
     userId,
-    preferredSlot,
+    { preferredSlot },
   );
   const usagePayload = buildUsageLogFromGeneration(
     result.modelId,

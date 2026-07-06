@@ -65,6 +65,7 @@ Checklist from `.env.vercel.example`. Set in **Vercel → Settings → Environme
 | `NEXT_PUBLIC_ANALYTICS_ENV` | Yes (analytics) | `prod` |
 | `NEXT_PUBLIC_ANALYTICS_INTERNAL_USER_IDS` | Optional | Comma-separated user ids to tag `$internal` |
 | `LOG_LEVEL` | Optional | `info` (Pino JSON on Vercel) |
+| `ONET_API_KEY` | Yes (enhance) | O*NET Web Services v2 — My Account → project → API key; powers Role Skills Framework (`pre_role_vocab`) |
 
 Preview/QA env (optional): separate vars pointing at dev Supabase — see `ACTION_ITEMS.md`.  
 Preview PostHog: use **dev** project `488025` and `NEXT_PUBLIC_ANALYTICS_ENV=dev`.
@@ -140,6 +141,7 @@ npm run analytics:closeout    # optional — phx_ in .env.local; PostHog only (s
 - [ ] Avatar upload on prod (if `avatars` bucket + service role configured)
 - [ ] PostHog Live events — `login_completed` after prod OAuth (project `488042`)
 - [ ] PostHog replay — confirm login/onboarding session records (inputs masked)
+- [ ] **O*NET role vocabulary** — `ONET_API_KEY` set in Vercel Production; extension Apply → pipeline debug step **`pre_role_vocab`** shows `source: api` (or `cache`) with occupation code + skills/tools — not `source: fallback`
 
 ---
 

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { unvaultUserApiKey } from "@/lib/vault/user-key-vault";
+import { getUserApiKeyCredentials } from "@/lib/vault/user-key-vault";
 import type { HandshakeProvider } from "@/src/lib/config/career-grade-models";
 import { MODEL_HEALTH_STALE_MS } from "@/lib/ai/model-health/constants";
 import {
@@ -15,9 +15,18 @@ import type {
   ResolvedModelCandidates,
 } from "@/lib/ai/model-health/types";
 
+function isModelSunsetError(errorMessage?: string | null): boolean {
+  if (!errorMessage) return false;
+  return /404|410|not found|model_not_found|does not exist|deprecated|sunset|no longer available|invalid model/i.test(
+    errorMessage,
+  );
+}
+
 export {
   buildDefaultModelCandidates,
+  buildDefaultModelCandidatesForTask,
   resolveCandidatesFromHealth,
+  resolveCandidatesFromHealthForTask,
 } from "@/lib/ai/model-health/model-candidate-ranking";
 
 export async function loadProviderModelHealth(
@@ -52,11 +61,17 @@ export async function ensureFreshProviderModelHealth(
 
   if (!stale) return existing;
 
-  const apiKey = await unvaultUserApiKey(userId, provider);
-  if (!apiKey) return existing;
+  const credentials = await getUserApiKeyCredentials(userId, provider);
+  if (!credentials) return existing;
 
   try {
-    return await refreshProviderModelHealth({ userId, provider, apiKey, traceId });
+    return await refreshProviderModelHealth({
+      userId,
+      provider,
+      apiKey: credentials.apiKey,
+      customEndpointUrl: credentials.customEndpointUrl,
+      traceId,
+    });
   } catch {
     return existing;
   }
@@ -94,6 +109,9 @@ export async function recordModelRuntimeOutcome(input: {
     entry.lastError = input.errorMessage?.slice(0, 240) ?? "runtime_failure";
     entry.cooldownUntil = buildFailedModelCooldownUntil();
     entry.lastCheckedAt = now;
+    if (isModelSunsetError(input.errorMessage)) {
+      entry.sunsetHint = true;
+    }
     health.rankedModels = health.rankedModels.filter((modelId) => modelId !== input.modelId);
     if (health.primaryModelId === input.modelId) {
       health.primaryModelId = health.rankedModels[0] ?? null;

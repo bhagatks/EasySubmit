@@ -30,14 +30,11 @@ export type AiRouteResolution =
   | { error: "ai_globally_disabled" }
   | { error: "ai_disabled" };
 
-export const SYSTEM_POOL_EXHAUSTED_HEADLINE =
-  "EasySubmit's shared AI is temporarily unavailable.";
-
-export const SYSTEM_POOL_EXHAUSTED_BYOK_BODY =
-  "Use your own API key for this enhance, or change AI source in Settings.";
-
-export const SYSTEM_POOL_EXHAUSTED_NO_BYOK_BODY =
-  "Try again later, or add your API key in AI Keys.";
+export {
+  SYSTEM_POOL_EXHAUSTED_BYOK_BODY,
+  SYSTEM_POOL_EXHAUSTED_HEADLINE,
+  SYSTEM_POOL_EXHAUSTED_NO_BYOK_BODY,
+} from "@/lib/ai/system-pool-messages";
 
 export function resolveEffectiveAiSource(
   preference: AiSourcePreference,

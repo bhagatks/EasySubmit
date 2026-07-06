@@ -94,6 +94,13 @@ function resumeBundle(form: HubRefineryForm): ResumePrepBundle {
     mashedRolesFound: 0,
     experienceEntryCount: 1,
     profileUpdatedAt: null,
+    roleVocabulary: {
+      matchedTitle: "Engineer",
+      onetCode: "",
+      skills: ["Systems Analysis"],
+      tools: ["Git"],
+      source: "api",
+    },
   };
 }
 

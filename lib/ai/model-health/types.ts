@@ -1,5 +1,9 @@
 import type { HandshakeProvider } from "@/src/lib/config/career-grade-models";
 
+export type ModelTier = "cheap" | "flagship";
+
+export type ByokTaskTier = ModelTier;
+
 export type ModelProbeResult = {
   text: boolean;
   structured: boolean;
@@ -13,6 +17,10 @@ export type ModelHealthEntry = {
   lastError?: string | null;
   cooldownUntil?: string | null;
   probes: ModelProbeResult;
+  tier?: ModelTier;
+  inputCostPer1M?: number;
+  lastLatencyMs?: number;
+  sunsetHint?: boolean;
 };
 
 export type ProviderModelHealth = {
@@ -27,6 +35,7 @@ export type RefreshProviderModelHealthInput = {
   userId: string;
   provider: HandshakeProvider;
   apiKey: string;
+  customEndpointUrl?: string | null;
   traceId?: string;
 };
 

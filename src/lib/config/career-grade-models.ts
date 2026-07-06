@@ -3,18 +3,13 @@ import {
   SYSTEM_DEFAULTS,
   type AiProvider,
 } from "@/src/lib/config/app.config";
+import { ALL_AI_PROVIDERS } from "@/src/lib/config/app.config";
 
 /** Providers validated by the Ignition Gate discovery handshake. */
 export type HandshakeProvider = AiProvider;
 
-export const HANDSHAKE_PROVIDERS: HandshakeProvider[] = [
-  "gemini",
-  "openai",
-  "anthropic",
-  "groq",
-  "deepseek",
-  "openrouter",
-];
+/** Dropdown order matches BYOK spec. */
+export const HANDSHAKE_PROVIDERS: HandshakeProvider[] = [...ALL_AI_PROVIDERS];
 
 const EXCLUDED_MODEL_FRAGMENTS = [
   "embedding",
@@ -36,6 +31,14 @@ const EXCLUDED_MODEL_FRAGMENTS = [
 ] as const;
 
 const CAREER_GRADE_PATTERNS: Record<HandshakeProvider, RegExp[]> = {
+  gemini: [
+    /^gemini-2\.5/,
+    /^gemini-2\.0/,
+    /^gemini-1\.5-flash/,
+    /^gemini-1\.5-pro/,
+    /^gemini-pro(?!-vision)/,
+    /^gemini-flash-latest$/,
+  ],
   openai: [
     /^gpt-4o$/,
     /^gpt-4o-\d{4}-\d{2}-\d{2}$/,
@@ -57,31 +60,34 @@ const CAREER_GRADE_PATTERNS: Record<HandshakeProvider, RegExp[]> = {
     /claude-sonnet-4/,
     /claude-3-7-sonnet/,
   ],
-  gemini: [
-    /^gemini-2\.5/,
-    /^gemini-2\.0/,
-    /^gemini-1\.5-flash/,
-    /^gemini-1\.5-pro/,
-    /^gemini-pro(?!-vision)/,
-    /^gemini-flash-latest$/,
-  ],
-  groq: [
-    /llama-3\.3-70b/,
-    /llama-3\.1-70b/,
-    /mixtral-8x7b/,
-  ],
-  deepseek: [/^deepseek-chat$/, /^deepseek-reasoner$/],
+  deepseek: [/^deepseek-v4-flash$/, /^deepseek-v4-pro$/, /^deepseek-chat$/, /^deepseek-reasoner$/],
+  zai: [/glm-5/, /glm-4/],
   openrouter: [
     /^openai\/gpt-4o$/,
     /^openai\/gpt-4o-mini$/,
     /^anthropic\/claude-3\.5-sonnet/,
     /^anthropic\/claude-3-opus/,
     /^google\/gemini-2\.5/,
-    /^deepseek\/deepseek-chat$/,
+    /^meta-llama\/llama-3\.3/,
+    /^deepseek\/deepseek/,
   ],
+  deepinfra: [/Qwen\/Qwen3/, /Llama-3\.3/, /DeepSeek-V/],
+  xai: [/^grok-/],
+  groq: [/llama-3\.3-70b/, /llama-3\.1-70b/, /llama-3\.1-8b/],
+  siliconflow: [/DeepSeek-V/, /DeepSeek-R/, /Qwen\/Qwen3/],
+  together: [/Llama-3\.3/, /Qwen/],
+  mistral: [/mistral-large/, /mistral-small/, /open-mistral/],
+  custom: [/.+/],
 };
 
 const CAREER_GRADE_PRIORITY: Record<HandshakeProvider, string[]> = {
+  gemini: [
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-pro-latest",
+    "gemini-1.5-pro",
+    "gemini-flash-latest",
+  ],
   openai: [
     "gpt-4o",
     "gpt-4o-2024-11-20",
@@ -103,25 +109,37 @@ const CAREER_GRADE_PRIORITY: Record<HandshakeProvider, string[]> = {
     "claude-3-opus-latest",
     "claude-opus-4-20250514",
   ],
-  gemini: [
-    "gemini-2.5-flash",
-    "gemini-2.0-flash",
-    "gemini-pro-latest",
-    "gemini-1.5-pro",
-    "gemini-flash-latest",
+  deepseek: ["deepseek-v4-flash", "deepseek-v4-pro", "deepseek-chat", "deepseek-reasoner"],
+  zai: ["glm-5.2", "glm-5-turbo", "glm-4-flash", "glm-4-plus"],
+  openrouter: [
+    "google/gemini-2.5-flash",
+    "openai/gpt-4o",
+    "anthropic/claude-3.5-sonnet",
+    "meta-llama/llama-3.3-70b-instruct",
+    "deepseek/deepseek-chat",
   ],
+  deepinfra: [
+    "Qwen/Qwen3-32B",
+    "meta-llama/Llama-3.3-70B-Instruct",
+    "deepseek-ai/DeepSeek-V3",
+  ],
+  xai: ["grok-3-mini", "grok-3", "grok-2-1212"],
   groq: [
     "llama-3.3-70b-versatile",
     "llama-3.1-70b-versatile",
-    "mixtral-8x7b-32768",
+    "llama-3.1-8b-instant",
   ],
-  deepseek: ["deepseek-chat", "deepseek-reasoner"],
-  openrouter: [
-    "openai/gpt-4o",
-    "anthropic/claude-3.5-sonnet",
-    "google/gemini-2.5-pro-preview",
-    "deepseek/deepseek-chat",
+  siliconflow: [
+    "deepseek-ai/DeepSeek-V3",
+    "Qwen/Qwen3-32B",
+    "Pro/deepseek-ai/DeepSeek-R1",
   ],
+  together: [
+    "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+    "meta-llama/Llama-3.3-70B-Instruct",
+  ],
+  mistral: ["mistral-large-latest", "mistral-small-latest", "open-mistral-nemo"],
+  custom: ["gpt-4o-mini", "gpt-4o"],
 };
 
 function isExcludedModel(modelId: string): boolean {

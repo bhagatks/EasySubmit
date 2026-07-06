@@ -61,7 +61,7 @@ describe("extractJDIntelligenceWithAI quota", () => {
     const { extractJDIntelligenceWithAI } = await import("@/lib/job-tracker/jd/jd-ai-extractor");
     const quotaRow = {
       aiEnhancementsToday: 0,
-      aiCallsToday: AI_ENGINE_DEFAULTS.quotas.system.dailyCalls,
+      aiCallsToday: AI_ENGINE_DEFAULTS.quotas.system.dailyUserCalls,
       aiQuotaResetAt: new Date(),
     };
     const atLimit = checkAiQuota(quotaRow, AI_ENGINE_DEFAULTS, "system", { estimatedCalls: 1 });

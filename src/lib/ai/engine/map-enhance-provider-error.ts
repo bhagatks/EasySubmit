@@ -65,8 +65,8 @@ export function mapEnhanceProviderError(
       : " Try again later.";
     const userMessage =
       input.aiMode === "system"
-        ? `EasySubmit's shared AI hit Google's Gemini quota${modelId ? ` (${modelId})` : ""}.${retryHint} For unlimited use, add your own API key in AI Keys.`
-        : `Your API key hit its Gemini quota${modelId ? ` (${modelId})` : ""}.${retryHint} Check billing in Google AI Studio or switch providers in AI Keys.`;
+        ? `EasySubmit's shared AI hit its provider quota${modelId ? ` (${modelId})` : ""}.${retryHint} For unlimited use, add your own API key in AI Keys.`
+        : `Your API key hit its provider quota${modelId ? ` (${modelId})` : ""}.${retryHint} Check billing with your provider or switch keys in AI Keys.`;
 
     return {
       code: "insufficient_quota",

@@ -8,28 +8,13 @@ import { resolveSummaryIdentity } from "@/lib/job-tracker/enhance/resolve-summar
 import { postProcessSummaryOutput } from "@/lib/job-tracker/enhance/summary-grounding";
 import { filterJdSkillLabels } from "@/lib/job-tracker/jd/jd-skill-filter";
 import { stripBannedSummaryWords } from "@/lib/resume/summary-rules";
-import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
+import {
+  ENHANCE_QA_BASE_FORM,
+  ENHANCE_QA_CASES,
+} from "@/lib/job-tracker/enhance/enhance-qa-fixtures";
 
-const CASE_001_FORM = {
-  professionalSummary:
-    "Director with 20 years of experience leading mobile and platform engineering teams.",
-  skillsText: "Cloud & DevOps, Docker, Swift, API Design",
-  experience: [
-    {
-      title: "Head of Engineering",
-      company: "7-Eleven",
-      bullets:
-        "Led 7Now Delivery Platform engineering for mobile and API teams across iOS and Android.",
-    },
-    {
-      title: "Director of Mobile Engineering",
-      company: "CVS Health",
-      bullets: "Owned consumer mobile apps and release pipelines.",
-    },
-  ],
-} as HubRefineryForm;
-
-const CASE_001_JD_ROLE = "Director, Procurement";
+const CASE_001_FORM = ENHANCE_QA_BASE_FORM;
+const CASE_001_JD_ROLE = ENHANCE_QA_CASES["001"].targetRole;
 const CASE_001_JD_KEYWORDS = [
   "procurement",
   "strategic sourcing",

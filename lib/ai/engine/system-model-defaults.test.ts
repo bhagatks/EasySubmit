@@ -11,9 +11,9 @@ import {
 describe("system-model-defaults", () => {
   it("defaults to deepseek flash for resume and JD extract", () => {
     expect(DEFAULT_SYSTEM_POOL_PROVIDER).toBe("deepseek");
-    expect(SYSTEM_RESUME_MODEL_DEFAULTS.deepseek).toBe("deepseek-chat");
-    expect(SYSTEM_JD_EXTRACT_MODEL_DEFAULTS.deepseek).toBe("deepseek-chat");
-    expect(SYSTEM_RESUME_MODEL_DEFAULTS.openrouter).toContain("glm");
+    expect(SYSTEM_RESUME_MODEL_DEFAULTS.deepseek).toBe("deepseek-v4-flash");
+    expect(SYSTEM_JD_EXTRACT_MODEL_DEFAULTS.deepseek).toBe("deepseek-v4-flash");
+    expect(SYSTEM_RESUME_MODEL_DEFAULTS.openrouter).toBe("openrouter/free");
   });
 
   it("parses known system pool providers", () => {

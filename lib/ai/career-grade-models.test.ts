@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   filterCareerGradeModels,
+  HANDSHAKE_PROVIDERS,
   isCareerGradeModel,
   isHandshakeProvider,
   sortCareerGradeModels,
@@ -46,8 +47,10 @@ describe("career-grade-models", () => {
   it("validates handshake providers", () => {
     expect(isHandshakeProvider("openai")).toBe(true);
     expect(isHandshakeProvider("gemini")).toBe(true);
-    expect(isHandshakeProvider("openrouter")).toBe(true);
+    expect(isHandshakeProvider("mistral")).toBe(true);
+    expect(isHandshakeProvider("custom")).toBe(true);
     expect(isHandshakeProvider("grok")).toBe(false);
+    expect(HANDSHAKE_PROVIDERS.length).toBeGreaterThanOrEqual(13);
   });
 
   it("accepts career-grade models for expanded providers", () => {

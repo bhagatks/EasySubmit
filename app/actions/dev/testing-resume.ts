@@ -11,11 +11,30 @@ function devOnly() {
   if (process.env.NODE_ENV !== "development") notFound();
 }
 
+export type TestEnhanceMode = "deterministic" | "ai_system" | "user_default";
+
 export type TestRunEnhanceInput = {
   form: HubRefineryForm;
   targetRole: string;
   jobDescription: string;
+  mode?: TestEnhanceMode;
 };
+
+function modeToEnhanceOpts(mode: TestEnhanceMode = "user_default") {
+  switch (mode) {
+    case "deterministic":
+      return { allowAiUpgrade: false as const };
+    case "ai_system":
+      return {
+        allowAiUpgrade: true as const,
+        forceAiEnabled: true as const,
+        forceSystem: true as const,
+        useCustomerKey: false as const,
+      };
+    default:
+      return {};
+  }
+}
 
 export async function testRunEnhance(
   input: TestRunEnhanceInput,
@@ -33,5 +52,6 @@ export async function testRunEnhance(
     targetRole: input.targetRole,
     jobDescription: input.jobDescription,
     variant: "dashboard",
+    ...modeToEnhanceOpts(input.mode),
   });
 }

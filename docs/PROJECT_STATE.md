@@ -5,7 +5,7 @@
 ## Completed
 
 - **Product analytics (Option A)** — PostHog web + extension instrumentation (`src/shared/analytics`); dev/prod projects 488025/488042; Pino server logs; spec [`docs/analytics-option-a.md`](./analytics-option-a.md); Postgres AI ops unchanged (`api_call_logs`)
-- **AI Engine — Enhance with AI** — … **system key pool v1** — per-call acquire/failover (`executeWithPoolRetry`), 3-slot Alpha/Beta/Gamma, 3k daily platform cap, Gamma paid overflow hot-toggle
+- **AI Engine — Enhance with AI** — … **system key pool v2 (OpenRouter + DeepSeek)** — slot 0 OpenRouter `openrouter/free` with `:free` guard, slot 1 DeepSeek paid overflow; global `system_ai_daily_usage` + per-user caps; `executeWithPoolRetry` failover
 - **Glossy UI system** — Shared primitives in `components/ui/`: `DialogContent appearance="glossy"`, `AppAlertDialog`, `GlossyPromoOverlay`, `GlossyFullscreenShell`, `InlineAlert` (`surface="glass"`); used across login, BYOK nudge, confirm dialogs, enhance AI, IgnitionGate, SynthesisTransition
 - **Legal & auth** — `/terms`, `/privacy` (Teal/Rezi-style); reusable `components/legal/` overlay for in-app Terms/Privacy; login consent below OAuth buttons with overlay links; Settings Plan & engine privacy copy + AI source toggle; `termsAcceptedAt` on OAuth sign-in
 - **Ignition Gate UI** — `src/components/auth/IgnitionGate.tsx`: `ProviderFuelSelect` dropdown for 6 BYOK providers with Lucide icons; scanning-beam validation; cache skip via `lastDiscovery`; Launch/Resume gated on `isIgnitionComplete()`

@@ -157,7 +157,7 @@ async function main() {
     }
 
     const jdIntelligence = readJdIntelligence(row.jdIntelligence);
-    const atsPlatform = detectPlatform(row.canonicalUrl, row.platform);
+    const atsPlatform = detectPlatform(row.canonicalUrl ?? "", row.platform);
     const prime = refineryFormToPrimeResume(merged.form, { targetRole: merged.targetTitle });
     const targetTitle =
       jdIntelligence?.extractedJobTitle?.trim() || merged.targetTitle || row.title;

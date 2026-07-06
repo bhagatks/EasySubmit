@@ -20,6 +20,7 @@ import { useRegisterStudioHeaderCenter } from "@/components/resume/StudioHeaderC
 import { AppAlertDialog } from "@/components/ui/app-alert-dialog";
 import { Button } from "@/components/ui/button";
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
+import { resolveEnhanceWarningTitle } from "@/lib/ai/enhance-failure-messages";
 import { studioSkillsFromForm } from "@/lib/profile/studio-form-db";
 import {
   buildSectionExpansionState,
@@ -96,6 +97,7 @@ export function useResumeEnhanceFlow({
     undefined,
   );
   const [warning, setWarning] = useState<string | null>(null);
+  const [warningTitle, setWarningTitle] = useState<string | null>(null);
   const [timeoutMs, setTimeoutMs] = useState(DEFAULT_ENHANCE_WITH_AI_TIMEOUT_MS);
   const [activeTraceId, setActiveTraceId] = useState<string | null>(null);
   const [activeJobDescription, setActiveJobDescription] = useState("");
@@ -374,6 +376,11 @@ export function useResumeEnhanceFlow({
 
       if (result.warning) {
         setWarning(result.warning);
+        setWarningTitle(
+          resolveEnhanceWarningTitle({
+            code: result.aiBlockCode ?? undefined,
+          }),
+        );
       }
 
       logEnhance("client", "dialog.close", {
@@ -557,8 +564,10 @@ export function useResumeEnhanceFlow({
       ? "Enhance with AI unavailable"
       : errorCode === "timeout"
       ? "Enhancement timed out"
-      : errorCode === "capacity_exhausted"
+      : errorCode === "capacity_exhausted" || errorCode === "system_pool_exhausted"
         ? "EasySubmit AI at capacity"
+      : errorCode === "no_system_key"
+        ? "EasySubmit AI unavailable"
       : errorCode === "insufficient_quota"
         ? "AI quota reached"
         : errorCode === "rate_limited"
@@ -646,15 +655,21 @@ export function useResumeEnhanceFlow({
       <AppAlertDialog
         open={Boolean(warning)}
         onOpenChange={(open) => {
-          if (!open) setWarning(null);
+          if (!open) {
+            setWarning(null);
+            setWarningTitle(null);
+          }
         }}
-        title="Partial enhancement saved"
+        title={warningTitle ?? "Resume saved with rule-based edits"}
         description={warning ?? ""}
         footer={
           <Button
             type="button"
             className="rounded-xl"
-            onClick={() => setWarning(null)}
+            onClick={() => {
+              setWarning(null);
+              setWarningTitle(null);
+            }}
           >
             Continue
           </Button>

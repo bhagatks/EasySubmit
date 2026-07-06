@@ -28,6 +28,7 @@ const STEP_DEF_BY_ID = new Map(PIPELINE_DEBUG_STEP_DEFS.map((def) => [def.id, de
 
 function normalizeLegacyPipelineLabel(stepId: string, label: string): string {
   if (stepId === "pre_onet" && /o\*net/i.test(label)) return "Vocabulary";
+  if (stepId === "pre_role_vocab" && /o\*net/i.test(label)) return "Vocabulary";
   return label;
 }
 

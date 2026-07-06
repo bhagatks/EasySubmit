@@ -5,6 +5,10 @@ import {
   type QuotaSnapshot,
   type UserQuotaRow,
 } from "@/src/lib/ai/engine/quota";
+import {
+  checkGlobalSystemQuota,
+  type GlobalSystemQuotaBlockReason,
+} from "@/src/lib/ai/engine/global-system-quota";
 import type { AiEngineConfig } from "@/src/lib/services/ai-engine-config";
 
 export type SystemQuotaUserRow = {
@@ -26,7 +30,10 @@ export type SystemQuotaGateOptions = {
   forceSystem?: boolean;
 };
 
-export type SystemQuotaBlockReason = "enhancement_limit" | "call_limit";
+export type SystemQuotaBlockReason =
+  | "enhancement_limit"
+  | "call_limit"
+  | GlobalSystemQuotaBlockReason;
 
 export type SystemQuotaGateResult = {
   /** True when the user is routed to EasySubmit system AI (daily system quota applies). */
@@ -101,6 +108,34 @@ export function evaluateSystemQuotaGate(
     code: quotaCheck.reason === "enhancement_limit" ? "quota_enhancement" : "quota_calls",
     snapshot: quotaCheck.snapshot,
   };
+}
+
+/** Global platform quota first, then per-user system quota. */
+export async function evaluateCombinedSystemQuotaGate(
+  quotaRow: UserQuotaRow,
+  aiEngine: AiEngineConfig,
+  options: SystemQuotaGateOptions = {},
+): Promise<SystemQuotaGateResult> {
+  const globalCheck = await checkGlobalSystemQuota(aiEngine, {
+    isEnhancement: options.isEnhancement ?? true,
+    estimatedOpenRouterCalls: options.estimatedCalls ?? SYSTEM_QUOTA_DEFAULT_ESTIMATED_CALLS,
+  });
+
+  if (!globalCheck.ok) {
+    return {
+      applies: true,
+      exceeded: true,
+      reason: globalCheck.reason,
+      message: globalCheck.message,
+      code:
+        globalCheck.reason === "global_enhancement_limit"
+          ? "quota_enhancement"
+          : "quota_calls",
+      snapshot: null,
+    };
+  }
+
+  return evaluateSystemQuotaGate(quotaRow, aiEngine, options);
 }
 
 export function systemQuotaGateNotApplicable(): SystemQuotaGateResult {

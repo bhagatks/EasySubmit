@@ -25,7 +25,7 @@ function parseArgs(): Args {
 async function main() {
   const args = parseArgs();
   const { prisma } = await import("../lib/prisma");
-  const { unvaultUserApiKey } = await import("../lib/vault/user-key-vault");
+  const { getUserApiKeyCredentials } = await import("../lib/vault/user-key-vault");
   const { refreshProviderModelHealth } = await import(
     "../lib/ai/model-health/refresh-provider-model-health"
   );
@@ -54,8 +54,8 @@ async function main() {
   for (const row of rows) {
     if (!isHandshakeProvider(row.provider)) continue;
     const provider = row.provider;
-    const apiKey = await unvaultUserApiKey(row.userId, provider);
-    if (!apiKey) {
+    const credentials = await getUserApiKeyCredentials(row.userId, provider);
+    if (!credentials) {
       console.log(`  skip ${row.user.email} / ${provider} — unvault failed`);
       continue;
     }
@@ -64,7 +64,8 @@ async function main() {
       const health = await refreshProviderModelHealth({
         userId: row.userId,
         provider,
-        apiKey,
+        apiKey: credentials.apiKey,
+        customEndpointUrl: credentials.customEndpointUrl,
         traceId: "backfill-model-health",
       });
       console.log(

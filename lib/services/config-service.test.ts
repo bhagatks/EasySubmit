@@ -141,11 +141,10 @@ describe("getAppConfig", () => {
 
     expect(snapshot.aiEngine.enabled).toBe(true);
     expect(snapshot.aiEngine.system.provider).toBe("deepseek");
-    expect(snapshot.aiEngine.system.modelId).toBe("deepseek-chat");
-    expect(snapshot.aiEngine.system.maxKeySlots).toBe(3);
-    expect(snapshot.aiEngine.quotas.system.dailyEnhancements).toBe(5);
+    expect(snapshot.aiEngine.system.modelId).toBe("deepseek-v4-flash");
+    expect(snapshot.aiEngine.system.maxKeySlots).toBe(2);
+    expect(snapshot.aiEngine.quotas.system.dailyUserEnhancements).toBe(5);
     expect(snapshot.aiEngine.quotas.customer.aiDailyUnlimited).toBe(true);
-    expect(snapshot.aiEngine.customerDailyEnhancementCap).toBe(50);
     expect(snapshot.resumeProfiles.maxProfilesPerCustomer).toBe(20);
   });
 
@@ -157,10 +156,9 @@ describe("getAppConfig", () => {
           enabled: true,
           system: { provider: "gemini", modelId: "gemini-2.5-flash", maxKeySlots: 3 },
           quotas: {
-            system: { dailyEnhancements: 8, dailyCalls: 30 },
+            system: { dailyUserEnhancements: 8, dailyUserCalls: 30 },
             customer: { aiDailyUnlimited: false, dailyEnhancements: 40, dailyCalls: 150 },
           },
-          customerDailyEnhancementCap: 40,
         },
         createdAt: d,
         updatedAt: d,
@@ -172,8 +170,8 @@ describe("getAppConfig", () => {
     expect(engine.enabled).toBe(true);
     expect(engine.system.provider).toBe("gemini");
     expect(engine.system.modelId).toBe("gemini-2.5-flash");
-    expect(engine.quotas.system.dailyEnhancements).toBe(8);
-    expect(engine.customerDailyEnhancementCap).toBe(40);
+    expect(engine.quotas.system.dailyUserEnhancements).toBe(8);
+    expect(engine.quotas.customer.dailyEnhancements).toBe(40);
   });
 
   it("loads resumeProfiles defaults when row is missing", async () => {

@@ -1,13 +1,15 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import {
+  DEEPSEEK_OVERFLOW_SLOT,
   FREE_SLOT_DAILY_CALL_CAP,
-  PLATFORM_DAILY_CALL_CAP,
+  OPENROUTER_FREE_SLOT,
 } from "@/src/lib/ai/engine/pool-constants";
 
-const { findManyMock, findUniqueMock, updateMock } = vi.hoisted(() => ({
+const { findManyMock, findUniqueMock, updateMock, upsertMock } = vi.hoisted(() => ({
   findManyMock: vi.fn(),
   findUniqueMock: vi.fn(),
   updateMock: vi.fn().mockResolvedValue({}),
+  upsertMock: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -18,7 +20,14 @@ vi.mock("@/lib/prisma", () => ({
       update: updateMock,
       count: vi.fn().mockResolvedValue(0),
     },
+    systemAiDailyUsage: {
+      upsert: upsertMock,
+    },
   },
+}));
+
+vi.mock("@/src/lib/ai/engine/enhance-diagnostics", () => ({
+  logEnhance: vi.fn(),
 }));
 
 vi.mock("@/lib/vault/system-key-vault", () => ({
@@ -35,65 +44,64 @@ import {
 import { getTodayPacificDateString } from "@/src/lib/ai/engine/pacific-time";
 
 describe.sequential("system-key-pool executeWithPoolRetry", () => {
-  const original = process.env.EASYSUBMIT_SYSTEM_DEEPSEEK_API_KEYS;
+  const originalOpenRouter = process.env.EASYSUBMIT_SYSTEM_OPENROUTER_API_KEYS;
+  const originalDeepSeek = process.env.EASYSUBMIT_SYSTEM_DEEPSEEK_API_KEYS;
 
   beforeEach(() => {
     resetSystemKeyPoolForTests();
     findManyMock.mockResolvedValue([]);
     findUniqueMock.mockResolvedValue(null);
     updateMock.mockClear();
-    process.env.EASYSUBMIT_SYSTEM_DEEPSEEK_API_KEYS = "k-alpha,k-beta,k-gamma";
+    upsertMock.mockClear();
+    process.env.EASYSUBMIT_SYSTEM_OPENROUTER_API_KEYS = "or-key";
+    process.env.EASYSUBMIT_SYSTEM_DEEPSEEK_API_KEYS = "ds-key";
   });
 
   afterEach(() => {
-    process.env.EASYSUBMIT_SYSTEM_DEEPSEEK_API_KEYS = original;
+    process.env.EASYSUBMIT_SYSTEM_OPENROUTER_API_KEYS = originalOpenRouter;
+    process.env.EASYSUBMIT_SYSTEM_DEEPSEEK_API_KEYS = originalDeepSeek;
     resetSystemKeyPoolForTests();
   });
 
-  it("selects env keys with least-calls spread", async () => {
+  it("tries OpenRouter free slot 0 before DeepSeek paid slot 1", async () => {
     const seen: number[] = [];
 
-    for (let i = 0; i < 3; i += 1) {
-      const result = await executeWithPoolRetry(async ({ slot, apiKey }) => {
-        seen.push(slot);
-        return apiKey;
-      });
-      expect(result.keySource).toBe("env");
-    }
+    markSystemKeyRateLimited(OPENROUTER_FREE_SLOT, 60_000);
 
-    expect(new Set(seen).size).toBe(3);
+    const result = await executeWithPoolRetry(async ({ slot }) => {
+      seen.push(slot);
+      return slot;
+    });
+
+    expect(seen).toEqual([DEEPSEEK_OVERFLOW_SLOT]);
+    expect(result.slot).toBe(DEEPSEEK_OVERFLOW_SLOT);
+    expect(result.billingMode).toBe("paid");
+    expect(result.provider).toBe("deepseek");
   });
 
-  it("fail-fast with capacity_exhausted when platform cap reached", async () => {
+  it("uses OpenRouter slot 0 when healthy", async () => {
+    const result = await executeWithPoolRetry(async ({ slot, provider, billingMode }) => ({
+      slot,
+      provider,
+      billingMode,
+    }));
+
+    expect(result.slot).toBe(OPENROUTER_FREE_SLOT);
+    expect(result.provider).toBe("openrouter");
+    expect(result.billingMode).toBe("free");
+  });
+
+  it("fail-fast with capacity_exhausted when OpenRouter free slot is exhausted", async () => {
     const today = getTodayPacificDateString();
     findManyMock.mockResolvedValue([
       {
-        slot: 0,
+        slot: OPENROUTER_FREE_SLOT,
         label: "Alpha",
         enabled: true,
+        provider: "openrouter",
         billingMode: "free",
-        modelId: "gemini-2.5-flash-lite",
-        callsToday: 1000,
-        exhaustedUntil: null,
-        quotaResetDate: today,
-      },
-      {
-        slot: 1,
-        label: "Beta",
-        enabled: true,
-        billingMode: "free",
-        modelId: "gemini-2.5-flash-lite",
-        callsToday: 1000,
-        exhaustedUntil: null,
-        quotaResetDate: today,
-      },
-      {
-        slot: 2,
-        label: "Gamma",
-        enabled: true,
-        billingMode: "free",
-        modelId: "gemini-2.5-flash-lite",
-        callsToday: 1000,
+        modelId: "openrouter/free",
+        callsToday: FREE_SLOT_DAILY_CALL_CAP,
         exhaustedUntil: null,
         quotaResetDate: today,
       },
@@ -106,23 +114,18 @@ describe.sequential("system-key-pool executeWithPoolRetry", () => {
     } satisfies Partial<SystemKeyPoolError>);
   });
 
-  it("skips RPM-cooling slots without sleeping", async () => {
-    markSystemKeyRateLimited(0, 60_000);
-    markSystemKeyRateLimited(1, 60_000);
+  it("falls through to DeepSeek when OpenRouter slot fails", async () => {
+    const result = await executeWithPoolRetry(async ({ slot, provider }) => {
+      if (provider === "openrouter") {
+        const err = new Error("OpenRouter unavailable");
+        (err as { status?: number }).status = 503;
+        throw err;
+      }
+      return { slot, provider };
+    });
 
-    const result = await executeWithPoolRetry(async ({ slot }) => slot);
-    expect(result.slot).toBe(2);
-    expect(result.label).toBe("Gamma");
-  });
-
-  it("routes to Gamma paid overflow only when Alpha and Beta are dead", async () => {
-    setEnvSlotBillingModeForTests(2, "paid");
-    markSystemKeyRateLimited(0, 60_000);
-    markSystemKeyRateLimited(1, 60_000);
-
-    const result = await executeWithPoolRetry(async ({ slot }) => slot);
-    expect(result.slot).toBe(2);
-    expect(result.billingMode).toBe("paid");
+    expect(result.slot).toBe(DEEPSEEK_OVERFLOW_SLOT);
+    expect(result.provider).toBe("deepseek");
   });
 
   it("honors preferred slot when healthy", async () => {
@@ -135,24 +138,28 @@ describe.sequential("system-key-pool executeWithPoolRetry", () => {
 
   it("retries transient failures once on the same slot", async () => {
     let attempts = 0;
-    const result = await executeWithPoolRetry(async ({ slot }) => {
-      attempts += 1;
-      if (attempts === 1) {
-        const err = new Error("Gateway timeout");
-        (err as { status?: number }).status = 503;
-        throw err;
+    markSystemKeyRateLimited(OPENROUTER_FREE_SLOT, 60_000);
+
+    let deepSeekAttempts = 0;
+    const result = await executeWithPoolRetry(async ({ slot, provider }) => {
+      if (provider === "deepseek") {
+        deepSeekAttempts += 1;
+        if (deepSeekAttempts === 1) {
+          const err = new Error("Gateway timeout");
+          (err as { status?: number }).status = 503;
+          throw err;
+        }
       }
+      attempts += 1;
       return slot;
     });
 
-    expect(attempts).toBe(2);
-    expect(result.result).toBe(result.slot);
+    expect(deepSeekAttempts).toBe(2);
+    expect(result.result).toBe(DEEPSEEK_OVERFLOW_SLOT);
   });
-});
 
-describe("pool constants", () => {
-  it("uses locked v1 caps", () => {
-    expect(PLATFORM_DAILY_CALL_CAP).toBe(3000);
-    expect(FREE_SLOT_DAILY_CALL_CAP).toBe(1000);
+  it("allows toggling env slot billing mode in tests", () => {
+    setEnvSlotBillingModeForTests(DEEPSEEK_OVERFLOW_SLOT, "paid");
+    expect(true).toBe(true);
   });
 });

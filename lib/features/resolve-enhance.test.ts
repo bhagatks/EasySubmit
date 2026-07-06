@@ -18,7 +18,12 @@ vi.mock("@/src/lib/services/config-service", () => ({
   getAppConfig: vi.fn(async () => ({
     enabled: true,
     quotas: {
-      system: { dailyEnhancements: 10, dailyCalls: 20 },
+      system: {
+        dailyTotalSystemCalls: 1000,
+        dailyTotalSystemEnhancements: 200,
+        dailyUserCalls: 20,
+        dailyUserEnhancements: 10,
+      },
       customer: { dailyEnhancements: 5, dailyCalls: 10 },
     },
     providers: {},
@@ -31,24 +36,32 @@ vi.mock("@/src/lib/services/ai-engine-config", () => ({
   AI_ENGINE_DEFAULTS: {},
 }));
 
-vi.mock("@/src/lib/ai/engine/router", () => ({
-  resolveAiRoute: vi.fn(async () => ({
-    mode: "system",
-    provider: "gemini",
-    modelId: "gemini-1.5-flash",
-  })),
-}));
+vi.mock("@/src/lib/ai/engine/router", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/src/lib/ai/engine/router")>();
+  return {
+    ...actual,
+    resolveAiRoute: vi.fn(async () => ({
+      mode: "system",
+      provider: "gemini",
+      modelId: "gemini-1.5-flash",
+    })),
+  };
+});
 
-vi.mock("@/src/lib/ai/engine/system-quota-gate", () => ({
-  resolveQuotaRowWithReset: vi.fn(() => ({
-    quotaRow: {
-      aiEnhancementsToday: 0,
-      aiCallsToday: 0,
-      aiQuotaResetAt: null,
-    },
-    resetPatch: null,
-  })),
-}));
+vi.mock("@/src/lib/ai/engine/system-quota-gate", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/src/lib/ai/engine/system-quota-gate")>();
+  return {
+    ...actual,
+    resolveQuotaRowWithReset: vi.fn(() => ({
+      quotaRow: {
+        aiEnhancementsToday: 0,
+        aiCallsToday: 0,
+        aiQuotaResetAt: null,
+      },
+      resetPatch: null,
+    })),
+  };
+});
 
 vi.mock("@/src/lib/ai/engine/quota", () => ({
   checkAiQuota: vi.fn(() => ({ ok: true })),
@@ -132,6 +145,13 @@ describe("resolveEnhanceFeature", () => {
     expect(result.reason).toBe("user_disabled");
   });
 
+  it("G3: forceAiEnabled bypasses user disabled preference (dev harness)", async () => {
+    const user = { ...baseUser, aiSourcePreference: "disabled" };
+    const result = await resolveEnhanceFeature(user, "job_apply", { forceAiEnabled: true });
+    expect(result.aiAvailable).toBe(true);
+    expect(result.mode).toBe("system");
+  });
+
   it("G4: passes combined user + feature systemAiEnabled to router", async () => {
     vi.mocked(getFeatureFlags).mockResolvedValue({
       enhanceWithAiResumeProfile: true,
@@ -161,6 +181,8 @@ describe("resolveEnhanceFeature", () => {
     const result = await resolveEnhanceFeature(baseUser, "job_apply");
     expect(result.aiAvailable).toBe(false);
     expect(result.reason).toBe("pool_down");
+    expect(result.blockedMessage).toContain("temporarily unavailable");
+    expect(result.blockedMessage).toMatch(/baseline improvements were still applied/i);
   });
 
   // ── G6: quota ─────────────────────────────────────────────────────────────────

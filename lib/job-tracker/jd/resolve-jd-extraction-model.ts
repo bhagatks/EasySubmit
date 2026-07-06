@@ -10,18 +10,26 @@ import {
   resolveJdExtractionSystemModel,
   type AiEngineConfig,
 } from "@/src/lib/services/ai-engine-config";
+import { resolveByokTaskRoute } from "@/lib/ai/model-health/resolve-byok-task-route";
+import { loadProviderModelHealth } from "@/lib/ai/model-health/resolve-model-candidates";
 
 /** Hard cap for JD structured extract — must stay under one minute. */
 export const JD_EXTRACTION_TIMEOUT_MS = 60_000;
 
 /** Fast utility models for BYOK JD extract (never resume-grade Opus/O1). */
-export const JD_EXTRACTION_CUSTOMER_DEFAULTS: Record<HandshakeProvider, string> = {
+export const JD_EXTRACTION_CUSTOMER_DEFAULTS: Partial<Record<HandshakeProvider, string>> = {
   gemini: GEMINI_JD_EXTRACT_MODEL,
   anthropic: "claude-3-5-haiku-20241022",
   openai: "gpt-4o-mini",
   groq: "llama-3.1-8b-instant",
   deepseek: "deepseek-chat",
   openrouter: "openai/gpt-4o-mini",
+  zai: "glm-4-flash",
+  deepinfra: "meta-llama/Llama-3.3-70B-Instruct",
+  xai: "grok-3-mini",
+  siliconflow: "Qwen/Qwen3-32B",
+  together: "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+  mistral: "mistral-small-latest",
 };
 
 const JD_SLOW_MODEL_PATTERN =
@@ -105,9 +113,9 @@ export function resolveJdExtractionCustomerCandidates(
   modelCandidates: string[] = [],
   fallbackCandidates: string[] = modelCandidates,
 ): string[] {
-  const providerDefault = isHandshakeProvider(provider)
-    ? JD_EXTRACTION_CUSTOMER_DEFAULTS[provider]
-    : systemJdModelId;
+  const providerDefault =
+    (isHandshakeProvider(provider) ? JD_EXTRACTION_CUSTOMER_DEFAULTS[provider] : undefined) ??
+    systemJdModelId;
 
   // Gemini BYOK enhance flash models are unreliable for generateObject — flash-lite first.
   if (provider === "gemini") {
@@ -212,6 +220,13 @@ export async function resolveJdExtractionExecutionRoute(
 
   if (route.mode === "system") {
     return { mode: "system", provider: route.provider, modelId: systemJdModelId };
+  }
+
+  if (input.userId) {
+    const health = await loadProviderModelHealth(input.userId, route.provider);
+    if (health?.rankedModels.length) {
+      return resolveByokTaskRoute(route, "cheap", { userId: input.userId });
+    }
   }
 
   let structuredCandidates: string[] | undefined;

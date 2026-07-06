@@ -44,6 +44,7 @@ export function lightSkillsMerge(
     targetRole,
     summaryTheme: directive.summaryTheme,
     experienceBlob: experienceBlobFromForm(form.experience ?? []),
+    roleVocabulary: resume.roleVocabulary,
   });
 
   form = { ...form, skillsText: grouped.skillsText };

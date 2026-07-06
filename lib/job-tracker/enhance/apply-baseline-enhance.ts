@@ -102,6 +102,7 @@ export function applyBaselineEnhance(
     summaryTheme: brief.jd?.directive.summaryTheme,
     experienceBlob: experienceBlobFromForm(updatedForm.experience ?? []),
     isCrossDomain: brief.summaryIdentity.isCrossDomain,
+    roleVocabulary: brief.roleVocabulary,
   });
 
   updatedForm = { ...updatedForm, skillsText: groupedResult.skillsText };

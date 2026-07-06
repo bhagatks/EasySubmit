@@ -163,6 +163,7 @@ export async function tailorJobPipeline(
         "ai_jd_extract",
         "pre_rules",
         "pre_resume_context",
+        "pre_role_vocab",
         "pre_skills_merge",
         "pre_intelligence",
         "pre_keyword_gap",

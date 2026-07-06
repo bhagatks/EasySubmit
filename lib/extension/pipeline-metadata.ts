@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 export type PipelineMetadataPatch = {
   pipelineError?: string | null;
   pipelineErrorCode?: string | null;
+  pipelineAiWarning?: string | null;
   pipelinePhases?: string[];
   lastTailoredAt?: string;
   sourceProfileId?: string;
@@ -36,6 +37,10 @@ export async function mergeJobEntryMetadata(
   if (patch.pipelineError === null) {
     delete next.pipelineError;
     delete next.pipelineErrorCode;
+  }
+
+  if (patch.pipelineAiWarning === null) {
+    delete next.pipelineAiWarning;
   }
 
   await prisma.jobTrackerEntry.updateMany({

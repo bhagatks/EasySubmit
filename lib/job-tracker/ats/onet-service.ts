@@ -1,7 +1,8 @@
 /**
- * O*NET Web Services — free US Dept of Labor API for occupational vocabulary.
+ * O*NET Web Services v2 — US Dept of Labor occupational vocabulary.
  *
- * API docs: https://services.onetcenter.org/
+ * API docs: https://services.onetcenter.org/reference/start/overview
+ * Samples: https://github.com/onetcenter/web-services-v2-samples
  */
 
 import type {
@@ -9,14 +10,13 @@ import type {
   FetchRoleVocabularyOptions,
 } from "@/lib/extension/external-api-debug";
 
-const ONET_BASE = "https://services.onetcenter.org/ws";
+const ONET_BASE = "https://api-v2.onetcenter.org";
 
 export type { FetchRoleVocabularyOptions };
 
-function onetAuth(): string {
-  const user = process.env.ONET_USERNAME ?? "guest";
-  const pass = process.env.ONET_PASSWORD ?? "guest";
-  return `Basic ${Buffer.from(`${user}:${pass}`).toString("base64")}`;
+function onetApiKey(): string | null {
+  const key = process.env.ONET_API_KEY?.trim();
+  return key || null;
 }
 
 export type OnetRoleVocabulary = {
@@ -32,17 +32,31 @@ const CACHE_TTL_MS = 60 * 60 * 1000;
 
 const ONET_REQUEST_HEADERS = {
   Accept: "application/json",
-  Authorization: "[redacted]",
+  "X-API-Key": "[redacted]",
 } as const;
 
 async function onetJsonFetch(
-  url: string,
+  path: string,
+  query: Record<string, string | number>,
   label: string,
   apiDebug?: ExternalApiDebugExchange[],
 ): Promise<{ ok: boolean; status: number; data: unknown } | null> {
+  const apiKey = onetApiKey();
+  if (!apiKey) return null;
+
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    params.set(key, String(value));
+  }
+  const url = `${ONET_BASE}/${path}?${params.toString()}`;
+
   try {
     const res = await fetch(url, {
-      headers: { Authorization: onetAuth(), Accept: "application/json" },
+      headers: {
+        Accept: "application/json",
+        "X-API-Key": apiKey,
+        "User-Agent": "EasySubmit-onet-service/1.0",
+      },
       signal: AbortSignal.timeout(4000),
     });
 
@@ -60,6 +74,7 @@ async function onetJsonFetch(
     });
 
     if (!res.ok) return null;
+    if (data && typeof data === "object" && "error" in data) return null;
     return { ok: res.ok, status: res.status, data };
   } catch (error) {
     apiDebug?.push({
@@ -79,8 +94,12 @@ async function findOccupation(
   jobTitle: string,
   apiDebug?: ExternalApiDebugExchange[],
 ): Promise<{ code: string; title: string } | null> {
-  const url = `${ONET_BASE}/search?keyword=${encodeURIComponent(jobTitle)}&end=1`;
-  const fetched = await onetJsonFetch(url, "Occupation search", apiDebug);
+  const fetched = await onetJsonFetch(
+    "online/search",
+    { keyword: jobTitle, end: 1 },
+    "Occupation search",
+    apiDebug,
+  );
   if (!fetched) return null;
 
   const data = fetched.data as {
@@ -95,8 +114,12 @@ async function fetchOccupationSkills(
   onetCode: string,
   apiDebug?: ExternalApiDebugExchange[],
 ): Promise<string[]> {
-  const url = `${ONET_BASE}/occupations/${onetCode}/summary/skills`;
-  const fetched = await onetJsonFetch(url, "Occupation skills", apiDebug);
+  const fetched = await onetJsonFetch(
+    `online/occupations/${encodeURIComponent(onetCode)}/summary/skills`,
+    {},
+    "Occupation skills",
+    apiDebug,
+  );
   if (!fetched) return [];
 
   const data = fetched.data as {
@@ -104,8 +127,12 @@ async function fetchOccupationSkills(
   };
 
   return (data.element ?? [])
-    .filter((s) => (s.score?.value ?? 0) >= 3.5)
+    .filter((s) => {
+      const score = s.score?.value;
+      return score == null || score >= 3.5;
+    })
     .map((s) => s.name)
+    .filter((name): name is string => Boolean(name?.trim()))
     .slice(0, 20);
 }
 
@@ -113,18 +140,26 @@ async function fetchOccupationTools(
   onetCode: string,
   apiDebug?: ExternalApiDebugExchange[],
 ): Promise<string[]> {
-  const url = `${ONET_BASE}/occupations/${onetCode}/summary/technology_skills`;
-  const fetched = await onetJsonFetch(url, "Occupation tools", apiDebug);
+  const fetched = await onetJsonFetch(
+    `online/occupations/${encodeURIComponent(onetCode)}/summary/technology_skills`,
+    {},
+    "Occupation tools",
+    apiDebug,
+  );
   if (!fetched) return [];
 
   const data = fetched.data as {
-    category?: Array<{ title: { name: string }; example?: Array<{ name: string }> }>;
+    category?: Array<{
+      title?: string | { name: string };
+      example?: Array<{ name?: string; title?: string }>;
+    }>;
   };
 
   const tools: string[] = [];
   for (const cat of data.category ?? []) {
     for (const ex of cat.example ?? []) {
-      tools.push(ex.name);
+      const label = (ex.title ?? ex.name ?? "").trim();
+      if (label) tools.push(label);
     }
   }
   return tools.slice(0, 30);
@@ -142,6 +177,10 @@ export async function fetchRoleVocabulary(
   }
 
   const apiDebug = options?.apiDebug;
+
+  if (!onetApiKey()) {
+    return emptyVocabulary(jobTitle);
+  }
 
   try {
     const occupation = await findOccupation(jobTitle, apiDebug);
@@ -203,7 +242,7 @@ export function resolveOnetVocabularyPipelineOutcome(
   if (httpStatus === 401) {
     return {
       status: "warning",
-      detail: "O*NET auth failed (401) — credentials required",
+      detail: "O*NET auth failed (401) — check ONET_API_KEY",
     };
   }
   if (httpStatus != null) {
@@ -212,6 +251,14 @@ export function resolveOnetVocabularyPipelineOutcome(
       detail: `O*NET request failed (${httpStatus})`,
     };
   }
+
+  if (!onetApiKey()) {
+    return {
+      status: "warning",
+      detail: "O*NET API key not configured (ONET_API_KEY)",
+    };
+  }
+
   if (!vocab.onetCode) {
     return {
       status: "warning",

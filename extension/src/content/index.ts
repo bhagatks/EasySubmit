@@ -1185,7 +1185,10 @@ async function enhanceDocumentPreview(
       saveError = res.warning;
       documentEnhanceFallbackFix = null;
     } else if (res.fallbackUsed || res.engineMode === "deterministic") {
-      saveError = resolveEnhanceFallbackWarning(res.aiMode);
+      saveError =
+        res.warning?.trim() ||
+        res.fallbackSummary?.trim() ||
+        resolveEnhanceFallbackWarning(res.aiMode);
       documentEnhanceFallbackFix = {
         path: resolveEnhanceFallbackSettingsPath(res.aiMode),
         label:

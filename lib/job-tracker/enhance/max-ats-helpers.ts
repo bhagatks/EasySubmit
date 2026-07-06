@@ -8,8 +8,12 @@ export function hasRoleCompanyContext(targetRole: string, companyName?: string |
   return targetRole.trim().length > 0 && Boolean(companyName?.trim());
 }
 
+import {
+  resolveEnhanceAiRuntimeFallbackWarning,
+} from "@/lib/ai/enhance-failure-messages";
+
 export function resolveDeterministicFallbackWarning(): string {
-  return "AI optimization unavailable — deterministic resume applied.";
+  return resolveEnhanceAiRuntimeFallbackWarning({ code: "provider_error" });
 }
 
 export function resolveEnhanceContextRequirement(input: {

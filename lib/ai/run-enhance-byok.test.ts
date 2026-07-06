@@ -6,6 +6,10 @@ const generateObjectMock = vi.fn();
 const withVaultDecryptedSecretMock = vi.fn();
 const logApiCallMock = vi.fn();
 
+vi.mock("@/lib/vault/user-key-vault", () => ({
+  getUserApiKeyCredentials: vi.fn(async () => null),
+}));
+
 vi.mock("@/lib/prisma", () => ({
   prisma: {},
 }));
@@ -35,6 +39,12 @@ vi.mock("@/src/lib/ai/ai-sdk-provider", () => ({
 
 vi.mock("@/lib/ai/model-health/resolve-model-candidates", () => ({
   recordModelRuntimeOutcome: vi.fn(async () => undefined),
+  loadProviderModelHealth: vi.fn(async () => null),
+}));
+
+vi.mock("@/lib/ai/model-health/resolve-byok-task-route", () => ({
+  resolveRouteForByokTask: vi.fn(async (route: unknown) => route),
+  taskTierFromEnhancePass: vi.fn((pass: string) => (pass === "optimize" ? "flagship" : "cheap")),
 }));
 
 import { callEnhanceModel, callEnhanceObjectModel } from "@/src/lib/ai/engine/run-enhance";

@@ -32,8 +32,13 @@ vi.mock("@/src/lib/services/config-service", () => ({
     if (key === "aiEngine") {
       return {
         quotas: {
-          system: { dailyEnhancements: 10, dailyCalls: 20, enable: true },
-          customer: { dailyEnhancements: 5, dailyCalls: 10 },
+          system: {
+            dailyTotalSystemCalls: 1000,
+            dailyTotalSystemEnhancements: 200,
+            dailyUserCalls: 20,
+            dailyUserEnhancements: 10,
+          },
+          customer: { dailyEnhancements: 5, dailyCalls: 10, aiDailyUnlimited: false },
         },
         providers: {},
       };
@@ -60,16 +65,20 @@ vi.mock("@/src/lib/ai/engine/router", () => ({
   })),
 }));
 
-vi.mock("@/src/lib/ai/engine/system-quota-gate", () => ({
-  resolveQuotaRowWithReset: vi.fn(() => ({
-    quotaRow: {
-      aiEnhancementsToday: 0,
-      aiCallsToday: 0,
-      aiQuotaResetAt: null,
-    },
-    resetPatch: null,
-  })),
-}));
+vi.mock("@/src/lib/ai/engine/system-quota-gate", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/src/lib/ai/engine/system-quota-gate")>();
+  return {
+    ...actual,
+    resolveQuotaRowWithReset: vi.fn(() => ({
+      quotaRow: {
+        aiEnhancementsToday: 0,
+        aiCallsToday: 0,
+        aiQuotaResetAt: null,
+      },
+      resetPatch: null,
+    })),
+  };
+});
 
 vi.mock("@/src/lib/ai/engine/quota", () => ({
   checkAiQuota: vi.fn(() => ({ ok: true })),

@@ -6,30 +6,9 @@ import { cn } from "@/lib/utils";
 import { ProviderIcon } from "@/src/components/shared/ProviderIcon";
 import {
   getProviderRegistryEntry,
-  isRecommendedAiProvider,
   type AiProvider,
 } from "@/src/lib/config/app.config";
 import { HANDSHAKE_PROVIDERS } from "@/src/lib/config/career-grade-models";
-
-const RECOMMENDED_MINT = "oklch(0.82 0.16 165)";
-
-function RecommendedBadge({ className }: { className?: string }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex shrink-0 items-center rounded-md px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em]",
-        className,
-      )}
-      style={{
-        color: RECOMMENDED_MINT,
-        backgroundColor: "oklch(0.82 0.16 165 / 0.12)",
-        boxShadow: "inset 0 0 0 1px oklch(0.82 0.16 165 / 0.28)",
-      }}
-    >
-      Recommended
-    </span>
-  );
-}
 
 export type ProviderFuelSelectProps = {
   value: AiProvider;
@@ -51,7 +30,6 @@ export function ProviderFuelSelect({
   const rootRef = useRef<HTMLDivElement>(null);
   const listboxId = useId();
   const selected = getProviderRegistryEntry(value);
-  const selectedIsRecommended = isRecommendedAiProvider(value);
 
   useEffect(() => {
     if (!open) return;
@@ -109,7 +87,6 @@ export function ProviderFuelSelect({
           <span className="flex min-w-0 flex-col gap-0.5">
             <span className="flex min-w-0 items-center gap-2">
               <span className="truncate">{selected.label}</span>
-              {selectedIsRecommended ? <RecommendedBadge /> : null}
             </span>
           </span>
         </span>
@@ -129,13 +106,12 @@ export function ProviderFuelSelect({
           aria-label="AI provider"
           className={cn(
             monoClass,
-            "absolute left-0 right-0 top-[calc(100%+0.5rem)] max-h-64 overflow-y-auto rounded-xl border border-white/10 bg-[oklch(0.12_0.03_268)] p-1 shadow-[0_16px_40px_oklch(0_0_0/0.35)]",
+            "absolute left-0 right-0 top-[calc(100%+0.5rem)] max-h-80 overflow-y-auto rounded-xl border border-white/10 bg-[oklch(0.12_0.03_268)] p-1 shadow-[0_16px_40px_oklch(0_0_0/0.35)]",
           )}
         >
           {HANDSHAKE_PROVIDERS.map((providerId) => {
             const entry = getProviderRegistryEntry(providerId);
             const isSelected = providerId === value;
-            const isRecommended = isRecommendedAiProvider(providerId);
 
             return (
               <li key={providerId} role="presentation">
@@ -160,7 +136,6 @@ export function ProviderFuelSelect({
                     <span className="truncate">{entry.label}</span>
                   </span>
                   <span className="flex shrink-0 items-center gap-1.5">
-                    {isRecommended ? <RecommendedBadge /> : null}
                     {isSelected ? (
                       <Check
                         className="h-4 w-4 shrink-0 text-[oklch(0.82_0.16_165)]"

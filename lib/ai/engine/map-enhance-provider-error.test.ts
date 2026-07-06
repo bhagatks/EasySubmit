@@ -27,7 +27,8 @@ describe("mapEnhanceProviderError", () => {
 
     expect(mapped.code).toBe("insufficient_quota");
     expect(mapped.userMessage).toContain("Your API key");
-    expect(mapped.userMessage).toContain("Google AI Studio");
+    expect(mapped.userMessage).toContain("provider quota");
+    expect(mapped.userMessage).not.toContain("Google AI Studio");
   });
 
   it("maps rate limit without quota wording", () => {

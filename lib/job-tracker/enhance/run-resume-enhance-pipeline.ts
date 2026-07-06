@@ -51,7 +51,7 @@ import {
   incrementQuotaPatch,
   type AiQuotaMode,
 } from "@/src/lib/ai/engine/quota";
-import { runResumeEnhance } from "@/src/lib/ai/engine/run-enhance";
+import { incrementGlobalSystemEnhancement } from "@/src/lib/ai/engine/global-system-quota";
 import {
   resolveQuotaRowWithReset,
   SYSTEM_QUOTA_DEFAULT_ESTIMATED_CALLS,
@@ -62,10 +62,10 @@ import { computeResumeReadiness } from "@/lib/job-tracker/ats/resume-readiness-s
 import { computeResumeReadinessV2 } from "@/lib/resume/v2/resume-readiness-score";
 import { refineryFormToPrimeResume, type HubRefineryForm } from "@/lib/onboarding/hubResume";
 
+import { resolveEnhanceAiRuntimeFallbackWarning } from "@/lib/ai/enhance-failure-messages";
 import {
   hasFullJd,
   MIN_JD_CHARS,
-  resolveDeterministicFallbackWarning,
   resolveEnhanceContextRequirement,
 } from "@/lib/job-tracker/enhance/max-ats-helpers";
 
@@ -185,6 +185,7 @@ async function runResumeEnhancePipelineInner(
       jobDescriptionChars: input.jobDescription?.trim().length ?? 0,
       allowAiUpgrade: input.allowAiUpgrade !== false,
       forceSystem: input.forceSystem ?? false,
+      forceAiEnabled: input.forceAiEnabled ?? false,
       useCustomerKey: input.useCustomerKey ?? true,
     },
   });
@@ -238,6 +239,7 @@ async function runResumeEnhancePipelineInner(
   if (allowAi) {
     aiUpgrade = await resolveAiUpgrade(user, input.surface, {
       forceSystem: input.forceSystem,
+      forceAiEnabled: input.forceAiEnabled,
       useCustomerKey: input.useCustomerKey,
       traceId,
     });
@@ -669,11 +671,16 @@ async function runResumeEnhancePipelineInner(
         });
         finalForm = fallback.form;
         baselineForMeta = fallback;
-        warning = resolveDeterministicFallbackWarning();
+        warning = resolveEnhanceAiRuntimeFallbackWarning({
+          code: result.code,
+          routeMode: aiUpgrade.route.mode,
+          error: result.error,
+          byokAvailable: Boolean(user.vaultKeyId),
+        });
         coherenceWarnings.push(...fallback.coherenceWarnings);
         pipelineDebugStep(debug, "ai_pass1", {
           status: "warning",
-          detail: "AI unavailable — full deterministic baseline applied",
+          detail: warning,
           meta: { code: result.code ?? null },
         });
         pipelineDebugStep(debug, "ai_pass2", {
@@ -798,6 +805,10 @@ async function runResumeEnhancePipelineInner(
         ...increment,
       },
     });
+
+    if (aiMode === "system" && aiSucceeded) {
+      await incrementGlobalSystemEnhancement({ traceId });
+    }
 
     if (tokensUsed > 0) {
       await recordUsageLogForUser(userId, {

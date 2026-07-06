@@ -13,10 +13,10 @@ import {
   type EngineTerminalError,
 } from "@/src/lib/ai/engine-errors";
 import { getProviderConfig } from "@/src/lib/config/app.config";
+import { resolveDiscoverableModels } from "@/lib/ai/model-health/discover-chat-models";
+import { suggestDiscoveredPrimaryFuel } from "@/lib/ai/model-health/classify-model-tier";
 import {
-  filterCareerGradeModels,
   isHandshakeProvider,
-  suggestPrimaryFuel,
   type HandshakeProvider,
 } from "@/src/lib/config/career-grade-models";
 import { logApiCall, type ApiCallLogContext } from "@/src/shared/observability";
@@ -24,6 +24,7 @@ import { logApiCall, type ApiCallLogContext } from "@/src/shared/observability";
 export type EngineHandshakeInput = {
   provider: HandshakeProvider;
   apiKey: string;
+  customEndpointUrl?: string | null;
 };
 
 export type EngineHandshakeSuccess = {
@@ -56,8 +57,9 @@ function toFailure(
 async function fetchProviderModelCatalog(
   provider: HandshakeProvider,
   apiKey: string,
+  customEndpointUrl?: string | null,
 ): Promise<ProviderHandshakeResult> {
-  return handshakeProviderModels(provider, apiKey);
+  return handshakeProviderModels(provider, apiKey, { customEndpointUrl });
 }
 
 /**
@@ -88,7 +90,11 @@ export async function performEngineHandshake(
   }
 
   const catalogStartedAt = Date.now();
-  const catalog = await fetchProviderModelCatalog(handshakeProvider, apiKey);
+  const catalog = await fetchProviderModelCatalog(
+    handshakeProvider,
+    apiKey,
+    input.customEndpointUrl,
+  );
   logApiCall({
     traceId: logContext?.traceId,
     userId: logContext?.userId,
@@ -109,15 +115,15 @@ export async function performEngineHandshake(
     return toFailure(catalog);
   }
 
-  const careerGradeModels = filterCareerGradeModels(handshakeProvider, catalog.models);
+  const discoverableModels = resolveDiscoverableModels(handshakeProvider, catalog.models);
 
-  if (careerGradeModels.length === 0) {
+  if (discoverableModels.length === 0) {
     return {
       success: false,
       error: formatEngineTerminalError(
         ENGINE_ERRORS.NO_CAREER_MODELS,
         catalog.models.length > 0
-          ? `Listed ${catalog.models.length} models but none are career-grade for ${getProviderConfig(handshakeProvider).label}.`
+          ? `Listed ${catalog.models.length} models but none are usable for ${getProviderConfig(handshakeProvider).label}.`
           : undefined,
       ),
     };
@@ -127,9 +133,9 @@ export async function performEngineHandshake(
     success: true,
     provider: handshakeProvider,
     providerLabel: getProviderConfig(handshakeProvider).label,
-    models: careerGradeModels,
-    careerGradeModels,
-    suggestedPrimaryFuel: suggestPrimaryFuel(handshakeProvider, careerGradeModels),
+    models: discoverableModels,
+    careerGradeModels: discoverableModels,
+    suggestedPrimaryFuel: suggestDiscoveredPrimaryFuel(discoverableModels),
     discoveredAt: Date.now(),
     rawModelCount: catalog.models.length,
   };

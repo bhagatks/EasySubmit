@@ -3,7 +3,7 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import type { LanguageModel } from "ai";
 import {
-  PROVIDER_REGISTRY,
+  getOpenAiCompatChatBaseUrl,
   type AiProvider,
 } from "@/src/lib/config/app.config";
 
@@ -12,6 +12,7 @@ export function createAiSdkLanguageModel(
   provider: AiProvider,
   apiKey: string,
   modelId: string,
+  options?: { customEndpointUrl?: string | null },
 ): LanguageModel {
   const key = apiKey.trim();
 
@@ -24,19 +25,19 @@ export function createAiSdkLanguageModel(
     return createGoogleGenerativeAI({ apiKey: key })(modelId);
   }
 
-  const entry = PROVIDER_REGISTRY[provider];
   const openai = createOpenAI({
     apiKey: key,
-    baseURL: `${entry.baseUrl}/v1`,
+    baseURL: getOpenAiCompatChatBaseUrl(provider, options?.customEndpointUrl),
     ...(provider === "openrouter"
       ? {
           headers: {
             "HTTP-Referer": "https://easysubmit.ai",
+            "X-OpenRouter-Title": "EasySubmit Application Suite",
             "X-Title": "EasySubmit",
           },
         }
       : {}),
   });
 
-  return openai(modelId);
+  return openai.chat(modelId);
 }

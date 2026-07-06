@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   filterStructuredHealthyModels,
   isJdExtractionSuitableModel,
-  JD_EXTRACTION_CUSTOMER_DEFAULTS,
   rankJdExtractionCandidates,
   resolveJdExtractionCustomerModel,
   resolveJdExtractionCustomerRoute,

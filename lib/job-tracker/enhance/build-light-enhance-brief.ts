@@ -156,6 +156,7 @@ export function buildLightEnhanceBrief(input: {
       roleLevel: merge.directive.roleLevel,
     },
     summaryIdentity: merge.summaryIdentity,
+    roleVocabulary: resume.roleVocabulary,
     platform: job.platform,
   };
 }

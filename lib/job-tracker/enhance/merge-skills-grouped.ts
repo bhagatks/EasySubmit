@@ -1,3 +1,4 @@
+import type { OnetRoleVocabulary } from "@/lib/job-tracker/ats/onet-service";
 import type { HubRefineryForm } from "@/lib/onboarding/hubResume";
 import { refineryFormToPrimeResume } from "@/lib/onboarding/hubResume";
 import type { JdSkillsVocabulary } from "@/lib/job-tracker/jd/jd-skills-types";
@@ -30,12 +31,14 @@ export function scoreResumeSkillRelevance(
     targetRole: string;
     jdSkillSet: Set<string>;
     summaryTheme?: string;
+    onetSkillSet?: Set<string>;
   },
 ): number {
   const key = skill.toLowerCase();
   if (input.jdSkillSet.has(key)) return -1;
 
   let score = 0;
+  if (input.onetSkillSet?.has(key)) score += 4;
   const summary = (input.form.professionalSummary ?? "").toLowerCase();
   if (summary.includes(key)) score += 3;
 
@@ -66,6 +69,8 @@ export function buildGroupedSkills(input: {
   experienceBlob?: string;
   /** @deprecated Cross-domain cap removed — JD skills fill to SKILLS_HARD_MAX. */
   isCrossDomain?: boolean;
+  /** O*NET occupation norms — fill resume group when slots remain. */
+  roleVocabulary?: OnetRoleVocabulary;
 }): { grouped: GroupedSkills; skillsText: string; skillsAdded: string[]; overflow?: string[] } {
   const existing = parseSkillsText(input.existingSkillsText);
   const existingLower = new Set(existing.map((s) => s.toLowerCase()));
@@ -99,9 +104,31 @@ export function buildGroupedSkills(input: {
     jdAnchored.length > jdSkillCap ? jdAnchored.slice(jdSkillCap) : undefined;
   const jdSet = new Set(jdSkills.map((s) => s.toLowerCase()));
 
+  const onetSkillSet = new Set<string>();
+  for (const label of [
+    ...(input.roleVocabulary?.skills ?? []),
+    ...(input.roleVocabulary?.tools ?? []),
+  ]) {
+    if (!label?.trim()) continue;
+    const key = label.toLowerCase().trim();
+    if (key) onetSkillSet.add(key);
+  }
+
   const resumeCandidates = [
     ...existing.filter((s) => !removeLower.has(s.toLowerCase()) && !jdSet.has(s.toLowerCase())),
   ];
+
+  for (const label of [
+    ...(input.roleVocabulary?.skills ?? []),
+    ...(input.roleVocabulary?.tools ?? []),
+  ]) {
+    if (!label?.trim()) continue;
+    const key = label.toLowerCase().trim();
+    if (!key || jdSet.has(key) || removeLower.has(key)) continue;
+    if (isBannedSkill(label) || isProseSkill(label)) continue;
+    if (resumeCandidates.some((s) => s.toLowerCase() === key)) continue;
+    resumeCandidates.push(label);
+  }
 
   const seenResume = new Set<string>();
   const scored: Array<{ skill: string; score: number }> = [];
@@ -114,6 +141,7 @@ export function buildGroupedSkills(input: {
       targetRole: input.targetRole,
       jdSkillSet: jdSet,
       summaryTheme: input.summaryTheme,
+      onetSkillSet,
     });
     if (score < 0) continue;
     seenResume.add(key);

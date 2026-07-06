@@ -10,7 +10,19 @@ vi.mock("@/lib/prisma", () => ({
       update: vi.fn().mockResolvedValue({}),
       count: vi.fn().mockResolvedValue(0),
     },
+    systemAiDailyUsage: {
+      upsert: vi.fn().mockResolvedValue({
+        date: "2026-07-05",
+        openRouterCalls: 0,
+        systemEnhancements: 0,
+        deepSeekPaidCalls: 0,
+      }),
+    },
   },
+}));
+
+vi.mock("@/src/lib/ai/engine/enhance-diagnostics", () => ({
+  logEnhance: vi.fn(),
 }));
 
 import {
@@ -26,30 +38,31 @@ import {
 } from "@/src/lib/ai/engine/quota";
 
 describe.sequential("system-key-pool", () => {
-  const original = process.env.EASYSUBMIT_SYSTEM_DEEPSEEK_API_KEYS;
+  const originalOpenRouter = process.env.EASYSUBMIT_SYSTEM_OPENROUTER_API_KEYS;
+  const originalDeepSeek = process.env.EASYSUBMIT_SYSTEM_DEEPSEEK_API_KEYS;
 
   beforeEach(() => {
     resetSystemKeyPoolForTests();
-    process.env.EASYSUBMIT_SYSTEM_DEEPSEEK_API_KEYS = "k1,k2,k3";
+    process.env.EASYSUBMIT_SYSTEM_OPENROUTER_API_KEYS = "or-key";
+    process.env.EASYSUBMIT_SYSTEM_DEEPSEEK_API_KEYS = "ds-key";
   });
 
   afterEach(() => {
-    process.env.EASYSUBMIT_SYSTEM_DEEPSEEK_API_KEYS = original;
+    process.env.EASYSUBMIT_SYSTEM_OPENROUTER_API_KEYS = originalOpenRouter;
+    process.env.EASYSUBMIT_SYSTEM_DEEPSEEK_API_KEYS = originalDeepSeek;
     resetSystemKeyPoolForTests();
   });
 
-  it("spreads env keys by least-calls when vault is empty", async () => {
-    const first = await executeWithPoolRetry(async ({ apiKey }) => apiKey);
-    const second = await executeWithPoolRetry(async ({ apiKey }) => apiKey);
-    expect(first.result).not.toBe(second.result);
-    expect(first.keySource).toBe("env");
+  it("loads OpenRouter then DeepSeek env slots when vault is empty", async () => {
+    const first = await executeWithPoolRetry(async ({ slot }) => slot);
+    expect(first.slot).toBe(0);
+    expect(first.provider).toBe("openrouter");
   });
 
-  it("skips cooling keys", async () => {
+  it("skips cooling OpenRouter slot and uses DeepSeek overflow", async () => {
     markSystemKeyRateLimited(0, 60_000);
-    markSystemKeyRateLimited(1, 60_000);
     const result = await executeWithPoolRetry(async ({ slot }) => slot);
-    expect(result.slot).toBe(2);
+    expect(result.slot).toBe(1);
   });
 });
 
@@ -64,7 +77,6 @@ describe("quota", () => {
     quotas: {
       customer: { aiDailyUnlimited: false, dailyEnhancements: 50, dailyCalls: 200 },
     },
-    customerDailyEnhancementCap: 50,
   })!;
 
   it("resets counters on new UTC day", () => {
@@ -80,7 +92,7 @@ describe("quota", () => {
   it("blocks system enhancement limit from app config defaults", () => {
     const atLimit = {
       ...row,
-      aiEnhancementsToday: AI_ENGINE_DEFAULTS.quotas.system.dailyEnhancements,
+      aiEnhancementsToday: AI_ENGINE_DEFAULTS.quotas.system.dailyUserEnhancements,
     };
     const result = checkAiQuota(atLimit, AI_ENGINE_DEFAULTS, "system", {
       isEnhancement: true,
@@ -107,7 +119,7 @@ describe("quota", () => {
   it("caps customer enhancements when app config aiDailyUnlimited is false", () => {
     const atCap = {
       ...row,
-      aiEnhancementsToday: limitedCustomerConfig.customerDailyEnhancementCap,
+      aiEnhancementsToday: limitedCustomerConfig.quotas.customer.dailyEnhancements,
     };
     const result = checkAiQuota(atCap, limitedCustomerConfig, "customer", {
       isEnhancement: true,

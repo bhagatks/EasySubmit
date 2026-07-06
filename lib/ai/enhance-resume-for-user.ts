@@ -23,6 +23,8 @@ export type EnhanceResumeProfileInput = {
   companyName?: string | null;
   rawResumeText?: string | null;
   forceSystem?: boolean;
+  forceAiEnabled?: boolean;
+  allowAiUpgrade?: boolean;
   useCustomerKey?: boolean;
   profileTargetTitle?: string;
   traceId?: string;
@@ -136,7 +138,8 @@ export async function enhanceResumeForUserId(
   }
 
   const allowAiUpgrade =
-    input.variant !== "onboarding" && surface !== "onboarding";
+    input.allowAiUpgrade ??
+    (input.variant !== "onboarding" && surface !== "onboarding");
 
   const result = await runResumeEnhancePipeline({
     userId,
@@ -153,6 +156,7 @@ export async function enhanceResumeForUserId(
     traceId,
     allowAiUpgrade,
     forceSystem: input.forceSystem,
+    forceAiEnabled: input.forceAiEnabled,
     useCustomerKey: input.useCustomerKey,
   });
 
@@ -172,7 +176,7 @@ export async function enhanceResumeForUserId(
     aiAttempted: result.aiAttempted,
     aiSucceeded: result.aiSucceeded,
     enhanceSummary: result.enhanceSummary,
-    fallbackSummary: result.enhanceSummary,
+    fallbackSummary: result.warning ?? result.enhanceSummary,
     sessionMeta: result.sessionMeta,
     coverageAfter: result.coverageAfter,
     readinessDelta: result.readinessDelta,

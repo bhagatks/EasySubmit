@@ -4,6 +4,7 @@ import { Pool } from "pg";
 import { PrismaClient, Prisma } from "../lib/generated/prisma/client";
 import {
   AI_ENGINE_CONFIG_KEY,
+  AI_ENGINE_CONFIG_INFO,
   AI_ENGINE_DEFAULTS,
 } from "../src/lib/services/ai-engine-config";
 import {
@@ -146,9 +147,11 @@ async function main() {
       create: {
         key: AI_ENGINE_CONFIG_KEY,
         value: AI_ENGINE_VALUE,
+        info: AI_ENGINE_CONFIG_INFO as Prisma.InputJsonValue,
       },
       update: {
         value: AI_ENGINE_VALUE,
+        info: AI_ENGINE_CONFIG_INFO as Prisma.InputJsonValue,
       },
     });
 

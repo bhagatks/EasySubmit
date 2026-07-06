@@ -11,14 +11,58 @@
 
 ## 1. Purpose
 
-We validate the **Enhance** pipeline in two modes before shipping fixes:
+We validate the **Enhance** pipeline across **AI switch layers** and **JD categories** before sign-off.
+
+### 1.1 AI switch layers (three-tier + gates)
+
+| Layer | Control | Where | When AI blocked |
+|-------|---------|-------|-----------------|
+| **G1 Global** | `EASYSUBMIT_AI_GLOBALLY_ENABLED` | env | All users → deterministic baseline |
+| **G2 Feature** | `enhanceWithAiResumeProfile` | `feature_flags` | Surface AI off → baseline still runs |
+| **G3 User pref** | `aiSourcePreference` (`auto` \| `customer` \| `system` \| `disabled`) | Settings | `disabled` → deterministic |
+| **G4 System pool** | `app_config.aiEngine.enabled` + `featureFlags.systemAiEnabled` | Admin config | System pool off → BYOK only or soft block |
+| **G4b User system** | `user.systemAiEnabled` (free tier) | Settings | Free user opts out of shared pool |
+| **G5 Route** | BYOK vault / pool availability | Router | `no_key` / `pool_down` → baseline + warning |
+| **G6 Quota** | Daily enhance/call limits | Quota gate | `quota_exceeded` → baseline + warning |
+
+**Baseline rule (all gates):** Phase 1 + Phase 2 always run when JD valid; Phase 3 skipped when `aiAvailable=false`. See [`docs/north-star.md`](./north-star.md) §18.1.
+
+### 1.2 Dev harness (`/dashboard/testing-resume`)
+
+Dev-only — real pipeline, **no DB writes**. Overrides user settings for QA:
+
+| Harness mode | Maps to | Use for |
+|--------------|---------|---------|
+| **AI off (rules)** | `allowAiUpgrade: false` | Artifact B — deterministic |
+| **AI on (system)** | `forceAiEnabled` + `forceSystem` + no BYOK | Artifact C — system pool |
+| **My settings** | No override | Production parity |
+| **Run A/B/C** | Base → off → on in one session | Case 001–003 review |
+
+Automated matrix: `npx tsx scripts/enhance-qa-switch-matrix.ts` → `.tmp-debug/enhance-qa-matrix-live.json`  
+Gate unit tests: `lib/job-tracker/enhance/enhance-qa-gate-matrix.test.ts` (S01–S10)
+
+### 1.3 Enhance modes (what we prove)
 
 | Mode | User setting | Engine | What we prove |
 |------|----------------|--------|----------------|
-| **AI off** | Settings → AI enhancements **disabled** (`aiSourcePreference = disabled`) | Deterministic baseline only (`engineMode: deterministic`) | Rules engine is safe, honest, and doesn’t produce garbage |
-| **AI on** | AI enabled (system key or BYOK) | Baseline + AI upgrade (`engineMode: ai`) | AI improves same-domain tailoring without hallucinations or ship bugs |
+| **AI off** | `aiSourcePreference = disabled` OR any gate blocks AI | `engineMode: deterministic` | Rules engine is safe, honest, no garbage |
+| **AI on** | System key or BYOK | `engineMode: ai` | AI improves tailoring without hallucinations |
 
-Each test run produces **three artifacts** from the **same base profile + same JD**. We review all three together — not in isolation.
+Each test run produces **three artifacts** from the **same base profile + same JD**. Review all three together.
+
+### 1.4 Job selection (3 of 7 automation jobs)
+
+Full automation set: Walmart, Fidelity, CVS, Hightouch, Suvoda, iRhythm, RELX (see `.tmp-debug/job-automation-dashboard-baseline.json`).
+
+**QA uses 3 cases** — covers cross-domain + same-domain without running all 7:
+
+| Case | JD | Domain | Automation index |
+|------|-----|--------|------------------|
+| **001** | iRhythm Director, Procurement | cross-domain | playbook fixture |
+| **002** | iRhythm Sr Manager, SWE | same-domain | 6 |
+| **003** | RELX Manager, SWE | same-domain | 7 |
+
+Fixtures: `lib/job-tracker/enhance/enhance-qa-fixtures.ts`
 
 ---
 
@@ -29,15 +73,15 @@ Each test run produces **three artifacts** from the **same base profile + same J
 | # | Artifact | How to produce | Saved as |
 |---|----------|----------------|----------|
 | A | **Base resume** | Source profile — no JD tailor, or export before any enhance | Case folder / paste in review |
-| B | **AI off** | Settings: AI off → Enhance on Review / pipeline tailor | Case folder / paste |
-| C | **AI on** | Settings: AI on → same Enhance action on same job | Case folder / paste |
+| B | **AI off** | Settings: AI off **or** harness “AI off (rules)” | Case folder / paste |
+| C | **AI on** | Settings: AI on **or** harness “AI on (system)” / BYOK | Case folder / paste |
 
 ### 2.2 Preconditions
 
 - Same **base profile** and **job entry** (full JD captured, ≥120 chars).
 - Note **surface**: Review panel (`variant: dashboard`), extension pipeline (`variant: pipeline`), or Studio.
 - Note **traceId** if enhance debug is on (`NEXT_PUBLIC_ANALYTICS_ENV=dev` → `[EnhanceAI]` server logs).
-- Record **AI health** at test time (`/api/user/ai-health` → `ai_disabled` vs ok).
+- Note **switch state**: G1 global, G2 feature, G3 user pref, G4 system engine, G4b user systemAi, BYOK vault.
 
 ### 2.3 Review checklist (every run)
 
@@ -305,6 +349,46 @@ After each phase: re-run **Case 001** (below) A/B/C and update case history + ch
 
 **Fix verification:** Re-run Case 001 after Phase 1–3 complete; all three artifacts must meet [§2.3 checklist](#23-review-checklist) or document accepted limitation.
 
+### Case 002 — Engineering profile × iRhythm Sr Manager, SWE (same-domain)
+
+| Field | Value |
+|-------|--------|
+| **Base profile** | Same as Case 001 (`ENHANCE_QA_BASE_FORM`) |
+| **JD** | iRhythm `Sr Manager, Software Engineering` JR1346 |
+| **Domain** | **Same-domain** — engineering × engineering JD |
+| **Automation index** | 6 |
+
+**Expected:** AI off improves skills/weave without identity swap; AI on fixes typos + strengthens eng alignment; readiness keyword gaps may include MySQL.
+
+### Case 003 — Engineering profile × RELX Manager, SWE (same-domain)
+
+| Field | Value |
+|-------|--------|
+| **Base profile** | Same as Case 001 |
+| **JD** | RELX `Manager, Software Engineering` R109104 |
+| **Domain** | **Same-domain** |
+| **Automation index** | 7 (top dashboard scorer in automation pass) |
+
+**Expected:** AI on should reach high keyword coverage; summary 70–80 words, 4 sentences.
+
+### Switch matrix (S01–S10)
+
+| ID | Scenario | Expected `aiAvailable` | Expected `engineMode` (pipeline) |
+|----|----------|------------------------|----------------------------------|
+| S01 | G3 user `disabled` | false | deterministic |
+| S02 | Dev `forceAiEnabled` + `forceSystem` | true | ai |
+| S03 | G1 global off | false | deterministic |
+| S04 | G2 feature flag off | false | deterministic |
+| S05 | G4 `aiEngine.enabled` off, no BYOK | false | deterministic + `no_key` |
+| S06 | Free user `systemAiEnabled=false`, no BYOK | false | deterministic |
+| S07 | Default free user, system on | true | ai (system) |
+| S08 | `aiSourcePreference=customer` + vault | true | ai (customer) |
+| S09 | `forceSystem` with vault key | true | ai (system) |
+| S10 | `aiSourcePreference=system` | true | ai (system) |
+
+Run gate matrix: `npx vitest run lib/job-tracker/enhance/enhance-qa-gate-matrix.test.ts`  
+Run live pipeline matrix: `npx tsx scripts/enhance-qa-switch-matrix.ts`
+
 ---
 
 ## 7. Change log
@@ -316,7 +400,7 @@ After each phase: re-run **Case 001** (below) A/B/C and update case history + ch
 | 2026-06-27 | Cross-domain summary builder (`cross-domain-summary.ts`) — identity + resume skills + experience-anchored bridge; JD keywords skills-only | D-04, D-08, D-11 | 001 |
 | 2026-06-27 | AI-off polish: generic Director→experience title, metric bullet pick, JD skill cap 6 + min 5 resume skills, S3/S4 dedupe | D-04, D-08 | 001 |
 | 2026-06-27 | Case 001 manual re-test: AI on pass — identity/grounding/brain rules hold; no fabrication or `[review]` | D-04, D-05, D-06 | 001 (manual) |
-| 2026-06-28 | Case 001 BYOK debug: customer-route provider throws now log to `api_call_logs`; `enhanceMeta` persists `aiAttempted`/`aiSucceeded`/`warning`; `forceSystem` + `aiSourcePreference=system` honor system pool even when vault key exists | — | 001 (BYOK traces) |
+| 2026-07-05 | Playbook §1 AI switch layers + Cases 002/003 + S01–S10 matrix; dev harness A/B/C; fixtures + `enhance-qa-switch-matrix.ts` | D-22 | 001–003 |
 
 ---
 

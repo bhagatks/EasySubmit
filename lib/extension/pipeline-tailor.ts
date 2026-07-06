@@ -288,6 +288,10 @@ export async function runPipelineTailor(
   await mergeJobEntryMetadata(userId, input.entryId, {
     pipelineError: null,
     pipelineErrorCode: null,
+    pipelineAiWarning:
+      enhanced.engineMode === "deterministic" && enhanced.warning?.trim()
+        ? enhanced.warning.trim()
+        : null,
     pipelinePhases: ["capture", "tailor"],
     lastTailoredAt: new Date().toISOString(),
     sourceProfileId: source.id,

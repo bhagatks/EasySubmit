@@ -5,7 +5,7 @@ import { resolveApplyPipelineUserMessage } from "@/src/shared/extension/apply-pi
 
 describe("max-ats helpers", () => {
   it("resolveDeterministicFallbackWarning returns user-friendly copy", () => {
-    expect(resolveDeterministicFallbackWarning()).toMatch(/deterministic resume applied/i);
+    expect(resolveDeterministicFallbackWarning()).toMatch(/rule-based improvements/i);
   });
 });
 
@@ -30,7 +30,7 @@ describe("resolveApplyPipelineUserMessage ai fallback", () => {
       status: "READY_TO_APPLY",
       progress,
     });
-    expect(message.kind).not.toBe("error");
-    expect(message.line).toMatch(/ready to apply|rule-based fallback/i);
+    expect(message.kind).toBe("warning");
+    expect(message.line).toMatch(/deterministic|rule-based improvements/i);
   });
 });

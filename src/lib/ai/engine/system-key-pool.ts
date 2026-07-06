@@ -7,20 +7,31 @@ import {
   resetPoolCooldownForTests,
 } from "@/src/lib/ai/engine/pool-cooldown";
 import {
-  BILLING_MODE_CACHE_MS,
+  DEEPSEEK_OVERFLOW_SLOT,
   FREE_SLOT_DAILY_CALL_CAP,
   MAX_POOL_ATTEMPTS,
+  OPENROUTER_FREE_SLOT,
   PLATFORM_DAILY_CALL_CAP,
   slotLabelForIndex,
   type SystemBillingMode,
 } from "@/src/lib/ai/engine/pool-constants";
 import {
+  defaultBillingModeForSlot,
   defaultSlotModelForProvider,
+  defaultSlotProviderForIndex,
   parseSystemPoolProvider,
   systemPoolEnvKeyVar,
   systemPoolEnvKeysVar,
   type SystemPoolProvider,
 } from "@/src/lib/ai/engine/system-model-defaults";
+import {
+  incrementGlobalDeepSeekPaidCall,
+  incrementGlobalOpenRouterCall,
+} from "@/src/lib/ai/engine/global-system-quota";
+import {
+  isOpenRouterFreeFailureStatus,
+  OpenRouterFreeGuardError,
+} from "@/src/lib/ai/engine/openrouter-free-adapter";
 import {
   getTodayPacificDateString,
   nextPacificMidnight,
@@ -80,7 +91,28 @@ export class SystemKeyPoolError extends Error {
 const envMockSlots = new Map<number, EnvMockSlot>();
 let roundRobinIndex = 0;
 
-let billingModeCache: { fetchedAt: number; gammaPaid: boolean } | null = null;
+function slotProviderForIndex(slot: number, rowProvider?: string | null): SystemPoolProvider {
+  if (rowProvider) {
+    return parseSystemPoolProvider(rowProvider, defaultSlotProviderForIndex(slot));
+  }
+  return defaultSlotProviderForIndex(slot);
+}
+
+function slotBillingModeForIndex(
+  slot: number,
+  rowBillingMode?: string | null,
+): SystemBillingMode {
+  if (rowBillingMode === "paid" || rowBillingMode === "free") {
+    return rowBillingMode;
+  }
+  return defaultBillingModeForSlot(slot);
+}
+
+function slotModelForRow(slot: number, provider: SystemPoolProvider, modelId?: string | null): string {
+  const trimmed = modelId?.trim();
+  if (trimmed) return trimmed;
+  return defaultSlotModelForProvider(provider, slot);
+}
 
 function parseEnvSystemKeys(provider: SystemPoolProvider): string[] {
   const keysVar = systemPoolEnvKeysVar(provider);
@@ -100,16 +132,17 @@ function parseEnvSystemKeys(provider: SystemPoolProvider): string[] {
     .filter(Boolean);
 }
 
-function ensureEnvMockSlot(slot: number, provider: SystemPoolProvider): EnvMockSlot {
+function ensureEnvMockSlot(slot: number): EnvMockSlot {
   const existing = envMockSlots.get(slot);
   if (existing) return existing;
 
+  const provider = defaultSlotProviderForIndex(slot);
   const today = getTodayPacificDateString();
   const created: EnvMockSlot = {
     label: slotLabelForIndex(slot),
-    billingMode: "free",
+    billingMode: defaultBillingModeForSlot(slot),
     provider,
-    modelId: defaultSlotModelForProvider(provider),
+    modelId: defaultSlotModelForProvider(provider, slot),
     callsToday: 0,
     exhaustedUntil: null,
     quotaResetDate: today,
@@ -127,25 +160,15 @@ export function resetSystemKeyPoolForTests(): void {
   resetPoolCooldownForTests();
   envMockSlots.clear();
   roundRobinIndex = 0;
-  billingModeCache = null;
 }
 
-/** Test helper — toggle Gamma paid overflow in env mock mode. */
+/** Test helper — toggle slot billing mode in env mock mode. */
 export function setEnvSlotBillingModeForTests(
   slot: number,
   billingMode: SystemBillingMode,
-  provider: SystemPoolProvider = AI_ENGINE_DEFAULTS.system.provider,
 ): void {
-  const mock = ensureEnvMockSlot(slot, provider);
+  const mock = ensureEnvMockSlot(slot);
   mock.billingMode = billingMode;
-  billingModeCache = null;
-}
-
-function resolvePoolProvider(config?: AiEngineConfig): SystemPoolProvider {
-  return parseSystemPoolProvider(
-    config?.system.provider,
-    AI_ENGINE_DEFAULTS.system.provider,
-  );
 }
 
 export function isRetryableProviderStatus(status: number): boolean {
@@ -160,6 +183,24 @@ function classifyProviderFailure(err: unknown): {
   retryAfterSec?: number;
   message: string;
 } {
+  if (err instanceof OpenRouterFreeGuardError) {
+    const status = err.status;
+    if (status === 429) {
+      return {
+        kind: "rpm",
+        status,
+        message: err.message,
+      };
+    }
+    if (status != null && isOpenRouterFreeFailureStatus(status)) {
+      return { kind: "transient", status, message: err.message };
+    }
+    if (status === 402) {
+      return { kind: "daily_quota", status, message: err.message };
+    }
+    return { kind: "fatal", status, message: err.message };
+  }
+
   const message = err instanceof Error ? err.message : String(err);
   const status = (err as { status?: number }).status;
   const mapped = mapEnhanceProviderError(err, { aiMode: "system" });
@@ -201,7 +242,7 @@ async function resetSlotQuotaIfNeeded(row: SystemSlotRow): Promise<SystemSlotRow
   }
 
   if (row.source === "env") {
-    const mock = ensureEnvMockSlot(row.slot, row.provider);
+    const mock = ensureEnvMockSlot(row.slot);
     mock.callsToday = 0;
     mock.exhaustedUntil = null;
     mock.quotaResetDate = today;
@@ -232,25 +273,25 @@ async function resetSlotQuotaIfNeeded(row: SystemSlotRow): Promise<SystemSlotRow
 
 async function loadSystemSlots(config?: AiEngineConfig): Promise<SystemSlotRow[]> {
   const maxSlots = config?.system.maxKeySlots ?? AI_ENGINE_DEFAULTS.system.maxKeySlots;
-  const provider = resolvePoolProvider(config);
   const today = getTodayPacificDateString();
 
   const rows = await prisma.systemApiKey.findMany({
-    where: { enabled: true, provider, slot: { lt: maxSlots } },
+    where: { enabled: true, slot: { lt: maxSlots } },
     orderBy: { slot: "asc" },
   });
 
   if (rows.length > 0) {
     const slots: SystemSlotRow[] = [];
     for (const row of rows) {
-      const slotProvider = parseSystemPoolProvider(row.provider, provider);
+      const provider = slotProviderForIndex(row.slot, row.provider);
+      const billingMode = slotBillingModeForIndex(row.slot, row.billingMode);
       const base: SystemSlotRow = {
         slot: row.slot,
         label: row.label?.trim() || slotLabelForIndex(row.slot),
         enabled: row.enabled,
-        provider: slotProvider,
-        billingMode: row.billingMode === "paid" ? "paid" : "free",
-        modelId: row.modelId?.trim() || defaultSlotModelForProvider(slotProvider),
+        provider,
+        billingMode,
+        modelId: slotModelForRow(row.slot, provider, row.modelId),
         callsToday: row.callsToday,
         exhaustedUntil: row.exhaustedUntil,
         quotaResetDate: row.quotaResetDate ?? today,
@@ -258,107 +299,66 @@ async function loadSystemSlots(config?: AiEngineConfig): Promise<SystemSlotRow[]
       };
       slots.push(await resetSlotQuotaIfNeeded(base));
     }
-    return slots;
+    return slots.sort((a, b) => a.slot - b.slot);
   }
 
-  const envKeys = parseEnvSystemKeys(provider).slice(0, maxSlots);
+  const openRouterKeys = parseEnvSystemKeys("openrouter");
+  const deepSeekKeys = parseEnvSystemKeys("deepseek");
   const slots: SystemSlotRow[] = [];
-  for (let slot = 0; slot < envKeys.length; slot += 1) {
-    const mock = ensureEnvMockSlot(slot, provider);
-    const base: SystemSlotRow = {
-      slot,
-      label: mock.label,
-      enabled: mock.enabled,
-      provider: mock.provider,
-      billingMode: mock.billingMode,
-      modelId: mock.modelId,
-      callsToday: mock.callsToday,
-      exhaustedUntil: mock.exhaustedUntil,
-      quotaResetDate: mock.quotaResetDate,
-      source: "env",
-    };
-    slots.push(await resetSlotQuotaIfNeeded(base));
+
+  if (openRouterKeys[0] && maxSlots > OPENROUTER_FREE_SLOT) {
+    const mock = ensureEnvMockSlot(OPENROUTER_FREE_SLOT);
+    slots.push(
+      await resetSlotQuotaIfNeeded({
+        slot: OPENROUTER_FREE_SLOT,
+        label: mock.label,
+        enabled: mock.enabled,
+        provider: "openrouter",
+        billingMode: "free",
+        modelId: mock.modelId,
+        callsToday: mock.callsToday,
+        exhaustedUntil: mock.exhaustedUntil,
+        quotaResetDate: mock.quotaResetDate,
+        source: "env",
+      }),
+    );
   }
+
+  if (deepSeekKeys[0] && maxSlots > DEEPSEEK_OVERFLOW_SLOT) {
+    const mock = ensureEnvMockSlot(DEEPSEEK_OVERFLOW_SLOT);
+    slots.push(
+      await resetSlotQuotaIfNeeded({
+        slot: DEEPSEEK_OVERFLOW_SLOT,
+        label: mock.label,
+        enabled: mock.enabled,
+        provider: "deepseek",
+        billingMode: "paid",
+        modelId: slotModelForRow(DEEPSEEK_OVERFLOW_SLOT, "deepseek", mock.modelId),
+        callsToday: mock.callsToday,
+        exhaustedUntil: mock.exhaustedUntil,
+        quotaResetDate: mock.quotaResetDate,
+        source: "env",
+      }),
+    );
+  }
+
   return slots;
-}
-
-async function isGammaPaidOverflow(config?: AiEngineConfig): Promise<boolean> {
-  const now = Date.now();
-  if (billingModeCache && now - billingModeCache.fetchedAt < BILLING_MODE_CACHE_MS) {
-    return billingModeCache.gammaPaid;
-  }
-
-  const provider = resolvePoolProvider(config);
-  const envKeys = parseEnvSystemKeys(provider);
-  if (envKeys.length > 0) {
-    const mock = ensureEnvMockSlot(2, provider);
-    const gammaPaid = mock.billingMode === "paid";
-    billingModeCache = { fetchedAt: now, gammaPaid };
-    return gammaPaid;
-  }
-
-  const row = await prisma.systemApiKey.findUnique({ where: { slot: 2 } });
-  const gammaPaid = row?.billingMode === "paid";
-  billingModeCache = { fetchedAt: now, gammaPaid };
-  return gammaPaid;
-}
-
-function platformCallsToday(slots: SystemSlotRow[]): number {
-  return slots.reduce((sum, slot) => sum + slot.callsToday, 0);
-}
-
-function isSlotHealthy(slot: SystemSlotRow, now: Date): boolean {
-  if (!slot.enabled) return false;
-  if (isKeyCooling(slot.slot)) return false;
-  if (slot.exhaustedUntil && slot.exhaustedUntil > now) return false;
-  if (slot.billingMode === "free" && slot.callsToday >= FREE_SLOT_DAILY_CALL_CAP) {
-    return false;
-  }
-  return true;
-}
-
-function orderByLeastCallsThenRoundRobin(slots: SystemSlotRow[]): SystemSlotRow[] {
-  if (!slots.length) return [];
-  const minCalls = Math.min(...slots.map((slot) => slot.callsToday));
-  const tied = slots
-    .filter((slot) => slot.callsToday === minCalls)
-    .sort((a, b) => a.slot - b.slot);
-  const rest = slots
-    .filter((slot) => slot.callsToday !== minCalls)
-    .sort((a, b) => a.callsToday - b.callsToday || a.slot - b.slot);
-
-  const start = roundRobinIndex % tied.length;
-  const rotated = [...tied.slice(start), ...tied.slice(0, start)];
-  return [...rotated, ...rest];
 }
 
 function buildAttemptOrder(
   slots: SystemSlotRow[],
   now: Date,
-  options: { preferredSlot?: number; gammaPaid: boolean },
+  options: { preferredSlot?: number },
 ): number[] {
   const bySlot = new Map(slots.map((slot) => [slot.slot, slot]));
-  const alpha = bySlot.get(0);
-  const beta = bySlot.get(1);
-  const gamma = bySlot.get(2);
-
-  const primariesHealthy = [alpha, beta].filter(
-    (slot): slot is SystemSlotRow => Boolean(slot?.enabled && isSlotHealthy(slot, now)),
-  );
-
-  let pool: SystemSlotRow[];
-  if (options.gammaPaid && primariesHealthy.length === 0) {
-    pool =
-      gamma && gamma.enabled && isSlotHealthy(gamma, now) ? [gamma] : [];
-  } else if (options.gammaPaid) {
-    pool = orderByLeastCallsThenRoundRobin(primariesHealthy);
-  } else {
-    pool = orderByLeastCallsThenRoundRobin(
-      slots.filter((slot) => slot.enabled && isSlotHealthy(slot, now)),
+  const orderedSlots = [OPENROUTER_FREE_SLOT, DEEPSEEK_OVERFLOW_SLOT]
+    .map((slotIndex) => bySlot.get(slotIndex))
+    .filter(
+      (slot): slot is SystemSlotRow =>
+        Boolean(slot?.enabled && isSlotHealthy(slot, now)),
     );
-  }
 
-  let ordered = pool.map((slot) => slot.slot);
+  let ordered = orderedSlots.map((slot) => slot.slot);
 
   if (options.preferredSlot != null) {
     const preferred = bySlot.get(options.preferredSlot);
@@ -376,15 +376,35 @@ function buildAttemptOrder(
 async function resolveApiKey(slot: SystemSlotRow): Promise<string | null> {
   if (slot.source === "env") {
     const keys = parseEnvSystemKeys(slot.provider);
+    if (slot.slot === OPENROUTER_FREE_SLOT) {
+      return keys[0]?.trim() || null;
+    }
+    if (slot.slot === DEEPSEEK_OVERFLOW_SLOT) {
+      return keys[0]?.trim() || null;
+    }
     return keys[slot.slot]?.trim() || null;
   }
   return unvaultSystemApiKey(slot.slot);
 }
 
+function platformCallsToday(slots: SystemSlotRow[]): number {
+  return slots.reduce((sum, slot) => sum + slot.callsToday, 0);
+}
+
+function isSlotHealthy(slot: SystemSlotRow, now: Date): boolean {
+  if (!slot.enabled) return false;
+  if (isKeyCooling(slot.slot)) return false;
+  if (slot.exhaustedUntil && slot.exhaustedUntil > now) return false;
+  if (slot.billingMode === "free" && slot.callsToday >= FREE_SLOT_DAILY_CALL_CAP) {
+    return false;
+  }
+  return true;
+}
+
 async function markSlotDailyExhausted(slot: SystemSlotRow): Promise<void> {
   const exhaustedUntil = nextPacificMidnight();
   if (slot.source === "env") {
-    const mock = ensureEnvMockSlot(slot.slot, slot.provider);
+    const mock = ensureEnvMockSlot(slot.slot);
     mock.exhaustedUntil = exhaustedUntil;
     mock.callsToday = FREE_SLOT_DAILY_CALL_CAP;
     return;
@@ -401,25 +421,35 @@ async function markSlotDailyExhausted(slot: SystemSlotRow): Promise<void> {
 
 async function recordSlotSuccess(slot: SystemSlotRow): Promise<void> {
   if (slot.source === "env") {
-    const mock = ensureEnvMockSlot(slot.slot, slot.provider);
+    const mock = ensureEnvMockSlot(slot.slot);
     mock.callsToday += 1;
-    return;
+  } else {
+    await prisma.systemApiKey.update({
+      where: { slot: slot.slot },
+      data: { callsToday: { increment: 1 } },
+    });
   }
 
-  await prisma.systemApiKey.update({
-    where: { slot: slot.slot },
-    data: { callsToday: { increment: 1 } },
-  });
+  if (slot.provider === "openrouter" && slot.billingMode === "free") {
+    await incrementGlobalOpenRouterCall();
+  } else if (slot.provider === "deepseek" && slot.billingMode === "paid") {
+    await incrementGlobalDeepSeekPaidCall();
+  }
 }
 
 export async function hasSystemPoolKeys(config?: AiEngineConfig): Promise<boolean> {
   const maxSlots = config?.system.maxKeySlots ?? AI_ENGINE_DEFAULTS.system.maxKeySlots;
-  const provider = resolvePoolProvider(config);
   const vaulted = await prisma.systemApiKey.count({
-    where: { enabled: true, provider, slot: { lt: maxSlots } },
+    where: { enabled: true, slot: { lt: maxSlots } },
   });
   if (vaulted > 0) return true;
-  return parseEnvSystemKeys(provider).length > 0;
+  if (maxSlots > OPENROUTER_FREE_SLOT && parseEnvSystemKeys("openrouter").length > 0) {
+    return true;
+  }
+  if (maxSlots > DEEPSEEK_OVERFLOW_SLOT && parseEnvSystemKeys("deepseek").length > 0) {
+    return true;
+  }
+  return false;
 }
 
 /** @deprecated Use `hasSystemPoolKeys`. */
@@ -449,15 +479,15 @@ export async function executeWithPoolRetry<T>(
     modelId: string;
     slot: number;
     provider: SystemPoolProvider;
+    billingMode: SystemBillingMode;
   }) => Promise<T>,
   options: ExecuteWithPoolRetryOptions = {},
 ): Promise<PoolCallResult<T>> {
-  const provider = resolvePoolProvider(options.config);
   const slots = await loadSystemSlots(options.config);
   if (!slots.length) {
     throw new SystemKeyPoolError(
       "pool_exhausted",
-      `No system ${provider} keys are configured.`,
+      "No system AI keys are configured (OpenRouter free + DeepSeek overflow).",
     );
   }
 
@@ -468,11 +498,9 @@ export async function executeWithPoolRetry<T>(
     );
   }
 
-  const gammaPaid = await isGammaPaidOverflow(options.config);
   const now = new Date();
   const attemptOrder = buildAttemptOrder(slots, now, {
     preferredSlot: options.preferredSlot,
-    gammaPaid,
   });
 
   if (!attemptOrder.length) {
@@ -498,6 +526,7 @@ export async function executeWithPoolRetry<T>(
         modelId: slot.modelId,
         slot: slot.slot,
         provider: slot.provider,
+        billingMode: slot.billingMode,
       });
       await recordSlotSuccess(slot);
       roundRobinIndex = (slot.slot + 1) % Math.max(slots.length, 1);
@@ -537,6 +566,7 @@ export async function executeWithPoolRetry<T>(
               modelId: slot.modelId,
               slot: slot.slot,
               provider: slot.provider,
+              billingMode: slot.billingMode,
             });
             await recordSlotSuccess(slot);
             roundRobinIndex = (slot.slot + 1) % Math.max(slots.length, 1);
@@ -593,9 +623,9 @@ export async function listSystemKeySlots(
 ): Promise<
   Array<{ slot: number; label: string | null; enabled: boolean; provider: string; source: "vault" }>
 > {
-  const provider = resolvePoolProvider(config);
+  const maxSlots = config?.system.maxKeySlots ?? AI_ENGINE_DEFAULTS.system.maxKeySlots;
   const rows = await prisma.systemApiKey.findMany({
-    where: { enabled: true, provider },
+    where: { enabled: true, slot: { lt: maxSlots } },
     orderBy: { slot: "asc" },
     select: { slot: true, label: true, enabled: true, provider: true },
   });

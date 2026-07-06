@@ -136,6 +136,39 @@ describe("formatApplyPipelineDevDetail", () => {
     ).toBe("Max-ATS AI pass — Provider timeout");
   });
 
+  it("shows specific ai_pass1 warning detail when resume prep completed", () => {
+    const base = emptyPipelineDebugProgress("trace-1");
+    const specific =
+      "EasySubmit AI is at capacity today. We saved rule-based improvements — add your API key in AI Keys for full AI.";
+    const progress = {
+      ...base,
+      steps: base.steps.map((step) => {
+        if (step.id === "ai_pass1") {
+          return {
+            ...step,
+            status: "warning" as const,
+            detail: specific,
+          };
+        }
+        if (step.id === "persist_overrides") {
+          return { ...step, status: "done" as const };
+        }
+        return step;
+      }),
+    };
+
+    expect(
+      resolveApplyPipelineUserMessage({
+        status: "RESUME_READY",
+        progress,
+      }),
+    ).toMatchObject({
+      line: specific,
+      kind: "warning",
+      stageId: "optimized_resume",
+    });
+  });
+
   it("shows fallback warning when ai_pass1 warns but resume prep completed", () => {
     const base = emptyPipelineDebugProgress("trace-1");
     const progress = {
@@ -161,7 +194,7 @@ describe("formatApplyPipelineDevDetail", () => {
         progress,
       }),
     ).toMatchObject({
-      line: APPLY_PIPELINE_FAILURE_LINES.resumeOptimizedWithFallback,
+      line: "AI unavailable — full deterministic baseline applied",
       kind: "warning",
       stageId: "optimized_resume",
     });

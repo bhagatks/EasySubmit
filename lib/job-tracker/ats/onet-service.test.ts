@@ -29,6 +29,8 @@ describe("resolveOnetVocabularyPipelineOutcome", () => {
   });
 
   it("marks fallback with 401 as warning with auth detail", () => {
+    const prior = process.env.ONET_API_KEY;
+    process.env.ONET_API_KEY = "test-key";
     const apiDebug: ExternalApiDebugExchange[] = [
       {
         label: "Occupation search",
@@ -37,31 +39,60 @@ describe("resolveOnetVocabularyPipelineOutcome", () => {
       },
     ];
 
-    expect(
-      resolveOnetVocabularyPipelineOutcome(
-        vocab({ source: "fallback", onetCode: "", skills: [], tools: [] }),
-        apiDebug,
-      ),
-    ).toEqual({
-      status: "warning",
-      detail: "O*NET auth failed (401) — credentials required",
-    });
+    try {
+      expect(
+        resolveOnetVocabularyPipelineOutcome(
+          vocab({ source: "fallback", onetCode: "", skills: [], tools: [] }),
+          apiDebug,
+        ),
+      ).toEqual({
+        status: "warning",
+        detail: "O*NET auth failed (401) — check ONET_API_KEY",
+      });
+    } finally {
+      if (prior !== undefined) process.env.ONET_API_KEY = prior;
+      else delete process.env.ONET_API_KEY;
+    }
+  });
+
+  it("marks fallback without API key as warning", () => {
+    const prior = process.env.ONET_API_KEY;
+    delete process.env.ONET_API_KEY;
+    try {
+      expect(
+        resolveOnetVocabularyPipelineOutcome(
+          vocab({ source: "fallback", onetCode: "", skills: [], tools: [] }),
+        ),
+      ).toEqual({
+        status: "warning",
+        detail: "O*NET API key not configured (ONET_API_KEY)",
+      });
+    } finally {
+      if (prior !== undefined) process.env.ONET_API_KEY = prior;
+    }
   });
 
   it("marks fallback without HTTP error as no-match warning", () => {
-    expect(
-      resolveOnetVocabularyPipelineOutcome(
-        vocab({
-          source: "fallback",
-          onetCode: "",
-          skills: [],
-          tools: [],
-          matchedTitle: "Director, AI/ML and Data Architecture",
-        }),
-      ),
-    ).toEqual({
-      status: "warning",
-      detail: 'No O*NET occupation match for "Director, AI/ML and Data Architecture"',
-    });
+    const prior = process.env.ONET_API_KEY;
+    process.env.ONET_API_KEY = "test-key";
+    try {
+      expect(
+        resolveOnetVocabularyPipelineOutcome(
+          vocab({
+            source: "fallback",
+            onetCode: "",
+            skills: [],
+            tools: [],
+            matchedTitle: "Director, AI/ML and Data Architecture",
+          }),
+        ),
+      ).toEqual({
+        status: "warning",
+        detail: 'No O*NET occupation match for "Director, AI/ML and Data Architecture"',
+      });
+    } finally {
+      if (prior !== undefined) process.env.ONET_API_KEY = prior;
+      else delete process.env.ONET_API_KEY;
+    }
   });
 });

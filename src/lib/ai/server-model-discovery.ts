@@ -1,9 +1,17 @@
 import {
   getProviderHandshakeUrl,
   getDefaultModelsForProvider,
+  getOpenAiCompatChatBaseUrl,
   PROVIDER_REGISTRY,
   type AiProvider,
 } from "@/src/lib/config/app.config";
+import {
+  isOpenAiCompatibleProvider,
+  OPENAI_COMPATIBLE_AI_PROVIDERS,
+  providerRequiresCustomBaseUrl,
+  resolveOpenAiCompatChatBaseUrl,
+  resolveProviderHandshakeUrl,
+} from "@/src/lib/config/provider-compat";
 import { geminiApiHeaders, geminiModelsListUrl } from "@/src/lib/ai/gemini-api";
 import {
   GEMINI_ACCOUNT_BLOCKED_MESSAGE,
@@ -11,12 +19,7 @@ import {
 } from "@/src/lib/ai/gemini-access-messages";
 import { validateGeminiKey } from "@/src/lib/ai/validate-gemini-key";
 
-const OPENAI_COMPATIBLE_PROVIDERS: AiProvider[] = [
-  "openai",
-  "groq",
-  "deepseek",
-  "openrouter",
-];
+const OPENAI_COMPATIBLE_PROVIDERS: AiProvider[] = [...OPENAI_COMPATIBLE_AI_PROVIDERS];
 
 export type ProviderHandshakeErrorCode =
   | "invalid_key"
@@ -111,6 +114,10 @@ function filterOpenAiDiscoveryModels(provider: AiProvider, ids: string[]): strin
       .sort();
   }
 
+  if (provider === "xai") {
+    return normalized.filter((id) => id.startsWith("grok-")).sort();
+  }
+
   return normalized
     .filter((id) => !id.toLowerCase().includes("embed"))
     .sort();
@@ -127,8 +134,9 @@ function bundledOpenAiCompatibleModels(provider: AiProvider): string[] {
 async function probeOpenAiCompatibleChat(
   provider: AiProvider,
   apiKey: string,
+  customEndpointUrl?: string | null,
 ): Promise<ProviderHandshakeResult> {
-  if (!OPENAI_COMPATIBLE_PROVIDERS.includes(provider)) {
+  if (!isOpenAiCompatibleProvider(provider)) {
     return {
       ok: false,
       code: "forbidden",
@@ -138,7 +146,7 @@ async function probeOpenAiCompatibleChat(
 
   const entry = PROVIDER_REGISTRY[provider];
   const probeModel = entry.defaultModels[0];
-  const url = `${entry.baseUrl}/v1/chat/completions`;
+  const url = `${resolveOpenAiCompatChatBaseUrl(provider, customEndpointUrl)}/chat/completions`;
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${apiKey.trim()}`,
@@ -180,6 +188,7 @@ async function probeOpenAiCompatibleChat(
 async function fetchOpenAiCompatibleModels(
   provider: AiProvider,
   apiKey: string,
+  customEndpointUrl?: string | null,
 ): Promise<ProviderHandshakeResult> {
   const headers: Record<string, string> = {
     Authorization: `Bearer ${apiKey.trim()}`,
@@ -190,7 +199,7 @@ async function fetchOpenAiCompatibleModels(
     headers["X-Title"] = "EasySubmit";
   }
 
-  const res = await fetch(getProviderHandshakeUrl(provider), {
+  const res = await fetch(resolveProviderHandshakeUrl(provider, customEndpointUrl), {
     headers,
     cache: "no-store",
   });
@@ -198,7 +207,7 @@ async function fetchOpenAiCompatibleModels(
   if (!res.ok) {
     const body = await parseProviderErrorBody(res);
     if (res.status === 403 || res.status === 404) {
-      return probeOpenAiCompatibleChat(provider, apiKey);
+      return probeOpenAiCompatibleChat(provider, apiKey, customEndpointUrl);
     }
     return mapHttpFailure(res.status, body);
   }
@@ -210,7 +219,7 @@ async function fetchOpenAiCompatibleModels(
   );
 
   if (models.length === 0) {
-    return probeOpenAiCompatibleChat(provider, apiKey);
+    return probeOpenAiCompatibleChat(provider, apiKey, customEndpointUrl);
   }
 
   return { ok: true, models };
@@ -320,10 +329,19 @@ async function fetchGeminiModels(apiKey: string): Promise<ProviderHandshakeResul
 export async function handshakeProviderModels(
   provider: AiProvider,
   apiKey: string,
+  options?: { customEndpointUrl?: string | null },
 ): Promise<ProviderHandshakeResult> {
   const key = apiKey.trim();
   if (!key) {
     return { ok: false, code: "invalid_key", message: "API key is required." };
+  }
+
+  if (providerRequiresCustomBaseUrl(provider) && !options?.customEndpointUrl?.trim()) {
+    return {
+      ok: false,
+      code: "provider_error",
+      message: "Custom endpoint URL is required for this provider.",
+    };
   }
 
   try {
@@ -335,13 +353,8 @@ export async function handshakeProviderModels(
       return fetchGeminiModels(key);
     }
 
-    if (
-      provider === "openai" ||
-      provider === "groq" ||
-      provider === "deepseek" ||
-      provider === "openrouter"
-    ) {
-      return fetchOpenAiCompatibleModels(provider, key);
+    if (isOpenAiCompatibleProvider(provider)) {
+      return fetchOpenAiCompatibleModels(provider, key, options?.customEndpointUrl);
     }
 
     return {

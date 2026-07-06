@@ -1,4 +1,5 @@
 import { withVaultDecryptedSecret, VAULT_DECRYPT_USER_MESSAGE } from "@/lib/vault/decrypt-vault-secret";
+import { getUserApiKeyCredentials } from "@/lib/vault/user-key-vault";
 import { mapEnhanceProviderError } from "@/src/lib/ai/engine/map-enhance-provider-error";
 import type { ResolvedAiRoute } from "@/src/lib/ai/engine/router";
 import { recordModelRuntimeOutcome } from "@/lib/ai/model-health/resolve-model-candidates";
@@ -13,11 +14,21 @@ function isRetryableCustomerError(err: unknown): boolean {
 export async function withCustomerModelFallback<T>(input: {
   route: CustomerRoute;
   userId?: string | null;
-  execute: (modelId: string, apiKey: string) => Promise<T>;
+  execute: (
+    modelId: string,
+    apiKey: string,
+    customEndpointUrl?: string | null,
+  ) => Promise<T>;
 }): Promise<{ result: T; modelId: string; attemptCount: number }> {
   const candidates = input.route.modelCandidates.length
     ? input.route.modelCandidates
     : [input.route.modelId];
+
+  const customEndpointUrl =
+    input.userId != null
+      ? (await getUserApiKeyCredentials(input.userId, input.route.provider))?.customEndpointUrl ??
+        null
+      : null;
 
   let lastError: unknown = null;
 
@@ -25,7 +36,7 @@ export async function withCustomerModelFallback<T>(input: {
     const modelId = candidates[index]!;
     try {
       const vaultRun = await withVaultDecryptedSecret(input.route.vaultKeyId, async (apiKey) =>
-        input.execute(modelId, apiKey),
+        input.execute(modelId, apiKey, customEndpointUrl),
       );
 
       if (!vaultRun.ok) {

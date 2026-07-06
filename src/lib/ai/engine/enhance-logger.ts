@@ -29,7 +29,7 @@ export type ResumeJourneyPhase = (typeof RESUME_JOURNEY)[keyof typeof RESUME_JOU
 /** Whether an AI model call ran and how it ended for this journey step. */
 export type JourneyAiCallStatus = "success" | "failure" | "skipped" | "blocked" | "none";
 
-export type EnhanceLogScope = "client" | "server" | "engine" | "pipeline" | "export";
+export type EnhanceLogScope = "client" | "server" | "engine" | "pipeline" | "export" | "quota";
 
 export type EnhanceLogPayload = Record<string, unknown> & {
   traceId?: string;

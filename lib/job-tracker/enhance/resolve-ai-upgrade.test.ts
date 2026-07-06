@@ -50,6 +50,8 @@ describe("resolveAiUpgrade", () => {
       aiAvailable: false,
       available: false,
       reason: "quota_exceeded",
+      blockedMessage:
+        "Daily enhancement limit reached (5/day). Add your API key for more. Baseline improvements were still applied.",
       route: null,
       mode: null,
       vaultKeyId: null,
@@ -61,6 +63,6 @@ describe("resolveAiUpgrade", () => {
 
     const result = await resolveAiUpgrade(baseUser, "job_apply");
     expect(result.aiAllowed).toBe(false);
-    expect(result.warning).toMatch(/Daily AI limit/i);
+    expect(result.warning).toMatch(/Daily enhancement limit/i);
   });
 });

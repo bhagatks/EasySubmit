@@ -104,6 +104,13 @@ export const PIPELINE_DEBUG_STEP_DEFS: PipelineDebugStepDef[] = [
     trackerStage: "resume_prep",
   },
   {
+    id: "pre_role_vocab",
+    group: "Resume track",
+    label: "Role vocabulary",
+    description: "O*NET occupation skills + tools for target role (Role Skills Framework)",
+    trackerStage: "resume_prep",
+  },
+  {
     id: "pre_skills_merge",
     group: "Light merge",
     label: "Skills merge",

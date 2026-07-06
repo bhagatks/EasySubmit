@@ -152,8 +152,10 @@ model UserApiKey {
   provider      String
   vaultSecretId String   @unique @db.Uuid
   /// Ranked BYOK model health probes — refreshed on vault save and stale refresh.
-  modelHealth   Json?
-  createdAt     DateTime @default(now())
+  modelHealth       Json?
+  /// OpenAI-compatible base URL for `custom` provider (e.g. https://proxy.example.com/v1).
+  customEndpointUrl String?  @db.Text
+  createdAt         DateTime @default(now())
   updatedAt     DateTime @updatedAt
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -304,10 +306,24 @@ model ApiCallLog {
 model AppConfig {
   key       String   @id
   value     Json
+  /// Human-readable field docs — never parsed by runtime loaders.
+  info      Json?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("app_config")
+}
+
+/// Platform-wide system AI counters keyed by Pacific calendar day (`YYYY-MM-DD`).
+model SystemAiDailyUsage {
+  date                String   @id
+  openRouterCalls     Int      @default(0)
+  systemEnhancements  Int      @default(0)
+  deepSeekPaidCalls   Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("system_ai_daily_usage")
 }
 
 /// Global product feature toggles — one row per flag key.

@@ -1,5 +1,6 @@
 | Date | Item |
 |------|------|
+| 2026-07-05 | **OpenRouter system pool** — mixed slot 0 `openrouter/free` + slot 1 DeepSeek paid overflow; global `system_ai_daily_usage` counters; `app_config.info` metadata; QA script `scripts/compare-system-models-qa.ts` |
 | 2026-07-05 | **Readiness polish** — summary 4-sentence word trim, injectable keyword merge, skills headroom, light-path grounding always on |
 | 2026-07-05 | **Extension GH JD quality** — boards-api preferred over DOM for embedded + native GH URLs; page intercept cannot downgrade API JD |
 | 2026-07-05 | **Job capture dedupe** — `saveJobTrackerEntry` archives duplicate active rows for same URL hash |

@@ -18,6 +18,10 @@ import { buildJdCoverageReport } from "@/lib/job-tracker/enhance/build-jd-covera
 import { scoreBulletAnchors } from "@/lib/job-tracker/enhance/score-bullet-anchors";
 import { buildEnhancePlan } from "@/lib/job-tracker/enhance/enhance-plan";
 import { analyzeBulletQuality } from "@/lib/job-tracker/ats/bullet-quality";
+import {
+  fetchRoleVocabulary,
+  resolveOnetVocabularyPipelineOutcome,
+} from "@/lib/job-tracker/ats/onet-service";
 import { analyzeJobDescription } from "@/lib/job-tracker/jd/jd-brain";
 import { buildResumeEnhanceDirective } from "@/lib/job-tracker/jd/jd-directive";
 import type { JDIntelligence } from "@/lib/job-tracker/jd/jd-intelligence";
@@ -208,6 +212,69 @@ export async function buildEnhanceBrief(
       atsPlatform,
       atsStrategy,
       platformLabel: platformRules.label,
+    },
+  });
+
+  pipelineDebugAdvance(debug, "pre_role_vocab", "pre_validate");
+
+  logEnhanceDiag({
+    traceId: input.traceId,
+    designStep: "3",
+    track: "resume",
+    pipelineStep: ENHANCE_PIPELINE.PRE_BRIEF_START,
+    phase: "start",
+    level: "low",
+    event: "brief.onet.start",
+    scope: "server",
+    userId: input.userId,
+    params: { targetRole: input.targetRole },
+  });
+
+  const onetApiDebug: ExternalApiDebugExchange[] = [];
+  const roleVocabulary = await fetchRoleVocabulary(input.targetRole, {
+    apiDebug: debug ? onetApiDebug : undefined,
+  });
+  const onetOutcome = resolveOnetVocabularyPipelineOutcome(roleVocabulary, onetApiDebug);
+
+  pipelineDebugStep(debug, "pre_role_vocab", {
+    status: onetOutcome.status,
+    detail: onetOutcome.detail,
+    meta: {
+      source: roleVocabulary.source,
+      onetCode: roleVocabulary.onetCode,
+      skillCount: roleVocabulary.skills.length,
+      toolCount: roleVocabulary.tools.length,
+    },
+    artifacts: [
+      ...externalApiArtifactsFromExchanges(onetApiDebug),
+      dataArtifact(
+        "Role vocabulary",
+        {
+          matchedTitle: roleVocabulary.matchedTitle,
+          onetCode: roleVocabulary.onetCode,
+          source: roleVocabulary.source,
+          skillsSample: roleVocabulary.skills.slice(0, 12),
+          toolsSample: roleVocabulary.tools.slice(0, 12),
+        },
+        "output",
+      ),
+    ],
+  });
+
+  logEnhanceDiag({
+    traceId: input.traceId,
+    designStep: "3",
+    track: "resume",
+    pipelineStep: ENHANCE_PIPELINE.PRE_BRIEF_START,
+    phase: "done",
+    level: "low",
+    event: "brief.onet.done",
+    scope: "server",
+    userId: input.userId,
+    params: {
+      source: roleVocabulary.source,
+      skillCount: roleVocabulary.skills.length,
+      toolCount: roleVocabulary.tools.length,
     },
   });
 
@@ -643,6 +710,7 @@ export async function buildEnhanceBrief(
     },
     experience: { weakBullets },
     jd: jdSlice,
+    roleVocabulary,
     readiness,
     plan,
     summaryIdentity,

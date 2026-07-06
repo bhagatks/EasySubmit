@@ -130,7 +130,14 @@ export function resolveExtensionJourneyDisplay(input: {
     };
   }
 
-  const userMessage = resolveExtensionUserMessage(input);
+  const userMessage = resolveExtensionUserMessage({
+    saved: input.saved,
+    status: (input.status as JobTrackerStatus | null | undefined) ?? null,
+    pipelineBusy: input.pipelineBusy,
+    pipelineBusyLabel: input.pipelineBusyLabel,
+    saveError: input.saveError,
+    issueMessage: input.issueMessage,
+  });
   const status = input.saved ? ((input.status as JobTrackerStatus | undefined) ?? null) : null;
   const hasError = userMessage.kind === "error";
 

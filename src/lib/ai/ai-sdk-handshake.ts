@@ -8,19 +8,26 @@ import {
   isGeminiProjectDeniedMessage,
 } from "@/src/lib/ai/gemini-access-messages";
 import {
-  PROVIDER_REGISTRY,
+  getOpenAiCompatChatBaseUrl,
   type AiProvider,
 } from "@/src/lib/config/app.config";
 
 const VERIFY_PROMPT = "Reply with the single word OK.";
 
 const VERIFY_MODEL: Record<AiProvider, string> = {
+  gemini: "gemini-2.5-flash",
   openai: "gpt-4o-mini",
   anthropic: "claude-3-5-haiku-latest",
-  gemini: "gemini-2.5-flash",
-  groq: "llama-3.3-70b-versatile",
-  deepseek: "deepseek-chat",
+  deepseek: "deepseek-v4-flash",
+  zai: "glm-4-flash",
   openrouter: "openai/gpt-4o-mini",
+  deepinfra: "meta-llama/Llama-3.3-70B-Instruct",
+  xai: "grok-3-mini",
+  groq: "llama-3.3-70b-versatile",
+  siliconflow: "Qwen/Qwen3-32B",
+  together: "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+  mistral: "mistral-small-latest",
+  custom: "gpt-4o-mini",
 };
 
 /** Models to try when verifying Gemini BYOK — newest first. */
@@ -144,6 +151,7 @@ function mapAiSdkFailure(error: unknown): AiSdkVerifyResult {
 export async function verifyApiKeyWithAiSdk(
   provider: AiProvider,
   apiKey: string,
+  options?: { customEndpointUrl?: string | null },
 ): Promise<AiSdkVerifyResult> {
   const key = apiKey.trim();
   if (!key) {
@@ -207,10 +215,9 @@ export async function verifyApiKeyWithAiSdk(
       return lastFailure;
     }
 
-    const entry = PROVIDER_REGISTRY[provider];
     const openai = createOpenAI({
       apiKey: key,
-      baseURL: `${entry.baseUrl}/v1`,
+      baseURL: getOpenAiCompatChatBaseUrl(provider, options?.customEndpointUrl),
       ...(provider === "openrouter"
         ? {
             headers: {
@@ -222,7 +229,7 @@ export async function verifyApiKeyWithAiSdk(
     });
 
     await generateText({
-      model: openai(modelId),
+      model: openai.chat(modelId),
       prompt: VERIFY_PROMPT,
       maxOutputTokens: 1,
       maxRetries: 0,
