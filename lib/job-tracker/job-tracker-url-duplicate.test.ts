@@ -32,5 +32,26 @@ describe("job-tracker-url-duplicate", () => {
     expect(shouldCheckJobTrackerUrlDuplicate("https://example.com/jobs/1")).toBe(true);
     expect(shouldCheckJobTrackerUrlDuplicate("easysubmit://dashboard-manual/abc")).toBe(false);
     expect(shouldCheckJobTrackerUrlDuplicate("")).toBe(false);
+    expect(shouldCheckJobTrackerUrlDuplicate(null)).toBe(false);
+    expect(shouldCheckJobTrackerUrlDuplicate(undefined)).toBe(false);
+  });
+
+  it("labels outcome statuses outside primary kanban", () => {
+    expect(jobTrackerStatusLabel("ARCHIVED")).toBe("Archived");
+    expect(jobTrackerStatusLabel("INTERVIEW")).toBe("Interview");
+    expect(jobTrackerStatusLabel("OFFER")).toBe("Offer");
+    expect(jobTrackerStatusLabel("REJECTED")).toBe("Rejected");
+  });
+
+  it("formats headline without company or with blank title", () => {
+    const noCompany = toJobTrackerUrlDuplicateSummary({ ...sample, company: null });
+    expect(formatJobTrackerDuplicateHeadline(noCompany)).toBe("Software Engineer");
+
+    const blankTitle = toJobTrackerUrlDuplicateSummary({
+      ...sample,
+      title: "  ",
+      company: null,
+    });
+    expect(formatJobTrackerDuplicateHeadline(blankTitle)).toBe("This job");
   });
 });
