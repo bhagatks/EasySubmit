@@ -362,7 +362,7 @@ Upserts all keys below (including `forceUpgrade`). Existing rows are not overwri
 | `aiEngine` | `{ enabled, system: { provider, modelId, jdExtractionModelId, maxKeySlots }, quotas: { system: { dailyTotalSystemCalls, dailyTotalSystemEnhancements, dailyUserCalls, dailyUserEnhancements }, customer: { aiDailyUnlimited, dailyCalls, dailyEnhancements } } }` + optional `info` metadata | Top-level `enabled` gates EasySubmit system AI. Per-user shared AI cap: `quotas.system.dailyUserEnhancements`. BYOK cap when limited: `quotas.customer.dailyEnhancements`. Legacy `customerDailyEnhancementCap` in DB JSON is ignored. |
 | `resumeProfiles` | `{ maxProfilesPerCustomer: 20 }` | Max `profiles` rows per user — enforced on dashboard create and job-tailor clone |
 | `legalDocuments` | `{ terms: { title, updatedLabel, blocks[] }, privacy: { … } }` | Terms of Service and Privacy Policy copy for `/terms`, `/privacy`, and login overlay — structured blocks (paragraphs, headings, lists, links); seeded from `src/lib/services/legal-documents-defaults.ts` |
-| `forceUpgrade` | `{ enabled: false, minVersion: "0.2.6", updateUrl: "/extension", message: "…" }` | Extension minimum-version gate — see [Extension force-upgrade](#extension-force-upgrade-app_configforceupgrade) below |
+| `forceUpgrade` | `{ enabled: false, minVersion: "1.0.0", updateUrl: "https://chromewebstore.google.com/detail/ondcaafebdfegfkmdggeklofnmbijmlc", message: "…" }` | Extension minimum-version gate — see [Extension force-upgrade](#extension-force-upgrade-app_configforceupgrade) below |
 | `extensionInstallPrompt` | `{ refreshIntervalMinutes: 30, dashboardVisit: false, tabFocusReturn: false, periodicRefresh: false }` | Opt-in return-visit install modal triggers — see [Extension install prompt](#extension-install-prompt-app_configextensioninstallprompt) below |
 | `dashboardTutorialVideos` | `{ videos: [{ id, title, watchUrl }] }` | Video Tutorials page (`/dashboard/tutorials`) — YouTube watch URLs; invalid entries skipped; see [Dashboard tutorial videos](#dashboard-tutorial-videos-app_configdashboardtutorialvideos) below |
 
@@ -452,7 +452,7 @@ When `enabled` is `true` and the installed extension version (from `manifest.jso
 |-------|---------|---------|
 | `enabled` | `false` | Master switch — off = no version checks |
 | `minVersion` | `"0.2.6"` | Minimum semver (e.g. `"0.3.0"`) |
-| `updateUrl` | `"/extension"` | Chrome Web Store URL or dashboard path for the Update CTA |
+| `updateUrl` | CWS listing URL (`ondcaafebdfegfkmdggeklofnmbijmlc`) | Chrome Web Store URL for the Update CTA |
 | `message` | (seed copy) | User-facing banner / 426 error text |
 
 **Enable after seed** (set `minVersion` to the build you require):

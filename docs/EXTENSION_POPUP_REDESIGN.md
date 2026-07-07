@@ -34,16 +34,16 @@ Part 1 fixes **reliability** (card always opens, manual fallback). Part 2 fixes 
 | Profile picker on card | Header on all card modes |
 | Save from manual | Same API as auto capture |
 
-### Gaps to close (Part 1 scope)
+### Gaps to close (Part 1 scope) — **done** (2026-07-06)
 
-| # | Work item | Why |
-|---|-----------|-----|
-| 1.1 | **Popup “Show job card” always injects content script** if missing | Fixes “extension didn’t load” defect |
-| 1.2 | **Force path never dead-ends on `no_job`** when user explicitly forces | Manual launch should prefer `loading` → `manual_capture`, not “job not detected” only |
-| 1.3 | **`no_job` card → “Add manually”** entry on auto-open pages | User on weird page can switch to manual without reopening popup |
-| 1.4 | **Manual capture UX polish** — profile picker visible, min JD hint, CTA “Save to tracker” | Today CTA is “Add details”; align copy |
-| 1.5 | **Context menu + popup parity** — both use same force → manual pipeline | Already share `FORCE_SHOW_CARD`; verify |
-| 1.6 | **Return tab status to popup** (minimal) — `GET_TAB_STATUS`: `detected` \| `loading` \| `manual` \| `no_job` \| `restricted` | Popup can show one line before Part 2 redesign |
+| # | Work item | Status |
+|---|-----------|--------|
+| 1.1 | Popup “Show job card” always injects content script if missing | Done |
+| 1.2 | Force path never dead-ends on `no_job` when user explicitly forces | Done |
+| 1.3 | `no_job` card → “Add manually” entry on auto-open pages | Done |
+| 1.4 | Manual capture UX polish — profile picker, min JD hint, CTA “Save to tracker” | Done |
+| 1.5 | Context menu + popup parity | Done |
+| 1.6 | Return tab status to popup (`GET_TAB_STATUS`) | Done |
 
 ### Part 1 flow (authoritative)
 

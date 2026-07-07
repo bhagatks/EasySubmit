@@ -1,3 +1,4 @@
+import { EXTENSION_STORE_URL } from "@/src/shared/brand";
 import type { ExtensionPlatform, ExtensionRuntimeConfig } from "./types";
 
 export const EXTENSION_RUNTIME_DEFAULTS: ExtensionRuntimeConfig = {
@@ -12,6 +13,7 @@ export const EXTENSION_RUNTIME_DEFAULTS: ExtensionRuntimeConfig = {
   autoApplyEnabled: true,
   aiEnabled: true,
   applyPipelineStepAnalytics: false,
+  forceUpgradeUpdateUrl: EXTENSION_STORE_URL,
 };
 
 /** Merge API config with safe defaults so Workday/generic detection keeps working. */
@@ -51,6 +53,7 @@ export function mergeExtensionRuntimeConfig(
     forceUpgradeEnabled: partial.forceUpgradeEnabled ?? false,
     minExtensionVersion: partial.minExtensionVersion ?? null,
     forceUpgradeMessage: partial.forceUpgradeMessage ?? null,
+    forceUpgradeUpdateUrl: partial.forceUpgradeUpdateUrl ?? EXTENSION_STORE_URL,
     applyPipelineStepAnalytics: partial.applyPipelineStepAnalytics ?? false,
   };
 }

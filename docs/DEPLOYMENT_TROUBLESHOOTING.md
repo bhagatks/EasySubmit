@@ -99,7 +99,7 @@ Sensitive values are **hidden** after save. You cannot "view" them in the list.
 | [`ci.yml`](../.github/workflows/ci.yml) | Vitest on PR/push — placeholder `DATABASE_URL`/`DIRECT_URL` for `prisma generate` only |
 | [`deploy.yml`](../.github/workflows/deploy.yml) | Extension: test → build → sign CRX → optional CWS upload |
 
-**Chrome Web Store:** Listing uses Verified CRX uploads — CI produces `easysubmit-extension.crx`. `publish_to_cws` is **off** on push while listing is under review. After approval: manual workflow + bump `extension/manifest.json` version. Add GitHub secret `CHROME_CRX_PRIVATE_KEY` (full PEM) before enabling publish.
+**Chrome Web Store:** Listing live — CI produces `easysubmit-extension.crx`. Run manual workflow with **`publish_to_cws`** after bumping `extension/manifest.json` version. Add GitHub secret `CHROME_CRX_PRIVATE_KEY` (full PEM) before publish.
 
 ---
 

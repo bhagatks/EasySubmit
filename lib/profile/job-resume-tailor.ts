@@ -93,6 +93,36 @@ export async function deleteJobResumeTailor(userId: string, jobTrackerEntryId: s
   });
 }
 
+export async function getBaseResumeForJobExport(
+  userId: string,
+  jobTrackerEntryId: string,
+): Promise<
+  | {
+      success: true;
+      form: HubRefineryForm;
+      targetTitle: string;
+      sourceProfileId: string;
+    }
+  | { success: false; error: string }
+> {
+  const tailor = await getJobResumeTailorForEntry(userId, jobTrackerEntryId);
+  if (!tailor) {
+    return { success: false, error: "No tailored resume for this job" };
+  }
+
+  const source = await findProfileForUser(userId, tailor.sourceProfileId);
+  if (!source) {
+    return { success: false, error: "Source resume profile not found" };
+  }
+
+  return {
+    success: true,
+    form: hubRefineryFormFromProfile(source),
+    targetTitle: targetTitleFromProfile(source),
+    sourceProfileId: tailor.sourceProfileId,
+  };
+}
+
 export async function getMergedResumeForJob(
   userId: string,
   jobTrackerEntryId: string,

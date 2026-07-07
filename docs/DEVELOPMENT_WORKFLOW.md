@@ -2,7 +2,7 @@
 
 EasySubmit uses **command-specific env injection** — variables are loaded into process memory per command. Runners never rename, copy, or hide `.env` files at runtime.
 
-Full env reference: [`ENV.md`](./ENV.md) · Production deploy: [`DEPLOYMENT.md`](./DEPLOYMENT.md) · Prod cutover: [`PROD_CUTOVER.md`](./PROD_CUTOVER.md) · Extension builds: [`EXTENSION_BUILD.md`](./EXTENSION_BUILD.md)
+Full env reference: [`ENV.md`](./ENV.md) · Production deploy: [`DEPLOYMENT.md`](./DEPLOYMENT.md) · Prod cutover: [`PROD_CUTOVER.md`](./PROD_CUTOVER.md) · Extension builds: [`EXTENSION_BUILD.md`](./EXTENSION_BUILD.md) · **Extension dev + prod launch:** [`EXTENSION_LAUNCH_RUNBOOK.md`](./EXTENSION_LAUNCH_RUNBOOK.md)
 
 ---
 
@@ -98,3 +98,22 @@ run easy                     # or: run easy fast (skip tests)
 ```
 
 Extension output folders (`dist/extension-dev` vs `dist/extension`): [`EXTENSION_BUILD.md`](./EXTENSION_BUILD.md)
+
+---
+
+## Chrome extension — local dev
+
+**Full checklist:** [`EXTENSION_LAUNCH_RUNBOOK.md`](./EXTENSION_LAUNCH_RUNBOOK.md) § A (dev)
+
+| Step | Action |
+|------|--------|
+| Build | `run easy` builds **both** `dist/extension-dev/` and `dist/extension/` |
+| Load | `chrome://extensions` → Load unpacked → **`dist/extension-dev`** (toolbar: **Dev Easy**) |
+| Connect | `http://localhost:3000/extension/bridge?extensionId=<unpacked-id>` — id from `chrome://extensions`, not the CWS id |
+| After code change | Reload extension on `chrome://extensions` or re-run `npm run build:extension` |
+| Tests | `npx vitest run --config config/vitest.config.ts lib/extension/` |
+| Prod API QA | Second Chrome profile + **`dist/extension`** + bridge on `https://www.easysubmit.ai` |
+
+**Do not** upload `dist/extension-dev/` to Chrome Web Store. **Do not** use prod Supabase in `.env.local`.
+
+Publish to users: [`EXTENSION_LAUNCH_RUNBOOK.md`](./EXTENSION_LAUNCH_RUNBOOK.md) § B–C (prod only — GitHub Actions + `publish_to_cws`).

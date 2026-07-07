@@ -37,6 +37,7 @@ import {
 } from "@shared/extension/pipeline-debug-web";
 import type { PipelineDebugStepStatus } from "@shared/extension/pipeline-debug-types";
 import { isApplyPipelineStepAnalyticsEnabledClient } from "@shared/extension/apply-pipeline-step-analytics-gate";
+import { V1_OFFER_AUTOFILL_PHASE } from "@shared/extension/v1-apply-scope";
 import { runWorkdayAutofill, type WorkdayFillData } from "@shared/extension/workday-autofill";
 import { setupFieldCaptureBridge } from "@shared/extension/field-capture-bridge";
 import type { FieldCapturePayload } from "@shared/extension/field-descriptor";
@@ -57,7 +58,7 @@ import {
   type ProfileSetupScreen1ValidationIssue,
   type ApplicationProfileScreen3Input,
 } from "@/lib/profile/application-profile-setup";
-import { BRAND, renderExtensionCardBrandMarkup } from "@shared/brand";
+import { BRAND, EXTENSION_STORE_URL, renderExtensionCardBrandMarkup } from "@shared/brand";
 import type { JobTrackerStatus } from "@/lib/generated/prisma/client";
 import { APPLY_PIPELINE_USER_LINES, resolveExtensionUserMessage } from "@shared/extension/apply-pipeline-user-messages";
 import { brandExtensionTokens } from "@shared/brand-colors";
@@ -602,8 +603,7 @@ function shouldUseOneClickApply(
   _meta: ScrapedJobMetadata,
   _config: ExtensionRuntimeConfig | null,
 ): boolean {
-  // Auto-apply (Workday autofill) is paused indefinitely.
-  return false;
+  return V1_OFFER_AUTOFILL_PHASE;
 }
 
 function getPipelineUiMode(_config: ExtensionRuntimeConfig | null): "auto" | "manual" {
@@ -2366,7 +2366,10 @@ function renderExpandedCard(root: ShadowRoot): void {
                 <button type="button" class="header-btn ${FLOATING_HINT_BUTTON_CLASS}" data-minimize="1" data-hint="Minimize" title="Minimize" aria-label="Minimize">×</button>
               </div>
             </div>
-            ${renderForceUpgradeBannerMarkup(forceUpgradeBanner)}
+            ${renderForceUpgradeBannerMarkup(
+              forceUpgradeBanner,
+              runtimeConfig?.forceUpgradeUpdateUrl?.trim() ?? EXTENSION_STORE_URL,
+            )}
             ${forceUpgradeBanner ? "" : renderReconnectBannerMarkup(reconnectBanner)}
             ${forceUpgradeBanner || reconnectBanner ? "" : renderAiHealthBannerMarkup(aiHealthBanner)}
             <div class="${bodyClass}">${bodyMarkup}</div>
@@ -2416,7 +2419,8 @@ function renderExpandedCard(root: ShadowRoot): void {
     event.stopPropagation();
     const updateUrl =
       (event.currentTarget as HTMLElement).getAttribute("data-update-url") ??
-      "https://chromewebstore.google.com/detail/ask-gemini/daeaddalijienfjkhigbifmbdckbohjg";
+      runtimeConfig?.forceUpgradeUpdateUrl?.trim() ??
+      EXTENSION_STORE_URL;
     window.open(updateUrl, "_blank", "noopener,noreferrer");
   });
 
@@ -3226,17 +3230,17 @@ function refreshRuntimeConfigOnTabResume(): void {
 
 function renderForceUpgradeBannerMarkup(
   banner: ReturnType<typeof resolveExtensionForceUpgradeBanner>,
+  updateUrl: string,
 ): string {
   if (!banner) return "";
   const hint = escapeHtml(banner.message);
-  const updateUrl =
-    "https://chromewebstore.google.com/detail/ask-gemini/daeaddalijienfjkhigbifmbdckbohjg";
+  const storeUrl = escapeHtml(updateUrl.trim() || EXTENSION_STORE_URL);
   return `
     <div class="ai-health-banner force-upgrade-banner" role="alert">
       <div class="ai-health-banner-inner">
         <span class="ai-health-banner-icon">${AI_HEALTH_ALERT_ICON}</span>
         <p class="ai-health-banner-message" title="${hint}">${hint}</p>
-        <button type="button" class="ai-health-banner-cta" data-force-upgrade-update="1" data-update-url="${updateUrl}" aria-label="${escapeHtml(banner.ctaLabel)}">${escapeHtml(banner.ctaLabel)}</button>
+        <button type="button" class="ai-health-banner-cta" data-force-upgrade-update="1" data-update-url="${storeUrl}" aria-label="${escapeHtml(banner.ctaLabel)}">${escapeHtml(banner.ctaLabel)}</button>
       </div>
     </div>
   `;
@@ -3756,6 +3760,17 @@ async function applyServerJourneyRefresh(reason: string): Promise<void> {
 
   if (transition !== "unchanged" || previousSaveError !== saveError) {
     void refreshRuntimeConfig().catch(() => undefined);
+    if (
+      pipelineBusy &&
+      pipelineBusyLabel === APPLY_PIPELINE_USER_LINES.optimizingResume &&
+      (after.status === "RESUME_READY" ||
+        after.status === "READY_TO_APPLY" ||
+        after.status === "APPLIED" ||
+        Boolean(saveError?.trim()))
+    ) {
+      pipelineBusy = false;
+      pipelineBusyLabel = null;
+    }
     if (cardHost) renderCard(cardHost.shadow);
   }
 
@@ -4558,8 +4573,8 @@ async function startApplyPipeline(): Promise<void> {
       id: jobId,
       canReapply: false,
     };
-    pipelineBusy = false;
-    pipelineBusyLabel = null;
+    pipelineBusy = true;
+    pipelineBusyLabel = APPLY_PIPELINE_USER_LINES.optimizingResume;
     if (cardHost) renderCard(cardHost.shadow);
 
     // [ES:LOG] EXT — starting poll fallback immediately after capture (catches realtime failures)

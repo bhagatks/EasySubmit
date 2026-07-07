@@ -32,6 +32,8 @@ export type ScrapedJobMetadata = {
   description: string | null;
   platform: ExtensionPlatform;
   confidence: number;
+  /** Non-blocking scrape quality hint (e.g. Workday apply-step missing JD). */
+  scrapeWarning?: string | null;
   /** Structured fields from JSON-LD JobPosting schema — higher signal than raw description blob. */
   jsonLdFields?: {
     qualifications?: string;
@@ -75,6 +77,8 @@ export type ExtensionRuntimeConfig = {
   forceUpgradeEnabled?: boolean;
   minExtensionVersion?: string | null;
   forceUpgradeMessage?: string | null;
+  /** Chrome Web Store URL for force-upgrade CTA — from `app_config.forceUpgrade.updateUrl`. */
+  forceUpgradeUpdateUrl?: string | null;
   /** Prod PostHog apply-pipeline step events — dev always emits regardless. */
   applyPipelineStepAnalytics?: boolean;
 };

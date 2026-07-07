@@ -20,6 +20,7 @@ import type { JobTrackerDetail } from "@/lib/job-tracker/types";
 import {
   getMergedResumeForJob,
   getJobResumeTailorForEntry,
+  getBaseResumeForJobExport,
   updateJobReviewDocuments,
 } from "@/lib/profile/job-resume-tailor";
 import { buildCoverLetterDocumentPatch } from "@/lib/job-tracker/persist-cover-letter";
@@ -152,6 +153,7 @@ export async function exportReviewDocument(input: {
   jobId: string;
   kind: ReviewDocumentKind;
   format: ReviewExportFormat;
+  profileSource?: "tailored" | "base";
 }): Promise<ReviewExportActionResult> {
   const userId = await requireUserId();
   if (!userId) return { success: false, error: "Sign in required", code: "unauthorized" };
@@ -159,7 +161,11 @@ export async function exportReviewDocument(input: {
   const job = await loadJobRow(userId, input.jobId);
   if (!job) return { success: false, error: "Job not found", code: "not_found" };
 
-  const merged = await getMergedResumeForJob(userId, input.jobId);
+  const profileSource = input.profileSource ?? "tailored";
+  const merged =
+    profileSource === "base"
+      ? await getBaseResumeForJobExport(userId, input.jobId)
+      : await getMergedResumeForJob(userId, input.jobId);
   const tailor = job.resumeTailor;
 
   if (input.kind === "resume") {

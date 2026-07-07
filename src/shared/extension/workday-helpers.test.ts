@@ -4,6 +4,8 @@ import {
   isWorkdayApplyStepUrl,
   parseWorkdayCompanyFromUrl,
   parseWorkdayTitleFromUrl,
+  resolveWorkdayApplyUrl,
+  workdayApplyStepNeedsDescription,
 } from "./workday-helpers";
 
 describe("workday helpers", () => {
@@ -54,5 +56,20 @@ describe("workday helpers", () => {
     expect(parseWorkdayCompanyFromUrl(fidelityUrl)).toBe("Fidelity Careers");
     expect(parseWorkdayTitleFromUrl(fidelityUrl)).toContain("Director");
     expect(humanizeWorkdaySiteName("FidelityCareers")).toBe("Fidelity");
+  });
+
+  it("builds apply URL from posting path", () => {
+    const posting =
+      "https://walmart.wd504.myworkdayjobs.com/en-US/WalmartExternal/job/Bentonville-AR/Senior-Manager_R-2522742";
+    expect(resolveWorkdayApplyUrl(posting)).toBe(
+      "https://walmart.wd504.myworkdayjobs.com/en-US/WalmartExternal/job/Bentonville-AR/Senior-Manager_R-2522742/apply",
+    );
+  });
+
+  it("flags apply-step pages missing description", () => {
+    const applyUrl =
+      "https://cvshealth.wd1.myworkdayjobs.com/CVS_Health_Careers/job/TX/Lead-Director_R0942300/apply";
+    expect(workdayApplyStepNeedsDescription(applyUrl, "short")).toBe(true);
+    expect(workdayApplyStepNeedsDescription(applyUrl, "x".repeat(200))).toBe(false);
   });
 });

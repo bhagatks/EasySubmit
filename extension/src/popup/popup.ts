@@ -1,4 +1,4 @@
-import { BRAND } from "@shared/brand";
+import { BRAND, EXTENSION_STORE_URL } from "@shared/brand";
 import { extensionPopupButtonCss } from "@shared/brand-buttons";
 import { EXTENSION_MESSAGE } from "@shared/extension/constants";
 import { isExtensionForceUpgradeRequired } from "@shared/extension/extension-force-upgrade";
@@ -26,8 +26,7 @@ const statsLineEl = document.getElementById("stats-line")!;
 
 let headerRefreshBtn = document.getElementById("header-refresh") as HTMLButtonElement | null;
 
-const forceUpgradeUpdateUrl =
-  "https://chromewebstore.google.com/detail/ask-gemini/daeaddalijienfjkhigbifmbdckbohjg";
+let forceUpgradeUpdateUrl = EXTENSION_STORE_URL;
 
 function hidePanelLoading(): void {
   panelLoading.classList.add("hidden");
@@ -263,6 +262,9 @@ async function bootstrapPopup(): Promise<void> {
     const runtimeConfig = config ?? {};
 
     hidePanelLoading();
+
+    forceUpgradeUpdateUrl =
+      runtimeConfig.forceUpgradeUpdateUrl?.trim() || EXTENSION_STORE_URL;
 
     if (isExtensionForceUpgradeRequired(runtimeConfig, getExtensionVersion())) {
       const email = runtimeConfig.connectedUser?.email?.trim() ?? null;

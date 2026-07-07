@@ -18,6 +18,10 @@ import {
   canExportReviewDocument,
   canOpenLatexEditor,
 } from "@/lib/job-tracker/review-readiness";
+import {
+  enhanceFeedbackTierLabel,
+  type EnhanceFeedbackTier,
+} from "@/lib/job-tracker/enhance/enhance-feedback-tier";
 import { jobTrackerReviewStudioUrl, JOB_RESUME_STUDIO_LABEL } from "@/lib/job-tracker/review-screen-ui";
 import type { JobTrackerDetail } from "@/lib/job-tracker/types";
 import { DEFAULT_STUDIO_ZOOM } from "@/lib/resume/studio-preview-zoom";
@@ -50,10 +54,12 @@ function PanelPlaceholder({
 
 type EnhanceFeedback = {
   engineMode: "ai" | "deterministic";
+  feedbackTier?: EnhanceFeedbackTier;
   atsDelta: { before: number; after: number } | null;
   summary: string | null;
   warning?: string | null;
   coherenceWarnings?: string[] | null;
+  suggestedTargetRoles?: string[] | null;
   coverageAfter?: import("@/lib/job-tracker/enhance/enhance-brief").JdCoverageReport | null;
 };
 
@@ -72,27 +78,33 @@ function readPersistedAiWarning(entry: JobTrackerDetail): string | null {
 function EnhanceFeedbackCard({ feedback }: { feedback: EnhanceFeedback }) {
   const delta = feedback.atsDelta;
   const improved = delta && delta.after > delta.before;
+  const tier = feedback.feedbackTier ?? (feedback.engineMode === "deterministic" ? "formatting" : "success");
+  const tierLabel = enhanceFeedbackTierLabel(tier);
+  const roleMismatch = tier === "role_mismatch";
 
   return (
     <div
       className={
-        feedback.engineMode === "deterministic"
+        roleMismatch || feedback.engineMode === "deterministic"
           ? "absolute left-2 right-2 top-11 z-10 rounded-xl border border-amber-500/30 bg-[oklch(0.16_0.04_268/0.95)] px-3 py-2.5 text-xs shadow-lg"
           : "absolute left-2 right-2 top-11 z-10 rounded-xl border border-mint/30 bg-[oklch(0.16_0.04_268/0.95)] px-3 py-2.5 text-xs shadow-lg"
       }
     >
       <div className="flex items-start gap-2">
-        {feedback.engineMode === "deterministic" ? (
+        {roleMismatch || feedback.engineMode === "deterministic" ? (
           <Bot className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" aria-hidden="true" />
         ) : (
           <TrendingUp className="mt-0.5 h-3.5 w-3.5 shrink-0 text-mint" aria-hidden="true" />
         )}
         <div className="min-w-0 flex-1">
-          {feedback.engineMode === "deterministic" ? (
-            <p className="font-medium text-amber-300">Enhanced without AI (rules engine)</p>
-          ) : (
-            <p className="font-medium text-mint">Resume enhanced</p>
-          )}
+          <p className={roleMismatch ? "font-medium text-amber-300" : feedback.engineMode === "deterministic" ? "font-medium text-amber-300" : "font-medium text-mint"}>
+            {tier === "formatting" && feedback.engineMode === "deterministic"
+              ? "Enhanced without AI (rules engine)"
+              : tierLabel}
+          </p>
+          {tier === "formatting" && feedback.engineMode === "deterministic" ? (
+            <p className="mt-0.5 text-muted-foreground">{tierLabel}</p>
+          ) : null}
 
           {delta ? (
             <div className="mt-1 flex items-center gap-1.5">
@@ -135,6 +147,11 @@ function EnhanceFeedbackCard({ feedback }: { feedback: EnhanceFeedback }) {
               {note}
             </p>
           ))}
+          {feedback.suggestedTargetRoles && feedback.suggestedTargetRoles.length > 0 ? (
+            <p className="mt-1 text-amber-300/90">
+              Roles that fit your experience better: {feedback.suggestedTargetRoles.join(" · ")}
+            </p>
+          ) : null}
         </div>
       </div>
     </div>
@@ -154,10 +171,15 @@ export function ReviewResumePanel({ entry, onRefresh, aiEnabled }: ReviewResumeP
   const [zoom, setZoom] = useState(DEFAULT_STUDIO_ZOOM);
 
   const runExport = useCallback(
-    async (format: "pdf" | "word") => {
-      setBusy(format);
+    async (format: "pdf" | "word", profileSource: "tailored" | "base" = "tailored") => {
+      setBusy(profileSource === "base" ? `base-${format}` : format);
       setError(null);
-      const result = await exportReviewDocument({ jobId: entry.id, kind: "resume", format });
+      const result = await exportReviewDocument({
+        jobId: entry.id,
+        kind: "resume",
+        format,
+        profileSource,
+      });
       setBusy(null);
       if (!result.success) {
         setError(result.error);
@@ -213,6 +235,10 @@ export function ReviewResumePanel({ entry, onRefresh, aiEnabled }: ReviewResumeP
     resumeHasContent: Boolean(preview.targetTitle?.trim() || preview.preview.summary?.trim()),
     coverLetter: null,
   });
+
+  const showBaseProfileExport =
+    entry.enhanceSessionMeta?.engineMode === "deterministic" ||
+    enhanceFeedback?.engineMode === "deterministic";
 
   const actions: DocumentToolbarAction[] = [
     {
@@ -284,12 +310,14 @@ export function ReviewResumePanel({ entry, onRefresh, aiEnabled }: ReviewResumeP
           });
           setEnhanceFeedback({
             engineMode: result.engineMode ?? "ai",
+            feedbackTier: result.feedbackTier,
             atsDelta: result.readinessDelta
               ? { before: result.readinessDelta.before, after: result.readinessDelta.after }
               : result.atsDelta ?? null,
             summary: result.enhanceSummary ?? result.fallbackSummary ?? null,
             warning: result.warning ?? null,
             coherenceWarnings: result.coherenceWarnings ?? null,
+            suggestedTargetRoles: result.suggestedTargetRoles ?? null,
             coverageAfter: result.coverageAfter ?? null,
           });
           onRefresh();
@@ -314,6 +342,30 @@ export function ReviewResumePanel({ entry, onRefresh, aiEnabled }: ReviewResumeP
       busy: busy === "pdf",
       onClick: () => void runExport("pdf"),
     },
+    ...(showBaseProfileExport
+      ? [
+          {
+            id: "base-word",
+            label: "Base Word",
+            icon: "word" as const,
+            variant: "outline" as const,
+            disabled: !canExport,
+            busy: busy === "base-word",
+            title: "Export your base profile without JD keyword injection",
+            onClick: () => void runExport("word", "base"),
+          },
+          {
+            id: "base-pdf",
+            label: "Base PDF",
+            icon: "pdf" as const,
+            variant: "outline" as const,
+            disabled: !canExport,
+            busy: busy === "base-pdf",
+            title: "Export your base profile without JD keyword injection",
+            onClick: () => void runExport("pdf", "base"),
+          },
+        ]
+      : []),
     {
       id: "latex",
       label: "LaTeX",

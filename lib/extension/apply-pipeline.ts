@@ -21,6 +21,7 @@ import {
   isFeatureEnabled,
 } from "@/src/lib/services/feature-flags-service";
 import { entryHasAiIncompleteTailor } from "@/lib/extension/apply-pipeline-ai-gate";
+import { V1_OFFER_AUTOFILL_PHASE } from "@/lib/extension/v1-apply-scope";
 import {
   readEntryDegradedEnhanceOutcome,
   type EntryDegradedEnhanceOutcome,
@@ -210,6 +211,7 @@ function shouldOfferAutofillPhase(
   autoApplyUserSwitch: boolean,
   platform: string | null,
 ): boolean {
+  if (!V1_OFFER_AUTOFILL_PHASE) return false;
   return autoApplyEnabled && autoApplyUserSwitch && isOneClickPlatform(platform);
 }
 

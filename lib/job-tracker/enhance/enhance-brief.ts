@@ -141,6 +141,8 @@ export type EnhanceSessionMeta = {
   skillsGaps?: string[];
   readinessDelta?: { before: number; after: number };
   coherenceWarnings?: string[];
+  suggestedTargetRoles?: string[];
+  isCrossDomain?: boolean;
   resumeRulesVersion?: 2;
   pageLengthPreference?: string;
   aiCallLedger?: import("@/lib/ai/call-kernel/types").AiCallLedgerEntry[];

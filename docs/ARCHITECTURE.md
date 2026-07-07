@@ -184,6 +184,9 @@ Dark-first Trust Tech palette in `app/globals.css`: surface `oklch(0.16 0.04 268
 
 | Date | Summary |
 |------|---------|
+| 2026-07-06 | **Extension launch runbook** — `docs/EXTENSION_LAUNCH_RUNBOOK.md` (dev § A + prod § B–C); linked from `PROD_CUTOVER`, `DEVELOPMENT_WORKFLOW`, `DEPLOYMENT`, `EXTENSION_BUILD`. |
+| 2026-07-06 | **Chrome Web Store live** — public listing `ondcaafebdfegfkmdggeklofnmbijmlc`; store URL wired through brand, dashboard CTAs, extension popup/card force-upgrade; CI manual `publish_to_cws`. |
+| 2026-07-06 | **v1/v2 scope** — paid subscriptions go-live and platform autofill deferred to v2; scrapers + pricing marketing remain v1 (`decisions.md`). |
 | 2026-07-06 | **Enhance AI closeout** — custom BYOK tier routing (no bundled gpt-4o* defaults), kernel rate-limit retry delay, OpenRouter `response_format: json_object`, JD extract unavailable note, Phase 5 partial. |
 | 2026-07-06 | **Enhance AI call kernel + failure UX v1** — `lib/ai/call-kernel/` unified classify → decide → retry/escalate for BYOK + system pool (slot 0 → slot 1 DeepSeek); parse validation in-call; `aiCallLedger` on `enhanceMeta`; `resolveEnhanceOutcome()` warnings + actions surfaced on tracker/Review/extension/Studio; `enhance:trace:prod` prints ledger first. |
 | 2026-07-06 | **Custom Endpoint BYOK model ID** — optional manual Model ID on Ignition Gate / Settings vault; custom chat-probe uses user model instead of bundled gpt-4o*; discovery no longer falls back to OpenAI defaults for `custom` provider. |

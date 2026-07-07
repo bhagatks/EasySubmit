@@ -10,7 +10,7 @@ import {
   parseLinkedInCompanyFromDoc,
   parseLinkedInLocationFromDoc,
 } from "./linkedin-helpers";
-import { isWorkdayJobUrl, scrapeWorkdayCompany } from "./workday-helpers";
+import { isWorkdayJobUrl, scrapeWorkdayCompany, workdayApplyStepNeedsDescription, workdayApplyStepDescriptionHint } from "./workday-helpers";
 import type { ScrapedJobMetadata } from "./types";
 
 function readOgTitle(doc: Document): string | null {
@@ -109,12 +109,19 @@ export function enrichScrapedJobMetadata(
     }
   }
 
+  let scrapeWarning = metadata.scrapeWarning ?? null;
+  if (workdayApplyStepNeedsDescription(url, metadata.description)) {
+    scrapeWarning = workdayApplyStepDescriptionHint();
+    enrichments.push("workday.apply_step.description_hint");
+  }
+
   return {
     metadata: {
       ...metadata,
       title,
       company,
       location,
+      scrapeWarning,
     },
     enrichments,
   };

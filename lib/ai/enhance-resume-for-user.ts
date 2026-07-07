@@ -58,6 +58,8 @@ export type EnhanceResumeProfileSuccess = {
   readinessDelta?: EnhanceSessionMeta["readinessDelta"];
   sessionMeta?: EnhanceSessionMeta;
   coherenceWarnings?: string[];
+  suggestedTargetRoles?: string[];
+  isCrossDomain?: boolean;
 };
 
 export type EnhanceResumeProfileFailure = {

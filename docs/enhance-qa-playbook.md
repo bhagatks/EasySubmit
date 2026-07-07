@@ -258,15 +258,15 @@ Track status here and in [`ACTION_ITEMS.md`](./ACTION_ITEMS.md). Update status w
 | D-19 | Tier-3 skills use `isKnownSkillToken()` fragments not full labels | `jd-skills-deterministic.ts` | done |
 | D-20 | AI summary aggressive vs conservative bullets — inconsistent grounding policy | AI prompt + validators | done |
 | D-21 | Enhance journey debug logs not documented for QA | Dev env · `enhance-logger.ts` | done |
-| D-22 | No automated regression fixture for 3-artifact protocol | Tests · `lib/job-tracker/enhance/` | partial — unit slices in `enhance-qa-case-001.test.ts`; full pipeline A/B/C **Todo** (see `ACTION_ITEMS.md`) |
+| D-22 | No automated regression fixture for 3-artifact protocol | `scripts/enhance-qa-pipeline-regression.ts` | partial — deterministic slices; live A/B/C manual |
 
 ### Product / process (not pure code)
 
 | ID | Item | Status |
 |----|------|--------|
-| P-01 | Suggest realistic target roles on extreme cross-domain mismatch | open |
-| P-02 | Feedback card tiers: formatting vs role-aligned | partial (coherence warnings + ATS cap) |
-| P-03 | Export base profile without JD injection when AI off (optional) | open |
+| P-01 | Suggest realistic target roles on extreme cross-domain mismatch | done — `suggest-target-roles.ts` + Review feedback card |
+| P-02 | Feedback card tiers: formatting vs role-aligned | done — `enhance-feedback-tier.ts` + `EnhanceFeedbackCard` |
+| P-03 | Export base profile without JD injection when AI off (optional) | done — `profileSource: 'base'` export + Base PDF/Word actions |
 
 ---
 

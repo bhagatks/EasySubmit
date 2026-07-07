@@ -20,7 +20,7 @@ import { findProfileForUser } from "@/lib/profile/resume-profile-core";
 import { prisma } from "@/lib/prisma";
 import type { JDIntelligence } from "@/lib/job-tracker/jd/jd-intelligence";
 import { resolveEnhanceContextRequirement } from "@/lib/job-tracker/enhance/max-ats-helpers";
-import { createEnhanceTraceId, logEnhance } from "@/src/lib/ai/engine/enhance-logger";
+import { resolveEnhanceFeedbackTier } from "@/lib/job-tracker/enhance/enhance-feedback-tier";
 import { ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
 
 export type EnhanceResumeActionResult =
@@ -40,6 +40,9 @@ export type EnhanceResumeActionResult =
       aiBlockCode?: string;
       coverageAfter?: import("@/lib/job-tracker/enhance/enhance-brief").JdCoverageReport;
       coherenceWarnings?: string[];
+      suggestedTargetRoles?: string[];
+      feedbackTier?: import("@/lib/job-tracker/enhance/enhance-feedback-tier").EnhanceFeedbackTier;
+      isCrossDomain?: boolean;
     }
   | { success: false; error: string; code?: string; byokAvailable?: boolean };
 
@@ -224,6 +227,13 @@ export async function enhanceJobResumeForUser(
     aiBlockCode: enhanced.aiBlockCode,
     coverageAfter: enhanced.coverageAfter,
     coherenceWarnings: enhanced.coherenceWarnings,
+    suggestedTargetRoles: enhanced.sessionMeta?.suggestedTargetRoles,
+    isCrossDomain: enhanced.sessionMeta?.isCrossDomain,
+    feedbackTier: resolveEnhanceFeedbackTier({
+      engineMode: enhanced.engineMode,
+      coherenceWarnings: enhanced.coherenceWarnings,
+      isCrossDomain: enhanced.sessionMeta?.isCrossDomain,
+    }),
   };
 }
 

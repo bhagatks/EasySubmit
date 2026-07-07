@@ -1,6 +1,8 @@
 # Action Items
 
-Last reconciled: **2026-07-05** (code on `main` @ `79f52313`). Shipped features → [`PROJECT_STATE.md`](./PROJECT_STATE.md). Agent coordination → [`ACTIVE_WORK.md`](./ACTIVE_WORK.md).
+Last reconciled: **2026-07-06**. Shipped features → [`PROJECT_STATE.md`](./PROJECT_STATE.md). Agent coordination → [`ACTIVE_WORK.md`](./ACTIVE_WORK.md).
+
+**v1 vs v2 scope:** [`decisions.md`](./decisions.md) — v2 includes **paid subscriptions go-live** and **platform autofill** (scrapers stay v1). **Chrome Web Store publish — done** (2026-07-06).
 
 ## QA & E2E testing (priority)
 
@@ -57,14 +59,14 @@ End-to-end **job tracker + tailor** flows — assumes a base resume profile exis
 
 ## Deploy to Vercel + Chrome Web Store
 
-**Guides:** [`DEPLOYMENT.md`](./DEPLOYMENT.md) · [`DEPLOYMENT_TROUBLESHOOTING.md`](./DEPLOYMENT_TROUBLESHOOTING.md) · [`PROD_CUTOVER.md`](./PROD_CUTOVER.md)
+**Guides:** [`DEPLOYMENT.md`](./DEPLOYMENT.md) · [`DEPLOYMENT_TROUBLESHOOTING.md`](./DEPLOYMENT_TROUBLESHOOTING.md) · [`PROD_CUTOVER.md`](./PROD_CUTOVER.md) · [`EXTENSION_LAUNCH_RUNBOOK.md`](./EXTENSION_LAUNCH_RUNBOOK.md) (**dev + prod extension steps**)
 
 | Step | Status | Notes |
 |------|--------|-------|
 | Env injection refactor (`run easy`, no file swap) | **Done** | `docs/DEVELOPMENT_WORKFLOW.md` |
 | **Env domains** (PostHog vs DATABASE_URL) | **Done** | `lib/env/env-resolution.mjs`, `docs/rules/env-domains.md`; Jul 2026 |
 | Web CI workflow (tests only) | **Done** | `.github/workflows/ci.yml` |
-| Extension CI workflow (build + signed CRX artifact) | **Done** | `.github/workflows/deploy.yml` — add `CHROME_CRX_PRIVATE_KEY` secret; CWS publish manual until listing approved |
+| Extension CI workflow (build + signed CRX artifact) | **Done** | `.github/workflows/deploy.yml` — manual workflow + `publish_to_cws` after each release |
 | Vercel Production env vars | **Done** | Dashboard only — **do not re-sync on each deploy** |
 | `prisma.config.ts` / `DIRECT_URL` build fix | **Done** | No `directUrl` in config; migrate via `prisma-migrate-deploy.mjs` |
 | Prod web deploy (`www.easysubmit.ai`) | **Done** | Jun 2026 |
@@ -74,7 +76,7 @@ End-to-end **job tracker + tailor** flows — assumes a base resume profile exis
 | Run Prisma migrate on production DB | **Done** | Via Vercel build (`prisma-migrate-deploy.mjs`) |
 | **RLS on public tables** (`20260702120000_enable_rls_public_tables`) | **Pending** | Ships on next Vercel deploy; closes Supabase linter finding; app uses BYPASSRLS via pooler |
 | Supabase Storage bucket `avatars` | **Done** | Bucket exists on prod; `npm run prod:ensure-avatars-bucket` |
-| Chrome Web Store publish | **Blocked** | Listing under review — manual workflow + `publish_to_cws` after approval |
+| Chrome Web Store publish | **Done** | Live listing `ondcaafebdfegfkmdggeklofnmbijmlc` — **ongoing releases:** [`EXTENSION_LAUNCH_RUNBOOK.md`](./EXTENSION_LAUNCH_RUNBOOK.md) § C |
 | **PostHog analytics — Vercel prod** | **Done** | Key synced; build gate + `npm run prod:verify-posthog` |
 | **PostHog UI settings** (both projects) | **Closeout** | `npm run analytics:closeout` — PostHog keys only; see [`docs/rules/env-domains.md`](./rules/env-domains.md) |
 | **PostHog dashboards** | **Closeout** | Included in `analytics:closeout` |
@@ -107,21 +109,24 @@ Organization approved **2026-07-05**. Prod verified **2026-07-06** — see [`COM
 | Wire `fetchRoleVocabulary()` into enhance brief + pipeline debug | **Done** | Resume track `pre_role_vocab`; merge-skills-grouped Group 2 |
 | Verify Vocabulary step on a live Apply run | **Done** | Prod Apply run — `pre_role_vocab` `source: api` (not `fallback`) |
 
-### Pricing & plan marketing copy (v1.0) — **complete**
+### Pricing & plan marketing copy (v1.0) — **complete (v1); paid go-live v2**
 
 Single source: `lib/pricing/plan-display.ts` + `components/pricing/PricingPlansSection.tsx`.
 
+**v1:** marketing copy, `/pricing`, `/select-plan`, landing features, upgrade nudge UI.  
+**v2:** live paid subscribe / billing go-live (`subscriptions.enabled`).
+
 | Item | Status | Notes |
 |------|--------|-------|
-| Shared plan copy + cards | **Done** | `PRICING_PAGE_COPY`, FAQ (3), 5 visible + expandable lists (18 free / 19 paid), savings under M/Y price, paid “Coming Soon” when `!subscriptions.enabled` |
-| `/pricing` | **Done** | `PricingPlansSection showFaq` |
-| `/select-plan` | **Done** | Same plans/copy + footers as pricing |
-| Landing `/` | **Done** | Hero + metadata + features from `FREE_PLAN_VISIBLE_FEATURES`; full 4-card grid via `PricingPlansSection` |
-| `/extension` | **Done** | Subhead/footers from `PRICING_PAGE_COPY`; feature tiles use free-plan strings; link to `/pricing` |
-| `app_config` display features JSON | **Done** | Feature strings in `plan-display.ts` |
-| `/dashboard/billing` + live subscribe CTAs | **Done** | |
-| Upgrade nudge UI (`resolve-subscription`) | **Done** | |
-| FAQ “What is EasySubmit AI?” | **Done** | |
+| Shared plan copy + cards | **Done (v1)** | `PRICING_PAGE_COPY`, FAQ (3), 5 visible + expandable lists (18 free / 19 paid), savings under M/Y price, paid “Coming Soon” when `!subscriptions.enabled` |
+| `/pricing` | **Done (v1)** | `PricingPlansSection showFaq` |
+| `/select-plan` | **Done (v1)** | Same plans/copy + footers as pricing |
+| Landing `/` | **Done (v1)** | Hero + metadata + features from `FREE_PLAN_VISIBLE_FEATURES`; full 4-card grid via `PricingPlansSection` |
+| `/extension` | **Done (v1)** | Subhead/footers from `PRICING_PAGE_COPY`; feature tiles use free-plan strings; link to `/pricing` |
+| `app_config` display features JSON | **Done (v1)** | Feature strings in `plan-display.ts` |
+| `/dashboard/billing` + live subscribe CTAs | **v2** | UI exists; flip when subscriptions launch |
+| Upgrade nudge UI (`resolve-subscription`) | **Done (v1)** | |
+| FAQ “What is EasySubmit AI?” | **Done (v1)** | |
 
 ### North-star resume enhance — implementation tracker
 
@@ -211,38 +216,41 @@ Full spec: **[`docs/JD_BRAIN_ARCHITECTURE.md`](./JD_BRAIN_ARCHITECTURE.md)**
 
 ## ATS Platform Support Roadmap
 
-### Core (always supported)
-| Platform | Scraper | Autofill | ATS Rules |
-|---|---|---|---|
-| LinkedIn | ✓ Done | Pending | Pending |
-| Indeed | ✓ Done | Pending | Pending |
-| Greenhouse | ✓ Done | Pending | ✓ partial |
-| Workday | ✓ Done | v2/v3 — engine in `workday-autofill.ts` (not v1 product) | ✓ partial |
-| Generic fallback | ✓ Done | — | — |
+**v1:** scrapers + keyword/readiness strategy (capture → tailor → manual apply).  
+**v2:** per-platform autofill adapters — see [`decisions.md`](./decisions.md).
 
-### Phase 1
+### Core (always supported — scraper v1)
 | Platform | Scraper | Autofill | ATS Rules |
 |---|---|---|---|
-| Lever | ✓ (ExtensionPlatform) | Pending | Pending |
-| Ashby | ✓ (ExtensionPlatform) | Pending | Pending |
-| iCIMS | ✓ (generic selectors) | Pending | ✓ partial |
-| SmartRecruiters | ✓ (ExtensionPlatform) | Pending | Pending |
-| Taleo | ✓ (generic selectors) | Pending | ✓ partial |
-| Jobvite | ✓ (ExtensionPlatform) | Pending | ✓ partial |
+| LinkedIn | ✓ Done (v1) | **v2** | **v2** |
+| Indeed | ✓ Done (v1) | **v2** | **v2** |
+| Greenhouse | ✓ Done (v1) | **v2** | ✓ partial (v1) |
+| Workday | ✓ Done (v1) | **v2** — engine in `workday-autofill.ts` | ✓ partial (v1) |
+| Generic fallback | ✓ Done (v1) | — | — |
 
-### Phase 2 (adapters done, autofill pending)
+### Phase 1 (scraper v1 / autofill v2)
 | Platform | Scraper | Autofill | ATS Rules |
 |---|---|---|---|
-| SuccessFactors | ✓ JSON-LD + DOM | Pending | Pending |
-| Workable | ✓ JSON-LD + DOM | Pending | Pending |
-| BambooHR | ✓ DOM | Pending | Pending |
-| ADP | ✓ DOM | Pending | Pending |
-| Rippling | ✓ DOM | Pending | Pending |
-| JazzHR | ✓ DOM | Pending | Pending |
-| Paylocity | ✓ DOM | Pending | Pending |
-| Paycom | ✓ DOM | Pending | Pending |
-| ClearCompany | ✓ DOM | Pending | Pending |
-| Teamtailor | ✓ JSON-LD + DOM | Pending | Pending |
+| Lever | ✓ (v1) | **v2** | **v2** |
+| Ashby | ✓ (v1) | **v2** | **v2** |
+| iCIMS | ✓ (v1) | **v2** | ✓ partial (v1) |
+| SmartRecruiters | ✓ (v1) | **v2** | **v2** |
+| Taleo | ✓ (v1) | **v2** | ✓ partial (v1) |
+| Jobvite | ✓ (v1) | **v2** | ✓ partial (v1) |
+
+### Phase 2 (scraper v1 / autofill v2)
+| Platform | Scraper | Autofill | ATS Rules |
+|---|---|---|---|
+| SuccessFactors | ✓ JSON-LD + DOM (v1) | **v2** | **v2** |
+| Workable | ✓ JSON-LD + DOM (v1) | **v2** | **v2** |
+| BambooHR | ✓ DOM (v1) | **v2** | **v2** |
+| ADP | ✓ DOM (v1) | **v2** | **v2** |
+| Rippling | ✓ DOM (v1) | **v2** | **v2** |
+| JazzHR | ✓ DOM (v1) | **v2** | **v2** |
+| Paylocity | ✓ DOM (v1) | **v2** | **v2** |
+| Paycom | ✓ DOM (v1) | **v2** | **v2** |
+| ClearCompany | ✓ DOM (v1) | **v2** | **v2** |
+| Teamtailor | ✓ JSON-LD + DOM (v1) | **v2** | **v2** |
 
 ### Novel Detection Features (done 2026-06-22)
 | Feature | File | Status |
@@ -280,9 +288,9 @@ Full specs: **[`docs/JOB_TRACKER.md`](./JOB_TRACKER.md)** · Workday E2E (cancel
 | Workday scraper hardening (W1–W10) | Partial — apply URL canonicalize + company fallback |
 | Enhance AI in pipeline (Phase B) | Done — B1–B7 (B6 partial: card busy label + polling) |
 | Workday autofill port (Phase C) | **Cancelled** — one-click apply out of scope |
-| **Part 1 — Manual detection & force capture** | **Partial** — inject-on-miss (`popup.ts`), `forceShowCard()` manual launch, `GET_TAB_STATUS`, `Add manually` on `no_job` **done**; UX polish 1.3–1.4 per `EXTENSION_POPUP_REDESIGN.md` remains |
+| **Part 1 — Manual detection & force capture** | **Done** | inject-on-miss, `forceShowCard()`, `Add manually` on `no_job`, `Save to tracker` CTA — [`EXTENSION_POPUP_REDESIGN.md`](./EXTENSION_POPUP_REDESIGN.md) |
 | **Part 2 — Extension popup redesign** | **Done** — `GET_JOB_STATS`, account chip, tab status, force-upgrade panel (`popup.ts`) |
-| Extension popup one-click toggle | **Done** — removed from popup; legacy `autoApplyUserSwitch` still in Settings (**remove pending**, `decisions.md`) |
+| Extension popup one-click toggle | **Done** — removed from popup; Settings UI no longer exposes `autoApplyUserSwitch` (DB column legacy only) |
 | Extension reconnect UX in popup/settings | Done — popup shows "Connect account" / "Reconnect account" with `OPEN_LOGIN` flow; dashboard banner removal was intentional |
 
 ### Dashboard UX — follow-ups (Jun 2026)

@@ -9,7 +9,8 @@ EasySubmit has **two independent production deploy paths**. They share the same 
 
 Local dev is separate: [DEVELOPMENT_WORKFLOW.md](./DEVELOPMENT_WORKFLOW.md) · env vars: [ENV.md](./ENV.md) · **env domains:** [rules/env-domains.md](./rules/env-domains.md)
 
-**Live prod web:** https://www.easysubmit.ai
+**Live CWS listing:** `ondcaafebdfegfkmdggeklofnmbijmlc` — [install link](https://chromewebstore.google.com/detail/ondcaafebdfegfkmdggeklofnmbijmlc)  
+**Launch runbook (dev + prod steps):** [`EXTENSION_LAUNCH_RUNBOOK.md`](./EXTENSION_LAUNCH_RUNBOOK.md)
 
 ---
 
@@ -111,7 +112,7 @@ Workflow: [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml)
 
 - **Automatic:** push to `main` when paths change under `extension/**`, `src/shared/**`, or extension build scripts
 - **Manual:** GitHub → Actions → **Chrome Extension — Chrome Web Store** → Run workflow
-- **CWS upload:** off by default on push while the listing is under review. After approval, run the workflow manually and check **publish_to_cws**.
+- **CWS upload:** listing **live** — run workflow manually and check **`publish_to_cws`** after each version bump (push builds artifacts only)
 
 ### Pipeline
 
@@ -133,7 +134,7 @@ Settings → Secrets and variables → Actions:
 | Secret | Purpose |
 |--------|---------|
 | `CHROME_CRX_PRIVATE_KEY` | PEM private key for Verified CRX signing (paste full `easysubmit_private.pem` contents) |
-| `CHROME_EXTENSION_ID` | Extension ID from Chrome Web Store developer dashboard |
+| `CHROME_EXTENSION_ID` | `ondcaafebdfegfkmdggeklofnmbijmlc` (published listing) |
 | `CHROME_CLIENT_ID` | Google OAuth client for **CWS Publish API** (not login OAuth) |
 | `CHROME_CLIENT_SECRET` | CWS OAuth secret |
 | `CHROME_REFRESH_TOKEN` | CWS OAuth refresh token |
@@ -201,5 +202,6 @@ Workflow [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs vitest o
 - [ENV.md](./ENV.md) — env files and local vs prod variables
 - [DEVELOPMENT_WORKFLOW.md](./DEVELOPMENT_WORKFLOW.md) — local dev injection model
 - [PROD_CUTOVER.md](./PROD_CUTOVER.md) — first-time prod DB, OAuth, smoke tests
+- [EXTENSION_LAUNCH_RUNBOOK.md](./EXTENSION_LAUNCH_RUNBOOK.md) — **extension dev smoke + prod CWS publish**
 - [oauth-setup.md](./oauth-setup.md) — Google/LinkedIn redirect URIs
 - [analytics-option-a.md](./analytics-option-a.md) — PostHog keys for web and extension

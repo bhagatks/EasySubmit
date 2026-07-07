@@ -42,7 +42,7 @@ import {
   normalizeExperienceDateFields,
   postProcessSummaryOutput,
 } from "@/lib/job-tracker/enhance/summary-grounding";
-import { repairResumeFormForReadiness } from "@/lib/job-tracker/enhance/readiness-repair";
+import { suggestAlternativeTargetRoles } from "@/lib/job-tracker/enhance/suggest-target-roles";
 import { repairResumeFormV2 } from "@/lib/resume/v2/readiness-repair";
 import { resolveFeature } from "@/lib/features";
 import { diffChangedSections } from "@/src/lib/ai/engine/post-process";
@@ -901,6 +901,13 @@ async function runResumeEnhancePipelineInner(
     actionHref = degradedOutcome.actionHref ?? null;
   }
 
+  const suggestedTargetRoles = suggestAlternativeTargetRoles({
+    form: input.form,
+    jdTargetRole: brief.targetRole,
+    isCrossDomain: brief.summaryIdentity.isCrossDomain,
+    overlapScore: brief.summaryIdentity.overlapScore,
+  });
+
   const sessionMeta: EnhanceSessionMeta = {
     traceId,
     engineMode,
@@ -914,6 +921,9 @@ async function runResumeEnhancePipelineInner(
     skillsGaps: baselineForMeta.coverageAfter?.gaps.map((g) => g.atom.label),
     readinessDelta,
     coherenceWarnings: uniqueCoherenceWarnings.length > 0 ? uniqueCoherenceWarnings : undefined,
+    suggestedTargetRoles:
+      suggestedTargetRoles.length > 0 ? suggestedTargetRoles : undefined,
+    isCrossDomain: brief.summaryIdentity.isCrossDomain || undefined,
     resumeRulesVersion: rulesV2Enabled ? 2 : undefined,
     pageLengthPreference: finalForm.pageLengthPreference,
     aiCallLedger,

@@ -1,6 +1,6 @@
 # Job Tracker & Chrome Extension — Status
 
-Last updated: **2026-07-05** (reconciled with `PROJECT_STATE.md`, `decisions.md`, code on `main`)
+Last updated: **2026-07-06** (reconciled with `PROJECT_STATE.md`, `decisions.md`, code on `main`)
 
 **Screen inventory:** [`SCREENS.md`](./SCREENS.md) · **Open work:** [`ACTION_ITEMS.md`](./ACTION_ITEMS.md) · **v1 scope:** [`decisions.md`](./decisions.md)
 
@@ -36,7 +36,7 @@ Last updated: **2026-07-05** (reconciled with `PROJECT_STATE.md`, `decisions.md`
 
 - MV3 — `extension/` + `src/shared/extension/`; builds: [`EXTENSION_BUILD.md`](./EXTENSION_BUILD.md)
 - **Popup (v1 launcher)** — connect account, tab status, job stats, show card, force-upgrade gate — [`EXTENSION_POPUP_REDESIGN.md`](./EXTENSION_POPUP_REDESIGN.md) Part 2 **done**
-- **Force capture (Part 1)** — inject `content.js` on miss; `forceShowCard()` manual launch; `Add manually` on `no_job` — **partial** (UX polish open)
+- **Force capture (Part 1)** — inject `content.js` on miss; `forceShowCard()` manual launch; `Add manually` on `no_job`; **Save to tracker** CTA — **done** — [`EXTENSION_POPUP_REDESIGN.md`](./EXTENSION_POPUP_REDESIGN.md)
 - In-page card (Shadow DOM), journey states 0–4, pipeline tailor, keyword gap chips on `READY_TO_APPLY`
 - Site adapters: LinkedIn, Indeed, Greenhouse, Workday, Tier 1 + Phase 2 platforms — [`EXTENSION_DETECTION.md`](./EXTENSION_DETECTION.md)
 - API intercept + shadow DOM + answer vault booted in content script
@@ -53,12 +53,12 @@ Last updated: **2026-07-05** (reconciled with `PROJECT_STATE.md`, `decisions.md`
 
 | Item | Status | Notes |
 |------|--------|-------|
-| E2E job + extension flows | **Todo** | `ACTION_ITEMS.md` § Job E2E |
-| Enhance QA sign-off | **Blocked** | System pool health |
-| Chrome Web Store publish | **Blocked** | Listing under review |
-| Extension Part 1 UX polish | **Partial** | `EXTENSION_POPUP_REDESIGN.md` §1.3–1.4 |
-| Remove legacy one-click Settings toggle | **Todo** | `autoApplyUserSwitch` — `decisions.md` |
-| Field Memory Settings UI | **Not started** | `APPLICATION_FIELD_MEMORY.md` |
+| E2E job + extension flows | **Todo** | Manual smoke — [`EXTENSION_LAUNCH_RUNBOOK.md`](./EXTENSION_LAUNCH_RUNBOOK.md) § B7 + `ACTION_ITEMS.md` § Job E2E |
+| Enhance QA sign-off | **Todo** | North-star §14 matrix |
+| ~~Chrome Web Store publish~~ | **Done** | Live 2026-07-06 — `ondcaafebdfegfkmdggeklofnmbijmlc` |
+| ~~Extension Part 1 UX polish~~ | **Done** | `EXTENSION_POPUP_REDESIGN.md` §1.3–1.4 |
+| ~~Remove legacy one-click Settings toggle~~ | **Done** | Not in Settings UI |
+| Field Memory Settings UI | **Done** | `/dashboard/settings` → Application answers (2026-07-06) |
 
 ---
 
@@ -117,3 +117,4 @@ Job page → content.js (detect + card)
 | [`APPLICATION_PROFILE.md`](./APPLICATION_PROFILE.md) | First-apply setup screens |
 | [`APPLICATION_FIELD_MEMORY.md`](./APPLICATION_FIELD_MEMORY.md) | Learned answers |
 | [`DEPLOYMENT.md`](./DEPLOYMENT.md) | Vercel + extension CI |
+| [`EXTENSION_LAUNCH_RUNBOOK.md`](./EXTENSION_LAUNCH_RUNBOOK.md) | Dev smoke + prod CWS publish checklist |

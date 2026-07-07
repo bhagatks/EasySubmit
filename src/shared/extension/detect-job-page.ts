@@ -4,6 +4,7 @@ import { buildFallbackJobMetadata } from "./force-metadata";
 import { isJobPage } from "./is-job-page";
 import { enrichScrapedJobMetadata } from "./scrape-enrichment";
 import { classifyJobPage } from "./page-classifier";
+import { WORKDAY_JOB_URL } from "./workday-helpers";
 
 export function pickAdapter(platform: ExtensionPlatform) {
   return ALL_ADAPTERS.find((a) => a.platform === platform) ?? ALL_ADAPTERS.at(-1)!;
@@ -30,7 +31,15 @@ export function detectJobPage(
   let best: { adapter: (typeof ALL_ADAPTERS)[number]; confidence: number } | null = null;
 
   for (const adapter of candidates) {
-    const confidence = adapter.detectConfidence(doc, url);
+    let confidence = adapter.detectConfidence(doc, url);
+    if (WORKDAY_JOB_URL.test(url)) {
+      if (adapter.platform === "generic") {
+        confidence = Math.min(confidence, 42);
+      }
+      if (adapter.platform === "workday") {
+        confidence = Math.max(confidence, 75);
+      }
+    }
     if (!best || confidence > best.confidence) {
       best = { adapter, confidence };
     }

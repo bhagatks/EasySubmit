@@ -1,5 +1,8 @@
 # Chrome extension — build outputs
 
+**Published listing:** [EasySubmit.ai — Job Tracker](https://chromewebstore.google.com/detail/ondcaafebdfegfkmdggeklofnmbijmlc) · ID `ondcaafebdfegfkmdggeklofnmbijmlc`  
+**Dev vs prod launch steps:** [`EXTENSION_LAUNCH_RUNBOOK.md`](./EXTENSION_LAUNCH_RUNBOOK.md)
+
 EasySubmit ships two **fixed** extension output folders. Each folder always targets one API host — they are never swapped by re-running a different command on the same path.
 
 | Folder | API base | Manifest | Use |
@@ -84,7 +87,12 @@ Store builds use **scoped host permissions** (`extension/cws-host-matches.json`)
 
    Local signing uses `easysubmit_private.pem` at repo root (gitignored). CI uses GitHub secret `CHROME_CRX_PRIVATE_KEY` (full PEM text).
 
-4. Upload `easysubmit-extension.crx` in the [Chrome Web Store developer dashboard](https://chrome.google.com/webstore/devconsole).
+4. Upload via CI (recommended) or manually:
+
+   - **CI:** GitHub Actions → **Chrome Extension — Chrome Web Store** → **`publish_to_cws`**
+   - **Manual:** upload `easysubmit-extension.crx` in the [Chrome Web Store developer dashboard](https://chrome.google.com/webstore/devconsole)
+
+   Step-by-step prod checklist: [`EXTENSION_LAUNCH_RUNBOOK.md`](./EXTENSION_LAUNCH_RUNBOOK.md) § B–C.
 
 CI builds the same artifacts via `.github/workflows/deploy.yml` (download from Actions artifacts).
 

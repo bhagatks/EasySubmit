@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       publish_to_cws:
-        description: Upload signed CRX to Chrome Web Store (enable only after listing is approved)
+        description: Upload signed CRX to Chrome Web Store (manual — check after each release)
         type: boolean
         default: false
   push:

@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   detectWorkdayConfidence,
   parseWorkdayTitleFromUrl,
+  resolveWorkdayApplyUrl,
   scrapeWorkdayTitle,
+  workdayApplyStepNeedsDescription,
 } from "@/src/shared/extension/workday-helpers";
 
 const WALMART_JOB_URL =
@@ -61,5 +63,22 @@ describe("detectWorkdayConfidence", () => {
         "https://walmart.wd504.myworkdayjobs.com/en-US/WalmartExternal/details/Senior-Manager--Program-Management_R-2463788-1",
       ),
     ).toBeGreaterThanOrEqual(78);
+  });
+});
+
+describe("resolveWorkdayApplyUrl", () => {
+  it("appends /apply before query string on posting URLs", () => {
+    expect(resolveWorkdayApplyUrl(WALMART_JOB_URL)).toBe(
+      "https://walmart.wd504.myworkdayjobs.com/en-US/WalmartExternal/job/Bentonville-AR/Senior-Manager--Program-Management_R-2522742/apply?q=manager",
+    );
+  });
+});
+
+describe("workdayApplyStepNeedsDescription", () => {
+  it("flags apply-step pages with short descriptions", () => {
+    const applyUrl =
+      "https://cvshealth.wd1.myworkdayjobs.com/CVS_Health_Careers/job/TX/Lead-Director_R0942300/apply";
+    expect(workdayApplyStepNeedsDescription(applyUrl, "short")).toBe(true);
+    expect(workdayApplyStepNeedsDescription(applyUrl, "x".repeat(200))).toBe(false);
   });
 });

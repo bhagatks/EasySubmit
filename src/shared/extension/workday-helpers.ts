@@ -245,5 +245,58 @@ export function detectWorkdayConfidence(doc: Document, url: string): number {
   if (hasWorkdayApplyAction(doc)) score = Math.max(score, 85);
   if (hasJobSectionKeywords(doc)) score = Math.min(100, score + 5);
   if (scrapeWorkdayTitle(doc, url)) score = Math.max(score, 80);
+  if (isWorkdayApplyStepUrl(url) && scrapeDescription(doc).length < 120) {
+    score = Math.min(score, 72);
+  }
   return score;
+}
+
+export const WORKDAY_DESCRIPTION_MIN_CHARS = 120;
+
+export function workdayApplyStepNeedsDescription(
+  url: string,
+  description: string | null | undefined,
+): boolean {
+  return (
+    isWorkdayApplyStepUrl(url) &&
+    (description?.trim().length ?? 0) < WORKDAY_DESCRIPTION_MIN_CHARS
+  );
+}
+
+export function workdayApplyStepDescriptionHint(): string {
+  return "Open the job posting (not the apply form) to capture the full description, then save again.";
+}
+
+/** Build apply-step URL from a Workday posting URL when the SPA apply button is not yet hydrated. */
+export function resolveWorkdayApplyUrl(postingUrl: string): string | null {
+  if (isWorkdayApplyStepUrl(postingUrl)) return postingUrl;
+  if (!isWorkdayJobUrl(postingUrl)) return null;
+
+  try {
+    const url = new URL(postingUrl);
+    const path = url.pathname.replace(/\/apply\/?$/i, "");
+    if (!/\/(?:job|details)\//i.test(path)) return null;
+    url.pathname = `${path.replace(/\/$/, "")}/apply`;
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+export function resolveWorkdayApplyUrlFromDoc(doc: Document, postingUrl: string): string | null {
+  const btn = findWorkdayApplyButton(doc);
+  const anchor =
+    btn instanceof HTMLAnchorElement
+      ? btn
+      : btn?.closest("a") instanceof HTMLAnchorElement
+        ? (btn.closest("a") as HTMLAnchorElement)
+        : null;
+  const href = anchor?.href?.trim();
+  if (href && isWorkdayApplyStepUrl(href)) return href;
+  return resolveWorkdayApplyUrl(postingUrl);
+}
+
+export function shouldDeferWorkdayScrape(url: string, descriptionLength: number): boolean {
+  return isWorkdayJobUrl(url) && descriptionLength < 80;
 }

@@ -80,7 +80,7 @@ describe("runApplyPipeline", () => {
     vi.mocked(updateJobTrackerStatus).mockResolvedValue({ count: 1 });
   });
 
-  it("runs tailor for Workday and auto-advances to READY_TO_APPLY", async () => {
+  it("runs tailor for Workday and auto-advances to READY_TO_APPLY (v1: no autofill phase)", async () => {
     vi.mocked(captureJob).mockResolvedValue({
       id: "entry-1",
       status: "CAPTURED",
@@ -109,7 +109,7 @@ describe("runApplyPipeline", () => {
       id: "entry-1",
       status: "READY_TO_APPLY",
       phases: ["capture", "tailor"],
-      pendingPhase: "autofill",
+      pendingPhase: null,
       hasTailoredResume: true,
       sourceProfileId: "source-1",
     });
@@ -197,7 +197,7 @@ describe("runApplyPipeline", () => {
     expect(result).toMatchObject({
       success: true,
       status: "READY_TO_APPLY",
-      pendingPhase: "autofill",
+      pendingPhase: null,
       hasTailoredResume: true,
     });
   });
@@ -235,7 +235,7 @@ describe("runApplyPipeline", () => {
       success: true,
       status: "READY_TO_APPLY",
       phases: ["capture"],
-      pendingPhase: "autofill",
+      pendingPhase: null,
     });
   });
 

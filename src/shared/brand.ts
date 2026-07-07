@@ -5,8 +5,10 @@
 
 import { isDevAnalyticsEnvironment } from "@/src/shared/analytics/config";
 
-export const EXTENSION_STORE_URL =
-  "https://chromewebstore.google.com/detail/ask-gemini/daeaddalijienfjkhigbifmbdckbohjg";
+/** Published Chrome Web Store listing ID (EasySubmit.ai — Job Tracker). */
+export const EXTENSION_ID = "ondcaafebdfegfkmdggeklofnmbijmlc";
+
+export const EXTENSION_STORE_URL = `https://chromewebstore.google.com/detail/${EXTENSION_ID}`;
 
 /** Per-job tailored resume editor — dashboard + extension label. */
 export const RESUME_STUDIO_LABEL = "Resume Studio" as const;

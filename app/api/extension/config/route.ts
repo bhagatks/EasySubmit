@@ -76,5 +76,6 @@ export async function GET(request: NextRequest) {
     forceUpgradeEnabled: forceUpgrade.enabled,
     minExtensionVersion: forceUpgrade.minVersion,
     forceUpgradeMessage: forceUpgrade.message,
+    forceUpgradeUpdateUrl: forceUpgrade.updateUrl,
   });
 }

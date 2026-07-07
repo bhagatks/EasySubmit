@@ -112,7 +112,6 @@ export default defineConfig({
         "lib/extension/apply-pipeline.ts",
         "lib/extension/pipeline-tailor.ts",
         "lib/profile/finalizeProfile.ts",
-        "lib/ai/run-deterministic-resume-enhance.ts",
         "lib/job-tracker/ats/onet-service.ts",
         "lib/ai/model-health/refresh-provider-model-health.ts",
         "lib/ai/model-health/resolve-model-candidates.ts",
