@@ -13,7 +13,7 @@ Last updated: **2026-07-07** (gate decisions)
 
 | Decision | Choice |
 |----------|--------|
-| **Git commit** | **After prod** — not before; large working tree stays uncommitted until post–Track 3 |
+| **Git commit** | **Done** — `4dcca93` on `main` (2026-07-07); pushed after coverage gate |
 | **OpenRouter `:free` full suite** | **Hard gate** — must run properly before prod (`scripts/openrouter-free-models-suite.ts`) |
 | **Manual test** | **Before Track 3** — prod blocked until manual pass |
 | **Track 3 prod** | **After** manual test + OpenRouter hard gate |
