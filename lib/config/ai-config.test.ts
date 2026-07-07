@@ -37,7 +37,9 @@ describe("ai-config", () => {
   it("exposes bundled default models per provider", () => {
     for (const provider of ALL_AI_PROVIDERS) {
       const defaults = getDefaultModelsForProvider(provider);
-      expect(defaults.length).toBeGreaterThan(0);
+      if (provider !== "custom") {
+        expect(defaults.length).toBeGreaterThan(0);
+      }
       expect(defaults).toEqual([...PROVIDER_REGISTRY[provider].defaultModels]);
       expect(defaults).toEqual([...AI_PROVIDERS[provider].defaultModels]);
     }

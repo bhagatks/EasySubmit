@@ -55,6 +55,7 @@ describe("job-service active row lookup", () => {
       title: "Engineer",
       canReapply: false,
       issueMessage: null,
+      pipelineAiWarning: null,
     });
     expect(prisma.jobTrackerEntry.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
