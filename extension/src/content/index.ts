@@ -1,4 +1,4 @@
-import { setupBridgeRelay } from "./bridge-relay";
+import { setupBridgeRelay, setupDashboardAuthClearRelay } from "./bridge-relay";
 import { resolveJobTrackerPlatform } from "@shared/ats-platform-detection";
 import { maybeAutoConnectExtensionFromDashboard } from "@shared/extension/dashboard-auto-connect";
 import { buildExtensionBridgePath } from "@shared/extension/connect-account-url";
@@ -221,6 +221,8 @@ type EasySubmitContentWindow = Window & {
     sendResponse: (response?: unknown) => void,
   ) => boolean | void;
   __easysubmitMessageHooked?: boolean;
+  __easysubmitAuthClearedHooked?: boolean;
+  __easysubmitAuthSyncHooked?: boolean;
   __easysubmitObserversBooted?: boolean;
   __easysubmitDomObserversBooted?: boolean;
 };
@@ -5139,15 +5141,33 @@ function startUrlWatch(): void {
 
 if (window.top === window.self) {
   const isBridgePage = window.location.pathname.startsWith("/extension/bridge");
+  const isAppAuthSyncPage = isEasySubmitManagedAppPage();
 
-  const isDashboardPage = window.location.pathname.startsWith("/dashboard") || window.location.pathname.startsWith("/extension");
-
-  if (isDashboardPage) {
+  if (isAppAuthSyncPage) {
     try {
       window.localStorage.setItem(STORAGE_KEYS.extensionId, chrome.runtime.id);
     } catch {
       // ignore private mode / quota errors
     }
+    if (!contentWindow.__easysubmitAuthClearedHooked) {
+      contentWindow.__easysubmitAuthClearedHooked = true;
+      chrome.runtime.onMessage.addListener((message) => {
+        if (message?.action === EXTENSION_MESSAGE.AUTH_SESSION_CLEARED) {
+          connectedAccountEmail = null;
+        }
+      });
+    }
+    if (!contentWindow.__easysubmitAuthSyncHooked) {
+      contentWindow.__easysubmitAuthSyncHooked = true;
+      chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+        if (message?.action !== EXTENSION_MESSAGE.SYNC_DASHBOARD_AUTH) return false;
+        void maybeAutoConnectExtensionFromDashboard(chrome.runtime).then((synced) => {
+          sendResponse({ synced });
+        });
+        return true;
+      });
+    }
+    setupDashboardAuthClearRelay();
     if (!isBridgePage) {
       void maybeAutoConnectExtensionFromDashboard(chrome.runtime);
       document.addEventListener("visibilitychange", () => {

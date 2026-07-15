@@ -114,7 +114,7 @@ export function DashboardExtensionInstallPanel({
 
             <div className="mt-6 space-y-2">
               <p className="text-xs text-muted-foreground">
-                Signed in on this browser? Reload this page — the extension connects automatically.
+                Signed in on this browser? The extension syncs automatically when the dashboard account changes.
               </p>
               <Button variant="outline" className="w-full rounded-xl" asChild>
                 <Link href={extensionBridgeHref(readExtensionIdForDashboard())}>Connect extension</Link>

@@ -6,6 +6,8 @@ Captured from design session 2026-06-26. Updated 2026-06-28 with diagnostic logg
 
 **Enhance AI mission (aligned 2026-07-06, implemented):** Unified **AI call kernel** (response-driven retry/escalate BYOK → system slot 0 → slot 1, shared parse + error classify, attempt ledger) **plus** failure UX (two buckets, surfaces, `resolveEnhanceOutcome`, no user retry v1) → [`docs/enhance-ai-failure-ux.md`](./enhance-ai-failure-ux.md).
 
+**System pool JD extract (2026-07-07):** DeepSeek `generateObject` is unsupported — `generateStructuredWithFallback` text path is used. JD Zod schema defaults optional arrays. OpenRouter free accepts empty `model` field when HTTP 200. Pool logs per-slot failures (`pool.slot.fail`) and includes attempt detail in `pool_exhausted`. Live check: `npm run pool:jd-smoke`.
+
 ---
 
 ## What "Enhance" means

@@ -96,6 +96,8 @@ See also [`PROD_CUTOVER.md`](./PROD_CUTOVER.md) §7.
 
 ## Follow-up (not blocking deploy)
 
+- [ ] Revisit root-folder cleanup after testing to decide which generated/debug artifacts should stay local vs be removed.
+
 ### O*NET Web Services — Vocabulary step
 
 Organization approved **2026-07-05**. Prod verified **2026-07-06** — see [`COMPLETED_ITEMS.md`](./COMPLETED_ITEMS.md).

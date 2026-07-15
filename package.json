@@ -49,6 +49,8 @@
     "db:import-system-keys": "npx --yes tsx scripts/import-system-keys-to-vault.ts",
     "pool:status": "npx --yes tsx scripts/pool-status.ts",
     "pool:reset": "npx --yes tsx scripts/pool-reset-dev.ts",
+    "pool:smoke": "npx --yes tsx scripts/test-system-pool-smoke.ts",
+    "pool:jd-smoke": "npx --yes tsx scripts/pool-jd-smoke.ts",
     "ai:usage": "npx --yes tsx scripts/ai-usage-stats.ts",
     "model-health:refresh": "npx --yes tsx scripts/refresh-model-health.ts",
     "analytics:setup": "node scripts/posthog-setup-dashboards.mjs",

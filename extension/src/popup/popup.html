@@ -61,8 +61,11 @@
       </header>
 
       <div id="panel-disconnected" class="panel hidden">
-        <p class="panel-subtitle">Link this extension from your EasySubmit dashboard.</p>
-        <button id="open-dashboard" type="button" class="btn btn-primary">Open dashboard</button>
+        <p id="disconnected-subtitle" class="panel-subtitle">This extension is not synced with EasySubmit yet. Sign in to connect your account.</p>
+        <div class="panel-actions">
+          <button id="open-sign-in" type="button" class="btn btn-primary">Sign in</button>
+          <button id="open-dashboard" type="button" class="btn btn-secondary">Open dashboard</button>
+        </div>
       </div>
 
       <div id="panel-force-upgrade" class="panel hidden">

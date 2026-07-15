@@ -30,3 +30,23 @@ export function setupBridgeRelay(): void {
 
   window.postMessage({ type: BRIDGE_MESSAGE.ready }, window.location.origin);
 }
+
+/** Relays dashboard sign-out / account-switch auth clears to the background worker. */
+export function setupDashboardAuthClearRelay(): void {
+  window.addEventListener("message", (event) => {
+    if (event.source !== window || event.origin !== window.location.origin) return;
+
+    const data = event.data as { type?: string } | null;
+    if (!data || data.type !== BRIDGE_MESSAGE.clearAuth) return;
+
+    chrome.runtime.sendMessage({ action: EXTENSION_MESSAGE.CLEAR_AUTH }, (response) => {
+      window.postMessage(
+        {
+          type: BRIDGE_MESSAGE.clearAuthResult,
+          success: Boolean((response as { success?: boolean } | undefined)?.success),
+        },
+        window.location.origin,
+      );
+    });
+  });
+}

@@ -43,6 +43,7 @@ import {
   postProcessSummaryOutput,
 } from "@/lib/job-tracker/enhance/summary-grounding";
 import { suggestAlternativeTargetRoles } from "@/lib/job-tracker/enhance/suggest-target-roles";
+import { repairResumeFormForReadiness } from "@/lib/job-tracker/enhance/readiness-repair";
 import { repairResumeFormV2 } from "@/lib/resume/v2/readiness-repair";
 import { resolveFeature } from "@/lib/features";
 import { diffChangedSections } from "@/src/lib/ai/engine/post-process";

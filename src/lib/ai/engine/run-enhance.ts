@@ -854,7 +854,7 @@ export async function callEnhanceObjectModel<T extends z.ZodTypeAny>(
 
   try {
     const poolResult = await executeWithPoolRetry(
-      async ({ apiKey, provider, billingMode }) => {
+      async ({ apiKey, provider, billingMode, modelId }) => {
         if (provider === "openrouter" && billingMode === "free") {
           const free = await callOpenRouterFreeStructured({
             apiKey,
@@ -872,7 +872,7 @@ export async function callEnhanceObjectModel<T extends z.ZodTypeAny>(
             mode: "object" as const,
           };
         }
-        const model = createAiSdkLanguageModel(provider, apiKey, executionModelId);
+        const model = createAiSdkLanguageModel(provider, apiKey, modelId);
         return generateStructuredWithFallback({
           model,
           provider,
@@ -889,7 +889,7 @@ export async function callEnhanceObjectModel<T extends z.ZodTypeAny>(
     const systemResult = {
       object: poolResult.result.object as z.infer<T>,
       tokensUsed: poolResult.result.tokensUsed,
-      modelId: executionModelId,
+      modelId: poolResult.modelId,
       estimatedCost: 0,
       poolCall: {
         slot: poolResult.slot,
@@ -971,6 +971,19 @@ export async function callEnhanceObjectModel<T extends z.ZodTypeAny>(
       errorCode = mapped.code;
     }
 
+    const poolError = err instanceof SystemKeyPoolError ? err : null;
+    const lastAttempt = poolError?.slotAttempts[poolError.slotAttempts.length - 1];
+    const failurePoolCall = lastAttempt
+      ? {
+          slot: lastAttempt.slot,
+          label: lastAttempt.label,
+          provider: lastAttempt.provider,
+          billingMode: lastAttempt.provider === "openrouter" ? "free" : "paid",
+          modelId: executionModelId,
+          keySource: "vault" as const,
+        }
+      : undefined;
+
     logEnhance("engine", "model.object.error", {
       traceId,
       pass,
@@ -978,9 +991,11 @@ export async function callEnhanceObjectModel<T extends z.ZodTypeAny>(
       status: status ?? null,
       message,
       errorCode,
+      slotAttempts: poolError?.slotAttempts.length ?? 0,
     });
     recordEnhanceModelCall({
       route,
+      poolCall: failurePoolCall,
       traceId,
       userId,
       pass,

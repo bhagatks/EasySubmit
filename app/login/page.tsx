@@ -3,6 +3,7 @@
 import { JetBrains_Mono } from "next/font/google";
 import { signIn, signOut } from "next-auth/react";
 import { clearClientSessionState } from "@/lib/auth/sign-out-client";
+import { clearExtensionAuthFromBrowser } from "@/lib/extension/clear-extension-auth";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
@@ -261,6 +262,7 @@ function LoginPanel() {
       // Clear stale EasySubmit client drafts before OAuth and drop any surviving session cookie.
       // clearEasySubmitClientStorage() wipes every sessionStorage key prefixed "easysubmit" —
       // mark terms-accepted after this runs, or the flag it sets gets wiped immediately.
+      await clearExtensionAuthFromBrowser();
       clearClientSessionState();
       await signOut({ redirect: false });
     } catch {

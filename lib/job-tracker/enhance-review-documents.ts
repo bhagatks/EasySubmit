@@ -22,6 +22,7 @@ import type { JDIntelligence } from "@/lib/job-tracker/jd/jd-intelligence";
 import { resolveEnhanceContextRequirement } from "@/lib/job-tracker/enhance/max-ats-helpers";
 import { resolveEnhanceFeedbackTier } from "@/lib/job-tracker/enhance/enhance-feedback-tier";
 import { ENHANCE_PIPELINE } from "@/src/lib/ai/engine/enhance-pipeline";
+import { createEnhanceTraceId, logEnhance } from "@/src/lib/ai/engine/enhance-logger";
 
 export type EnhanceResumeActionResult =
   | {

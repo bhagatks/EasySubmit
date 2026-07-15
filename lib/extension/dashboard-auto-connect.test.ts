@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createExtensionToken } from "@/lib/extension/auth-token";
 import { EXTENSION_MESSAGE } from "@/src/shared/extension/constants";
 import { maybeAutoConnectExtensionFromDashboard } from "@/src/shared/extension/dashboard-auto-connect";
 
 describe("maybeAutoConnectExtensionFromDashboard", () => {
   beforeEach(() => {
+    process.env.EXTENSION_TOKEN_SECRET = "test-secret";
     vi.stubGlobal("location", {
       origin: "http://localhost:3000",
       hostname: "localhost",
@@ -41,11 +43,13 @@ describe("maybeAutoConnectExtensionFromDashboard", () => {
       }),
     };
 
+    const token = createExtensionToken("user-new", 60_000);
+
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => ({ success: true, token: "ext-token" }),
+        json: async () => ({ success: true, token, userId: "user-new" }),
       }),
     );
 
@@ -56,18 +60,88 @@ describe("maybeAutoConnectExtensionFromDashboard", () => {
     });
   });
 
-  it("no-ops when extension already has a token", async () => {
+  it("skips token delivery when the extension already matches the dashboard user", async () => {
+    const token = createExtensionToken("user-same", 60_000);
     const runtime = {
-      sendMessage: vi.fn((_message, callback) => {
-        callback({ token: "existing-token" });
+      sendMessage: vi.fn((message: { action?: string }, callback: (response: unknown) => void) => {
+        if (message.action === EXTENSION_MESSAGE.GET_AUTH) {
+          callback({ token });
+        }
       }),
     };
 
-    const fetchMock = vi.fn();
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ success: true, token, userId: "user-same" }),
+      }),
+    );
 
     await expect(maybeAutoConnectExtensionFromDashboard(runtime)).resolves.toBe(true);
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(runtime.sendMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("replaces the token when the dashboard user differs from the extension token", async () => {
+    const existingToken = createExtensionToken("user-old", 60_000);
+    const nextToken = createExtensionToken("user-new", 60_000);
+    const runtime = {
+      sendMessage: vi.fn((message: { action?: string }, callback: (response: unknown) => void) => {
+        if (message.action === EXTENSION_MESSAGE.GET_AUTH) {
+          callback({ token: existingToken });
+          return;
+        }
+        if (message.action === EXTENSION_MESSAGE.AUTH_TOKEN) {
+          callback({ success: true });
+        }
+      }),
+    };
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ success: true, token: nextToken, userId: "user-new" }),
+      }),
+    );
+
+    await expect(maybeAutoConnectExtensionFromDashboard(runtime)).resolves.toBe(true);
+    expect(runtime.sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: EXTENSION_MESSAGE.AUTH_TOKEN,
+        token: nextToken,
+      }),
+      expect.any(Function),
+    );
+  });
+
+  it("clears extension auth when the dashboard session cannot issue a token", async () => {
+    const existingToken = createExtensionToken("user-old", 60_000);
+    const runtime = {
+      sendMessage: vi.fn((message: { action?: string }, callback: (response: unknown) => void) => {
+        if (message.action === EXTENSION_MESSAGE.GET_AUTH) {
+          callback({ token: existingToken });
+          return;
+        }
+        if (message.action === EXTENSION_MESSAGE.CLEAR_AUTH) {
+          callback({ success: true });
+        }
+      }),
+    };
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        json: async () => ({ success: false }),
+      }),
+    );
+
+    await expect(maybeAutoConnectExtensionFromDashboard(runtime)).resolves.toBe(false);
+    expect(runtime.sendMessage).toHaveBeenCalledWith(
+      { action: EXTENSION_MESSAGE.CLEAR_AUTH },
+      expect.any(Function),
+    );
   });
 
   it("returns false when the dashboard session cannot issue a token", async () => {

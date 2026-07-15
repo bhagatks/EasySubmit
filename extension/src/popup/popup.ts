@@ -1,6 +1,11 @@
 import { BRAND, EXTENSION_STORE_URL } from "@shared/brand";
 import { extensionPopupButtonCss } from "@shared/brand-buttons";
+import { buildExtensionLoginCallbackPath } from "@shared/extension/connect-account-url";
 import { EXTENSION_MESSAGE } from "@shared/extension/constants";
+import {
+  EXTENSION_POPUP_DISCONNECTED_COPY,
+  resolveExtensionPopupAuthState,
+} from "@shared/extension/extension-auth-sync";
 import { isExtensionForceUpgradeRequired } from "@shared/extension/extension-force-upgrade";
 import type { ExtensionJobStatsResponse, ExtensionRuntimeConfig } from "@shared/extension/types";
 import { tabStatusLabel, type ExtensionTabStatusPayload } from "@shared/extension/tab-status";
@@ -17,6 +22,8 @@ const panelForceUpgrade = document.getElementById("panel-force-upgrade")!;
 const panelConnected = document.getElementById("panel-connected")!;
 
 const accountEmailEl = document.getElementById("account-email")!;
+const disconnectedSubtitleEl = document.getElementById("disconnected-subtitle")!;
+const openSignInBtn = document.getElementById("open-sign-in") as HTMLButtonElement;
 const openDashboardBtn = document.getElementById("open-dashboard") as HTMLButtonElement;
 const upgradeMessageEl = document.getElementById("upgrade-message")!;
 const upgradeExtensionBtn = document.getElementById("upgrade-extension") as HTMLButtonElement;
@@ -129,9 +136,30 @@ async function sendToActiveTab<T>(message: Record<string, unknown>): Promise<T> 
 function openDashboardForSetup(): void {
   void chrome.runtime.sendMessage({
     action: EXTENSION_MESSAGE.OPEN_DASHBOARD,
-    path: "/dashboard/job-tracker",
+    path: "/dashboard/extension",
   });
   window.close();
+}
+
+function openSignInForExtension(): void {
+  void chrome.runtime.sendMessage({
+    action: EXTENSION_MESSAGE.OPEN_DASHBOARD,
+    path: buildExtensionLoginCallbackPath(),
+  });
+  window.close();
+}
+
+function renderDisconnectedPanel(reason: ReturnType<typeof extensionDisconnectedReason>): void {
+  const copy = EXTENSION_POPUP_DISCONNECTED_COPY[reason];
+  disconnectedSubtitleEl.textContent = copy.subtitle;
+  openSignInBtn.textContent = copy.primaryLabel;
+  openDashboardBtn.textContent = copy.secondaryLabel;
+  hidePanelLoading();
+  setPopupView("disconnected");
+}
+
+async function clearExtensionAuth(): Promise<void> {
+  await chrome.runtime.sendMessage({ action: EXTENSION_MESSAGE.CLEAR_AUTH });
 }
 
 function openForceUpgradeUrl(url: string): void {
@@ -155,13 +183,6 @@ async function fetchAuthToken(): Promise<string | null> {
     | undefined;
   const token = auth?.token;
   return typeof token === "string" && token.length > 0 ? token : null;
-}
-
-async function fetchRuntimeConfig(): Promise<ExtensionRuntimeConfig | null> {
-  const configRes = (await chrome.runtime.sendMessage({
-    action: EXTENSION_MESSAGE.GET_CONFIG,
-  })) as { success?: boolean; config?: ExtensionRuntimeConfig };
-  return configRes?.config ?? null;
 }
 
 async function fetchJobStats(): Promise<ExtensionJobStatsResponse | null> {
@@ -251,15 +272,35 @@ function openSettings(): void {
 
 async function bootstrapPopup(): Promise<void> {
   try {
+    await chrome.runtime.sendMessage({ action: EXTENSION_MESSAGE.SYNC_AUTH_FROM_APP_TABS });
+
     const token = await fetchAuthToken();
-    if (!token) {
-      hidePanelLoading();
-      setPopupView("disconnected");
+    const authState = resolveExtensionPopupAuthState({
+      hasToken: Boolean(token),
+      connectedUser: null,
+    });
+
+    if (authState === "disconnected") {
+      renderDisconnectedPanel("never_connected");
       return;
     }
 
-    const [config, tabStatus] = await Promise.all([fetchRuntimeConfig(), resolveTabStatus()]);
-    const runtimeConfig = config ?? {};
+    const configRes = (await chrome.runtime.sendMessage({
+      action: EXTENSION_MESSAGE.GET_CONFIG,
+    })) as { success?: boolean; config?: ExtensionRuntimeConfig };
+    const runtimeConfig = configRes?.config ?? {};
+    const resolvedState = resolveExtensionPopupAuthState({
+      hasToken: true,
+      connectedUser: runtimeConfig.connectedUser,
+    });
+
+    if (resolvedState === "sign_in_required") {
+      await clearExtensionAuth();
+      renderDisconnectedPanel("session_expired");
+      return;
+    }
+
+    const [tabStatus] = await Promise.all([resolveTabStatus()]);
 
     hidePanelLoading();
 
@@ -277,8 +318,7 @@ async function bootstrapPopup(): Promise<void> {
       if (stats) renderStats(stats);
     });
   } catch {
-    hidePanelLoading();
-    setPopupView("disconnected");
+    renderDisconnectedPanel("never_connected");
   }
 }
 
@@ -309,9 +349,10 @@ document.getElementById("header-tracker")?.addEventListener("click", openJobTrac
 document.getElementById("header-settings")?.addEventListener("click", openSettings);
 document.getElementById("header-close")?.addEventListener("click", () => window.close());
 document.getElementById("header-refresh")?.addEventListener("click", () => {
-  void refreshThisTab();
+  void bootstrapPopup();
 });
 
+openSignInBtn.addEventListener("click", openSignInForExtension);
 openDashboardBtn.addEventListener("click", openDashboardForSetup);
 upgradeExtensionBtn.addEventListener("click", () => {
   openForceUpgradeUrl(forceUpgradeUpdateUrl);

@@ -23,6 +23,16 @@ export function isStructuredExtractParseError(err: unknown): boolean {
   );
 }
 
+/** Provider rejected native structured output — fall back to text + JSON parse. */
+export function isStructuredOutputUnsupportedError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return /response_format|structured output|json_schema|tool_use|function calling/i.test(message);
+}
+
+function shouldUseTextStructuredFallback(err: unknown): boolean {
+  return isStructuredExtractParseError(err) || isStructuredOutputUnsupportedError(err);
+}
+
 /** Strip markdown fences and extract the outermost JSON object from model text. */
 export function parseJsonObjectFromModelText(text: string): unknown {
   const trimmed = text.trim();
@@ -75,7 +85,7 @@ export async function generateStructuredWithFallback<T extends z.ZodTypeAny>(inp
       mode: "object",
     };
   } catch (err) {
-    if (!isStructuredExtractParseError(err)) throw err;
+    if (!shouldUseTextStructuredFallback(err)) throw err;
 
     const textResult = await generateText({
       model: input.model,
@@ -88,15 +98,15 @@ export async function generateStructuredWithFallback<T extends z.ZodTypeAny>(inp
     });
 
     const raw = parseJsonObjectFromModelText(textResult.text);
-    const validated = input.schema.safeParse(raw);
-    if (!validated.success) {
-      throw err instanceof Error ? err : new Error(String(err));
+    try {
+      return {
+        object: input.schema.parse(raw),
+        tokensUsed: textResult.usage?.totalTokens ?? 0,
+        mode: "text_fallback",
+      };
+    } catch (parseErr) {
+      const message = parseErr instanceof Error ? parseErr.message : String(parseErr);
+      throw new Error(`Structured text fallback parse failed: ${message}`);
     }
-
-    return {
-      object: validated.data,
-      tokensUsed: textResult.usage?.totalTokens ?? 0,
-      mode: "text_fallback",
-    };
   }
 }

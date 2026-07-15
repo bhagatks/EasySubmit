@@ -130,8 +130,8 @@ export async function callOpenRouterFreeText(input: {
       });
     }
 
-    if (!isOpenRouterFreeModel(modelId)) {
-      const message = `OpenRouter returned non-free model "${modelId || "unknown"}"`;
+    if (modelId && !isOpenRouterFreeModel(modelId)) {
+      const message = `OpenRouter returned non-free model "${modelId}"`;
       logEnhance("engine", "openrouter.free.fail", {
         traceId: input.traceId,
         status: response.status,
@@ -145,6 +145,8 @@ export async function callOpenRouterFreeText(input: {
       });
     }
 
+    const effectiveModelId = modelId || OPENROUTER_FREE_MODEL_ID;
+
     const text = payload.choices?.[0]?.message?.content?.trim() ?? "";
     if (!text) {
       throw new OpenRouterFreeGuardError("OpenRouter free response was empty", {
@@ -155,7 +157,7 @@ export async function callOpenRouterFreeText(input: {
 
     logEnhance("engine", "openrouter.free.done", {
       traceId: input.traceId,
-      modelId,
+      modelId: effectiveModelId,
       durationMs: Date.now() - startedAt,
       tokensUsed: tokensFromUsage(payload.usage),
       responseChars: text.length,
@@ -164,7 +166,7 @@ export async function callOpenRouterFreeText(input: {
     return {
       text,
       tokensUsed: tokensFromUsage(payload.usage),
-      modelId,
+      modelId: effectiveModelId,
     };
   } catch (err) {
     if (err instanceof OpenRouterFreeGuardError) {

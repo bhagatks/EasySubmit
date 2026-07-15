@@ -18,6 +18,8 @@ export const metadata = {
   description: PRICING_PAGE_COPY.metaDescription,
 };
 
+export const dynamic = "force-dynamic";
+
 const supported = [
   "LinkedIn",
   "Indeed",

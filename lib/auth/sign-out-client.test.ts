@@ -38,7 +38,12 @@ vi.mock("@/src/lib/ai/session-key-vault", () => ({
   clearSessionApiKeyVault: clearVaultMock,
 }));
 
+vi.mock("@/lib/extension/clear-extension-auth", () => ({
+  clearExtensionAuthFromBrowser: vi.fn().mockResolvedValue(true),
+}));
+
 import { clearClientSessionState, signOutUser } from "@/lib/auth/sign-out-client";
+import { clearExtensionAuthFromBrowser } from "@/lib/extension/clear-extension-auth";
 
 function createStorageMock() {
   let store: Record<string, string> = {};
@@ -97,9 +102,10 @@ describe("sign-out-client", () => {
     expect(localStorage.getItem("openai_key")).toBeNull();
   });
 
-  it("signOutUser clears client state then signs out via NextAuth redirect", async () => {
+  it("signOutUser clears extension auth, client state, then signs out via NextAuth redirect", async () => {
     await signOutUser();
 
+    expect(clearExtensionAuthFromBrowser).toHaveBeenCalledOnce();
     expect(resetStoreMock).toHaveBeenCalledOnce();
     expect(resetIgnitionMock).toHaveBeenCalledOnce();
     expect(clearVaultMock).toHaveBeenCalledOnce();

@@ -11,6 +11,8 @@ export const metadata = {
   description: PRICING_PAGE_COPY.metaDescription,
 };
 
+export const dynamic = "force-dynamic";
+
 
 export default async function PricingPage() {
   const storeUrl = await getExtensionStoreUrl();

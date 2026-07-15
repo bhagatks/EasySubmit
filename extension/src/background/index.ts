@@ -88,6 +88,67 @@ async function getAuthToken(): Promise<string | null> {
   return typeof token === "string" && token.length > 0 ? token : null;
 }
 
+async function clearExtensionAuthStorage(): Promise<void> {
+  await chrome.storage.local.remove([
+    STORAGE_KEYS.authToken,
+    STORAGE_KEYS.pendingApplyJobId,
+  ]);
+
+  const tabs = await chrome.tabs.query({});
+  for (const tab of tabs) {
+    if (tab.id == null) continue;
+    void chrome.tabs
+      .sendMessage(tab.id, { action: EXTENSION_MESSAGE.AUTH_SESSION_CLEARED })
+      .catch(() => undefined);
+  }
+}
+
+const APP_AUTH_SYNC_TAB_PATTERNS = [
+  "http://localhost:3000/*",
+  "http://127.0.0.1:3000/*",
+  "https://easysubmit.ai/*",
+  "https://www.easysubmit.ai/*",
+  "https://*.vercel.app/*",
+];
+
+async function syncAuthFromOpenAppTabs(): Promise<{ synced: boolean; tabCount: number }> {
+  const tabIds = new Set<number>();
+
+  for (const pattern of APP_AUTH_SYNC_TAB_PATTERNS) {
+    try {
+      for (const tab of await chrome.tabs.query({ url: pattern })) {
+        if (tab.id != null) tabIds.add(tab.id);
+      }
+    } catch {
+      // pattern unsupported in this browser build
+    }
+  }
+
+  if (tabIds.size === 0) {
+    return { synced: false, tabCount: 0 };
+  }
+
+  const results = await Promise.all(
+    [...tabIds].map(async (tabId) => {
+      const payload = { action: EXTENSION_MESSAGE.SYNC_DASHBOARD_AUTH };
+      try {
+        const response = await chrome.tabs.sendMessage(tabId, payload);
+        return Boolean((response as { synced?: boolean })?.synced);
+      } catch {
+        try {
+          await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] });
+          const response = await chrome.tabs.sendMessage(tabId, payload);
+          return Boolean((response as { synced?: boolean })?.synced);
+        } catch {
+          return false;
+        }
+      }
+    }),
+  );
+
+  return { synced: results.some(Boolean), tabCount: tabIds.size };
+}
+
 async function apiFetch<T>(
   path: string,
   init?: RequestInit & { timeoutMs?: number },
@@ -365,6 +426,13 @@ chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) =>
     return true;
   }
 
+  if (message?.action === EXTENSION_MESSAGE.CLEAR_AUTH) {
+    void clearExtensionAuthStorage().then(() => {
+      sendResponse({ success: true });
+    });
+    return true;
+  }
+
   if (
     message?.action === EXTENSION_MESSAGE.START_APPLY &&
     typeof message.jobId === "string" &&
@@ -410,8 +478,20 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (action === EXTENSION_MESSAGE.CLEAR_AUTH) {
+    void clearExtensionAuthStorage().then(() => {
+      sendResponse({ success: true });
+    });
+    return true;
+  }
+
   if (action === EXTENSION_MESSAGE.GET_AUTH) {
     void getAuthToken().then((token) => sendResponse({ token }));
+    return true;
+  }
+
+  if (action === EXTENSION_MESSAGE.SYNC_AUTH_FROM_APP_TABS) {
+    void syncAuthFromOpenAppTabs().then(sendResponse);
     return true;
   }
 

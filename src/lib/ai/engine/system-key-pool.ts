@@ -39,6 +39,7 @@ import {
 } from "@/src/lib/ai/engine/pacific-time";
 import type { AiEngineConfig } from "@/src/lib/services/ai-engine-config";
 import { AI_ENGINE_DEFAULTS } from "@/src/lib/services/ai-engine-config";
+import { logEnhance } from "@/src/lib/ai/engine/enhance-logger";
 
 type EnvMockSlot = {
   label: string;
@@ -81,13 +82,27 @@ export type SystemKeyPoolErrorCode = "capacity_exhausted" | "pool_exhausted";
 
 export class SystemKeyPoolError extends Error {
   readonly code: SystemKeyPoolErrorCode;
+  readonly slotAttempts: PoolSlotAttempt[];
 
-  constructor(code: SystemKeyPoolErrorCode, message: string) {
+  constructor(
+    code: SystemKeyPoolErrorCode,
+    message: string,
+    slotAttempts: PoolSlotAttempt[] = [],
+  ) {
     super(message);
     this.name = "SystemKeyPoolError";
     this.code = code;
+    this.slotAttempts = slotAttempts;
   }
 }
+
+export type PoolSlotAttempt = {
+  slot: number;
+  label: string;
+  provider: SystemPoolProvider;
+  kind: ProviderFailureKind | "key_unavailable" | "skipped_unhealthy";
+  message: string;
+};
 
 const envMockSlots = new Map<number, EnvMockSlot>();
 let roundRobinIndex = 0;
@@ -181,6 +196,15 @@ export function isRetryableProviderStatus(status: number): boolean {
 
 type ProviderFailureKind = "rpm" | "daily_quota" | "transient" | "fatal";
 
+function formatPoolExhaustedMessage(attempts: PoolSlotAttempt[]): string {
+  const base = "All EasySubmit AI keys failed or are temporarily unavailable.";
+  if (!attempts.length) return base;
+  const detail = attempts
+    .map((a) => `${a.label} (${a.provider}): ${a.kind} — ${a.message.slice(0, 120)}`)
+    .join("; ");
+  return `${base} Attempts: ${detail}`;
+}
+
 function classifyProviderFailure(err: unknown): {
   kind: ProviderFailureKind;
   status?: number;
@@ -189,6 +213,9 @@ function classifyProviderFailure(err: unknown): {
 } {
   if (err instanceof OpenRouterFreeGuardError) {
     const status = err.status;
+    if (err.code === "parse_error") {
+      return { kind: "fatal", status, message: err.message };
+    }
     if (status === 429) {
       return {
         kind: "rpm",
@@ -516,13 +543,30 @@ export async function executeWithPoolRetry<T>(
 
   const slotByIndex = new Map(slots.map((slot) => [slot.slot, slot]));
   const transientRetries = new Map<number, number>();
+  const slotAttempts: PoolSlotAttempt[] = [];
 
   for (const slotIndex of attemptOrder) {
     const slot = slotByIndex.get(slotIndex);
     if (!slot) continue;
 
     const apiKey = await resolveApiKey(slot);
-    if (!apiKey) continue;
+    if (!apiKey) {
+      const attempt: PoolSlotAttempt = {
+        slot: slot.slot,
+        label: slot.label,
+        provider: slot.provider,
+        kind: "key_unavailable",
+        message: "Vault/env key missing or decrypt failed",
+      };
+      slotAttempts.push(attempt);
+      logEnhance("engine", "pool.slot.skip", {
+        slot: slot.slot,
+        label: slot.label,
+        provider: slot.provider,
+        reason: attempt.kind,
+      });
+      continue;
+    }
 
     try {
       const result = await fn({
@@ -546,6 +590,23 @@ export async function executeWithPoolRetry<T>(
       };
     } catch (err) {
       const failure = classifyProviderFailure(err);
+      const attempt: PoolSlotAttempt = {
+        slot: slot.slot,
+        label: slot.label,
+        provider: slot.provider,
+        kind: failure.kind,
+        message: failure.message,
+      };
+      slotAttempts.push(attempt);
+      logEnhance("engine", "pool.slot.fail", {
+        slot: slot.slot,
+        label: slot.label,
+        provider: slot.provider,
+        billingMode: slot.billingMode,
+        failureKind: failure.kind,
+        status: failure.status ?? null,
+        message: failure.message.slice(0, 240),
+      });
 
       if (failure.kind === "daily_quota") {
         await markSlotDailyExhausted(slot);
@@ -603,7 +664,8 @@ export async function executeWithPoolRetry<T>(
 
   throw new SystemKeyPoolError(
     "pool_exhausted",
-    "All EasySubmit AI keys failed or are temporarily unavailable.",
+    formatPoolExhaustedMessage(slotAttempts),
+    slotAttempts,
   );
 }
 

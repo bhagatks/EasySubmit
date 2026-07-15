@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
   isStructuredExtractParseError,
+  isStructuredOutputUnsupportedError,
   parseJsonObjectFromModelText,
 } from "@/src/lib/ai/engine/structured-extract";
 
@@ -11,6 +12,14 @@ describe("structured-extract helpers", () => {
       isStructuredExtractParseError(new Error("No object generated: could not parse the response.")),
     ).toBe(true);
     expect(isStructuredExtractParseError(new Error("429 rate limit"))).toBe(false);
+  });
+
+  it("detects providers that reject native structured output", () => {
+    expect(
+      isStructuredOutputUnsupportedError(
+        new Error("This response_format type is unavailable now"),
+      ),
+    ).toBe(true);
   });
 
   it("parses JSON from fenced model text", () => {

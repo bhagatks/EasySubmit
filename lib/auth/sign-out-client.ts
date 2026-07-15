@@ -1,5 +1,6 @@
 import { signOut } from "next-auth/react";
 import { clearEasySubmitClientStorage } from "@/lib/auth/client-storage";
+import { clearExtensionAuthFromBrowser } from "@/lib/extension/clear-extension-auth";
 
 /**
  * Clear client-side auth state before NextAuth sign-out.
@@ -8,7 +9,6 @@ import { clearEasySubmitClientStorage } from "@/lib/auth/client-storage";
  * BYOK session vault, onboarding/ignition prefs, studio UI prefs, and related caches.
  *
  * Server data (profiles, job tracker, vaulted BYOK refs) is unchanged.
- * Chrome extension storage is unchanged — extension handles its own auth lifecycle.
  */
 export function clearClientSessionState(): void {
   clearEasySubmitClientStorage();
@@ -16,6 +16,7 @@ export function clearClientSessionState(): void {
 
 /** Sign out via NextAuth and return the user to `/login` (always stays on EasySubmit). */
 export async function signOutUser(): Promise<void> {
+  await clearExtensionAuthFromBrowser();
   clearClientSessionState();
 
   const callbackUrl = "/login?signedOut=1";

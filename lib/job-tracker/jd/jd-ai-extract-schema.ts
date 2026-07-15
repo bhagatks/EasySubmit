@@ -27,16 +27,19 @@ export const jdAiExtractSchema = z.object({
   summaryTheme: z
     .string()
     .max(240)
+    .default("")
     .describe("One sentence — what the resume summary MUST lead with for this role"),
   targetVerbs: z
     .array(z.string().max(24))
     .max(10)
+    .default([])
     .describe("Past-tense action verbs from the responsibilities section"),
   deliverables: z.array(z.string()).max(12).default([]),
   impactDimensions: z.array(impactDimensionSchema).max(5).default([]),
   emphasisAreas: z
     .array(z.string().max(80))
     .max(6)
+    .default([])
     .describe(
       "Broader domains or architectural patterns — NOT specific tools (e.g. Distributed Systems, not Python or Kafka)",
     ),

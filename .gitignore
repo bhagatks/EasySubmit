@@ -39,6 +39,8 @@ public/avatars/*.webp
 
 # debug
 npm-debug.log*
+tmp/
+design-artifacts/
 
 # typescript
 *.tsbuildinfo
